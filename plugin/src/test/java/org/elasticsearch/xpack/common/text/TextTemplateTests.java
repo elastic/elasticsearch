@@ -62,7 +62,7 @@ public class TextTemplateTests extends ESTestCase {
                     }
                 };
 
-        when(service.compile(new Script(type, lang, templateText,
+        when(service.compile(new Script(type, type == ScriptType.STORED ? null : lang, templateText,
                 type == ScriptType.INLINE ? Collections.singletonMap("content_type", "text/plain") : null,
                 merged), Watcher.SCRIPT_TEMPLATE_CONTEXT)).thenReturn(compiledTemplate);
 
@@ -84,7 +84,7 @@ public class TextTemplateTests extends ESTestCase {
                 }
             };
 
-        when(service.compile(new Script(type, lang, templateText,
+        when(service.compile(new Script(type, type == ScriptType.STORED ? null : lang, templateText,
                 type == ScriptType.INLINE ? Collections.singletonMap("content_type", "text/plain") : null,
                 model), Watcher.SCRIPT_TEMPLATE_CONTEXT)).thenReturn(compiledTemplate);
 
@@ -114,7 +114,8 @@ public class TextTemplateTests extends ESTestCase {
 
     public void testParser() throws Exception {
         ScriptType type = randomScriptType();
-        TextTemplate template = templateBuilder(type, "_template", singletonMap("param_key", "param_val"));
+        TextTemplate template =
+                templateBuilder(type, "_template", singletonMap("param_key", "param_val"));
         XContentBuilder builder = jsonBuilder().startObject();
         switch (type) {
             case INLINE:
@@ -134,7 +135,9 @@ public class TextTemplateTests extends ESTestCase {
     }
 
     public void testParserParserSelfGenerated() throws Exception {
-        TextTemplate template = templateBuilder(randomScriptType(), "_template", singletonMap("param_key", "param_val"));
+        ScriptType type = randomScriptType();
+        TextTemplate template =
+                templateBuilder(type, "_template", singletonMap("param_key", "param_val"));
 
         XContentBuilder builder = jsonBuilder().value(template);
         BytesReference bytes = builder.bytes();

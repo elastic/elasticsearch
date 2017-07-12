@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.watcher.Watcher;
@@ -48,7 +49,8 @@ public class WatcherSearchTemplateService extends AbstractComponent {
             watcherContextParams.putAll(source.getParams());
         }
         // Templates are always of lang mustache:
-        Script template = new Script(source.getType(), "mustache", source.getIdOrCode(), source.getOptions(), watcherContextParams);
+        Script template = new Script(source.getType(), source.getType() == ScriptType.STORED ? null : "mustache",
+                source.getIdOrCode(), source.getOptions(), watcherContextParams);
         TemplateScript.Factory compiledTemplate = scriptService.compile(template, Watcher.SCRIPT_TEMPLATE_CONTEXT);
         return compiledTemplate.newInstance(template.getParams()).execute();
     }

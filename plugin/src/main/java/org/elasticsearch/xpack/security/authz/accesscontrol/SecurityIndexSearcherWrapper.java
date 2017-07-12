@@ -58,6 +58,7 @@ import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -272,7 +273,8 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                 userModel.put("metadata", Collections.unmodifiableMap(user.metadata()));
                 params.put("_user", userModel);
                 // Always enforce mustache script lang:
-                script = new Script(script.getType(), "mustache", script.getIdOrCode(), script.getOptions(), params);
+                script = new Script(script.getType(),
+                        script.getType() == ScriptType.STORED ? null : "mustache", script.getIdOrCode(), script.getOptions(), params);
                 TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(script.getParams());
                 return compiledTemplate.execute();
             } else {

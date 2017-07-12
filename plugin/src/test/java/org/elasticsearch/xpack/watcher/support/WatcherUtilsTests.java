@@ -96,6 +96,7 @@ public class WatcherUtilsTests extends ESTestCase {
         BytesReference expectedSource = null;
         Script expectedTemplate = null;
         WatcherSearchTemplateRequest request;
+        boolean stored = false;
         if (randomBoolean()) {
             Map<String, Object> params = new HashMap<>();
             if (randomBoolean()) {
@@ -106,7 +107,8 @@ public class WatcherUtilsTests extends ESTestCase {
             }
             String text = randomAlphaOfLengthBetween(1, 5);
             ScriptType scriptType = randomFrom(ScriptType.values());
-            expectedTemplate = new Script(scriptType, "mustache", text, params);
+            stored = scriptType == ScriptType.STORED;
+            expectedTemplate = new Script(scriptType, stored ? null : "mustache", text, params);
             request = new WatcherSearchTemplateRequest(expectedIndices, expectedTypes, expectedSearchType,
                     expectedIndicesOptions, expectedTemplate);
         } else {
@@ -130,7 +132,7 @@ public class WatcherUtilsTests extends ESTestCase {
         assertThat(result.getSearchType(), equalTo(expectedSearchType));
 
         assertNotNull(result.getTemplate());
-        assertThat(result.getTemplate().getLang(), equalTo("mustache"));
+        assertThat(result.getTemplate().getLang(), equalTo(stored ? null : "mustache"));
         if (expectedSource == null) {
             assertThat(result.getTemplate().getIdOrCode(), equalTo(expectedTemplate.getIdOrCode()));
             assertThat(result.getTemplate().getType(), equalTo(expectedTemplate.getType()));
@@ -194,6 +196,7 @@ public class WatcherUtilsTests extends ESTestCase {
             builder.rawField("body", source);
         }
         Script template = null;
+        boolean stored = false;
         if (randomBoolean()) {
             Map<String, Object> params = new HashMap<>();
             if (randomBoolean()) {
@@ -204,7 +207,8 @@ public class WatcherUtilsTests extends ESTestCase {
             }
             String text = randomAlphaOfLengthBetween(1, 5);
             ScriptType scriptType = randomFrom(ScriptType.values());
-            template = new Script(scriptType, "mustache", text, params);
+            stored = scriptType == ScriptType.STORED;
+            template = new Script(scriptType, stored ? null : "mustache", text, params);
             builder.field("template", template);
         }
         builder.endObject();
@@ -228,7 +232,7 @@ public class WatcherUtilsTests extends ESTestCase {
             assertThat(result.getTemplate().getIdOrCode(), equalTo(template.getIdOrCode()));
             assertThat(result.getTemplate().getType(), equalTo(template.getType()));
             assertThat(result.getTemplate().getParams(), equalTo(template.getParams()));
-            assertThat(result.getTemplate().getLang(), equalTo("mustache"));
+            assertThat(result.getTemplate().getLang(), equalTo(stored ? null : "mustache"));
         }
     }
 

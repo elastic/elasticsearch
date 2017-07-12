@@ -123,7 +123,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                     .setLang("mockscript")
                     .setContent(new BytesArray("{\"script\" : \"['key3' : ctx.payload.key1 + ctx.payload.key2]\"}"), XContentType.JSON)
                     .get());
-            script = new Script(ScriptType.STORED, "mockscript", "my-script", Collections.emptyMap());
+            script = new Script(ScriptType.STORED, null, "my-script", Collections.emptyMap());
         }
 
         // put a watch that has watch level transform:

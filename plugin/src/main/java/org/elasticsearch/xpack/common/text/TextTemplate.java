@@ -47,7 +47,7 @@ public class TextTemplate implements ToXContent {
         if (params == null) {
             params = new HashMap<>();
         }
-        this.script = new Script(type, Script.DEFAULT_TEMPLATE_LANG, template, options, params);
+        this.script = new Script(type, type == ScriptType.STORED ? null : Script.DEFAULT_TEMPLATE_LANG, template, options, params);
         this.inlineTemplate = null;
     }
 
@@ -116,13 +116,6 @@ public class TextTemplate implements ToXContent {
             return new TextTemplate(parser.text());
         } else {
             Script template = Script.parse(parser, Script.DEFAULT_TEMPLATE_LANG);
-
-            // for deprecation of stored script namespaces the default lang is ignored,
-            // so the template lang must be set for a stored script
-            if (template.getType() == ScriptType.STORED) {
-                template = new Script(ScriptType.STORED, Script.DEFAULT_TEMPLATE_LANG, template.getIdOrCode(), template.getParams());
-            }
-
             return new TextTemplate(template);
         }
     }

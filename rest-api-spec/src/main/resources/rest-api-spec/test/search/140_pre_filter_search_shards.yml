@@ -38,18 +38,18 @@ setup:
 
 
 ---
-"pre_filter_shards_after with invalid parameter":
+"pre_filter_shard_size with invalid parameter":
   - skip:
       version: " - 5.99.99"
       reason:  this was added in 6.0.0
   - do:
-      catch:      /preFilterShardsAfter must be >= 1/
+      catch:      /preFilterShardSizemust be >= 1/
       search:
         index: test_1
-        pre_filter_shards_after: 0
+        pre_filter_shard_size: 0
 
 ---
-"pre_filter_shards_after with shards that have no hit":
+"pre_filter_shard_size with shards that have no hit":
   - skip:
       version: " - 5.99.99"
       reason:  this was added in 6.0.0
@@ -89,7 +89,7 @@ setup:
   # this is the case where we have an empty body and don't skip anything since it's match_all
   - do:
       search:
-        pre_filter_shards_after: 1
+        pre_filter_shard_size: 1
 
   - match: { _shards.total: 3 }
   - match: { _shards.successful: 3 }
@@ -100,7 +100,7 @@ setup:
   # this is a case where we can actually skip due to rewrite
   - do:
       search:
-        pre_filter_shards_after: 1
+        pre_filter_shard_size: 1
         body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"} } } }
 
   - match: { _shards.total: 3 }
@@ -112,7 +112,7 @@ setup:
   # this case we skip all except of one since we need a real result
   - do:
       search:
-        pre_filter_shards_after: 1
+        pre_filter_shard_size: 1
         body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2019-02-01", "lt": "2020-02-01"} } } }
 
   - match: { _shards.total: 3 }
@@ -123,7 +123,7 @@ setup:
 
   - do:
       search:
-        pre_filter_shards_after: 1
+        pre_filter_shard_size: 1
         body: {"size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"} } }, "aggs" : { "some_agg"  : { "global" : {} }}}
 
   - match: { _shards.total: 3 }
@@ -136,7 +136,7 @@ setup:
 
   - do:
       search:
-        pre_filter_shards_after: 1
+        pre_filter_shard_size: 1
         body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"}}}, "aggs" : { "idx_terms" : { "terms" : { "field" : "_index", "min_doc_count" : 0 } } } }
 
   - match: { _shards.total: 3 }
@@ -148,7 +148,7 @@ setup:
 
   - do:
       search:
-        pre_filter_shards_after: 1
+        pre_filter_shard_size: 1
         body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"}}}, "aggs" : { "idx_terms" :  { "terms" : { "field" : "_index" } } } }
 
   - match: { _shards.total: 3 }

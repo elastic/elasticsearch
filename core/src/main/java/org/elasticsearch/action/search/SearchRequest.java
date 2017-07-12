@@ -58,7 +58,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
-    public static final int DEFAULT_PRE_FILTER_SHARDS_AFTER = 128;
+    public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 128;
 
     private SearchType searchType = SearchType.DEFAULT;
 
@@ -79,7 +79,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private int maxConcurrentShardRequests = 0;
 
-    private int preFilterShardsAfter = DEFAULT_PRE_FILTER_SHARDS_AFTER;
+    private int preFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -330,26 +330,26 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
     }
     /**
-     * Sets a threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards
+     * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
      * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
      * bounds and the query are disjoint. The default is <tt>128</tt>
      */
-    public void setPreFilterSearchShardsAfter(int preFilterShardsAfter) {
-        if (preFilterShardsAfter < 1) {
-            throw new IllegalArgumentException("preFilterShardsAfter must be >= 1");
+    public void setPreFilterShardSize(int preFilterShardSize) {
+        if (preFilterShardSize < 1) {
+            throw new IllegalArgumentException("preFilterShardSize must be >= 1");
         }
-        this.preFilterShardsAfter = preFilterShardsAfter;
+        this.preFilterShardSize = preFilterShardSize;
     }
 
     /**
-     * Returns a threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards
+     * Returns a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
      * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
      * bounds and the query are disjoint. The default is <tt>128</tt>
      */
-    public int getPreFilterShardsAfter() {
-        return preFilterShardsAfter;
+    public int getPreFilterShardSize() {
+        return preFilterShardSize;
     }
 
     /**
@@ -408,7 +408,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         batchedReduceSize = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             maxConcurrentShardRequests = in.readVInt();
-            preFilterShardsAfter = in.readVInt();
+            preFilterShardSize = in.readVInt();
         }
     }
 
@@ -430,7 +430,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         out.writeVInt(batchedReduceSize);
         if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             out.writeVInt(maxConcurrentShardRequests);
-            out.writeVInt(preFilterShardsAfter);
+            out.writeVInt(preFilterShardSize);
         }
     }
 
@@ -453,14 +453,14 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 Arrays.equals(types, that.types) &&
                 Objects.equals(batchedReduceSize, that.batchedReduceSize) &&
                 Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests) &&
-                Objects.equals(preFilterShardsAfter, that.preFilterShardsAfter) &&
+                Objects.equals(preFilterShardSize, that.preFilterShardSize) &&
                 Objects.equals(indicesOptions, that.indicesOptions);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
-                scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardsAfter);
+                scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize);
     }
 
     @Override
@@ -476,7 +476,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 ", scroll=" + scroll +
                 ", maxConcurrentShardRequests=" + maxConcurrentShardRequests +
                 ", batchedReduceSize=" + batchedReduceSize +
-                ", preFilterShardsAfter=" + preFilterShardsAfter +
+                ", preFilterShardSize=" + preFilterShardSize +
                 ", source=" + source + '}';
     }
 }

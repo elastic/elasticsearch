@@ -38,7 +38,7 @@ public class RandomizingClient extends FilterClient {
     private final String defaultPreference;
     private final int batchedReduceSize;
     private final int maxConcurrentShardRequests;
-    private final int preFilterAfter;
+    private final int preFilterShardSize;
 
 
     public RandomizingClient(Client client, Random random) {
@@ -63,9 +63,9 @@ public class RandomizingClient extends FilterClient {
             this.maxConcurrentShardRequests = -1; // randomly use the default
         }
         if (random.nextBoolean()) {
-            preFilterAfter =  1 + random.nextInt(1 << random.nextInt(7));
+            preFilterShardSize =  1 + random.nextInt(1 << random.nextInt(7));
         } else {
-            preFilterAfter = -1;
+            preFilterShardSize = -1;
         }
     }
 
@@ -76,8 +76,8 @@ public class RandomizingClient extends FilterClient {
         if (maxConcurrentShardRequests != -1) {
             searchRequestBuilder.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
         }
-        if (preFilterAfter != -1) {
-            searchRequestBuilder.setPreFilterShardsAfter(preFilterAfter);
+        if (preFilterShardSize != -1) {
+            searchRequestBuilder.setPreFilterShardSize(preFilterShardSize);
         }
         return searchRequestBuilder;
     }

@@ -89,7 +89,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
         }
 
-        int preFilterShardsAfter = restRequest.paramAsInt("pre_filter_shards_after", SearchRequest.DEFAULT_PRE_FILTER_SHARDS_AFTER);
+        int preFilterShardSize = restRequest.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE);
 
 
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
@@ -101,10 +101,10 @@ public class RestMultiSearchAction extends BaseRestHandler {
             }
         });
         List<SearchRequest> requests = multiRequest.requests();
-        preFilterShardsAfter = Math.max(1, preFilterShardsAfter / (requests.size()+1));
+        preFilterShardSize = Math.max(1, preFilterShardSize / (requests.size()+1));
         for (SearchRequest request : requests) {
             // preserve if it's set on the request
-            request.setPreFilterSearchShardsAfter(Math.min(preFilterShardsAfter, request.getPreFilterShardsAfter()));
+            request.setPreFilterShardSize(Math.min(preFilterShardSize, request.getPreFilterShardSize()));
         }
         return multiRequest;
     }

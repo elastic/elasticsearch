@@ -98,7 +98,7 @@ public class RestSearchAction extends BaseRestHandler {
 
         final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());
         searchRequest.setBatchedReduceSize(batchedReduceSize);
-        searchRequest.setPreFilterSearchShardsAfter(request.paramAsInt("pre_filter_shards_after", searchRequest.getPreFilterShardsAfter()));
+        searchRequest.setPreFilterShardSize(request.paramAsInt("pre_filter_shard_size", searchRequest.getPreFilterShardSize()));
 
         if (request.hasParam("max_concurrent_shard_requests")) {
             // only set if we have the parameter since we auto adjust the max concurrency on the coordinator

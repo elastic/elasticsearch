@@ -77,6 +77,7 @@ The result produced by the above query.
   "_shards" : {
     "total": 2,
     "successful": 2,
+    "skipped" : 0,
     "failed": 0
   },
   "hits" : {

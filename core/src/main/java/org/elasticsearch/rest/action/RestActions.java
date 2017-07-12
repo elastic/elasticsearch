@@ -74,7 +74,7 @@ public class RestActions {
 
     public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params, BroadcastResponse response) throws IOException {
         buildBroadcastShardsHeader(builder, params,
-                                   response.getTotalShards(), response.getSuccessfulShards(), 0, response.getFailedShards(),
+                                   response.getTotalShards(), response.getSuccessfulShards(), -1, response.getFailedShards(),
                                    response.getShardFailures());
     }
 
@@ -84,7 +84,9 @@ public class RestActions {
         builder.startObject(_SHARDS_FIELD.getPreferredName());
         builder.field(TOTAL_FIELD.getPreferredName(), total);
         builder.field(SUCCESSFUL_FIELD.getPreferredName(), successful);
-        builder.field(SKIPPED_FIELD.getPreferredName(), skipped);
+        if (skipped >= 0) {
+            builder.field(SKIPPED_FIELD.getPreferredName(), skipped);
+        }
         builder.field(FAILED_FIELD.getPreferredName(), failed);
         if (shardFailures != null && shardFailures.length > 0) {
             builder.startArray(FAILURES_FIELD.getPreferredName());

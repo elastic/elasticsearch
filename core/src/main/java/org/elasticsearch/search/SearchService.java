@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -843,15 +844,25 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public boolean canMatch(ShardSearchRequest request) throws IOException {
         try (DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, null)) {
             SearchSourceBuilder source = context.request().source();
-            if (source != null) {
+            if (canRewriteToMatchNone(source)) {
                 QueryBuilder queryBuilder = source.query();
-                AggregatorFactories.Builder aggregations = source.aggregations();
-                boolean hasGlobalAggs = aggregations != null && aggregations.hasGlobalAggregationBuilder();
-                if (queryBuilder != null && hasGlobalAggs == false) { // we need to executed hasGlobalAggs is equivalent to match all
-                    return queryBuilder instanceof MatchNoneQueryBuilder == false;
-                }
+                return queryBuilder instanceof MatchNoneQueryBuilder == false;
             }
             return true; // null query means match_all
         }
+    }
+
+    public static boolean canRewriteToMatchNone(SearchSourceBuilder source) {
+        if (source == null || source.query() == null || source.query() instanceof MatchAllQueryBuilder) {
+            return false;
+        } else {
+            AggregatorFactories.Builder aggregations = source.aggregations();
+            if (aggregations != null) {
+                if (aggregations.mustVisiteAllDocs()) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 }

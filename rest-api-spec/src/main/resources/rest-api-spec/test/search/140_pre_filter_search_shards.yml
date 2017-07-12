@@ -58,8 +58,7 @@ setup:
         index: index_1
         type: doc
         id: 1
-        body: { "created_at": "2016-01-01" }
-
+        body: { "created_at": "2016-01-01"}
   - do:
       index:
         index: index_2
@@ -122,6 +121,42 @@ setup:
   - match: { _shards.failed: 0 }
   - match: { hits.total: 0 }
 
+  - do:
+      search:
+        pre_filter_shards_after: 1
+        body: {"size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"} } }, "aggs" : { "some_agg"  : { "global" : {} }}}
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped : 0 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 2 }
+  - match: { aggregations.some_agg.doc_count: 3 }
+
+
+  - do:
+      search:
+        pre_filter_shards_after: 1
+        body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"}}}, "aggs" : { "idx_terms" : { "terms" : { "field" : "_index", "min_doc_count" : 0 } } } }
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped : 0 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 2 }
+  - length: { aggregations.idx_terms.buckets: 3 }
+
+  - do:
+      search:
+        pre_filter_shards_after: 1
+        body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"}}}, "aggs" : { "idx_terms" :  { "terms" : { "field" : "_index" } } } }
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped : 1 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 2 }
+  - length: { aggregations.idx_terms.buckets: 2 }
 
 
 

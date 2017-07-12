@@ -321,16 +321,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private boolean shouldPreFilterSearchShards(SearchRequest searchRequest, GroupShardsIterator<SearchShardIterator> shardIterators) {
         SearchSourceBuilder source = searchRequest.source();
-        if (source == null) {
-            return false;
-        } else if (source.aggregations() != null && source.aggregations().hasGlobalAggregationBuilder()) {
-            return false;
-        } else if (source.query() == null) {
-            // match all in this case
-            return false;
-        }
         return searchRequest.searchType() == QUERY_THEN_FETCH && // we can't do this for DFS it needs to fan out
                 // to all shards all the time
+                SearchService.canRewriteToMatchNone(source) &&
                 searchRequest.getPreFilterShardsAfter() < shardIterators.size();
     }
 

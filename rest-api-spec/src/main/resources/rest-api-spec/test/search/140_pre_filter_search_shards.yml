@@ -43,7 +43,7 @@ setup:
       version: " - 5.99.99"
       reason:  this was added in 6.0.0
   - do:
-      catch:      /preFilterShardSizemust be >= 1/
+      catch: /preFilterShardSize must be >= 1/
       search:
         index: test_1
         pre_filter_shard_size: 0

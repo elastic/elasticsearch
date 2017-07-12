@@ -255,7 +255,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         }
     }
 
-    private static GroupShardsIterator<SearchShardIterator> getShardsIter(String index, OriginalIndices originalIndices, int numShards,
+    static GroupShardsIterator<SearchShardIterator> getShardsIter(String index, OriginalIndices originalIndices, int numShards,
                                                      boolean doReplicas, DiscoveryNode primaryNode, DiscoveryNode replicaNode) {
         ArrayList<SearchShardIterator> list = new ArrayList<>();
         for (int i = 0; i < numShards; i++) {

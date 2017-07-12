@@ -68,14 +68,14 @@ via the <<multi-fields>> parameter.
 [float]
 === Settings to prevent mappings explosion
 
-Defining too many fields in an index or having too many nested documents or too many fields that contain nested
-documents are conditions that can lead to a mapping explosion, a case that occur when a cluster run ot of memory
-and finds itself in a difficult situation to recover. This problem may be more common than expected.
-As an example, consider a situation in which every new document inserted introduced new fields.
-This is entirely legit possibility considering that Elasticsearch has the ability to be schema-less, which means that
-documents can be indexed without explicitly providing a schema. Every time a new field is added it will end up in the
-index's mappings. This isn't worrying for a small amount of data, but it can become an "exploding" situation as the
-mapping grows.
+Defining too many fields in an index is a condition that can lead to a
+mapping explosion, which can cause out of memory errors and difficult
+situations to recover from. This problem may be more common than expected.
+As an example, consider a situation in which every new document inserted
+introduces new fields. This is possible considering with dynamic mappings.
+Every time a document contains new fields, those will end up in the index's
+mappings. This isn't worrying for a small amount of data, but it can become a
+problem as the mapping grows.
 The following settings allow you to limit the number of field mappings that
 can be created manually or dynamically, in order to prevent bad documents from
 causing a mapping explosion:

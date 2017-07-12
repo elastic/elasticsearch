@@ -111,7 +111,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private static final ParseField SPLIT_ON_WHITESPACE = new ParseField("split_on_whitespace")
             .withAllDeprecated("The parser splits on logical operator");
     private static final ParseField ALL_FIELDS_FIELD = new ParseField("all_fields");
-    private static final ParseField TYPE_FIELD = new ParseField("match_type");
+    private static final ParseField TYPE_FIELD = new ParseField("type");
 
     // Mapping types the "all-ish" query can be executed against
     public static final Set<String> ALLOWED_QUERY_MAPPER_TYPES;

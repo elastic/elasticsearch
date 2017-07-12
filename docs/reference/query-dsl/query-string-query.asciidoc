@@ -38,7 +38,7 @@ GET /_search
 ... will be splitted in `new york` and `ny` and each part is analyzed independently.
 When multiple fields are provided it is also possible to modify how the different
 field queries are combined inside each textual part using the `type` parameter.
-The possible modes are described <<multi-match-types, here>> and the default is `best_field`.
+The possible modes are described <<multi-match-types, here>> and the default is `best_fields`.
 
 
 The `query_string` top level parameters include:
@@ -241,7 +241,7 @@ following additional parameters are allowed:
 
 |`type` |How the fields should be combined to build the text query.
 See <<multi-match-types, types>> for a complete example.
-Defaults to `best_field`
+Defaults to `best_fields`
 |=======================================================================
 
 

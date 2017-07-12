@@ -41,6 +41,7 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
@@ -49,6 +50,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
+import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -170,7 +172,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         } else {
             assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(AllTermQuery.class))
                     .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class))
-                    .or(instanceOf(PhraseQuery.class)).or(instanceOf(BoostQuery.class)));
+                    .or(instanceOf(PhraseQuery.class)).or(instanceOf(BoostQuery.class))
+                    .or(instanceOf(MultiPhrasePrefixQuery.class)).or(instanceOf(PrefixQuery.class)).or(instanceOf(SpanQuery.class)));
         }
     }
 
@@ -714,8 +717,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 .add(new Term(STRING_FIELD_NAME, "foo"))
                 .add(new Term(STRING_FIELD_NAME, "bar"))
                 .build();
-            disjuncts.add(new TermQuery(new Term(STRING_FIELD_NAME_2, "foo bar")));
             disjuncts.add(pq);
+            disjuncts.add(new TermQuery(new Term(STRING_FIELD_NAME_2, "foo bar")));
             DisjunctionMaxQuery expectedQuery = new DisjunctionMaxQuery(disjuncts, 0.0f);
             assertThat(query, equalTo(expectedQuery));
         }
@@ -838,7 +841,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "    \"query\" : \"this AND that OR thus\",\n" +
                 "    \"default_field\" : \"content\",\n" +
                 "    \"fields\" : [ ],\n" +
-                "    \"type\" : \"best_field\",\n" +
+                "    \"type\" : \"best_fields\",\n" +
                 "    \"tie_breaker\" : 0.0,\n" +
                 "    \"default_operator\" : \"or\",\n" +
                 "    \"max_determinized_states\" : 10000,\n" +

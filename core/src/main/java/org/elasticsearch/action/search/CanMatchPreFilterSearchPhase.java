@@ -72,6 +72,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<Searc
     @Override
     protected SearchPhase getNextPhase(SearchPhaseResults<SearchTransportService.CanMatchResponse> results,
                                        SearchPhaseContext context) {
+
         return phaseFactory.apply(getIterator((BitSetSearchPhaseResults) results, shardsIts));
     }
 
@@ -127,6 +128,15 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<Searc
         boolean hasResult(int shardIndex) {
             synchronized (possibleMatches) {
                 return possibleMatches.get(shardIndex);
+            }
+        }
+
+        @Override
+        void consumeShardFailure(int shardIndex) {
+            // we have to carry over shard failures in order to account for them in the response.
+            synchronized (possibleMatches) {
+                possibleMatches.set(shardIndex);
+                numMatches++;
             }
         }
 

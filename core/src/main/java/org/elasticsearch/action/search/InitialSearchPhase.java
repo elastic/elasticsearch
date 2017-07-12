@@ -256,6 +256,8 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
          */
         abstract boolean hasResult(int shardIndex);
 
+        void consumeShardFailure(int shardIndex) {}
+
         AtomicArray<Result> getAtomicArray() {
             throw new UnsupportedOperationException();
         }

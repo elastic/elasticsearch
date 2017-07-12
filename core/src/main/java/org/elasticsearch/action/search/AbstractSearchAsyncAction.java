@@ -167,6 +167,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     public final void onShardFailure(final int shardIndex, @Nullable SearchShardTarget shardTarget, Exception e) {
+        results.consumeShardFailure(shardIndex);
         // we don't aggregate shard failures on non active shards (but do keep the header counts right)
         if (TransportActions.isShardNotAvailableException(e)) {
             return;

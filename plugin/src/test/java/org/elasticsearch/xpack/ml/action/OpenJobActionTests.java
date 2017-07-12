@@ -27,6 +27,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.MlMetadata;
@@ -347,44 +348,57 @@ public class OpenJobActionTests extends ESTestCase {
         ClusterState cs = csBuilder.build();
         String[] indices = new String[] { "no_index" };
 
-        assertArrayEquals(new String[] { "no_index" }, OpenJobAction.mappingRequiresUpdate(cs, indices, logger));
+        assertArrayEquals(new String[] { "no_index" }, OpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
     }
 
     public void testMappingRequiresUpdateNullMapping() throws IOException {
         ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("null_mapping", null));
         String[] indices = new String[] { "null_index" };
-        assertArrayEquals(indices, OpenJobAction.mappingRequiresUpdate(cs, indices, logger));
+        assertArrayEquals(indices, OpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
     }
 
     public void testMappingRequiresUpdateNoVersion() throws IOException {
         ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("no_version_field", "NO_VERSION_FIELD"));
         String[] indices = new String[] { "no_version_field" };
-        assertArrayEquals(indices, OpenJobAction.mappingRequiresUpdate(cs, indices, logger));
+        assertArrayEquals(indices, OpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
     }
 
     public void testMappingRequiresUpdateRecentMappingVersion() throws IOException {
         ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_current", Version.CURRENT.toString()));
         String[] indices = new String[] { "version_current" };
-        assertArrayEquals(new String[] {}, OpenJobAction.mappingRequiresUpdate(cs, indices, logger));
+        assertArrayEquals(new String[] {}, OpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
     }
 
     public void testMappingRequiresUpdateMaliciousMappingVersion() throws IOException {
         ClusterState cs = getClusterStateWithMappingsWithMetaData(
                 Collections.singletonMap("version_current", Collections.singletonMap("nested", "1.0")));
         String[] indices = new String[] { "version_nested" };
-        assertArrayEquals(indices, OpenJobAction.mappingRequiresUpdate(cs, indices, logger));
+        assertArrayEquals(indices, OpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
     }
 
     public void testMappingRequiresUpdateOldMappingVersion() throws IOException {
         ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_54", Version.V_5_4_0.toString()));
         String[] indices = new String[] { "version_54" };
-        assertArrayEquals(indices, OpenJobAction.mappingRequiresUpdate(cs, indices, logger));
+        assertArrayEquals(indices, OpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
     }
 
     public void testMappingRequiresUpdateBogusMappingVersion() throws IOException {
         ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_bogus", "0.0"));
         String[] indices = new String[] { "version_bogus" };
-        assertArrayEquals(indices, OpenJobAction.mappingRequiresUpdate(cs, indices, logger));
+        assertArrayEquals(indices, OpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
+    }
+
+    public void testMappingRequiresUpdateNewerMappingVersion() throws IOException {
+        ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_newer", Version.CURRENT));
+        String[] indices = new String[] { "version_newer" };
+        assertArrayEquals(new String[] {}, OpenJobAction.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousVersion(), logger));
+    }
+
+    public void testMappingRequiresUpdateNewerMappingVersionMinor() throws IOException {
+        ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_newer_minor", Version.CURRENT));
+        String[] indices = new String[] { "version_newer_minor" };
+        assertArrayEquals(new String[] {},
+                OpenJobAction.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousMinorVersion(), logger));
     }
 
     public void testMappingRequiresUpdateSomeVersionMix() throws IOException {
@@ -399,7 +413,7 @@ public class OpenJobActionTests extends ESTestCase {
 
         ClusterState cs = getClusterStateWithMappingsWithMetaData(versionMix);
         String[] indices = new String[] { "version_54", "version_null", "version_bogus", "version_bogus2" };
-        assertArrayEquals(indices, OpenJobAction.mappingRequiresUpdate(cs, indices, logger));
+        assertArrayEquals(indices, OpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
     }
 
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder) {

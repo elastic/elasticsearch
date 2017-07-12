@@ -495,7 +495,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             String[] concreteIndices = aliasOrIndex.getIndices().stream().map(IndexMetaData::getIndex).map(Index::getName)
                     .toArray(String[]::new);
 
-            String[] indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, logger);
+            String[] indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, Version.CURRENT, logger);
 
             if (indicesThatRequireAnUpdate.length > 0) {
                 try (XContentBuilder mapping = mappingSupplier.get()) {
@@ -755,7 +755,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         return nodeVersion.onOrAfter(Version.V_5_5_0);
     }
 
-    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Logger logger) {
+    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion, Logger logger) {
         List<String> indicesToUpdate = new ArrayList<>();
 
         ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> currentMapping = state.metaData().findMappings(concreteIndices,
@@ -777,7 +777,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
                         Version mappingVersion = Version.fromString(versionString);
 
-                        if (mappingVersion.equals(Version.CURRENT)) {
+                        if (mappingVersion.onOrAfter(minVersion)) {
                             continue;
                         } else {
                             logger.info("Mappings for [{}] are outdated [{}], updating it[{}].", index, mappingVersion, Version.CURRENT);

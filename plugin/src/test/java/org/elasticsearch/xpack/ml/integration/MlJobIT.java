@@ -339,9 +339,17 @@ public class MlJobIT extends ESRestTestCase {
                 "}";
 
         String jobId1 = "job-with-response-field";
-        String byFieldName1 = "response";
+        String byFieldName1;
         String jobId2 = "job-will-fail-with-mapping-error-on-response-field";
-        String byFieldName2 = "response.time";
+        String byFieldName2;
+        // we should get the friendly advice nomatter which way around the clashing fields are seen
+        if (randomBoolean()) {
+            byFieldName1 = "response";
+            byFieldName2 = "response.time";
+        } else {
+            byFieldName1 = "response.time";
+            byFieldName2 = "response";
+        }
         String jobConfig = String.format(Locale.ROOT, jobTemplate, byFieldName1);
 
         Response response = client().performRequest("put", MachineLearning.BASE_PATH
@@ -354,8 +362,8 @@ public class MlJobIT extends ESRestTestCase {
                         Collections.emptyMap(), new StringEntity(failingJobConfig, ContentType.APPLICATION_JSON)));
 
         assertThat(e.getMessage(),
-                containsString("A field has a different mapping type to an existing field with the same name. " +
-                        "Use the 'results_index_name' setting to assign the job to another index"));
+                containsString("This job would cause a mapping clash with existing field [response] - " +
+                        "avoid the clash by assigning a dedicated results index"));
     }
 
     public void testDeleteJob() throws Exception {

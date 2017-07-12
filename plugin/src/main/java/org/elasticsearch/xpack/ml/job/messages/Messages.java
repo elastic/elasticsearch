@@ -135,8 +135,7 @@ public final class Messages {
     public static final String JOB_CONFIG_DETECTOR_OVER_DISALLOWED =
             "''over'' is not a permitted value for {0}";
     public static final String JOB_CONFIG_MAPPING_TYPE_CLASH =
-            "A field has a different mapping type to an existing field with the same name. " +
-                    "Use the 'results_index_name' setting to assign the job to another index";
+            "This job would cause a mapping clash with existing field [{0}] - avoid the clash by assigning a dedicated results index";
     public static final String JOB_CONFIG_TIME_FIELD_NOT_ALLOWED_IN_ANALYSIS_CONFIG =
             "data_description.time_field may not be used in the analysis_config";
 

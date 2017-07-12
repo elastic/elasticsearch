@@ -308,7 +308,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(detector1.build(), detector2.build()));
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class, ac::build);
-        assertThat(e.getMessage(), equalTo("Fields a and a.b cannot both be used in the same analysis_config"));
+        assertThat(e.getMessage(), equalTo("Fields [a] and [a.b] cannot both be used in the same analysis_config"));
     }
 
     public void testBuild_GivenOverlappingNestedFields() {
@@ -319,7 +319,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         ac.setInfluencers(Arrays.asList("a.b", "d"));
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class, ac::build);
-        assertThat(e.getMessage(), equalTo("Fields a.b and a.b.c cannot both be used in the same analysis_config"));
+        assertThat(e.getMessage(), equalTo("Fields [a.b] and [a.b.c] cannot both be used in the same analysis_config"));
     }
 
     public void testBuild_GivenNonOverlappingNestedFields() {

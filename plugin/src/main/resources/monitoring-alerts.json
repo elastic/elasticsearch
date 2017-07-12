@@ -1,6 +1,6 @@
 {
   "index_patterns": ".monitoring-alerts-${monitoring.template.version}",
-  "version": 6000002,
+  "version": 6000026,
   "settings": {
     "index": {
       "number_of_shards": 1,

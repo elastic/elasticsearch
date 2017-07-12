@@ -49,7 +49,7 @@ public class ClusterAlertsUtil {
      * The last time that all watches were updated. For now, all watches have been updated in the same version and should all be replaced
      * together.
      */
-    public static final int LAST_UPDATED_VERSION = Version.V_6_0_0_alpha2.id;
+    public static final int LAST_UPDATED_VERSION = Version.V_6_0_0_beta1.id;
 
     /**
      * An unsorted list of Watch IDs representing resource files for Monitoring Cluster Alerts.

@@ -212,7 +212,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test1").get();
         assertHitCount(searchResponse, 1L);
 
-        countResponse = client().prepareSearch("test2").setSize(0).setPreFilterShardsAfter(Integer.MAX_VALUE).get();
+        countResponse = client().prepareSearch("test2").setSize(0).get();
         assertThat(countResponse.getTotalShards(), equalTo(2));
         assertThat(countResponse.getSuccessfulShards(), equalTo(1));
 

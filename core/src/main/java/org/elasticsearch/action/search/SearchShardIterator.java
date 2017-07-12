@@ -34,6 +34,7 @@ public final class SearchShardIterator extends PlainShardIterator {
 
     private final OriginalIndices originalIndices;
     private String clusterAlias;
+    private boolean skip = false;
 
     /**
      * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
@@ -57,5 +58,14 @@ public final class SearchShardIterator extends PlainShardIterator {
 
     public String getClusterAlias() {
         return clusterAlias;
+    }
+
+    void resetAndSkip() {
+        reset();
+        skip = true;
+    }
+
+    boolean skip() {
+        return skip;
     }
 }

@@ -103,7 +103,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
         List<SearchRequest> requests = multiRequest.requests();
         preFilterShardsAfter = Math.max(1, preFilterShardsAfter / (requests.size()+1));
         for (SearchRequest request : requests) {
-            request.setPreFilterSearchShardsAfter(preFilterShardsAfter);
+            // preserve if it's set on the request
+            request.setPreFilterSearchShardsAfter(Math.min(preFilterShardsAfter, request.getPreFilterShardsAfter()));
         }
         return multiRequest;
     }

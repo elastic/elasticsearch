@@ -105,7 +105,7 @@ final class FetchSearchPhase extends SearchPhase {
             -> moveToNextPhase(searchPhaseController, scrollId, reducedQueryPhase, queryAndFetchOptimization ?
             queryResults : fetchResults);
         if (queryAndFetchOptimization) {
-            assert phaseResults.isEmpty() || phaseResults.get(0).fetchResult() != null : "phaseResults emtpy [" + phaseResults.isEmpty()
+            assert phaseResults.isEmpty() || phaseResults.get(0).fetchResult() != null : "phaseResults empty [" + phaseResults.isEmpty()
                 + "], single result: " +  phaseResults.get(0).fetchResult();
             // query AND fetch optimization
             finishPhase.run();

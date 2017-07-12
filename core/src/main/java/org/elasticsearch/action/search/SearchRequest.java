@@ -58,7 +58,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
-    public static final int DEFAULT_PRE_FILTER_SHARDS_AFTER = 1;
+    public static final int DEFAULT_PRE_FILTER_SHARDS_AFTER = 128;
 
     private SearchType searchType = SearchType.DEFAULT;
 

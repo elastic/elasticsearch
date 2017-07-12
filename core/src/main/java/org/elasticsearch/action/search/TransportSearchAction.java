@@ -314,11 +314,24 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             searchRequest.setMaxConcurrentShardRequests(Math.min(256, nodeCount
                 * IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getDefault(Settings.EMPTY)));
         }
-        boolean preFilterSearchShards = searchRequest.searchType() == QUERY_THEN_FETCH && // we can't do this for DFS it needs to fan out
-            // to all shards all the time
-            searchRequest.getPreFilterShardsAfter() < shardIterators.size();
+        boolean preFilterSearchShards = shouldPreFilterSearchShards(searchRequest, shardIterators);
         searchAsyncAction(task, searchRequest, shardIterators, timeProvider, connectionLookup, clusterState.version(),
             Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, listener, preFilterSearchShards).start();
+    }
+
+    private boolean shouldPreFilterSearchShards(SearchRequest searchRequest, GroupShardsIterator<SearchShardIterator> shardIterators) {
+        SearchSourceBuilder source = searchRequest.source();
+        if (source == null) {
+            return false;
+        } else if (source.aggregations() != null && source.aggregations().hasGlobalAggregationBuilder()) {
+            return false;
+        } else if (source.query() == null) {
+            // match all in this case
+            return false;
+        }
+        return searchRequest.searchType() == QUERY_THEN_FETCH && // we can't do this for DFS it needs to fan out
+                // to all shards all the time
+                searchRequest.getPreFilterShardsAfter() < shardIterators.size();
     }
 
     static GroupShardsIterator<SearchShardIterator> mergeShardsIterators(GroupShardsIterator<ShardIterator> localShardsIterator,

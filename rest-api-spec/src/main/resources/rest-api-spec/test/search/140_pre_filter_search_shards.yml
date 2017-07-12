@@ -83,18 +83,45 @@ setup:
 
   - match: { _shards.total: 3 }
   - match: { _shards.successful: 3 }
+  - match: { _shards.skipped: 0 }
   - match: { _shards.failed: 0 }
   - match: { hits.total: 2 }
 
+  # this is the case where we have an empty body and don't skip anything since it's match_all
+  - do:
+      search:
+        pre_filter_shards_after: 1
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped: 0 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 3 }
+
+  # this is a case where we can actually skip due to rewrite
   - do:
       search:
         pre_filter_shards_after: 1
         body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"} } } }
 
-  - match: { _shards.total: 2 }
-  - match: { _shards.successful: 2 }
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped : 1}
   - match: { _shards.failed: 0 }
   - match: { hits.total: 2 }
+
+  # this case we skip all except of one since we need a real result
+  - do:
+      search:
+        pre_filter_shards_after: 1
+        body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2019-02-01", "lt": "2020-02-01"} } } }
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped : 2} # skip 2 and execute one to fetch the actual empty result
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 0 }
+
 
 
 

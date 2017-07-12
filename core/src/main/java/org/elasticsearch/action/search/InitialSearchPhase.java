@@ -24,7 +24,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -132,7 +131,11 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         assert success;
         for (int i = 0; i < maxConcurrentShardRequests; i++) {
             SearchShardIterator shardRoutings = shardsIts.get(i);
-            performPhaseOnShard(i, shardRoutings, shardRoutings.nextOrNull());
+            if (shardRoutings.skip()) {
+                skipShard(shardRoutings);
+            } else {
+                performPhaseOnShard(i, shardRoutings, shardRoutings.nextOrNull());
+            }
         }
     }
 
@@ -140,7 +143,11 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         final int index = shardExecutionIndex.getAndIncrement();
         if (index < shardsIts.size()) {
             SearchShardIterator shardRoutings = shardsIts.get(index);
-            performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
+            if (shardRoutings.skip()) {
+                skipShard(shardRoutings);
+            } else {
+                performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
+            }
         }
     }
 
@@ -171,8 +178,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         }
     }
 
-    private void onShardResult(FirstResult result, ShardIterator shardIt) {
-        maybeExecuteNext();
+    private void onShardResult(FirstResult result, SearchShardIterator shardIt) {
         assert result.getShardIndex() != -1 : "shard index is not set";
         assert result.getSearchShardTarget() != null : "search shard target must not be null";
         onShardSuccess(result);
@@ -181,12 +187,24 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         // cause the successor to read a wrong value from successfulOps if second phase is very fast ie. count etc.
         // increment all the "future" shards to update the total ops since we some may work and some may not...
         // and when that happens, we break on total ops, so we must maintain them
-        final int xTotalOps = totalOps.addAndGet(shardIt.remaining() + 1);
+        successfulShardExecution(shardIt);
+    }
+
+    private void successfulShardExecution(SearchShardIterator shardsIt) {
+        final int remainingOpsOnIterator;
+        if (shardsIt.skip()) {
+            remainingOpsOnIterator = shardsIt.remaining();
+        } else {
+            remainingOpsOnIterator = shardsIt.remaining() + 1;
+        }
+        final int xTotalOps = totalOps.addAndGet(remainingOpsOnIterator);
         if (xTotalOps == expectedTotalOps) {
             onPhaseDone();
         } else if (xTotalOps > expectedTotalOps) {
             throw new AssertionError("unexpected higher total ops [" + xTotalOps + "] compared to expected ["
                 + expectedTotalOps + "]");
+        } else {
+            maybeExecuteNext();
         }
     }
 
@@ -298,6 +316,11 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         AtomicArray<Result> getAtomicArray() {
             return results;
         }
+    }
+
+    protected void skipShard(SearchShardIterator iterator) {
+        assert iterator.skip();
+        successfulShardExecution(iterator);
     }
 
 }

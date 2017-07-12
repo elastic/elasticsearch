@@ -78,36 +78,29 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<Searc
 
     private GroupShardsIterator<SearchShardIterator> getIterator(BitSetSearchPhaseResults results,
                                                                  GroupShardsIterator<SearchShardIterator> shardsIts) {
-        if (results.numMatches == shardsIts.size()) {
-            shardsIts.iterator().forEachRemaining(i -> i.reset());
-            return shardsIts;
-        } else if (results.numMatches == 0) {
+        int cardinality = results.getNumPossibleMatches();
+        FixedBitSet possibleMatches = results.getPossibleMatches();
+        if (cardinality == 0) {
             // this is a special case where we have no hit but we need to get at least one search response in order
-            // to produce a valid search result with all the aggs etc. at least that is what I think is the case... and clint does so
-            // too :D
-            Iterator<SearchShardIterator> iterator = shardsIts.iterator();
-            if (iterator.hasNext()) {
-                SearchShardIterator next = iterator.next();
-                next.reset();
-                return new GroupShardsIterator<>(Collections.singletonList(next));
-            }
+            // to produce a valid search result with all the aggs etc.
+            possibleMatches.set(0);
         }
-        List<SearchShardIterator> shardIterators = new ArrayList<>(results.numMatches);
         int i = 0;
         for (SearchShardIterator iter : shardsIts) {
-            if (results.possibleMatches.get(i++)) {
+            if (possibleMatches.get(i++)) {
                 iter.reset();
-                shardIterators.add(iter);
+            } else {
+                iter.resetAndSkip();
             }
         }
-        return new GroupShardsIterator<>(shardIterators);
+        return shardsIts;
     }
 
     private static final class BitSetSearchPhaseResults extends InitialSearchPhase.
         SearchPhaseResults<SearchTransportService.CanMatchResponse> {
 
-        private FixedBitSet possibleMatches;
-        private int numMatches;
+        private final FixedBitSet possibleMatches;
+        private int numPossibleMatches;
 
         BitSetSearchPhaseResults(int size) {
             super(size);
@@ -117,27 +110,29 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<Searc
         @Override
         void consumeResult(SearchTransportService.CanMatchResponse result) {
             if (result.canMatch()) {
-                synchronized (possibleMatches) {
-                    possibleMatches.set(result.getShardIndex());
-                    numMatches++;
-                }
+                consumeShardFailure(result.getShardIndex());
             }
         }
 
         @Override
         boolean hasResult(int shardIndex) {
-            synchronized (possibleMatches) {
-                return possibleMatches.get(shardIndex);
-            }
+            return false; // unneeded
         }
 
         @Override
-        void consumeShardFailure(int shardIndex) {
+        synchronized void consumeShardFailure(int shardIndex) {
             // we have to carry over shard failures in order to account for them in the response.
-            synchronized (possibleMatches) {
-                possibleMatches.set(shardIndex);
-                numMatches++;
-            }
+            possibleMatches.set(shardIndex);
+            numPossibleMatches++;
+        }
+
+
+        synchronized int getNumPossibleMatches() {
+            return numPossibleMatches;
+        }
+
+        synchronized FixedBitSet getPossibleMatches() {
+            return possibleMatches;
         }
 
         @Override

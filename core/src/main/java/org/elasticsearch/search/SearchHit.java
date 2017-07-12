@@ -255,7 +255,7 @@ public class SearchHit implements Streamable, ToXContentObject, Iterable<SearchH
     }
 
     /**
-     * Returns bytes reference, also un compress the source if needed.
+     * Returns bytes reference, also uncompress the source if needed.
      */
     public BytesReference getSourceRef() {
         if (this.source == null) {

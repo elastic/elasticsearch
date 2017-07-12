@@ -60,11 +60,18 @@ public final class SearchShardIterator extends PlainShardIterator {
         return clusterAlias;
     }
 
+    /**
+     * Reset the iterator and mark it as skippable
+     * @see #skip()
+     */
     void resetAndSkip() {
         reset();
         skip = true;
     }
 
+    /**
+     * Returns <code>true</code> if the search execution should skip this shard since it can not match any documents given the query.
+     */
     boolean skip() {
         return skip;
     }

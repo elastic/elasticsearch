@@ -21,12 +21,12 @@ package org.elasticsearch.cloud.azure.arm;
 
 import com.microsoft.azure.AzureEnvironment;
 import com.microsoft.azure.PagedList;
-import com.microsoft.azure.RestClient;
 import com.microsoft.azure.credentials.ApplicationTokenCredentials;
 import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.VirtualMachine;
 import com.microsoft.azure.management.compute.VirtualMachines;
-import com.microsoft.azure.management.network.PublicIpAddress;
+import com.microsoft.azure.management.network.PublicIPAddress;
+import com.microsoft.rest.RestClient;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
@@ -126,7 +126,7 @@ public class AzureManagementServiceImpl implements AzureManagementService, AutoC
                 vms = virtualMachines.list();
             } else {
                 logger.debug("Retrieving list of azure machines belonging to [{}] group", groupName);
-                vms = virtualMachines.listByGroup(groupName);
+                vms = virtualMachines.listByResourceGroup(groupName);
             }
 
             // We iterate over all VMs and transform them to our internal objects
@@ -146,14 +146,14 @@ public class AzureManagementServiceImpl implements AzureManagementService, AutoC
             machine.setRegion(vm.region().name());
         }
         machine.setPowerState(AzureVirtualMachine.PowerState.fromAzurePowerState(vm.powerState()));
-        PublicIpAddress primaryPublicIpAddress = vm.getPrimaryPublicIpAddress();
-        if (primaryPublicIpAddress != null) {
-            machine.setPublicIp(primaryPublicIpAddress.ipAddress());
-            if (primaryPublicIpAddress.getAssignedNetworkInterfaceIpConfiguration() != null) {
-                machine.setPrivateIp(primaryPublicIpAddress.getAssignedNetworkInterfaceIpConfiguration().privateIpAddress());
+        PublicIPAddress primaryPublicIPAddress = vm.getPrimaryPublicIPAddress();
+        if (primaryPublicIPAddress != null) {
+            machine.setPublicIp(primaryPublicIPAddress.ipAddress());
+            if (primaryPublicIPAddress.getAssignedNetworkInterfaceIPConfiguration() != null) {
+                machine.setPrivateIp(primaryPublicIPAddress.getAssignedNetworkInterfaceIPConfiguration().privateIPAddress());
             }
         } else if (vm.getPrimaryNetworkInterface() != null) {
-            machine.setPrivateIp(vm.getPrimaryNetworkInterface().primaryPrivateIp());
+            machine.setPrivateIp(vm.getPrimaryNetworkInterface().primaryPrivateIP());
         }
         return machine;
     }

@@ -23,10 +23,11 @@ esplugin {
 }
 
 versions << [
-  'azure': '1.0.0-beta4.1',
+  'azure': '1.1.2',
+  'azure_auth': '1.0.4',
   'adal4j': '1.1.2',
   'okhttp3': '3.3.1',
-  'retrofit': '2.0.2'
+  'retrofit': '2.1.0'
 ]
 
 dependencies {
@@ -44,17 +45,18 @@ dependencies {
   compile "com.microsoft.azure:azure-mgmt-redis:${versions.azure}"
   compile "com.microsoft.azure:azure-mgmt-dns:${versions.azure}"
   compile "com.microsoft.azure:azure-mgmt-cdn:${versions.azure}"
-  compile "com.microsoft.azure:azure-client-authentication:${versions.azure}"
-  compile "com.microsoft.azure:azure-client-runtime:${versions.azure}"
-  compile "com.microsoft.rest:client-runtime:${versions.azure}"
+  compile "com.microsoft.azure:azure-client-authentication:${versions.azure_auth}"
+  compile "com.microsoft.azure:azure-client-runtime:${versions.azure_auth}"
+  compile "com.microsoft.rest:client-runtime:${versions.azure_auth}"
   compile "com.squareup.okhttp3:okhttp:${versions.okhttp3}"
   compile "com.squareup.okhttp3:logging-interceptor:${versions.okhttp3}"
   compile "com.squareup.okhttp3:okhttp-urlconnection:${versions.okhttp3}"
+  compile "com.squareup.okio:okio:1.13.0"
   compile "com.microsoft.azure:adal4j:${versions.adal4j}"
   compile "com.squareup.retrofit2:retrofit:${versions.retrofit}"
+  compile "com.squareup.retrofit2:converter-jackson:${versions.retrofit}"
   compile "com.squareup.retrofit2:adapter-rxjava:${versions.retrofit}"
-  compile "io.reactivex:rxjava:1.1.8"
-  compile "com.squareup.okio:okio:1.13.0"
+  compile "io.reactivex:rxjava:1.2.4"
   // TODO should we declare jackson version ${versions.jackson} instead? but warning we have a 2.8.x in global settings
   compile "com.fasterxml.jackson.core:jackson-databind:2.7.2"
   compile "com.fasterxml.jackson.datatype:jackson-datatype-joda:2.7.2"
@@ -66,13 +68,14 @@ dependencies {
   // TODO should we declare slf4j version ${versions.slf4j} instead? but warning we have a 1.6.2 in global settings
   compile "org.slf4j:slf4j-api:1.7.5"
   compile "net.minidev:json-smart:1.1.1"
-  compile "org.apache.commons:commons-lang3:3.3.1"
+  compile "org.apache.commons:commons-lang3:3.4"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "javax.mail:mail:1.4.7"
   compile "com.google.code.gson:gson:2.2.4"
-  compile "com.google.guava:guava:18.0"
+  compile "com.google.guava:guava:20.0"
   compile "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
-  compile 'com.microsoft.azure:api-annotations:0.0.1'
+//  compile 'com.microsoft.azure:api-annotations:0.0.1'
+  compile 'com.microsoft.azure:azure-annotations:1.2.0'
 }
 
 dependencyLicenses {
@@ -83,6 +86,7 @@ dependencyLicenses {
   mapping from: /okhttp-.*/, to: 'okhttp'
   mapping from: /logging-interceptor.*/, to: 'okhttp'
   mapping from: /adapter-rxjava.*/, to: 'retrofit'
+  mapping from: /converter-jackson.*/, to: 'retrofit'
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /nimbus-jose-jwt.*/, to: 'nimbus'
   mapping from: /oauth2-oidc-sdk.*/, to: 'nimbus'
@@ -123,6 +127,14 @@ thirdPartyAudit.excludes = [
   'org.bouncycastle.jce.spec.ECNamedCurveSpec',
   'org.bouncycastle.math.ec.ECCurve',
   'org.slf4j.ext.EventData',
+  'com.microsoft.azure.management.containerregistry.Registries',
+  'com.microsoft.azure.management.containerregistry.implementation.ContainerRegistryManager',
+  'com.microsoft.azure.management.documentdb.DocumentDBAccounts', 
+  'com.microsoft.azure.management.documentdb.implementation.DocumentDBManager', 
+  'com.microsoft.azure.management.servicebus.ServiceBusNamespaces', 
+  'com.microsoft.azure.management.servicebus.implementation.ServiceBusManager', 
+  'rx.Completable$CompletableOnSubscribe', 
+  'rx.Completable$CompletableSubscriber',
 
   // sun.misc.Unsafe usage
   'com.google.common.cache.Striped64$1',
@@ -130,6 +142,12 @@ thirdPartyAudit.excludes = [
   'com.google.common.cache.Striped64$Cell',
   'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
   'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+  'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+  'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+  'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
+  'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+  'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+  'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
   'rx.internal.util.unsafe.BaseLinkedQueueConsumerNodeRef',
   'rx.internal.util.unsafe.BaseLinkedQueueProducerNodeRef',
   'rx.internal.util.unsafe.ConcurrentCircularArrayQueue',

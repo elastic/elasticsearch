@@ -21,7 +21,7 @@ which contains everything that
 in the Rest API would be placed in the search request body.
 <3> Add a `match_all` query to the `SearchSourceBuilder`.
 
-==== Optional arguments
+===== Optional arguments
 
 Lets first look at some of the optional argument of a `SearchRequest`.
 First of all, the request can be restricted to one or more indices using the
@@ -54,7 +54,7 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-preference
 <1> Use the preference parameter e.g. to execute the search to prefer local
 shards. The The default is to randomize across shards.
 
-==== Using the SearchSourceBuilder
+===== Using the SearchSourceBuilder
 
 Most options controlling the search behavior can be set on the
 `SearchSourceBuilder`,
@@ -84,6 +84,17 @@ After this, the `SearchSourceBuilder` only needs to be added to the
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-setter]
 --------------------------------------------------
 
+===== Adding Aggregations
+
+Aggregations can be added to the search by first creating the appropriate
+`AggregationBuilder` and then setting it on the `SearchSourceBuilder`. In the
+following example we create a `terms` aggregation on company names with a
+sub-aggregation on the average age of employees in the company:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations]
+--------------------------------------------------
 
 [[java-rest-high-document-search-sync]]
 ==== Synchronous Execution
@@ -135,6 +146,8 @@ failures can also be handled by iterating over an array off
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-response-2]
 --------------------------------------------------
 
+===== Accessing SearchHits
+
 To get access to the returned documents, we need to first get the `SearchHits`
 contained in the response:
 
@@ -178,3 +191,51 @@ cases need to be case accordingly:
 --------------------------------------------------
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-hits-singleHit-source]
 --------------------------------------------------
+
+===== Accessing Aggregations
+
+Aggregations can be retrieved from the `SearchResponse` by first getting the
+root of the aggregation tree, the `Aggregations` object, and then getting the
+aggregation by using its name. The following example shows how to retrieve the
+`by_company` terms aggregation, getting the buckets that is keyed with `Elastic`
+and then get the `average_age` sub-aggregation that is nested in this bucket: 
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations-get]
+--------------------------------------------------  
+
+Not that if you access aggregations by name like this, you need to specify the
+aggregation interface according to the type of aggregation you requested,
+otherwise a `ClassCastException` will be thrown:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations-get-wrongCast]
+--------------------------------------------------
+<1> This will throw an exception because "by_company" is a `terms` aggregation
+but we try to retrieve it as a `range` aggregation 
+
+It is also possible to access all aggregations as a map that is keyed by the
+aggregation name. In this case, the cast to the proper aggregation interface
+needs to happen explicitely:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations-asMap]
+--------------------------------------------------
+
+There are also getters that return all top level aggregations as a list:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations-asList]
+--------------------------------------------------  
+
+And last but not least you can iterate over all aggregations and then e.g.
+decide how to further process them based on their type:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations-iterator]
+--------------------------------------------------  

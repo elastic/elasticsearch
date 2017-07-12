@@ -74,7 +74,7 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
  * to assemble the result logically.
  */
 public class QueryStringQueryParser extends XQueryParser {
-    public static final Map<String, FieldQueryExtension> FIELD_QUERY_EXTENSIONS;
+    private static final Map<String, FieldQueryExtension> FIELD_QUERY_EXTENSIONS;
 
     static {
         Map<String, FieldQueryExtension> fieldQueryExtensions = new HashMap<>();
@@ -86,8 +86,8 @@ public class QueryStringQueryParser extends XQueryParser {
     private final Map<String, Float> fieldsAndWeights;
     private final boolean lenient;
 
-    private MultiMatchQueryBuilder.Type matchType = MultiMatchQueryBuilder.Type.BEST_FIELDS;
     private final MultiMatchQuery queryBuilder;
+    private MultiMatchQueryBuilder.Type type = MultiMatchQueryBuilder.Type.BEST_FIELDS;
     private Float groupTieBreaker;
 
     private Analyzer forceAnalyzer;
@@ -148,6 +148,13 @@ public class QueryStringQueryParser extends XQueryParser {
     public void setDefaultOperator(Operator op) {
         super.setDefaultOperator(op);
         queryBuilder.setOccur(op == Operator.AND ? BooleanClause.Occur.MUST : BooleanClause.Occur.SHOULD);
+    }
+
+    /**
+     * @param type Sets how multiple fields should be combined to build textual part queries.
+     */
+    public void setType(MultiMatchQueryBuilder.Type type) {
+        this.type = type;
     }
 
     /**
@@ -305,7 +312,7 @@ public class QueryStringQueryParser extends XQueryParser {
             if (forceAnalyzer != null) {
                 queryBuilder.setAnalyzer(forceAnalyzer);
             }
-            return queryBuilder.parse(matchType, fields, queryText, null);
+            return queryBuilder.parse(type, fields, queryText, null);
         } catch (IOException e) {
             throw new ParseException(e.getMessage());
         } finally {
@@ -753,10 +760,7 @@ public class QueryStringQueryParser extends XQueryParser {
     @Override
     public Query parse(String query) throws ParseException {
         if (query.trim().isEmpty()) {
-            // if the query string is empty we return no docs / empty result
-            // the behavior is simple to change in the client if all docs is required
-            // or a default query
-            return new MatchNoDocsQuery();
+            return queryBuilder.zeroTermsQuery();
         }
         return super.parse(query);
     }

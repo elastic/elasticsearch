@@ -158,6 +158,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         if (randomBoolean()) {
             queryStringQueryBuilder.timeZone(randomDateTimeZone().getID());
         }
+        queryStringQueryBuilder.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
         return queryStringQueryBuilder;
     }
 
@@ -679,13 +680,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .add(new MatchNoDocsQuery("empty fields"), Occur.SHOULD)
             .build();
         assertThat(expectedQuery, equalTo(query));
-
-
     }
 
-    public void testToQuerySplitOnWhi() throws IOException {
+    public void testToQueryTextParsing() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        // splitOnWhitespace=false
         {
             QueryStringQueryBuilder queryBuilder =
                 new QueryStringQueryBuilder("foo bar")
@@ -699,6 +697,25 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             List<Query> disjuncts = new ArrayList<>();
             disjuncts.add(bq1);
             disjuncts.add(new TermQuery(new Term(STRING_FIELD_NAME_2, "foo bar")));
+            DisjunctionMaxQuery expectedQuery = new DisjunctionMaxQuery(disjuncts, 0.0f);
+            assertThat(query, equalTo(expectedQuery));
+        }
+
+        //  type=phrase
+        {
+            QueryStringQueryBuilder queryBuilder =
+                new QueryStringQueryBuilder("foo bar")
+                    .field(STRING_FIELD_NAME).field(STRING_FIELD_NAME_2);
+            queryBuilder.type(MultiMatchQueryBuilder.Type.PHRASE);
+            Query query = queryBuilder.toQuery(createShardContext());
+
+            List<Query> disjuncts = new ArrayList<>();
+            PhraseQuery pq = new PhraseQuery.Builder()
+                .add(new Term(STRING_FIELD_NAME, "foo"))
+                .add(new Term(STRING_FIELD_NAME, "bar"))
+                .build();
+            disjuncts.add(new TermQuery(new Term(STRING_FIELD_NAME_2, "foo bar")));
+            disjuncts.add(pq);
             DisjunctionMaxQuery expectedQuery = new DisjunctionMaxQuery(disjuncts, 0.0f);
             assertThat(query, equalTo(expectedQuery));
         }
@@ -821,6 +838,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "    \"query\" : \"this AND that OR thus\",\n" +
                 "    \"default_field\" : \"content\",\n" +
                 "    \"fields\" : [ ],\n" +
+                "    \"type\" : \"best_field\",\n" +
                 "    \"tie_breaker\" : 0.0,\n" +
                 "    \"default_operator\" : \"or\",\n" +
                 "    \"max_determinized_states\" : 10000,\n" +

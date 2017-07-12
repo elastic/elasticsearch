@@ -77,6 +77,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public static final int DEFAULT_PHRASE_SLOP = 0;
     public static final Fuzziness DEFAULT_FUZZINESS = Fuzziness.AUTO;
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
+    public static final MultiMatchQueryBuilder.Type DEFAULT_TYPE = MultiMatchQueryBuilder.Type.BEST_FIELDS;
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
@@ -86,7 +87,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private static final ParseField QUOTE_ANALYZER_FIELD = new ParseField("quote_analyzer");
     private static final ParseField ALLOW_LEADING_WILDCARD_FIELD = new ParseField("allow_leading_wildcard");
     private static final ParseField AUTO_GENERATE_PHRASE_QUERIES_FIELD = new ParseField("auto_generate_phrase_queries")
-            .withAllDeprecated("This setting is ignored, use explicit quoted text instead");
+            .withAllDeprecated("This setting is ignored, use [type=phrase] instead");
     private static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField("max_determinized_states");
     private static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField("lowercase_expanded_terms")
             .withAllDeprecated("Decision is now made by the analyzer");
@@ -110,6 +111,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private static final ParseField SPLIT_ON_WHITESPACE = new ParseField("split_on_whitespace")
             .withAllDeprecated("The parser splits on logical operator");
     private static final ParseField ALL_FIELDS_FIELD = new ParseField("all_fields");
+    private static final ParseField TYPE_FIELD = new ParseField("match_type");
 
     // Mapping types the "all-ish" query can be executed against
     public static final Set<String> ALLOWED_QUERY_MAPPER_TYPES;
@@ -129,6 +131,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private final String queryString;
 
     private String defaultField;
+
     /**
      * Fields to query against. If left empty will query default field,
      * currently _ALL. Uses a TreeMap to hold the fields so boolean clauses are
@@ -165,6 +168,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private boolean escape = DEFAULT_ESCAPE;
 
     private int phraseSlop = DEFAULT_PHRASE_SLOP;
+
+    private MultiMatchQueryBuilder.Type type = DEFAULT_TYPE;
 
     private Float tieBreaker;
 
@@ -221,7 +226,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         if (in.getVersion().before(Version.V_6_0_0_beta1)) {
             in.readBoolean(); // use_dismax
             tieBreaker = in.readFloat();
+            type = DEFAULT_TYPE;
         } else {
+            type = MultiMatchQueryBuilder.Type.readFromStream(in);
             tieBreaker = in.readOptionalFloat();
         }
         rewrite = in.readOptionalString();
@@ -272,6 +279,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             out.writeBoolean(true); // use_dismax
             out.writeFloat(tieBreaker != null ? tieBreaker : 0.0f);
         } else {
+            type.writeTo(out);
             out.writeOptionalFloat(tieBreaker);
         }
         out.writeOptionalString(this.rewrite);
@@ -348,6 +356,13 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     /** Returns the fields including their respective boosts to run the query against. */
     public Map<String, Float> fields() {
         return this.fieldsAndWeights;
+    }
+
+    /**
+     * @param type Sets how multiple fields should be combined to build textual part queries.
+     */
+    public void type(MultiMatchQueryBuilder.Type type) {
+        this.type = type;
     }
 
     /**
@@ -616,7 +631,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * This query parser splits on operator only.
+     * This setting is ignored, this query parser splits on operator only.
      */
     @Deprecated
     public QueryStringQueryBuilder splitOnWhitespace(boolean value) {
@@ -624,7 +639,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * This query parser splits on operator only.
+     * This setting is ignored, this query parser splits on operator only.
      */
     @Deprecated
     public boolean splitOnWhitespace() {
@@ -643,6 +658,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             builder.value(fieldEntry.getKey() + "^" + fieldEntry.getValue());
         }
         builder.endArray();
+        if (this.type != null) {
+            builder.field(TYPE_FIELD.getPreferredName(), type.toString().toLowerCase(Locale.ENGLISH));
+        }
         if (tieBreaker != null) {
             builder.field(TIE_BREAKER_FIELD.getPreferredName(), this.tieBreaker);
         }
@@ -707,6 +725,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         int fuzzyPrefixLength = QueryStringQueryBuilder.DEFAULT_FUZZY_PREFIX_LENGTH;
         int fuzzyMaxExpansions = QueryStringQueryBuilder.DEFAULT_FUZZY_MAX_EXPANSIONS;
         int phraseSlop = QueryStringQueryBuilder.DEFAULT_PHRASE_SLOP;
+        MultiMatchQueryBuilder.Type type = DEFAULT_TYPE;
         Float tieBreaker = null;
         Boolean analyzeWildcard = null;
         Boolean allowLeadingWildcard = null;
@@ -760,18 +779,12 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                     quoteAnalyzer = parser.text();
                 } else if (ALLOW_LEADING_WILDCARD_FIELD.match(currentFieldName)) {
                     allowLeadingWildcard = parser.booleanValue();
-                } else if (AUTO_GENERATE_PHRASE_QUERIES_FIELD.match(currentFieldName)) {
-                    // ignore, deprecated setting
                 } else if (MAX_DETERMINIZED_STATES_FIELD.match(currentFieldName)) {
                     maxDeterminizedStates = parser.intValue();
-                } else if (LOWERCASE_EXPANDED_TERMS_FIELD.match(currentFieldName)) {
-                    // ignore, deprecated setting
                 } else if (ENABLE_POSITION_INCREMENTS_FIELD.match(currentFieldName)) {
                     enablePositionIncrements = parser.booleanValue();
                 } else if (ESCAPE_FIELD.match(currentFieldName)) {
                     escape = parser.booleanValue();
-                } else if (USE_DIS_MAX_FIELD.match(currentFieldName)) {
-                    // ignore, deprecated setting
                 } else if (FUZZY_PREFIX_LENGTH_FIELD.match(currentFieldName)) {
                     fuzzyPrefixLength = parser.intValue();
                 } else if (FUZZY_MAX_EXPANSIONS_FIELD.match(currentFieldName)) {
@@ -784,6 +797,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                     fuzziness = Fuzziness.parse(parser);
                 } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if (TYPE_FIELD.match(currentFieldName)) {
+                    type = MultiMatchQueryBuilder.Type.parse(parser.text());
                 } else if (TIE_BREAKER_FIELD.match(currentFieldName)) {
                     tieBreaker = parser.floatValue();
                 } else if (ANALYZE_WILDCARD_FIELD.match(currentFieldName)) {
@@ -796,8 +811,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                     quoteFieldSuffix = parser.textOrNull();
                 } else if (LENIENT_FIELD.match(currentFieldName)) {
                     lenient = parser.booleanValue();
-                } else if (LOCALE_FIELD.match(currentFieldName)) {
-                    // ignore, deprecated setting
                 } else if (ALL_FIELDS_FIELD.match(currentFieldName)) {
                     useAllFields = parser.booleanValue();
                 } else if (MAX_DETERMINIZED_STATES_FIELD.match(currentFieldName)) {
@@ -811,6 +824,14 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                     }
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
+                } else if (AUTO_GENERATE_PHRASE_QUERIES_FIELD.match(currentFieldName)) {
+                    // ignore, deprecated setting
+                } else if (LOWERCASE_EXPANDED_TERMS_FIELD.match(currentFieldName)) {
+                    // ignore, deprecated setting
+                } else if (LOCALE_FIELD.match(currentFieldName)) {
+                    // ignore, deprecated setting
+                } else if (USE_DIS_MAX_FIELD.match(currentFieldName)) {
+                    // ignore, deprecated setting
                 } else if (SPLIT_ON_WHITESPACE.match(currentFieldName)) {
                     // ignore, deprecated setting
                 } else {
@@ -847,6 +868,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryStringQuery.fuzzyRewrite(fuzzyRewrite);
         queryStringQuery.phraseSlop(phraseSlop);
         queryStringQuery.fuzziness(fuzziness);
+        queryStringQuery.type(type);
         if (tieBreaker != null) {
             queryStringQuery.tieBreaker(tieBreaker);
         }
@@ -884,6 +906,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 Objects.equals(fuzzyMaxExpansions, other.fuzzyMaxExpansions) &&
                 Objects.equals(fuzzyRewrite, other.fuzzyRewrite) &&
                 Objects.equals(phraseSlop, other.phraseSlop) &&
+                Objects.equals(type, other.type) &&
                 Objects.equals(tieBreaker, other.tieBreaker) &&
                 Objects.equals(rewrite, other.rewrite) &&
                 Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
@@ -900,7 +923,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         return Objects.hash(queryString, defaultField, fieldsAndWeights, defaultOperator, analyzer, quoteAnalyzer,
                 quoteFieldSuffix, allowLeadingWildcard, analyzeWildcard,
                 enablePositionIncrements, fuzziness, fuzzyPrefixLength,
-                fuzzyMaxExpansions, fuzzyRewrite, phraseSlop, tieBreaker, rewrite, minimumShouldMatch, lenient,
+                fuzzyMaxExpansions, fuzzyRewrite, phraseSlop, type, tieBreaker, rewrite, minimumShouldMatch, lenient,
                 timeZone == null ? 0 : timeZone.getID(), escape, maxDeterminizedStates, useAllFields);
     }
 
@@ -989,8 +1012,11 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         }
 
         queryParser.setDefaultOperator(defaultOperator.toQueryParserOperator());
+        queryParser.setType(type);
         if (tieBreaker != null) {
             queryParser.setGroupTieBreaker(tieBreaker);
+        } else {
+            queryParser.setGroupTieBreaker(type.tieBreaker());
         }
         queryParser.setPhraseSlop(phraseSlop);
         queryParser.setQuoteFieldSuffix(quoteFieldSuffix);
@@ -1035,5 +1061,4 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
         return query;
     }
-
 }

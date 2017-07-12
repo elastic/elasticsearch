@@ -43,8 +43,13 @@ import java.util.function.UnaryOperator;
 
 
 /**
- * Script level doc values, the assumption is that any implementation will implement a <code>getValue</code>
- * and a <code>getValues</code> that return the relevant type that then can be used in scripts.
+ * Script level doc values, the assumption is that any implementation will
+ * implement a <code>getValue</code> and a <code>getValues</code> that return
+ * the relevant type that then can be used in scripts.
+ * 
+ * Implementations should not internally re-use objects for the values that they
+ * return as a single {@link ScriptDocValues} instance can be reused to return
+ * values form multiple documents.
  */
 public abstract class ScriptDocValues<T> extends AbstractList<T> {
     /**

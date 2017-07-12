@@ -402,6 +402,7 @@ The previous query will be rendered as:
 [[pre-registered-templates]]
 ===== Pre-registered template
 
+<<<<<<< HEAD
 You can register search templates by storing it in the `config/scripts` directory, in a file using the `.mustache` extension.
 In order to execute the stored template, reference it by it's name under the `template` key:
 
@@ -421,17 +422,19 @@ GET _search/template
 
 <1> Name of the query template in `config/scripts/`, i.e., `storedTemplate.mustache`.
 
-You can also register search templates by storing it in the cluster state.
-There are REST APIs to manage these indexed templates.
+You can also register search templates by using the stored scripts api.
 
 [source,js]
 ------------------------------------------
-POST _search/template/<templatename>
+POST _scripts/<templatename>
 {
-    "template": {
-        "query": {
-            "match": {
-                "title": "{{query_string}}"
+    "script": {
+        "lang": "mustache",
+        "source": {
+            "query": {
+                "match": {
+                    "title": "{{query_string}}"
+                }
             }
         }
     }
@@ -459,7 +462,7 @@ This template can be retrieved by
 
 [source,js]
 ------------------------------------------
-GET _search/template/<templatename>
+GET _scripts/<templatename>
 ------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -469,10 +472,15 @@ which is rendered as:
 [source,js]
 ------------------------------------------
 {
-    "_id" : "<templatename>",
-    "lang" : "mustache",
-    "found" : true,
-    "template" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}"
+    "script" : {
+        "lang" : "mustache",
+        "source" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}",
+        "options": {
+          "content_type" : "application/json; charset=UTF-8"
+        }
+    },
+    "_id": "<templatename>",
+    "found": true
 }
 ------------------------------------------
 // TESTRESPONSE
@@ -481,7 +489,7 @@ This template can be deleted by
 
 [source,js]
 ------------------------------------------
-DELETE _search/template/<templatename>
+DELETE _scripts/<templatename>
 ------------------------------------------
 // CONSOLE
 // TEST[continued]

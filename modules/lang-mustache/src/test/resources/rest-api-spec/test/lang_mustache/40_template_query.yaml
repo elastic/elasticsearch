@@ -19,9 +19,9 @@
       indices.refresh: {}
 
   - do:
-      put_template:
-        id: "1"
-        body: { "template": { "match": { "text": "{{my_value}}" } } }
+      put_script:
+        lang: "1"
+        body: { "script": { "lang": "mustache", "source": { "match": { "text": "{{my_value}}" } } } }
   - match: { acknowledged: true }
 
   - do:

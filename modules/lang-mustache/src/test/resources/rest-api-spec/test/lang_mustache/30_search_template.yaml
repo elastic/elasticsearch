@@ -29,9 +29,9 @@
   - match: { hits.total: 1 }
 
   - do:
-      put_template:
-        id: "1"
-        body: { "template": { "query": { "term": { "text": "{{template}}" } } } }
+      put_script:
+        lang: "1"
+        body: { "script": { "lang": "mustache", "source": { "query": { "term": { "text": "{{template}}" } } } } }
   - match: { acknowledged: true }
 
   - do:

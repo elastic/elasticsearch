@@ -22,6 +22,8 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptReque
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -39,6 +41,8 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetSearchTemplateAction extends BaseRestHandler {
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(RestGetSearchTemplateAction.class));
 
     public static final ParseField _ID_PARSE_FIELD = new ParseField("_id");
 
@@ -47,7 +51,8 @@ public class RestGetSearchTemplateAction extends BaseRestHandler {
     public RestGetSearchTemplateAction(Settings settings, RestController controller) {
         super(settings);
 
-        controller.registerHandler(GET, "/_search/template/{id}", this);
+        controller.registerAsDeprecatedHandler(GET, "/_search/template/{id}", this,
+            "The stored search template API is deprecated. Use stored scripts instead.", DEPRECATION_LOGGER);
     }
 
     @Override

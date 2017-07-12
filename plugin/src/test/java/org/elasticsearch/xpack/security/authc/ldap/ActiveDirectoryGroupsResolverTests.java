@@ -29,10 +29,11 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
 
     public void testResolveSubTree() throws Exception {
         Settings settings = Settings.builder()
-                .put("scope", LdapSearchScope.SUB_TREE)
+                .put("group_search.scope", LdapSearchScope.SUB_TREE)
+                .put("group_search.base_dn", "DC=ad,DC=test,DC=elasticsearch,DC=com")
+                .put("domain_name", "ad.test.elasticsearch.com")
                 .build();
-        ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(settings,
-                "DC=ad,DC=test,DC=elasticsearch,DC=com", false);
+        ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(settings);
         List<String> groups = resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN,
                 TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
         assertThat(groups, containsInAnyOrder(
@@ -48,10 +49,10 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
     public void testResolveOneLevel() throws Exception {
         Settings settings = Settings.builder()
                 .put("scope", LdapSearchScope.ONE_LEVEL)
-                .put("base_dn", "CN=Builtin, DC=ad, DC=test, DC=elasticsearch,DC=com")
+                .put("group_search.base_dn", "CN=Builtin, DC=ad, DC=test, DC=elasticsearch,DC=com")
+                .put("domain_name", "ad.test.elasticsearch.com")
                 .build();
-        ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(settings,
-                "DC=ad,DC=test,DC=elasticsearch,DC=com", false);
+        ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(settings);
         List<String> groups = resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN,
                 TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
         assertThat(groups, hasItem(containsString("Users")));
@@ -59,11 +60,11 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
 
     public void testResolveBaseLevel() throws Exception {
         Settings settings = Settings.builder()
-                .put("scope", LdapSearchScope.BASE)
-                .put("base_dn", "CN=Users, CN=Builtin, DC=ad, DC=test, DC=elasticsearch, DC=com")
+                .put("group_search.scope", LdapSearchScope.BASE)
+                .put("group_search.base_dn", "CN=Users, CN=Builtin, DC=ad, DC=test, DC=elasticsearch, DC=com")
+                .put("domain_name", "ad.test.elasticsearch.com")
                 .build();
-        ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(settings,
-                "DC=ad,DC=test,DC=elasticsearch,DC=com", false);
+        ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(settings);
         List<String> groups = resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN,
                 TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
         assertThat(groups, hasItem(containsString("CN=Users,CN=Builtin")));

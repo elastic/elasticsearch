@@ -95,7 +95,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         try {
             assertThat(sessionFactory.supportsUnauthenticatedSession(), is(true));
         } finally {
-            sessionFactory.shutdown();
+            sessionFactory.close();
         }
 
         if (useAttribute) {
@@ -140,7 +140,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 assertThat(dn, containsString(user));
             }
         } finally {
-            sessionFactory.shutdown();
+            sessionFactory.close();
         }
 
         if (useAttribute) {
@@ -177,7 +177,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             assertNull(session(sessionFactory, user, userPass));
             assertNull(unauthenticatedSession(sessionFactory, user));
         } finally {
-            sessionFactory.shutdown();
+            sessionFactory.close();
         }
 
         if (useAttribute) {
@@ -223,7 +223,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 assertThat(dn, containsString(user));
             }
         } finally {
-            sessionFactory.shutdown();
+            sessionFactory.close();
         }
 
         if (useAttribute) {
@@ -260,7 +260,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             assertNull(session(sessionFactory, user, userPass));
             assertNull(unauthenticatedSession(sessionFactory, user));
         } finally {
-            sessionFactory.shutdown();
+            sessionFactory.close();
         }
 
         if (useAttribute) {
@@ -306,7 +306,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 assertThat(dn, containsString(user));
             }
         } finally {
-            sessionFactory.shutdown();
+            sessionFactory.close();
         }
 
         if (useAttribute) {
@@ -342,7 +342,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             assertNull(session(sessionFactory, user, userPass));
             assertNull(unauthenticatedSession(sessionFactory, user));
         } finally {
-            sessionFactory.shutdown();
+            sessionFactory.close();
         }
 
         if (useAttribute) {
@@ -380,7 +380,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 assertThat(dn, containsString("William Bush"));
             }
         } finally {
-            sessionFactory.shutdown();
+            sessionFactory.close();
         }
     }
 
@@ -434,7 +434,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                         containsString("Philanthropists")));
             }
         } finally {
-            sessionFactory.shutdown();
+            sessionFactory.close();
         }
     }
 
@@ -478,7 +478,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 }
             }
         } finally {
-            sessionFactory.shutdown();
+            sessionFactory.close();
         }
     }
 
@@ -493,7 +493,9 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                         .build(), globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings));
 
         LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.createConnectionPool(config, new SingleServerSet("localhost",
-                randomFrom(ldapServers).getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE);
+                randomFrom(ldapServers).getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE,
+                () -> new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"),
+                () -> "cn=Horatio Hornblower,ou=people,o=sevenSeas");
         try {
             assertThat(connectionPool.getCurrentAvailableConnections(),
                     is(LdapUserSearchSessionFactory.DEFAULT_CONNECTION_POOL_INITIAL_SIZE));
@@ -522,7 +524,9 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                         .build(), globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings));
 
         LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.createConnectionPool(config, new SingleServerSet("localhost",
-                randomFrom(ldapServers).getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE);
+                randomFrom(ldapServers).getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE,
+                () -> new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"),
+                () -> "cn=Horatio Hornblower,ou=people,o=sevenSeas");
         try {
             assertThat(connectionPool.getCurrentAvailableConnections(), is(10));
             assertThat(connectionPool.getMaximumAvailableConnections(), is(12));
@@ -547,7 +551,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             searchSessionFactory = new LdapUserSearchSessionFactory(config, sslService);
         } finally {
             if (searchSessionFactory != null) {
-                searchSessionFactory.shutdown();
+                searchSessionFactory.close();
             }
         }
     }
@@ -570,7 +574,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             future.get();
         } finally {
             if (searchSessionFactory != null) {
-                searchSessionFactory.shutdown();
+                searchSessionFactory.close();
             }
         }
     }
@@ -619,7 +623,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             searchSessionFactory = new LdapUserSearchSessionFactory(config, sslService);
         } finally {
             if (searchSessionFactory != null) {
-                searchSessionFactory.shutdown();
+                searchSessionFactory.close();
             }
         }
 

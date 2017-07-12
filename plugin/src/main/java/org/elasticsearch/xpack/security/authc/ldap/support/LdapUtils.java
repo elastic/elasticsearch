@@ -48,8 +48,7 @@ import java.util.stream.Collectors;
 
 public final class LdapUtils {
 
-    public static final Filter OBJECT_CLASS_PRESENCE_FILTER =
-            Filter.createPresenceFilter("objectClass");
+    public static final Filter OBJECT_CLASS_PRESENCE_FILTER = Filter.createPresenceFilter("objectClass");
 
     private static final Logger LOGGER = ESLoggerFactory.getLogger(LdapUtils.class);
 

@@ -230,7 +230,7 @@ public class LdapRealmTests extends LdapTestCase {
         try {
             assertThat(sessionFactory, is(instanceOf(LdapUserSearchSessionFactory.class)));
         } finally {
-            ((LdapUserSearchSessionFactory)sessionFactory).shutdown();
+            ((LdapUserSearchSessionFactory)sessionFactory).close();
         }
     }
 

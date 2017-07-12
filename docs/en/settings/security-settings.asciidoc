@@ -199,7 +199,7 @@ The attribute to match with the username presented to. Defaults to `uid`.
 `user_search.pool.enabled`::
 Enables or disables connection pooling for user search. When
 disabled a new connection is created for every search. The
-default is `true`.
+default is `true` when `bind_dn` is provided.
 
 `user_search.pool.size`::
 The maximum number of connections to the LDAP server to allow in the
@@ -207,7 +207,7 @@ connection pool. Defaults to `20`.
 
 `user_search.pool.initial_size`::
 The initial number of connections to create to the LDAP server on startup.
-Defaults to `5`.
+Defaults to `0`.
 
 `user_search.pool.health_check.enabled`::
 Flag to enable or disable a health check on LDAP connections in the connection
@@ -216,12 +216,13 @@ Defaults to `true`.
 
 `user_search.pool.health_check.dn`::
 The distinguished name to be retrieved as part of the health check.
-Defaults to the value of `bind_dn`. Required if `bind_dn` is not
-specified.
+Defaults to the value of `bind_dn` if present, and if
+not falls back to `user_search.base_dn`.
 
 `user_search.pool.health_check.interval`::
 The interval to perform background checks of connections in the pool.
 Defaults to `60s`.
+
 `group_search.base_dn`::
 The container DN to search for groups in which the user has membership. When
 this element is absent, Security searches for the attribute specified by
@@ -359,6 +360,14 @@ The domain name of Active Directory. The cluster can derive the URL and
 `user_search_dn` fields from values in this element if those fields are not
 otherwise specified. Required.
 
+`bind_dn`::
+The DN of the user that will be used to bind to Active Directory and perform searches.
+Defaults to Empty.
+
+`bind_password`::
+The password for the user that will be used to bind to Active Directory.
+Defaults to Empty.
+
 `unmapped_groups_as_roles`::
 Takes a boolean variable. When this element is set to `true`, the names of any
 LDAP groups that are not referenced in a role-mapping _file_ are used as role
@@ -400,6 +409,32 @@ Specifies a filter to use to lookup a user given a down level logon name
 `sAMAccountName` in the domain provided. If specified, this
 must be a valid LDAP user search filter, for example
 `(&(objectClass=user)(sAMAccountName={0}))`.
+
+`user_search.pool.enabled`::
+Enables or disables connection pooling for user search. When
+disabled a new connection is created for every search. The
+default is `true` when `bind_dn` is provided.
+
+`user_search.pool.size`::
+The maximum number of connections to the Active Directory server to allow in the
+connection pool. Defaults to `20`.
+
+`user_search.pool.initial_size`::
+The initial number of connections to create to the Active Directory server on startup.
+Defaults to `0`.
+
+`user_search.pool.health_check.enabled`::
+Flag to enable or disable a health check on Active Directory connections in the connection
+pool. Connections are checked in the background at the specified interval.
+Defaults to `true`.
+
+`user_search.pool.health_check.dn`::
+The distinguished name to be retrieved as part of the health check.
+Defaults to the value of `bind_dn` if it is a distinguished name.
+
+`user_search.pool.health_check.interval`::
+The interval to perform background checks of connections in the pool.
+Defaults to `60s`.
 
 `group_search.base_dn`::
 The context to search for groups in which the user has membership.  Defaults

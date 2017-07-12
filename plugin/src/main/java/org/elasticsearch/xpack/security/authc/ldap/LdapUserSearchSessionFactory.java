@@ -6,25 +6,19 @@
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.Filter;
-import com.unboundid.ldap.sdk.GetEntryLDAPConnectionPoolHealthCheck;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
-import com.unboundid.ldap.sdk.LDAPConnectionPoolHealthCheck;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
 import com.unboundid.ldap.sdk.SearchResultEntry;
-import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.RealmSettings;
-import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetaDataResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
@@ -36,7 +30,6 @@ import org.elasticsearch.xpack.ssl.SSLService;
 import java.util.Arrays;
 
 import java.util.HashSet;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -44,12 +37,9 @@ import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.attr
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.createFilter;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.searchForEntry;
 
-class LdapUserSearchSessionFactory extends SessionFactory {
+class LdapUserSearchSessionFactory extends PoolingSessionFactory {
 
-    static final int DEFAULT_CONNECTION_POOL_SIZE = 20;
-    static final int DEFAULT_CONNECTION_POOL_INITIAL_SIZE = 0;
-    static final String DEFAULT_USERNAME_ATTRIBUTE = "uid";
-    static final TimeValue DEFAULT_HEALTH_CHECK_INTERVAL = TimeValue.timeValueSeconds(60L);
+    private static final String DEFAULT_USERNAME_ATTRIBUTE = "uid";
 
     static final String SEARCH_PREFIX = "user_search.";
     static final Setting<String> SEARCH_ATTRIBUTE = new Setting<>("user_search.attribute", DEFAULT_USERNAME_ATTRIBUTE,
@@ -59,36 +49,22 @@ class LdapUserSearchSessionFactory extends SessionFactory {
     private static final Setting<String> SEARCH_FILTER = Setting.simpleString("user_search.filter", Setting.Property.NodeScope);
     private static final Setting<LdapSearchScope> SEARCH_SCOPE = new Setting<>("user_search.scope", (String) null,
             s -> LdapSearchScope.resolve(s, LdapSearchScope.SUB_TREE), Setting.Property.NodeScope);
-
-    private static final Setting<Boolean> POOL_ENABLED = Setting.boolSetting("user_search.pool.enabled",
-            true, Setting.Property.NodeScope);
-    private static final Setting<Integer> POOL_INITIAL_SIZE = Setting.intSetting("user_search.pool.initial_size",
-            DEFAULT_CONNECTION_POOL_INITIAL_SIZE, 0, Setting.Property.NodeScope);
-    private static final Setting<Integer> POOL_SIZE = Setting.intSetting("user_search.pool.size",
-            DEFAULT_CONNECTION_POOL_SIZE, 1, Setting.Property.NodeScope);
-    private static final Setting<TimeValue> HEALTH_CHECK_INTERVAL = Setting.timeSetting("user_search.pool.health_check.interval",
-            DEFAULT_HEALTH_CHECK_INTERVAL, Setting.Property.NodeScope);
-    private static final Setting<Boolean> HEALTH_CHECK_ENABLED = Setting.boolSetting("user_search.pool.health_check.enabled",
-            true, Setting.Property.NodeScope);
-    private static final Setting<Optional<String>> HEALTH_CHECK_DN = new Setting<>("user_search.pool.health_check.dn", (String) null,
-            Optional::ofNullable, Setting.Property.NodeScope);
-
-    private static final Setting<String> BIND_DN = Setting.simpleString("bind_dn",
-            Setting.Property.NodeScope, Setting.Property.Filtered);
-    private static final Setting<String> BIND_PASSWORD = Setting.simpleString("bind_password",
-            Setting.Property.NodeScope, Setting.Property.Filtered);
+    private static final Setting<Boolean> POOL_ENABLED = Setting.boolSetting("user_search.pool.enabled", true, Setting.Property.NodeScope);
 
     private final String userSearchBaseDn;
     private final LdapSearchScope scope;
     private final String searchFilter;
-    private final GroupsResolver groupResolver;
-    private final boolean useConnectionPool;
-
-    private final LDAPConnectionPool connectionPool;
-    private final LdapMetaDataResolver metaDataResolver;
 
     LdapUserSearchSessionFactory(RealmConfig config, SSLService sslService) throws LDAPException {
-        super(config, sslService);
+        super(config, sslService, groupResolver(config.settings()), POOL_ENABLED,
+                () -> LdapUserSearchSessionFactory.bindRequest(config.settings()),
+                () -> {
+                    if (BIND_DN.exists(config.settings())) {
+                        return BIND_DN.get(config.settings());
+                    } else {
+                        return SEARCH_BASE_DN.get(config.settings());
+                    }
+                });
         Settings settings = config.settings();
         if (SEARCH_BASE_DN.exists(settings)) {
             userSearchBaseDn = SEARCH_BASE_DN.get(settings);
@@ -97,55 +73,8 @@ class LdapUserSearchSessionFactory extends SessionFactory {
         }
         scope = SEARCH_SCOPE.get(settings);
         searchFilter = getSearchFilter(config);
-        groupResolver = groupResolver(settings);
-        metaDataResolver = new LdapMetaDataResolver(config.settings(), ignoreReferralErrors);
-        useConnectionPool = POOL_ENABLED.get(settings);
-        if (useConnectionPool) {
-            connectionPool = createConnectionPool(config, serverSet, timeout, logger);
-        } else {
-            connectionPool = null;
-        }
         logger.info("Realm [{}] is in user-search mode - base_dn=[{}], search filter=[{}]",
                 config.name(), userSearchBaseDn, searchFilter);
-    }
-
-    static LDAPConnectionPool createConnectionPool(RealmConfig config, ServerSet serverSet, TimeValue timeout, Logger logger)
-                                                    throws LDAPException {
-        Settings settings = config.settings();
-        SimpleBindRequest bindRequest = bindRequest(settings);
-        final int initialSize = POOL_INITIAL_SIZE.get(settings);
-        final int size = POOL_SIZE.get(settings);
-        LDAPConnectionPool pool = null;
-        boolean success = false;
-        try {
-            pool = LdapUtils.privilegedConnect(() -> new LDAPConnectionPool(serverSet, bindRequest, initialSize, size));
-            pool.setRetryFailedOperationsDueToInvalidConnections(true);
-            if (HEALTH_CHECK_ENABLED.get(settings)) {
-                String entryDn = HEALTH_CHECK_DN.get(settings).orElseGet(() -> bindRequest == null ? null : bindRequest.getBindDN());
-                final long healthCheckInterval = HEALTH_CHECK_INTERVAL.get(settings).millis();
-                if (entryDn != null) {
-                    // Checks the status of the LDAP connection at a specified interval in the background. We do not check on
-                    // on create as the LDAP server may require authentication to get an entry and a bind request has not been executed
-                    // yet so we could end up never getting a connection. We do not check on checkout as we always set retry operations
-                    // and the pool will handle a bad connection without the added latency on every operation
-                    LDAPConnectionPoolHealthCheck healthCheck = new GetEntryLDAPConnectionPoolHealthCheck(entryDn, timeout.millis(),
-                            false, false, false, true, false);
-                    pool.setHealthCheck(healthCheck);
-                    pool.setHealthCheckIntervalMillis(healthCheckInterval);
-                } else {
-                    logger.warn("[" + RealmSettings.getFullSettingKey(config, BIND_DN) + "] and [" +
-                            RealmSettings.getFullSettingKey(config, HEALTH_CHECK_DN) + "] have not been specified so no " +
-                            "ldap query will be run as a health check");
-                }
-            }
-
-            success = true;
-            return pool;
-        } finally {
-            if (success == false && pool != null) {
-                pool.close();
-            }
-        }
     }
 
     static SimpleBindRequest bindRequest(Settings settings) {
@@ -156,23 +85,15 @@ class LdapUserSearchSessionFactory extends SessionFactory {
         }
     }
 
-    public static boolean hasUserSearchSettings(RealmConfig config) {
+    static boolean hasUserSearchSettings(RealmConfig config) {
         return config.settings().getByPrefix("user_search.").isEmpty() == false;
-    }
-
-    @Override
-    public void session(String user, SecureString password, ActionListener<LdapSession> listener) {
-        if (useConnectionPool) {
-            getSessionWithPool(user, password, listener);
-        } else {
-            getSessionWithoutPool(user, password, listener);
-        }
     }
 
     /**
      * Sets up a LDAPSession using the connection pool that potentially holds existing connections to the server
      */
-    private void getSessionWithPool(String user, SecureString password, ActionListener<LdapSession> listener) {
+    @Override
+    void getSessionWithPool(LDAPConnectionPool connectionPool, String user, SecureString password, ActionListener<LdapSession> listener) {
         findUser(user, connectionPool, ActionListener.wrap((entry) -> {
             if (entry == null) {
                 listener.onResponse(null);
@@ -204,7 +125,8 @@ class LdapUserSearchSessionFactory extends SessionFactory {
      *     <li>Creates a new LDAPSession with the bound connection</li>
      * </ol>
      */
-    private void getSessionWithoutPool(String user, SecureString password, ActionListener<LdapSession> listener) {
+    @Override
+    void getSessionWithoutPool(String user, SecureString password, ActionListener<LdapSession> listener) {
         boolean success = false;
         LDAPConnection connection = null;
         try {
@@ -261,33 +183,42 @@ class LdapUserSearchSessionFactory extends SessionFactory {
     }
 
     @Override
-    public void unauthenticatedSession(String user, ActionListener<LdapSession> listener) {
+    void getUnauthenticatedSessionWithPool(LDAPConnectionPool connectionPool, String user, ActionListener<LdapSession> listener) {
+        findUser(user, connectionPool, ActionListener.wrap((entry) -> {
+            if (entry == null) {
+                listener.onResponse(null);
+            } else {
+                final String dn = entry.getDN();
+                LdapSession session = new LdapSession(logger, config, connectionPool, dn, groupResolver, metaDataResolver, timeout,
+                        entry.getAttributes());
+                listener.onResponse(session);
+            }
+        }, listener::onFailure));
+    }
+
+    @Override
+    void getUnauthenticatedSessionWithoutPool(String user, ActionListener<LdapSession> listener) {
         LDAPConnection connection = null;
         boolean success = false;
         try {
-            final LDAPInterface ldapInterface;
-            if (useConnectionPool) {
-                ldapInterface = connectionPool;
-            } else {
-                connection = LdapUtils.privilegedConnect(serverSet::getConnection);
-                connection.bind(bindRequest(config.settings()));
-                ldapInterface = connection;
-            }
+            connection = LdapUtils.privilegedConnect(serverSet::getConnection);
+            connection.bind(bindRequest(config.settings()));
+            final LDAPConnection finalConnection = connection;
 
-            findUser(user, ldapInterface, ActionListener.wrap((entry) -> {
+            findUser(user, finalConnection, ActionListener.wrap((entry) -> {
                 if (entry == null) {
                     listener.onResponse(null);
                 } else {
                     boolean sessionCreated = false;
                     try {
                         final String dn = entry.getDN();
-                        LdapSession session = new LdapSession(logger, config, ldapInterface, dn, groupResolver, metaDataResolver, timeout,
+                        LdapSession session = new LdapSession(logger, config, finalConnection, dn, groupResolver, metaDataResolver, timeout,
                                 entry.getAttributes());
                         sessionCreated = true;
                         listener.onResponse(session);
                     } finally {
-                        if (sessionCreated == false && useConnectionPool == false) {
-                            IOUtils.close((LDAPConnection) ldapInterface);
+                        if (sessionCreated == false) {
+                            IOUtils.close(finalConnection);
                         }
                     }
                 }
@@ -316,16 +247,7 @@ class LdapUserSearchSessionFactory extends SessionFactory {
                 attributesToSearchFor(groupResolver.attributes(), metaDataResolver.attributeNames()));
     }
 
-    /*
-     * This method is used to cleanup the connections
-     */
-    void shutdown() {
-        if (connectionPool != null) {
-            connectionPool.close();
-        }
-    }
-
-    static GroupsResolver groupResolver(Settings settings) {
+    private static GroupsResolver groupResolver(Settings settings) {
         if (SearchGroupsResolver.BASE_DN.exists(settings)) {
             return new SearchGroupsResolver(settings);
         }
@@ -352,17 +274,11 @@ class LdapUserSearchSessionFactory extends SessionFactory {
     public static Set<Setting<?>> getSettings() {
         Set<Setting<?>> settings = new HashSet<>();
         settings.addAll(SessionFactory.getSettings());
+        settings.addAll(PoolingSessionFactory.getSettings());
         settings.add(SEARCH_BASE_DN);
         settings.add(SEARCH_SCOPE);
         settings.add(SEARCH_ATTRIBUTE);
         settings.add(POOL_ENABLED);
-        settings.add(POOL_INITIAL_SIZE);
-        settings.add(POOL_SIZE);
-        settings.add(HEALTH_CHECK_ENABLED);
-        settings.add(HEALTH_CHECK_DN);
-        settings.add(HEALTH_CHECK_INTERVAL);
-        settings.add(BIND_DN);
-        settings.add(BIND_PASSWORD);
         settings.add(SEARCH_FILTER);
 
         settings.addAll(SearchGroupsResolver.getSettings());

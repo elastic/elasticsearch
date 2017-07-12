@@ -132,17 +132,24 @@ public class Upgrade implements ActionPlugin {
     }
 
     private static void preWatcherUpgrade(Client client, ActionListener<Boolean> listener) {
+        ActionListener<DeleteIndexTemplateResponse> triggeredWatchIndexTemplateListener = deleteIndexTemplateListener("triggered_watches",
+                listener, () -> listener.onResponse(true));
+
+        ActionListener<DeleteIndexTemplateResponse> watchIndexTemplateListener = deleteIndexTemplateListener("watches", listener,
+                () -> client.admin().indices().prepareDeleteTemplate("triggered_watches").execute(triggeredWatchIndexTemplateListener));
+
         new WatcherClient(client).watcherStats(new WatcherStatsRequest(), ActionListener.wrap(
                 stats -> {
                     if (stats.watcherMetaData().manuallyStopped()) {
-                        // don't start the watcher after upgrade
+                        // don't start watcher after upgrade
                         listener.onResponse(false);
                     } else {
-                        // stop the watcher
+                        // stop watcher
                         new WatcherClient(client).watcherService(new WatcherServiceRequest().stop(), ActionListener.wrap(
                                 stopResponse -> {
                                     if (stopResponse.isAcknowledged()) {
-                                        listener.onResponse(true);
+                                        // delete old templates before indexing
+                                        client.admin().indices().prepareDeleteTemplate("watches").execute(watchIndexTemplateListener);
                                     } else {
                                         listener.onFailure(new IllegalStateException("unable to stop watcher service"));
                                     }
@@ -153,9 +160,6 @@ public class Upgrade implements ActionPlugin {
     }
 
     private static void postWatcherUpgrade(Client client, Boolean shouldStartWatcher, ActionListener<TransportResponse.Empty> listener) {
-        // if you are confused that these steps are numbered reversed, we are creating the action listeners first
-        // but only calling the deletion at the end of the method (inception style)
-        // step 3, after successful deletion of triggered watch index: start watcher
         ActionListener<DeleteIndexResponse> deleteTriggeredWatchIndexResponse = ActionListener.wrap(deleteIndexResponse ->
                 startWatcherIfNeeded(shouldStartWatcher, client, listener), e -> {
             if (e instanceof IndexNotFoundException) {
@@ -165,25 +169,18 @@ public class Upgrade implements ActionPlugin {
             }
         });
 
-        // step 2, after acknowledged delete triggered watches template: delete triggered watches index
-        ActionListener<DeleteIndexTemplateResponse> triggeredWatchIndexTemplateListener = ActionListener.wrap(r -> {
-            if (r.isAcknowledged()) {
-                client.admin().indices().prepareDelete(".triggered_watches").execute(deleteTriggeredWatchIndexResponse);
-            } else {
-                listener.onFailure(new ElasticsearchException("Deleting triggered_watches template not acknowledged"));
-            }
+        client.admin().indices().prepareDelete(".triggered_watches").execute(deleteTriggeredWatchIndexResponse);
+    }
 
-        }, listener::onFailure);
-
-        // step 1, after acknowledged watches template deletion: delete triggered_watches template
-        ActionListener<DeleteIndexTemplateResponse> watchIndexTemplateListener = ActionListener.wrap(r -> {
+    private static ActionListener<DeleteIndexTemplateResponse> deleteIndexTemplateListener(String name, ActionListener<Boolean> listener,
+                                                                                           Runnable runnable) {
+        return ActionListener.wrap(r -> {
             if (r.isAcknowledged()) {
-                client.admin().indices().prepareDeleteTemplate("triggered_watches").execute(triggeredWatchIndexTemplateListener);
+                runnable.run();
             } else {
-                listener.onFailure(new ElasticsearchException("Deleting watches template not acknowledged"));
+                listener.onFailure(new ElasticsearchException("Deleting [{}] template was not acknowledged", name));
             }
         }, listener::onFailure);
-        client.admin().indices().prepareDeleteTemplate("watches").execute(watchIndexTemplateListener);
     }
 
     private static void startWatcherIfNeeded(Boolean shouldStartWatcher, Client client, ActionListener<TransportResponse.Empty> listener) {

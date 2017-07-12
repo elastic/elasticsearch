@@ -12,8 +12,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.Preference;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -44,16 +46,17 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
     @Inject
     public TransportAckWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver, Clock clock, XPackLicenseState licenseState,
-                                   Watch.Parser parser, InternalClient client) {
+                                   Watch.Parser parser, InternalClient client, ClusterService clusterService) {
         super(settings, AckWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
-                licenseState, AckWatchRequest::new);
+                licenseState, clusterService, AckWatchRequest::new, AckWatchResponse::new);
         this.clock = clock;
         this.parser = parser;
         this.client = client;
     }
 
     @Override
-    protected void doExecute(AckWatchRequest request, ActionListener<AckWatchResponse> listener) {
+    protected void masterOperation(AckWatchRequest request, ClusterState state,
+                                   ActionListener<AckWatchResponse> listener) throws Exception {
         GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId())
                 .preference(Preference.LOCAL.type()).realtime(true);
 

@@ -34,6 +34,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -162,63 +163,59 @@ public class FullClusterRestartIT extends ESRestTestCase {
             logger.info("Done creating watcher-related indices");
         } else {
             logger.info("testing against {}", oldClusterVersion);
-            if (oldClusterVersion.before(Version.V_5_6_0)) {
-                waitForYellow(".watches,bwc_watch_index,.watcher-history*");
+            waitForYellow(".watches,bwc_watch_index,.watcher-history*");
 
-                logger.info("checking that upgrade procedure on the new cluster is required");
-                Map<String, Object> response = toMap(client().performRequest("GET", "/_xpack/migration/assistance"));
-                logger.info(response);
+            logger.info("checking that upgrade procedure on the new cluster is required");
+            Map<String, Object> response = toMap(client().performRequest("GET", "/_xpack/migration/assistance"));
+            logger.info(response);
 
-                @SuppressWarnings("unchecked") Map<String, Object> indices = (Map<String, Object>) response.get("indices");
-                assertThat(indices.entrySet(), hasSize(1));
-                assertThat(indices.get(".watches"), notNullValue());
-                @SuppressWarnings("unchecked") Map<String, Object> index = (Map<String, Object>) indices.get(".watches");
-                assertThat(index.get("action_required"), equalTo("upgrade"));
+            @SuppressWarnings("unchecked") Map<String, Object> indices = (Map<String, Object>) response.get("indices");
+            assertThat(indices.entrySet(), hasSize(1));
+            assertThat(indices.get(".watches"), notNullValue());
+            @SuppressWarnings("unchecked") Map<String, Object> index = (Map<String, Object>) indices.get(".watches");
+            assertThat(index.get("action_required"), equalTo("upgrade"));
 
-                logger.info("starting upgrade procedure on the new cluster");
+            logger.info("starting upgrade procedure on the new cluster");
 
-                Map<String, Object> upgradeResponse = toMap(client().performRequest("POST", "_xpack/migration/upgrade/.watches"));
-                assertThat(upgradeResponse.get("timed_out"), equalTo(Boolean.FALSE));
-                // we posted 3 watches, but monitoring can post a few more
-                assertThat((int)upgradeResponse.get("total"), greaterThanOrEqualTo(3));
+            Map<String, String> params = Collections.singletonMap("error_trace", "true");
+            Map<String, Object> upgradeResponse = toMap(client().performRequest("POST", "_xpack/migration/upgrade/.watches", params));
+            assertThat(upgradeResponse.get("timed_out"), equalTo(Boolean.FALSE));
+            // we posted 3 watches, but monitoring can post a few more
+            assertThat((int)upgradeResponse.get("total"), greaterThanOrEqualTo(3));
 
-                logger.info("checking that upgrade procedure on the new cluster is required again");
-                Map<String, Object> responseAfter = toMap(client().performRequest("GET", "/_xpack/migration/assistance"));
-                @SuppressWarnings("unchecked") Map<String, Object> indicesAfter = (Map<String, Object>) responseAfter.get("indices");
-                assertThat(indicesAfter.entrySet(), empty());
+            logger.info("checking that upgrade procedure on the new cluster is required again");
+            Map<String, Object> responseAfter = toMap(client().performRequest("GET", "/_xpack/migration/assistance"));
+            @SuppressWarnings("unchecked") Map<String, Object> indicesAfter = (Map<String, Object>) responseAfter.get("indices");
+            assertThat(indicesAfter.entrySet(), empty());
 
-                // Wait for watcher to actually start....
-                Map<String, Object> startWatchResponse = toMap(client().performRequest("POST", "_xpack/watcher/_start"));
-                assertThat(startWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+            // Wait for watcher to actually start....
+            Map<String, Object> startWatchResponse = toMap(client().performRequest("POST", "_xpack/watcher/_start"));
+            assertThat(startWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+            assertBusy(() -> {
+                Map<String, Object> statsWatchResponse = toMap(client().performRequest("GET", "_xpack/watcher/stats"));
+                @SuppressWarnings("unchecked")
+                List<Object> states = ((List<Object>) statsWatchResponse.get("stats"))
+                        .stream().map(o -> ((Map<String, Object>) o).get("watcher_state")).collect(Collectors.toList());
+                assertThat(states, everyItem(is("started")));
+            });
+
+            try {
+                assertOldTemplatesAreDeleted();
+                assertWatchIndexContentsWork();
+                assertBasicWatchInteractions();
+            } finally {
+                /* Shut down watcher after every test because watcher can be a bit finicky about shutting down when the node shuts
+                 * down. This makes super sure it shuts down *and* causes the test to fail in a sensible spot if it doesn't shut down.
+                 */
+                Map<String, Object> stopWatchResponse = toMap(client().performRequest("POST", "_xpack/watcher/_stop"));
+                assertThat(stopWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
                 assertBusy(() -> {
-                    Map<String, Object> statsWatchResponse = toMap(client().performRequest("GET", "_xpack/watcher/stats"));
+                    Map<String, Object> statsStoppedWatchResponse = toMap(client().performRequest("GET", "_xpack/watcher/stats"));
                     @SuppressWarnings("unchecked")
-                    List<Object> states = ((List<Object>) statsWatchResponse.get("stats"))
+                    List<Object> states = ((List<Object>) statsStoppedWatchResponse.get("stats"))
                             .stream().map(o -> ((Map<String, Object>) o).get("watcher_state")).collect(Collectors.toList());
-                    assertThat(states, everyItem(is("started")));
+                    assertThat(states, everyItem(is("stopped")));
                 });
-
-                try {
-                    assertOldTemplatesAreDeleted();
-                    assertWatchIndexContentsWork();
-                    assertBasicWatchInteractions();
-                } finally {
-                    /* Shut down watcher after every test because watcher can be a bit finicky about shutting down when the node shuts
-                     * down. This makes super sure it shuts down *and* causes the test to fail in a sensible spot if it doesn't shut down.
-                     */
-                    Map<String, Object> stopWatchResponse = toMap(client().performRequest("POST", "_xpack/watcher/_stop"));
-                    assertThat(stopWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-                    assertBusy(() -> {
-                        Map<String, Object> statsStoppedWatchResponse = toMap(client().performRequest("GET", "_xpack/watcher/stats"));
-                        @SuppressWarnings("unchecked")
-                        List<Object> states = ((List<Object>) statsStoppedWatchResponse.get("stats"))
-                                .stream().map(o -> ((Map<String, Object>) o).get("watcher_state")).collect(Collectors.toList());
-                        assertThat(states, everyItem(is("stopped")));
-                    });
-                }
-            } else {
-                // TODO: remove when 5.6 is fixed
-                logger.info("Skipping 5.6.0 for now");
             }
         }
     }

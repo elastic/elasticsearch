@@ -12,8 +12,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.Preference;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -60,9 +62,10 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     public TransportExecuteWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                        ExecutionService executionService, Clock clock, XPackLicenseState licenseState,
-                                       Watch.Parser watchParser, InternalClient client, TriggerService triggerService) {
+                                       Watch.Parser watchParser, InternalClient client, TriggerService triggerService,
+                                       ClusterService clusterService) {
         super(settings, ExecuteWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
-                licenseState, ExecuteWatchRequest::new);
+                licenseState, clusterService, ExecuteWatchRequest::new, ExecuteWatchResponse::new);
         this.executionService = executionService;
         this.clock = clock;
         this.triggerService = triggerService;
@@ -71,7 +74,8 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     }
 
     @Override
-    protected void doExecute(ExecuteWatchRequest request, ActionListener<ExecuteWatchResponse> listener) {
+    protected void masterOperation(ExecuteWatchRequest request, ClusterState state,
+                                   ActionListener<ExecuteWatchResponse> listener) throws Exception {
         if (request.getId() != null) {
             GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId())
                     .preference(Preference.LOCAL.type()).realtime(true);
@@ -135,4 +139,5 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
             }
         });
     }
+
 }

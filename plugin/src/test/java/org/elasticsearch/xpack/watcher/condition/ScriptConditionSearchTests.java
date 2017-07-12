@@ -107,7 +107,7 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCa
 
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(new SearchHits(
                 new SearchHit[]{hit}, 1L, 1f), null, null, null, false, false, 1);
-        SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 500L, new ShardSearchFailure[0]);
+        SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 0, 500L, new ShardSearchFailure[0]);
 
         WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response));
         assertThat(condition.execute(ctx).met(), is(true));

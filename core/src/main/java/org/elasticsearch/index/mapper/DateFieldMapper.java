@@ -211,16 +211,12 @@ public class DateFieldMapper extends FieldMapper {
         @Override
         public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
             super.checkCompatibility(fieldType, conflicts, strict);
-            if (strict) {
-                DateFieldType other = (DateFieldType)fieldType;
-                if (Objects.equals(dateTimeFormatter().format(), other.dateTimeFormatter().format()) == false) {
-                    conflicts.add("mapper [" + name()
-                        + "] is used by multiple types. Set update_all_types to true to update [format] across all types.");
-                }
-                if (Objects.equals(dateTimeFormatter().locale(), other.dateTimeFormatter().locale()) == false) {
-                    conflicts.add("mapper [" + name()
-                        + "] is used by multiple types. Set update_all_types to true to update [locale] across all types.");
-                }
+            DateFieldType other = (DateFieldType) fieldType;
+            if (Objects.equals(dateTimeFormatter().format(), other.dateTimeFormatter().format()) == false) {
+                conflicts.add("mapper [" + name() + "] has different [format] values");
+            }
+            if (Objects.equals(dateTimeFormatter().locale(), other.dateTimeFormatter().locale()) == false) {
+                conflicts.add("mapper [" + name() + "] has different [locale] values");
             }
         }
 
@@ -288,7 +284,7 @@ public class DateFieldMapper extends FieldMapper {
             }
             Query query = LongPoint.newRangeQuery(name(), l, u);
             if (hasDocValues()) {
-                Query dvQuery = SortedNumericDocValuesField.newRangeQuery(name(), l, u);
+                Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                 query = new IndexOrDocValuesQuery(query, dvQuery);
             }
             return query;
@@ -490,8 +486,8 @@ public class DateFieldMapper extends FieldMapper {
 
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        final DateFieldMapper other = (DateFieldMapper) mergeWith;
         super.doMerge(mergeWith, updateAllTypes);
-        DateFieldMapper other = (DateFieldMapper) mergeWith;
         this.includeInAll = other.includeInAll;
         if (other.ignoreMalformed.explicit()) {
             this.ignoreMalformed = other.ignoreMalformed;

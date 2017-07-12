@@ -29,3 +29,17 @@ removed and now data paths and log paths can be configured via settings
 only. Related, this means that the environment variables `DATA_DIR` and
 `LOG_DIR` no longer have any effect as these were used to set
 `default.path.data` and `default.path.logs` in the packaging scripts.
+
+==== 32-bit is no longer maintained
+
+We previously attempted to ensure that Elasticsearch could be started on 32-bit
+JVM (although a bootstrap check prevented using a 32-bit JVM in production). We
+are no longer maintaining this attempt.
+
+==== `ES_JVM_OPTIONS`is no longer supported
+
+The environment variable `ES_JVM_OPTIONS` that enabled a custom location for the
+`jvm.options` file has been removed in favor of using the environment variable
+`CONF_DIR`. This environment variable is already used in the packaging to
+support relocating the configuration files so this change merely aligns the
+other configuration files with the location of the `jvm.options` file.

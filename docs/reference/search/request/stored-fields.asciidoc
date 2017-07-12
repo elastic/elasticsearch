@@ -40,8 +40,7 @@ GET /_search
 
 If the requested fields are not stored (`store` mapping set to `false`), they will be ignored.
 
-Stored field values fetched from the document itself are always returned as an array. On the contrary, metadata fields like `_routing` and
-`_parent` fields are never returned as an array.
+Stored field values fetched from the document itself are always returned as an array. On the contrary, metadata fields like `_routing` are never returned as an array.
 
 Also only leaf fields can be returned via the `field` option. So object fields can't be returned and such requests
 will fail.

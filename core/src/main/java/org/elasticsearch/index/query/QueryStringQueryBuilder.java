@@ -683,8 +683,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         builder.endObject();
     }
 
-    public static QueryStringQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static QueryStringQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String currentFieldName = null;
         XContentParser.Token token;
         String queryString = null;

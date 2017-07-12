@@ -21,11 +21,11 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
 
-public interface QueryBuilder extends NamedWriteable, ToXContent {
+public interface QueryBuilder extends NamedWriteable, ToXContentObject {
 
     /**
      * Converts this QueryBuilder to a lucene {@link Query}.

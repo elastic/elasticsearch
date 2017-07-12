@@ -74,6 +74,7 @@ public class SearchTransportService extends AbstractComponent {
     public static final String QUERY_FETCH_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query+fetch/scroll]";
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
+    public static final String QUERY_CAN_MATCH_NAME = "indices:data/read/search[can_match]";
 
     private final TransportService transportService;
 
@@ -100,6 +101,12 @@ public class SearchTransportService extends AbstractComponent {
     public void sendFreeContext(Transport.Connection connection, long contextId, final ActionListener<SearchFreeContextResponse> listener) {
         transportService.sendRequest(connection, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(contextId),
             TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new));
+    }
+
+    public void sendCanMatch(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task, final
+                            ActionListener<CanMatchResponse> listener) {
+        transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NAME, request, task,
+            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, CanMatchResponse::new));
     }
 
     public void sendClearAllScrollContexts(Transport.Connection connection, final ActionListener<TransportResponse> listener) {
@@ -285,8 +292,7 @@ public class SearchTransportService extends AbstractComponent {
             });
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, SearchFreeContextResponse::new);
         transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, () -> TransportRequest.Empty.INSTANCE,
-            ThreadPool.Names.SAME,
-            new TaskAwareTransportRequestHandler<TransportRequest.Empty>() {
+            ThreadPool.Names.SAME, new TaskAwareTransportRequestHandler<TransportRequest.Empty>() {
                 @Override
                 public void messageReceived(TransportRequest.Empty request, TransportChannel channel, Task task) throws Exception {
                     searchService.freeAllScrollContexts();
@@ -366,7 +372,47 @@ public class SearchTransportService extends AbstractComponent {
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, FetchSearchResult::new);
+
+        // this is super cheap and should not hit thread-pool rejections
+        transportService.registerRequestHandler(QUERY_CAN_MATCH_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SEARCH,
+            false, true, new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
+                @Override
+                public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel, Task task) throws Exception {
+                    boolean canMatch = searchService.canMatch(request);
+                    channel.sendResponse(new CanMatchResponse(canMatch));
+                }
+            });
+        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, QuerySearchResult::new);
     }
+
+    public static final class CanMatchResponse extends SearchPhaseResult {
+        private boolean canMatch;
+
+        public CanMatchResponse() {
+        }
+
+        public CanMatchResponse(boolean canMatch) {
+            this.canMatch = canMatch;
+        }
+
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            canMatch = in.readBoolean();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeBoolean(canMatch);
+        }
+
+        public boolean canMatch() {
+            return canMatch;
+        }
+    }
+
 
     /**
      * Returns a connection to the given node on the provided cluster. If the cluster alias is <code>null</code> the node will be resolved

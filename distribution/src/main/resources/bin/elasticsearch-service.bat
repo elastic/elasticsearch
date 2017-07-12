@@ -27,29 +27,13 @@ if not "%CONF_FILE%" == "" goto conffileset
 set SCRIPT_DIR=%~dp0
 for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 
-%JAVA% -Xmx50M -version > nul 2>&1
-
-if errorlevel 1 (
-	echo Warning: Could not start JVM to detect version, defaulting to x86:
-	goto x86
-)
-
-%JAVA% -Xmx50M -version 2>&1 | "%windir%\System32\find" "64-Bit" >nul:
-
-if errorlevel 1 goto x86
 set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe
 set SERVICE_ID=elasticsearch-service-x64
 set ARCH=64-bit
-goto checkExe
 
-:x86
-set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x86.exe
-set SERVICE_ID=elasticsearch-service-x86
-set ARCH=32-bit
-
-:checkExe
 if EXIST "%EXECUTABLE%" goto okExe
-echo elasticsearch-service-(x86|x64).exe was not found...
+echo elasticsearch-service-x64.exe was not found...
+exit /B 1
 
 :okExe
 set ES_VERSION=${project.version}
@@ -142,9 +126,11 @@ if exist "%JAVA_HOME%\bin\client\jvm.dll" (
 )
 
 :foundJVM
-if "%ES_JVM_OPTIONS%" == "" (
-set ES_JVM_OPTIONS=%ES_HOME%\config\jvm.options
-)
+CALL "%ES_HOME%\bin\elasticsearch.in.bat"
+
+if "%CONF_DIR%" == "" set CONF_DIR=%ES_HOME%\config
+
+set ES_JVM_OPTIONS=%CONF_DIR%\jvm.options
 
 if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS: =;%
 
@@ -220,10 +206,6 @@ if "%JVM_SS%" == "" (
   echo thread stack size not set; configure using -Xss via %ES_JVM_OPTIONS% or ES_JAVA_OPTS
   goto:eof
 )
-
-CALL "%ES_HOME%\bin\elasticsearch.in.bat"
-
-if "%CONF_DIR%" == "" set CONF_DIR=%ES_HOME%\config
 
 set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%"
 

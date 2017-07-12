@@ -132,7 +132,7 @@ setup:
   - is_true:  hits.hits.0._source
 
 ---
-"fielddata_fields":
+"docvalue_fields":
   - do:
       search:
         docvalue_fields: [ "count" ]

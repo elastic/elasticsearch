@@ -28,10 +28,10 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -85,7 +85,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             int docId = randomValueOtherThanMany(usedDocIds::contains, () -> between(0, IndexWriter.MAX_DOCS));
             usedDocIds.add(docId);
 
-            Map<String, SearchHitField> searchHitFields = new HashMap<>();
+            Map<String, DocumentField> searchHitFields = new HashMap<>();
             if (testInstancesLookSortedByField) {
                 Object[] fields = new Object[testInstancesSortFields.length];
                 for (int f = 0; f < testInstancesSortFields.length; f++) {
@@ -178,14 +178,14 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             SearchHits internalHits = inputs.get(input).getHits();
             totalHits += internalHits.getTotalHits();
             maxScore = max(maxScore, internalHits.getMaxScore());
-            for (int i = 0; i < internalHits.internalHits().length; i++) {
+            for (int i = 0; i < internalHits.getHits().length; i++) {
                 ScoreDoc doc = inputs.get(input).getTopDocs().scoreDocs[i];
                 if (testInstancesLookSortedByField) {
                     doc = new FieldDoc(doc.doc, doc.score, ((FieldDoc) doc).fields, input);
                 } else {
                     doc = new ScoreDoc(doc.doc, doc.score, input);
                 }
-                allHits.add(new Tuple<>(doc, internalHits.internalHits()[i]));
+                allHits.add(new Tuple<>(doc, internalHits.getHits()[i]));
             }
         }
         allHits.sort(comparing(Tuple::v1, scoreDocComparator()));

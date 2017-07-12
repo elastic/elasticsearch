@@ -1,0 +1,13 @@
+[[breaking_60_analysis_changes]]
+=== Analysis changes
+
+==== Synonym Token Filter
+
+In 6.0, Synonym Token Filter tokenizes synonyms with whatever
+tokenizer and token filters appear before it in the chain.
+
+The `tokenizer` and `ignore_case` parameters are deprecated
+and will be ignored when used in new indices.  These parameters
+will continue to function as before when used in indices
+created in 5.x.
+

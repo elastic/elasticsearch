@@ -187,7 +187,7 @@ public class ReplicationOperation<
             public void onResponse(ReplicaResponse response) {
                 successfulShards.incrementAndGet();
                 try {
-                    primary.updateLocalCheckpointForShard(response.allocationId(), response.localCheckpoint());
+                    primary.updateLocalCheckpointForShard(shard.allocationId().getId(), response.localCheckpoint());
                 } catch (final AlreadyClosedException e) {
                     // okay, the index was deleted or this shard was never activated after a relocation; fall through and finish normally
                 } catch (final Exception e) {
@@ -429,9 +429,6 @@ public class ReplicationOperation<
 
         /** the local check point for the shard. see {@link org.elasticsearch.index.seqno.SequenceNumbersService#getLocalCheckpoint()} */
         long localCheckpoint();
-
-        /** the allocation id of the replica shard */
-        String allocationId();
     }
 
     public static class RetryOnPrimaryException extends ElasticsearchException {

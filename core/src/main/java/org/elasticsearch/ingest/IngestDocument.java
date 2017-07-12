@@ -57,11 +57,6 @@ public final class IngestDocument {
     private final Map<String, Object> ingestMetadata;
 
     public IngestDocument(String index, String type, String id, String routing, String parent, Map<String, Object> source) {
-        this(index, type, id, routing, parent, source, false);
-    }
-
-    public IngestDocument(String index, String type, String id, String routing, String parent, Map<String, Object> source,
-                          boolean newDateFormat) {
         this.sourceAndMetadata = new HashMap<>();
         this.sourceAndMetadata.putAll(source);
         this.sourceAndMetadata.put(MetaData.INDEX.getFieldName(), index);
@@ -75,11 +70,7 @@ public final class IngestDocument {
         }
 
         this.ingestMetadata = new HashMap<>();
-        if (newDateFormat) {
-            this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
-        } else {
-            this.ingestMetadata.put(TIMESTAMP, new Date());
-        }
+        this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
     }
 
     /**

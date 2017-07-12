@@ -82,6 +82,5 @@ PUT my_index
 <2> The `user` object inherits the type-level setting.
 <3> The `user.social_networks` object enables dynamic mapping, so new fields may be added to this inner object.
 
-TIP: The `dynamic` setting is allowed to have different settings for fields of
-the same name in the same index.  Its value can be updated on existing fields
+TIP: The `dynamic` setting can be updated on existing fields
 using the <<indices-put-mapping,PUT mapping API>>.

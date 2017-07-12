@@ -42,7 +42,9 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         original.setSlices(between(2, 1000));
         original.setRequestsPerSecond(
                 randomBoolean() ? Float.POSITIVE_INFINITY : randomValueOtherThanMany(r -> r < 0, ESTestCase::randomFloat));
-        original.setSize(randomBoolean() ? AbstractBulkByScrollRequest.SIZE_ALL_MATCHES : between(0, Integer.MAX_VALUE));
+        if (randomBoolean()) {
+            original.setSize(between(0, Integer.MAX_VALUE));
+        }
 
         TaskId slicingTask = new TaskId(randomAlphaOfLength(5), randomLong());
         SearchRequest sliceRequest = new SearchRequest();

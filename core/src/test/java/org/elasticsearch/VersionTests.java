@@ -34,7 +34,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.Version.V_5_3_0;
-import static org.elasticsearch.Version.V_6_0_0_alpha3;
+import static org.elasticsearch.Version.V_6_0_0_beta1;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
@@ -46,30 +46,30 @@ import static org.hamcrest.Matchers.sameInstance;
 public class VersionTests extends ESTestCase {
 
     public void testVersionComparison() throws Exception {
-        assertThat(V_5_3_0.before(V_6_0_0_alpha3), is(true));
+        assertThat(V_5_3_0.before(V_6_0_0_beta1), is(true));
         assertThat(V_5_3_0.before(V_5_3_0), is(false));
-        assertThat(V_6_0_0_alpha3.before(V_5_3_0), is(false));
+        assertThat(V_6_0_0_beta1.before(V_5_3_0), is(false));
 
-        assertThat(V_5_3_0.onOrBefore(V_6_0_0_alpha3), is(true));
+        assertThat(V_5_3_0.onOrBefore(V_6_0_0_beta1), is(true));
         assertThat(V_5_3_0.onOrBefore(V_5_3_0), is(true));
-        assertThat(V_6_0_0_alpha3.onOrBefore(V_5_3_0), is(false));
+        assertThat(V_6_0_0_beta1.onOrBefore(V_5_3_0), is(false));
 
-        assertThat(V_5_3_0.after(V_6_0_0_alpha3), is(false));
+        assertThat(V_5_3_0.after(V_6_0_0_beta1), is(false));
         assertThat(V_5_3_0.after(V_5_3_0), is(false));
-        assertThat(V_6_0_0_alpha3.after(V_5_3_0), is(true));
+        assertThat(V_6_0_0_beta1.after(V_5_3_0), is(true));
 
-        assertThat(V_5_3_0.onOrAfter(V_6_0_0_alpha3), is(false));
+        assertThat(V_5_3_0.onOrAfter(V_6_0_0_beta1), is(false));
         assertThat(V_5_3_0.onOrAfter(V_5_3_0), is(true));
-        assertThat(V_6_0_0_alpha3.onOrAfter(V_5_3_0), is(true));
+        assertThat(V_6_0_0_beta1.onOrAfter(V_5_3_0), is(true));
 
         assertTrue(Version.fromString("5.0.0-alpha2").onOrAfter(Version.fromString("5.0.0-alpha1")));
         assertTrue(Version.fromString("5.0.0").onOrAfter(Version.fromString("5.0.0-beta2")));
         assertTrue(Version.fromString("5.0.0-rc1").onOrAfter(Version.fromString("5.0.0-beta24")));
         assertTrue(Version.fromString("5.0.0-alpha24").before(Version.fromString("5.0.0-beta0")));
 
-        assertThat(V_5_3_0, is(lessThan(V_6_0_0_alpha3)));
+        assertThat(V_5_3_0, is(lessThan(V_6_0_0_beta1)));
         assertThat(V_5_3_0.compareTo(V_5_3_0), is(0));
-        assertThat(V_6_0_0_alpha3, is(greaterThan(V_5_3_0)));
+        assertThat(V_6_0_0_beta1, is(greaterThan(V_5_3_0)));
     }
 
     public void testMin() {
@@ -97,7 +97,7 @@ public class VersionTests extends ESTestCase {
     }
 
     public void testMinimumIndexCompatibilityVersion() {
-        assertEquals(Version.V_5_0_0, Version.V_6_0_0_alpha3.minimumIndexCompatibilityVersion());
+        assertEquals(Version.V_5_0_0, Version.V_6_0_0_beta1.minimumIndexCompatibilityVersion());
         assertEquals(Version.fromId(2000099), Version.V_5_0_0.minimumIndexCompatibilityVersion());
         assertEquals(Version.fromId(2000099),
                 Version.V_5_1_1.minimumIndexCompatibilityVersion());
@@ -157,7 +157,7 @@ public class VersionTests extends ESTestCase {
     public void testIndexCreatedVersion() {
         // an actual index has a IndexMetaData.SETTING_INDEX_UUID
         final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_2,
-                Version.V_5_2_0, Version.V_6_0_0_alpha3);
+                Version.V_5_2_0, Version.V_6_0_0_beta1);
         assertEquals(version, Version.indexCreated(Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "foo").put(IndexMetaData.SETTING_VERSION_CREATED, version).build()));
     }
 
@@ -171,10 +171,10 @@ public class VersionTests extends ESTestCase {
         // from 6.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
         // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()
         Version lastVersion = VersionUtils.getPreviousVersion(Version.V_6_0_0_alpha1);
-        assertEquals(lastVersion.major, Version.V_6_0_0_alpha3.minimumCompatibilityVersion().major);
+        assertEquals(lastVersion.major, Version.V_6_0_0_beta1.minimumCompatibilityVersion().major);
         assertEquals("did you miss to bump the minor in Version#minimumCompatibilityVersion()",
-                lastVersion.minor, Version.V_6_0_0_alpha3.minimumCompatibilityVersion().minor);
-        assertEquals(0, Version.V_6_0_0_alpha3.minimumCompatibilityVersion().revision);
+                lastVersion.minor, Version.V_6_0_0_beta1.minimumCompatibilityVersion().minor);
+        assertEquals(0, Version.V_6_0_0_beta1.minimumCompatibilityVersion().revision);
     }
 
     public void testToString() {

@@ -85,6 +85,7 @@ The above request will yield the following response:
   "_shards": {
     "total": 5,
     "successful": 5,
+    "skipped" : 0,
     "failed": 0
   },
   "hits": {
@@ -172,7 +173,6 @@ Index response:
     "successful": 1,
     "failed": 0
   },
-  "created": true,
   "result": "created",
   "_seq_no" : 0,
   "_primary_term" : 1
@@ -284,6 +284,7 @@ This will yield the following response.
   "_shards": {
     "total": 5,
     "successful": 5,
+    "skipped" : 0,
     "failed": 0
   },
   "hits": {

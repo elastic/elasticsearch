@@ -136,7 +136,7 @@ public final class ScriptProcessor extends AbstractProcessor {
                 script = new Script(INLINE, lang, source, (Map<String, Object>)params);
                 scriptPropertyUsed = "source";
             } else if (Strings.hasLength(id)) {
-                script = new Script(STORED, lang, id, (Map<String, Object>)params);
+                script = new Script(STORED, null, id, (Map<String, Object>)params);
                 scriptPropertyUsed = "id";
             } else {
                 throw newConfigurationException(TYPE, processorTag, null, "Could not initialize script");

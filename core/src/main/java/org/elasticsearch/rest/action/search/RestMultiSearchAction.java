@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -40,6 +39,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -89,16 +89,23 @@ public class RestMultiSearchAction extends BaseRestHandler {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
         }
 
+        int preFilterShardSize = restRequest.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE);
+
+
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
             try {
-                final QueryParseContext queryParseContext = new QueryParseContext(parser);
-                searchRequest.source(SearchSourceBuilder.fromXContent(queryParseContext));
+                searchRequest.source(SearchSourceBuilder.fromXContent(parser));
                 multiRequest.add(searchRequest);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("Exception when parsing search request", e);
             }
         });
-
+        List<SearchRequest> requests = multiRequest.requests();
+        preFilterShardSize = Math.max(1, preFilterShardSize / (requests.size()+1));
+        for (SearchRequest request : requests) {
+            // preserve if it's set on the request
+            request.setPreFilterShardSize(Math.min(preFilterShardSize, request.getPreFilterShardSize()));
+        }
         return multiRequest;
     }
 

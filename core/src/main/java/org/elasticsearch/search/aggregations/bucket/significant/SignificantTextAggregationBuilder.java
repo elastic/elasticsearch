@@ -25,8 +25,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -35,10 +36,10 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
+import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
-import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -54,7 +55,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     static final ParseField FILTER_DUPLICATE_TEXT_FIELD_NAME = new ParseField(
             "filter_duplicate_text");
 
-    static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = 
+    static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS =
             SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS;
     static final SignificanceHeuristic DEFAULT_SIGNIFICANCE_HEURISTIC = SignificantTermsAggregationBuilder.DEFAULT_SIGNIFICANCE_HEURISTIC;
 
@@ -69,55 +70,55 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
 
     public static Aggregator.Parser getParser(
             ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry) {
-        ObjectParser<SignificantTextAggregationBuilder, QueryParseContext> parser = new ObjectParser<>(
+        ObjectParser<SignificantTextAggregationBuilder, Void> PARSER = new ObjectParser<>(
                 SignificantTextAggregationBuilder.NAME);
 
-        parser.declareInt(SignificantTextAggregationBuilder::shardSize,
+        PARSER.declareInt(SignificantTextAggregationBuilder::shardSize,
                 TermsAggregationBuilder.SHARD_SIZE_FIELD_NAME);
 
-        parser.declareLong(SignificantTextAggregationBuilder::minDocCount,
+        PARSER.declareLong(SignificantTextAggregationBuilder::minDocCount,
                 TermsAggregationBuilder.MIN_DOC_COUNT_FIELD_NAME);
 
-        parser.declareLong(SignificantTextAggregationBuilder::shardMinDocCount,
+        PARSER.declareLong(SignificantTextAggregationBuilder::shardMinDocCount,
                 TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME);
 
-        parser.declareInt(SignificantTextAggregationBuilder::size,
+        PARSER.declareInt(SignificantTextAggregationBuilder::size,
                 TermsAggregationBuilder.REQUIRED_SIZE_FIELD_NAME);
 
-        parser.declareString(SignificantTextAggregationBuilder::fieldName, FIELD_NAME);
-        
-        parser.declareStringArray(SignificantTextAggregationBuilder::sourceFieldNames, SOURCE_FIELDS_NAME);
-        
+        PARSER.declareString(SignificantTextAggregationBuilder::fieldName, FIELD_NAME);
 
-        parser.declareBoolean(SignificantTextAggregationBuilder::filterDuplicateText,
+        PARSER.declareStringArray(SignificantTextAggregationBuilder::sourceFieldNames, SOURCE_FIELDS_NAME);
+
+
+        PARSER.declareBoolean(SignificantTextAggregationBuilder::filterDuplicateText,
                 FILTER_DUPLICATE_TEXT_FIELD_NAME);
 
-        parser.declareObject(SignificantTextAggregationBuilder::backgroundFilter,
-                (p, context) -> context.parseInnerQueryBuilder(),
+        PARSER.declareObject(SignificantTextAggregationBuilder::backgroundFilter,
+                (p, context) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
                 SignificantTermsAggregationBuilder.BACKGROUND_FILTER);
 
-        parser.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(v, b.includeExclude())),
+        PARSER.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(v, b.includeExclude())),
                 IncludeExclude::parseInclude, IncludeExclude.INCLUDE_FIELD,
                 ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
 
-        parser.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(b.includeExclude(), v)),
+        PARSER.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(b.includeExclude(), v)),
                 IncludeExclude::parseExclude, IncludeExclude.EXCLUDE_FIELD,
                 ObjectParser.ValueType.STRING_ARRAY);
 
         for (String name : significanceHeuristicParserRegistry.getNames()) {
-            parser.declareObject(SignificantTextAggregationBuilder::significanceHeuristic,
+            PARSER.declareObject(SignificantTextAggregationBuilder::significanceHeuristic,
                     (p, context) -> {
                         SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserRegistry
                                 .lookupReturningNullIfNotFound(name);
-                        return significanceHeuristicParser.parse(context);
+                        return significanceHeuristicParser.parse(p);
                     }, new ParseField(name));
         }
         return new Aggregator.Parser() {
             @Override
-            public AggregationBuilder parse(String aggregationName, QueryParseContext context)
+            public AggregationBuilder parse(String aggregationName, XContentParser parser)
                     throws IOException {
-                return parser.parse(context.parser(),
-                        new SignificantTextAggregationBuilder(aggregationName, null), context);
+                return PARSER.parse(parser,
+                        new SignificantTextAggregationBuilder(aggregationName, null), null);
             }
         };
     }
@@ -129,20 +130,20 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     public TermsAggregator.BucketCountThresholds bucketCountThresholds() {
         return bucketCountThresholds;
     }
-    
-    
+
+
     @Override
     public SignificantTextAggregationBuilder subAggregations(Builder subFactories) {
         throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
                 + getType() + "] cannot accept sub-aggregations");
-    }    
+    }
 
     @Override
     public SignificantTextAggregationBuilder subAggregation(AggregationBuilder aggregation) {
         throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
                 + getType() + "] cannot accept sub-aggregations");
-    }    
-    
+    }
+
     public SignificantTextAggregationBuilder bucketCountThresholds(
             TermsAggregator.BucketCountThresholds bucketCountThresholds) {
         if (bucketCountThresholds == null) {
@@ -190,18 +191,18 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         return this;
     }
 
-    
+
     /**
      * Selects the fields to load from _source JSON and analyze.
-     * If none are specified, the indexed "fieldName" value is assumed 
+     * If none are specified, the indexed "fieldName" value is assumed
      * to also be the name of the JSON field holding the value
      */
     public SignificantTextAggregationBuilder sourceFieldNames(List<String> names) {
         this.sourceFieldNames = names.toArray(new String [names.size()]);
         return this;
     }
-    
-    
+
+
     /**
      * Control if duplicate paragraphs of text should try be filtered from the
      * statistical text analysis. Can improve results but slows down analysis.
@@ -288,7 +289,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
      * @param fieldName
      *            the name of the text field that will be the subject of this
      *            aggregation
-     * 
+     *
      */
     public SignificantTextAggregationBuilder(String name, String fieldName) {
         super(name);
@@ -344,7 +345,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         if (sourceFieldNames != null) {
             builder.array(SOURCE_FIELDS_NAME.getPreferredName(), sourceFieldNames);
         }
-        
+
         if (filterDuplicateText) {
             builder.field(FILTER_DUPLICATE_TEXT_FIELD_NAME.getPreferredName(), filterDuplicateText);
         }
@@ -356,7 +357,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
             includeExclude.toXContent(builder, params);
         }
         significanceHeuristic.toXContent(builder, params);
-        
+
         builder.endObject();
         return builder;
     }

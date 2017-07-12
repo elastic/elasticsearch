@@ -20,7 +20,6 @@
 package org.elasticsearch.action.delete;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -36,8 +35,6 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * @see org.elasticsearch.client.Client#delete(DeleteRequest)
  */
 public class DeleteResponse extends DocWriteResponse {
-
-    private static final String FOUND = "found";
 
     public DeleteResponse() {
     }
@@ -64,13 +61,6 @@ public class DeleteResponse extends DocWriteResponse {
         return builder.append("]").toString();
     }
 
-    @Override
-    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(FOUND, result == Result.DELETED);
-        super.innerToXContent(builder, params);
-        return builder;
-    }
-
     public static DeleteResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
 
@@ -85,16 +75,7 @@ public class DeleteResponse extends DocWriteResponse {
      * Parse the current token and update the parsing context appropriately.
      */
     public static void parseXContentFields(XContentParser parser, Builder context) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        String currentFieldName = parser.currentName();
-
-        if (FOUND.equals(currentFieldName)) {
-            if (token.isValue()) {
-                context.setFound(parser.booleanValue());
-            }
-        } else {
-            DocWriteResponse.parseInnerToXContent(parser, context);
-        }
+        DocWriteResponse.parseInnerToXContent(parser, context);
     }
 
     /**
@@ -104,15 +85,10 @@ public class DeleteResponse extends DocWriteResponse {
      */
     public static class Builder extends DocWriteResponse.Builder {
 
-        private boolean found = false;
-
-        public void setFound(boolean found) {
-            this.found = found;
-        }
-
         @Override
         public DeleteResponse build() {
-            DeleteResponse deleteResponse = new DeleteResponse(shardId, type, id, seqNo, primaryTerm, version, found);
+            DeleteResponse deleteResponse = new DeleteResponse(shardId, type, id, seqNo, primaryTerm, version,
+                    result == Result.DELETED ? true : false);
             deleteResponse.setForcedRefresh(forcedRefresh);
             if (shardInfo != null) {
                 deleteResponse.setShardInfo(shardInfo);

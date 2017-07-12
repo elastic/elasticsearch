@@ -115,28 +115,6 @@ minute will be compiled. You can change this setting dynamically by setting
 Scripts may be stored in and retrieved from the cluster state using the
 `_scripts` end-point.
 
-==== Deprecated Namespace
-
-The namespace for stored scripts using both `lang` and `id` as a unique
-identifier has been deprecated.  The new namespace for stored scripts will
-only use `id`. Stored scripts with the same `id`, but different `lang`'s
-will no longer be allowed in 6.0.  To comply with the new namespace for
-stored scripts, existing stored scripts should be deleted and put again.
-Any scripts that share an `id` but have different `lang`s will need to
-be re-named.  For example, take the following:
-
-"id": "example", "lang": "painless"
-"id": "example", "lang": "expressions"
-
-The above scripts will conflict under the new namespace since the id's are
-the same.  At least one will have to be re-named to comply with the new
-namespace of only `id`.
-
-As a final caveat, stored search templates and stored scripts share
-the same namespace, so if a search template has the same `id` as a
-stored script, one of the two will have to be re-named as well using
-delete and put requests.
-
 ==== Request Examples
 
 The following are examples of using a stored script that lives at

@@ -353,33 +353,8 @@ The filter cache has been renamed <<query-cache>>.
 [role="exclude",id="query-dsl-filtered-query"]
 === Filtered query
 
-The `filtered` query is replaced by the <<query-dsl-bool-query,bool>> query. Instead of
-the following:
-
-[source,js]
--------------------------
-GET _search
-{
-  "query": {
-    "filtered": {
-      "query": {
-        "match": {
-          "text": "quick brown fox"
-        }
-      },
-      "filter": {
-        "term": {
-          "status": "published"
-        }
-      }
-    }
-  }
-}
--------------------------
-// NOTCONSOLE
-
-move the query and filter to the `must` and `filter` parameters in the `bool`
-query:
+The `filtered` query is replaced by the <<query-dsl-bool-query,bool>> query.
+Move the query and filter to the `must` and `filter` parameters inside the `bool` query like so:
 
 [source,js]
 -------------------------
@@ -402,6 +377,30 @@ GET _search
 }
 -------------------------
 // CONSOLE
+
+The old, deprecated syntax for this query would have been the following:
+
+[source,js]
+-------------------------
+GET _search
+{
+  "query": {
+    "filtered": {
+      "query": {
+        "match": {
+          "text": "quick brown fox"
+        }
+      },
+      "filter": {
+        "term": {
+          "status": "published"
+        }
+      }
+    }
+  }
+}
+-------------------------
+// NOTCONSOLE
 
 [role="exclude",id="query-dsl-or-query"]
 === Or query

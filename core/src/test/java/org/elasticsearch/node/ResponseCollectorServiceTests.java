@@ -126,8 +126,10 @@ public class ResponseCollectorServiceTests extends ESTestCase {
 
         ClusterState previousState = ClusterState.builder(new ClusterName("cluster")).nodes(DiscoveryNodes.builder()
                 .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9200), "node1"))
-                .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9201), "node2"))).build();
-        ClusterState newState = ClusterState.builder(previousState).nodes(DiscoveryNodes.builder(previousState.nodes()).remove("node2")).build();
+                .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9201), "node2")))
+                .build();
+        ClusterState newState = ClusterState.builder(previousState).nodes(DiscoveryNodes.builder(previousState.nodes())
+                .remove("node2")).build();
         ClusterChangedEvent event = new ClusterChangedEvent("test", newState, previousState);
 
         collector.clusterChanged(event);

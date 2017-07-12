@@ -204,7 +204,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          */
         @Deprecated
         public ReadableDateTime getDate() {
-            deprecationLogger.deprecated("getDate is no longer necisary on date fields as the value is now a date.");
+            deprecationLogger.deprecated("getDate is no longer necessary on date fields as the value is now a date.");
             return getValue();
         }
 
@@ -213,7 +213,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          */
         @Deprecated
         public List<ReadableDateTime> getDates() {
-            deprecationLogger.deprecated("getDates is no longer necisary on date fields as the values are now dates.");
+            deprecationLogger.deprecated("getDates is no longer necessary on date fields as the values are now dates.");
             return this;
         }
 

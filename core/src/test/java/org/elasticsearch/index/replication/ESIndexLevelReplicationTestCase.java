@@ -602,7 +602,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     private TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> executeShardBulkOnPrimary(IndexShard primary, BulkShardRequest request) throws Exception {
         for (BulkItemRequest itemRequest : request.items()) {
             if (itemRequest.request() instanceof IndexRequest) {
-                ((IndexRequest) itemRequest.request()).process(null, index.getName());
+                ((IndexRequest) itemRequest.request()).process(Version.CURRENT, null, index.getName());
             }
         }
         final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result =

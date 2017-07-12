@@ -350,7 +350,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             case UPDATED:
                 IndexRequest indexRequest = translate.action();
                 MappingMetaData mappingMd = metaData.mappingOrDefault(indexRequest.type());
-                indexRequest.process(mappingMd, concreteIndex);
+                indexRequest.process(metaData.getCreationVersion(), mappingMd, concreteIndex);
                 result = executeIndexRequestOnPrimary(indexRequest, primary, mappingUpdater);
                 break;
             case DELETED:

@@ -17,6 +17,6 @@ public class TimeoutInfoTests extends ESTestCase {
     }
 
     public void testRoundTrip() throws IOException {
-        assertRoundTrip(randomTimeoutInfo(), TimeoutInfo::encode, TimeoutInfo::new);
+        assertRoundTrip(randomTimeoutInfo(), TimeoutInfo::write, TimeoutInfo::new);
     }
 }

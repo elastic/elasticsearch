@@ -5,45 +5,57 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.protocol.shared.Request;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.Locale;
-
-import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.jdbc.net.protocol.StringUtils.splitToIndexAndType;
 
 public class MetaTableRequest extends Request {
-
     private final String pattern;
-    public final String index;
-    public final String type;
 
     public MetaTableRequest(String pattern) {
-        super(Action.META_TABLE);
-
+        if (pattern == null) {
+            throw new IllegalArgumentException("[pattern] must not be null");
+        }
         this.pattern = pattern;
-        String[] split = splitToIndexAndType(pattern);
+    }
 
-        this.index = split[0];
-        this.type = split[1];
+    MetaTableRequest(int clientVersion, DataInput in) throws IOException {
+        this.pattern = in.readUTF();
     }
 
     @Override
-    public String toString() {
-        return format(Locale.ROOT, "MetaTable[index=%s, type=%s]", index, type);
-    }
-
-    @Override
-    public void encode(DataOutput out) throws IOException {
-        out.writeInt(action.value());
+    public void write(DataOutput out) throws IOException {
         out.writeUTF(pattern);
     }
 
-    public static MetaTableRequest decode(DataInput in) throws IOException {
-        String pattern = in.readUTF();
-        return new MetaTableRequest(pattern);
+    public String pattern() {
+        return pattern;
+    }
+
+    @Override
+    protected String toStringBody() {
+        return pattern;
+    }
+
+    @Override
+    public RequestType requestType() {
+        return RequestType.META_TABLE;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        MetaTableRequest other = (MetaTableRequest) obj;
+        return pattern.equals(other.pattern);
+    }
+
+    @Override
+    public int hashCode() {
+        return pattern.hashCode();
     }
 }

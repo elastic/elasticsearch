@@ -109,12 +109,12 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
 
     @Override
     public int getColumnType(int column) throws SQLException {
-        return column(column).type;
+        return column(column).type.getVendorTypeNumber();
     }
 
     @Override
     public String getColumnTypeName(int column) throws SQLException {
-        return JdbcUtils.typeName(column(column).type);
+        return column(column).type.name();
     }
 
     @Override
@@ -137,7 +137,7 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        return JdbcUtils.nameOf(column(column).type);
+        return column(column).type.getName(); // NOCOMMIT this is almost certainly wrong.
     }
 
     private void checkOpen() throws SQLException {

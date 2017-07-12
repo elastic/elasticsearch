@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.util;
 
 public class WrappingException extends RuntimeException {
+    // NOCOMMIT probably not needed after replacing "ThrowableXXXX"
 
     public WrappingException(String message, Exception cause) {
         super(message, cause, false, false);

@@ -28,16 +28,13 @@ public abstract class ProtoHandler<R> implements HttpHandler, AutoCloseable {
     private final TimeValue TV = TimeValue.timeValueSeconds(5);
     protected final NodeInfo info;
     protected final String clusterName;
-    private final CheckedFunction<DataInput, String, IOException> headerReader;
     private final CheckedFunction<R, BytesReference, IOException> toProto;
-    
-    protected ProtoHandler(Client client, CheckedFunction<DataInput, String, IOException> headerReader,
-            CheckedFunction<R, BytesReference, IOException> toProto) {
+
+    protected ProtoHandler(Client client, CheckedFunction<R, BytesReference, IOException> toProto) {
         NodesInfoResponse niResponse = client.admin().cluster().prepareNodesInfo("_local").clear().get(TV);
         info = niResponse.getNodes().get(0);
         clusterName = niResponse.getClusterName().value();
 
-        this.headerReader = headerReader;
         this.toProto = toProto;
     }
 
@@ -52,12 +49,6 @@ public abstract class ProtoHandler<R> implements HttpHandler, AutoCloseable {
         }
 
         try (DataInputStream in = new DataInputStream(http.getRequestBody())) {
-            String msg = headerReader.apply(in);
-            if (msg != null) {
-                http.sendResponseHeaders(RestStatus.BAD_REQUEST.getStatus(), -1);
-                http.close();
-                return;
-            }
             handle(http, in);
         } catch (Exception ex) {
             fail(http, ex);

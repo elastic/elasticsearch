@@ -8,9 +8,11 @@ package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.TimeZone;
 
+import static org.elasticsearch.xpack.sql.jdbc.net.protocol.JdbcRoundTripTestUtils.assertRoundTripCurrentVersion;
 import static org.elasticsearch.xpack.sql.jdbc.net.protocol.TimeoutInfoTests.randomTimeoutInfo;
-import static org.elasticsearch.xpack.sql.test.RoundTripTestUtils.assertRoundTrip;
+
 
 public class QueryInitRequestTests extends ESTestCase {
     public static QueryInitRequest randomQueryInitRequest() {
@@ -18,6 +20,13 @@ public class QueryInitRequestTests extends ESTestCase {
     }
 
     public void testRoundTrip() throws IOException {
-        assertRoundTrip(randomQueryInitRequest(), QueryInitRequest::encode, in -> (QueryInitRequest) ProtoUtils.readRequest(in));
+        assertRoundTripCurrentVersion(randomQueryInitRequest());
+    }
+
+    public void testToString() {
+        assertEquals("QueryInitRequest<query=[SELECT * FROM test.doc]>",
+                new QueryInitRequest(10, "SELECT * FROM test.doc", TimeZone.getTimeZone("UTC"), new TimeoutInfo(1, 1, 1)).toString());
+        assertEquals("QueryInitRequest<query=[SELECT * FROM test.doc] timeZone=[GMT-05:00]>",
+                new QueryInitRequest(10, "SELECT * FROM test.doc", TimeZone.getTimeZone("GMT-5"), new TimeoutInfo(1, 1, 1)).toString());
     }
 }

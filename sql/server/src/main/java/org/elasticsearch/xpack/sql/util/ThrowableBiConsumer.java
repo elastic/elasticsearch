@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.util;
 import java.util.function.BiConsumer;
 
 public interface ThrowableBiConsumer<T, U> extends BiConsumer<T, U> {
+    // NOCOMMIT replace with CheckedBiConsumer
 
     @Override
     default void accept(T t, U u) {

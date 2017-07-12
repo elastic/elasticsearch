@@ -11,14 +11,16 @@ import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.sql.cli.net.protocol.CliRoundTripTestUtils.assertRoundTripCurrentVersion;
+import static org.elasticsearch.xpack.sql.cli.net.protocol.CommandRequestTests.randomCommandRequest;
+
 
 public class ErrorResponseTests extends ESTestCase {
     static ErrorResponse randomErrorResponse() {
-        return new ErrorResponse(randomFrom(RequestType.values()), randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5));
+        return new ErrorResponse(RequestType.COMMAND, randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5));
     }
 
     public void testRoundTrip() throws IOException {
-        assertRoundTripCurrentVersion(randomErrorResponse());
+        assertRoundTripCurrentVersion(randomCommandRequest(), randomErrorResponse());
     }
 
     public void testToString() {

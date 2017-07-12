@@ -6,13 +6,11 @@
 package org.elasticsearch.xpack.sql.server.cli;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.xpack.sql.cli.net.protocol.Response;
+import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
 
 public class CliResponse extends ActionResponse {
-
     private Response response;
-    private RowSetCursor cursor;
 
     public CliResponse() {}
 
@@ -22,14 +20,9 @@ public class CliResponse extends ActionResponse {
 
     public CliResponse(Response response, RowSetCursor cursor) {
         this.response = response;
-        this.cursor = cursor;
     }
 
     public Response response() {
         return response;
-    }
-
-    public RowSetCursor cursor() {
-        return cursor;
     }
 }

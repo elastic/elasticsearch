@@ -5,48 +5,64 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.protocol.shared.Request;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-
-import static org.elasticsearch.xpack.sql.jdbc.net.protocol.StringUtils.nullAsEmpty;
-import static org.elasticsearch.xpack.sql.jdbc.net.protocol.StringUtils.splitToIndexAndType;
+import java.util.Objects;
 
 public class MetaColumnRequest extends Request {
-
     private final String tablePattern, columnPattern;
-    public final String index, type, column;
 
     public MetaColumnRequest(String tablePattern, String columnPattern) {
-        super(Action.META_COLUMN);
+        this.tablePattern = tablePattern == null ? "" : tablePattern;
+        this.columnPattern = columnPattern == null ? "" : columnPattern;
+    }
 
-        this.tablePattern = nullAsEmpty(tablePattern);
-        this.columnPattern = nullAsEmpty(columnPattern);
-
-        String[] split = splitToIndexAndType(tablePattern);
-
-        this.index = split[0];
-        this.type = split[1];
-        this.column = nullAsEmpty(columnPattern);
+    MetaColumnRequest(int clientVersion, DataInput in) throws IOException {
+        tablePattern = in.readUTF();
+        columnPattern = in.readUTF();
     }
 
     @Override
-    public void encode(DataOutput out) throws IOException {
-        out.writeInt(action.value());
+    protected void write(DataOutput out) throws IOException {
         out.writeUTF(tablePattern);
         out.writeUTF(columnPattern);
     }
 
-    public static MetaColumnRequest decode(DataInput in) throws IOException {
-        String tablePattern = in.readUTF();
-        String columnPattern = in.readUTF();
-        return new MetaColumnRequest(tablePattern, columnPattern);
+    public String tablePattern() {
+        return tablePattern;
+    }
+
+    public String columnPattern() {
+        return columnPattern;
     }
 
     @Override
-    public String toString() {
-        return "MetaColumn[index=" + index + ", type=" + type + " column=" + column + "]";
+    protected String toStringBody() {
+        return "table=[" + tablePattern
+                + "] column=[" + columnPattern + "]";
+    }
+
+    @Override
+    public RequestType requestType() {
+        return RequestType.META_COLUMN;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        MetaColumnRequest other = (MetaColumnRequest) obj;
+        return tablePattern.equals(other.tablePattern)
+                && columnPattern.equals(other.columnPattern);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(tablePattern, columnPattern);
     }
 }

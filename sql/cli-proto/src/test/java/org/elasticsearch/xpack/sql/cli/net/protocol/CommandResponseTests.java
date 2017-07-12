@@ -10,6 +10,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.sql.cli.net.protocol.CliRoundTripTestUtils.assertRoundTripCurrentVersion;
+import static org.elasticsearch.xpack.sql.cli.net.protocol.CommandRequestTests.randomCommandRequest;
+
 public class CommandResponseTests extends ESTestCase {
     static CommandResponse randomCommandResponse() {
         long start = randomNonNegativeLong();
@@ -18,7 +20,7 @@ public class CommandResponseTests extends ESTestCase {
     }
 
     public void testRoundTrip() throws IOException {
-        assertRoundTripCurrentVersion(randomCommandResponse());
+        assertRoundTripCurrentVersion(randomCommandRequest(), randomCommandResponse());
     }
 
     public void testToString() {

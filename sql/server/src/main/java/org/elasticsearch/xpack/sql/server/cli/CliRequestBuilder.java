@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.server.cli;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.xpack.sql.cli.net.protocol.Request;
+import org.elasticsearch.xpack.sql.protocol.shared.Request;
 
 public class CliRequestBuilder extends ActionRequestBuilder<CliRequest, CliResponse, CliRequestBuilder> {
 

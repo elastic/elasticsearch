@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.sql.cli.net.protocol;
 
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.ResponseType;
+import org.elasticsearch.xpack.sql.protocol.shared.Request;
+import org.elasticsearch.xpack.sql.protocol.shared.Response;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -26,7 +28,7 @@ public class CommandResponse extends Response {
         this.data = data;
     }
 
-    CommandResponse(DataInput in) throws IOException {
+    CommandResponse(Request request, DataInput in) throws IOException {
         serverTimeQueryReceived = in.readLong();
         serverTimeResponseSent = in.readLong();
         requestId = in.readUTF();
@@ -34,7 +36,7 @@ public class CommandResponse extends Response {
     }
 
     @Override
-    void write(int clientVersion, DataOutput out) throws IOException {
+    protected void write(int clientVersion, DataOutput out) throws IOException {
         out.writeLong(serverTimeQueryReceived);
         out.writeLong(serverTimeResponseSent);
         out.writeUTF(requestId);
@@ -50,12 +52,12 @@ public class CommandResponse extends Response {
     }
 
     @Override
-    RequestType requestType() {
+    public RequestType requestType() {
         return RequestType.COMMAND;
     }
 
     @Override
-    ResponseType responseType() {
+    public ResponseType responseType() {
         return ResponseType.COMMAND;
     }
 

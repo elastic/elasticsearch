@@ -5,55 +5,33 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.protocol.shared.AbstractInfoRequest;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.sql.jdbc.net.protocol.StringUtils.EMPTY;
-
-public class InfoRequest extends Request {
-    public final String jvmVersion, jvmVendor, jvmClassPath, osName, osVersion;
-
+/**
+ * Request general information about the server.
+ */
+public class InfoRequest extends AbstractInfoRequest {
     /**
      * Build the info request containing information about the current JVM.
      */
     public InfoRequest() {
-        super(Action.INFO);
-        jvmVersion = System.getProperty("java.version", EMPTY);
-        jvmVendor = System.getProperty("java.vendor", EMPTY);
-        jvmClassPath = System.getProperty("java.class.path", EMPTY);
-        osName = System.getProperty("os.name", EMPTY);
-        osVersion = System.getProperty("os.version", EMPTY);
+        super();
     }
 
-    public InfoRequest(String jvmVersion, String jvmVendor, String jvmClassPath, String osName, String osVersion) {
-        super(Action.INFO);
-        this.jvmVersion = jvmVersion;
-        this.jvmVendor = jvmVendor;
-        this.jvmClassPath = jvmClassPath;
-        this.osName = osName;
-        this.osVersion = osVersion;
+    InfoRequest(String jvmVersion, String jvmVendor, String jvmClassPath, String osName, String osVersion) {
+        super(jvmVersion, jvmVendor, jvmClassPath, osName, osVersion);
+    }
+
+    InfoRequest(int clientVersion, DataInput in) throws IOException {
+        super(clientVersion, in);
     }
 
     @Override
-    public void encode(DataOutput out) throws IOException {
-        out.writeInt(action.value());
-        out.writeUTF(jvmVersion);
-        out.writeUTF(jvmVendor);
-        out.writeUTF(jvmClassPath);
-        out.writeUTF(osName);
-        out.writeUTF(osVersion);
-    }
-
-    public static InfoRequest decode(DataInput in) throws IOException {
-        String jvmVersion = in.readUTF();
-        String jvmVendor = in.readUTF();
-        String jvmClassPath = in.readUTF();
-        String osName = in.readUTF();
-        String osVersion = in.readUTF();
-
-        return new InfoRequest(jvmVersion, jvmVendor, jvmClassPath, osName, osVersion);
+    public RequestType requestType() {
+        return RequestType.INFO;
     }
 }

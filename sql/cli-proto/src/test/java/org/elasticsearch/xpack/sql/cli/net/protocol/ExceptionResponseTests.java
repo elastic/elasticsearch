@@ -7,22 +7,26 @@ package org.elasticsearch.xpack.sql.cli.net.protocol;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto.SqlExceptionType;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.sql.cli.net.protocol.CliRoundTripTestUtils.assertRoundTripCurrentVersion;
+import static org.elasticsearch.xpack.sql.cli.net.protocol.CommandRequestTests.randomCommandRequest;
+
 
 public class ExceptionResponseTests extends ESTestCase {
     static ExceptionResponse randomExceptionResponse() {
-        return new ExceptionResponse(randomFrom(RequestType.values()), randomAlphaOfLength(5), randomAlphaOfLength(5));
+        return new ExceptionResponse(RequestType.COMMAND, randomAlphaOfLength(5), randomAlphaOfLength(5),
+                randomFrom(SqlExceptionType.values()));
     }
 
     public void testRoundTrip() throws IOException {
-        assertRoundTripCurrentVersion(randomExceptionResponse());
+        assertRoundTripCurrentVersion(randomCommandRequest(), randomExceptionResponse());
     }
 
     public void testToString() {
-        assertEquals("ExceptionResponse<request=[COMMAND] message=[test] cause=[test]>",
-                new ExceptionResponse(RequestType.COMMAND, "test", "test").toString());
+        assertEquals("ExceptionResponse<request=[COMMAND] message=[test] cause=[test] type=[SYNTAX]>",
+                new ExceptionResponse(RequestType.COMMAND, "test", "test", SqlExceptionType.SYNTAX).toString());
     }
 }

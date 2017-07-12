@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.cli.net.protocol;
 
+import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto;
+
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -13,73 +15,22 @@ import java.io.IOException;
  * Binary protocol for the CLI. All backwards compatibility is done using the
  * version number sent in the header. 
  */
-public abstract class Proto {
-    private static final int MAGIC_NUMBER = 0x0C0DEC110;
-    public static final int CURRENT_VERSION = 000_000_001;
+public final class Proto extends AbstractProto {
+    public static final Proto INSTANCE = new Proto();
 
-    private Proto() {
-        // Static utilities
+    private Proto() {}
+
+    @Override
+    protected RequestType readRequestType(DataInput in) throws IOException {
+        return RequestType.read(in);
     }
 
-    public static void writeRequest(Request request, DataOutput out) throws IOException {
-        writeHeader(CURRENT_VERSION, out);
-        request.requestType().write(out);
-        request.write(out);
+    @Override
+    protected ResponseType readResponseType(DataInput in) throws IOException {
+        return ResponseType.read(in);
     }
 
-    public static Request readRequest(DataInput in) throws IOException {
-        int clientVersion = readHeader(in);
-        if (clientVersion > CURRENT_VERSION) {
-            throw new IOException("Unknown client version [" + clientVersion + "]. Always upgrade sql last.");
-            // NOCOMMIT I believe we usually advise upgrading the clients *first* so this might be backwards.....
-        }
-        return RequestType.read(in).reader.read(clientVersion, in);
-    }
-
-    public static void writeResponse(Response response, int clientVersion, DataOutput out) throws IOException {
-        writeHeader(clientVersion, out);
-        response.responseType().write(out);
-        response.write(clientVersion, out);
-    }
-
-    public static Response readResponse(RequestType expectedRequestType, DataInput in) throws IOException {
-        int version = readHeader(in);
-        if (version != CURRENT_VERSION) {
-            throw new IOException("Response version [" + version + "] does not match client version ["
-                    + CURRENT_VERSION + "]. Server is busted.");
-        }
-        Response response = ResponseType.read(in).reader.read(in);
-        if (response.requestType() != expectedRequestType) {
-            throw new IOException("Expected request type to be [" + expectedRequestType
-                    + "] but was [" + response.requestType() + "]. Server is busted.");
-        }
-        return response;
-    }
-
-    private static void writeHeader(int clientVersion, DataOutput out) throws IOException {
-        out.writeInt(MAGIC_NUMBER);
-        out.writeInt(clientVersion);
-    }
-
-    /**
-     * Read the protocol header.
-     * @return the version 
-     * @throws IOException if there is an underlying {@linkplain IOException} or if the protocol is malformed
-     */
-    private static int readHeader(DataInput in) throws IOException {
-        int magic = in.readInt();
-        if (magic != MAGIC_NUMBER) {
-            throw new IOException("Unknown protocol magic number [" + Integer.toHexString(magic) + "]");
-        }
-        int version = in.readInt();
-        return version;
-    }
-
-    @FunctionalInterface
-    interface RequestReader {
-        Request read(int clientVersion, DataInput in) throws IOException;
-    }
-    public enum RequestType {
+    public enum RequestType implements AbstractProto.RequestType {
         INFO(InfoRequest::new),
         COMMAND(CommandRequest::new);
 
@@ -89,25 +40,27 @@ public abstract class Proto {
             this.reader = reader;
         }
 
-        void write(DataOutput out) throws IOException {
-            out.writeByte(ordinal());
-        }
-
         static RequestType read(DataInput in) throws IOException {
             byte b = in.readByte();
             try {
                 return values()[b];
             } catch (ArrayIndexOutOfBoundsException e) {
-                throw new IllegalArgumentException("Unknown response type [" + b + "]", e);
+                throw new IllegalArgumentException("Unknown request type [" + b + "]", e);
             }
+        }
+
+        @Override
+        public void write(DataOutput out) throws IOException {
+            out.writeByte(ordinal());
+        }
+
+        @Override
+        public RequestReader reader() {
+            return reader;
         }
     }
 
-    @FunctionalInterface
-    interface ResponseReader {
-        Response read(DataInput in) throws IOException;
-    }
-    enum ResponseType {
+    enum ResponseType implements AbstractProto.ResponseType {
         EXCEPTION(ExceptionResponse::new),
         ERROR(ErrorResponse::new),
         INFO(InfoResponse::new),
@@ -119,10 +72,6 @@ public abstract class Proto {
             this.reader = reader;
         }
 
-        void write(DataOutput out) throws IOException {
-            out.writeByte(ordinal());
-        }
-
         static ResponseType read(DataInput in) throws IOException {
             byte b = in.readByte();
             try {
@@ -130,6 +79,16 @@ public abstract class Proto {
             } catch (ArrayIndexOutOfBoundsException e) {
                 throw new IllegalArgumentException("Unknown response type [" + b + "]", e);
             }
+        }
+
+        @Override
+        public void write(DataOutput out) throws IOException {
+            out.writeByte(ordinal());
+        }
+
+        @Override
+        public ResponseReader reader() {
+            return reader;
         }
     }
 }

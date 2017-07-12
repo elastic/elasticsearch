@@ -10,9 +10,8 @@ import org.elasticsearch.xpack.sql.cli.CliException;
 import org.elasticsearch.xpack.sql.cli.net.protocol.CommandRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto;
-import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
-import org.elasticsearch.xpack.sql.cli.net.protocol.Response;
 import org.elasticsearch.xpack.sql.net.client.util.Bytes;
+import org.elasticsearch.xpack.sql.protocol.shared.Response;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInput;
@@ -27,13 +26,15 @@ public class CliHttpClient implements AutoCloseable {
     }
 
     public Response serverInfo() {
-        Bytes ba = http.put(out -> Proto.writeRequest(new InfoRequest(), out));
-        return doIO(ba, in -> Proto.readResponse(RequestType.INFO, in));
+        InfoRequest request = new InfoRequest();
+        Bytes ba = http.post(out -> Proto.INSTANCE.writeRequest(request, out));
+        return doIO(ba, in -> Proto.INSTANCE.readResponse(request, in));
     }
 
     public Response command(String command, String requestId) {
-        Bytes ba = http.put(out -> Proto.writeRequest(new CommandRequest(command), out));
-        return doIO(ba, in -> Proto.readResponse(RequestType.COMMAND, in));
+        CommandRequest request = new CommandRequest(command);
+        Bytes ba = http.post(out -> Proto.INSTANCE.writeRequest(request, out));
+        return doIO(ba, in -> Proto.INSTANCE.readResponse(request, in));
     }
 
     private static <T> T doIO(Bytes ba, DataInputFunction<T> action) {

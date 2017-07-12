@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.jdbc.framework;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Response;
+import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.elasticsearch.xpack.sql.test.server.ProtoHttpServer;
 
 /**

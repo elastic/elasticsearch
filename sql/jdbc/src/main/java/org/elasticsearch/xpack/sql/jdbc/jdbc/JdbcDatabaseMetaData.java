@@ -5,21 +5,21 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.ResultSet;
-import java.sql.RowIdLifetime;
-import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
-import java.sql.Types;
-import java.util.ArrayList;
-import java.util.List;
-
 import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnInfo;
 import org.elasticsearch.xpack.sql.jdbc.util.Version;
 import org.elasticsearch.xpack.sql.net.client.util.ObjectUtils;
+
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.JDBCType;
+import java.sql.ResultSet;
+import java.sql.RowIdLifetime;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.xpack.sql.net.client.util.StringUtils.EMPTY;
 import static org.elasticsearch.xpack.sql.net.client.util.StringUtils.hasText;
@@ -824,8 +824,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             row[ 1] = EMPTY;
             row[ 2] = col.table;
             row[ 3] = col.name;
-            row[ 4] = col.type;
-            row[ 5] = JdbcUtils.nameOf(col.type);
+            row[ 4] = col.type.getVendorTypeNumber();
+            row[ 5] = col.type.getName();
             row[ 6] = col.position; // NOCOMMIT this doesn't seem right
             row[ 7] = null;
             row[ 8] = null;
@@ -1186,11 +1186,11 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             Object obj = cols[i];
             if (obj instanceof String) {
                 String name = obj.toString();
-                int type = Types.VARCHAR;
+                JDBCType type = JDBCType.VARCHAR;
                 if (i + 1 < cols.length) {
                     // check if the next item it's a type
                     if (cols[i + 1] instanceof Class) {
-                        type = JdbcUtils.fromClass((Class<?>) cols[i + 1]);
+                        type = JDBCType.valueOf(JdbcUtils.fromClass((Class<?>) cols[i + 1]));
                         i++;
                     }
                     // it's not, use the default and move on

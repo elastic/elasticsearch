@@ -5,36 +5,28 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.ResponseType;
+import org.elasticsearch.xpack.sql.protocol.shared.AbstractErrorResponse;
+import org.elasticsearch.xpack.sql.protocol.shared.Request;
+
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Status;
+/**
+ * Response sent when there is a server side error.
+ */
+public class ErrorResponse extends AbstractErrorResponse<RequestType> {
+    public ErrorResponse(RequestType requestType, String message, String cause, String stack) {
+        super(requestType, message, cause, stack);
+    }
 
-public class ErrorResponse extends Response {
-
-    public final String message, cause, stack;
-
-    public ErrorResponse(Action requestedAction, String message, String cause, String stack) {
-        super(requestedAction);
-        this.message = message;
-        this.cause = cause;
-        this.stack = stack;
+    ErrorResponse(Request request, DataInput in) throws IOException {
+        super((RequestType) request.requestType(), in);
     }
 
     @Override
-    public void encode(DataOutput out) throws IOException {
-        out.writeInt(Status.toError(action));
-        out.writeUTF(message);
-        out.writeUTF(cause);
-        out.writeUTF(stack);
-    }
-
-    public static ErrorResponse decode(DataInput in, Action action) throws IOException {
-        String message = in.readUTF();
-        String cause = in.readUTF();
-        String stack = in.readUTF();
-        return new ErrorResponse(action, message, cause, stack);
+    public ResponseType responseType() {
+        return ResponseType.ERROR;
     }
 }

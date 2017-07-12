@@ -43,11 +43,13 @@ task generateGitHash {
 dependencies {
   compile project(':x-pack-elasticsearch:sql:net-client')
   compile project(':x-pack-elasticsearch:sql:jdbc-proto')
+  compile project(':x-pack-elasticsearch:sql:shared-proto')
   /* We want to limit these dependencies so do not add anything to this list
    * without serious consideration, and probably shading. */
 
+  // Used by the embedded sql tests
   testCompile project(path: ':client:transport', configuration: 'runtime')
-  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
+  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts') // NOCOMMIT remove me?
   testCompile project(':x-pack-elasticsearch:sql:test-utils')
   testCompile "net.sourceforge.csvjdbc:csvjdbc:1.0.31"
 
@@ -56,8 +58,10 @@ dependencies {
 
 dependencyLicenses {
   mapping from: /jdbc-proto.*/, to: 'elasticsearch'
+  mapping from: /shared-proto.*/, to: 'elasticsearch'
   mapping from: /net-client.*/, to: 'elasticsearch'
   ignoreSha 'jdbc-proto'
+  ignoreSha 'shared-proto'
   ignoreSha 'net-client'
 }
 

@@ -5,38 +5,29 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.ResponseType;
+import org.elasticsearch.xpack.sql.protocol.shared.AbstractExceptionResponse;
+import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto.SqlExceptionType;
+import org.elasticsearch.xpack.sql.protocol.shared.Request;
+
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.SqlExceptionType;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Status;
+/**
+ * Response sent when there is a client side error.
+ */
+public class ExceptionResponse extends AbstractExceptionResponse<RequestType> {
+    public ExceptionResponse(RequestType requestType, String message, String cause, SqlExceptionType exceptionType) {
+        super(requestType, message, cause, exceptionType);
+    }
 
-public class ExceptionResponse extends Response {
-
-    public final SqlExceptionType asSql;
-    public final String message, cause;
-
-    public ExceptionResponse(Action requestedAction, String message, String cause, SqlExceptionType asSql) {
-        super(requestedAction);
-        this.message = message;
-        this.cause = cause;
-        this.asSql = asSql;
+    ExceptionResponse(Request request, DataInput in) throws IOException {
+        super((RequestType) request.requestType(), in);
     }
 
     @Override
-    public void encode(DataOutput out) throws IOException {
-        out.writeInt(Status.toException(action));
-        out.writeUTF(message);
-        out.writeUTF(cause);
-        out.writeInt(asSql.value());
-    }
-
-    public static ExceptionResponse decode(DataInput in, Action action) throws IOException {
-        String message = in.readUTF();
-        String cause = in.readUTF();
-        int sqlType = in.readInt();
-        return new ExceptionResponse(action, message, cause, SqlExceptionType.from(sqlType));
+    public ResponseType responseType() {
+        return ResponseType.EXCEPTION;
     }
 }

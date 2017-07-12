@@ -9,6 +9,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.cli.net.protocol.CommandResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto.SqlExceptionType;
 import org.jline.terminal.Terminal;
 import org.jline.utils.AttributedStringBuilder;
 
@@ -23,7 +24,8 @@ public class ResponseToStringTests extends ESTestCase {
     }
 
     public void testExceptionResponse() {
-        AttributedStringBuilder s = ResponseToString.toAnsi(new ExceptionResponse(RequestType.INFO, "test message", "test cause"));
+        AttributedStringBuilder s = ResponseToString.toAnsi(new ExceptionResponse(RequestType.INFO, "test message", "test cause",
+                randomFrom(SqlExceptionType.values())));
         assertEquals("test message", unstyled(s));
         assertEquals("[1;36mtest message[0m", fullyStyled(s));
     }

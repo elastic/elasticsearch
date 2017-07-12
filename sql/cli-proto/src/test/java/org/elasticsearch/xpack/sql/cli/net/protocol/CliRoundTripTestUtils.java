@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.cli.net.protocol;
 
+import org.elasticsearch.xpack.sql.protocol.shared.Request;
+import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.elasticsearch.xpack.sql.test.RoundTripTestUtils;
 
 import java.io.IOException;
@@ -15,12 +17,12 @@ public final class CliRoundTripTestUtils {
     }
 
     static void assertRoundTripCurrentVersion(Request request) throws IOException {
-        RoundTripTestUtils.assertRoundTrip(request, Proto::writeRequest, Proto::readRequest);
+        RoundTripTestUtils.assertRoundTrip(request, Proto.INSTANCE::writeRequest, Proto.INSTANCE::readRequest);
     }
 
-    static void assertRoundTripCurrentVersion(Response response) throws IOException {
+    static void assertRoundTripCurrentVersion(Request request, Response response) throws IOException {
         RoundTripTestUtils.assertRoundTrip(response,
-                (r, out) -> Proto.writeResponse(r, Proto.CURRENT_VERSION, out), 
-                in -> Proto.readResponse(response.requestType(), in));
+                (r, out) -> Proto.INSTANCE.writeResponse(r, Proto.CURRENT_VERSION, out), 
+                in -> Proto.INSTANCE.readResponse(request, in));
     }
 }

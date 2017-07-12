@@ -14,19 +14,14 @@ import java.sql.Time;
 import java.sql.Timestamp;
 
 import static java.sql.Types.BIGINT;
-import static java.sql.Types.BINARY;
-import static java.sql.Types.BIT;
 import static java.sql.Types.BLOB;
 import static java.sql.Types.BOOLEAN;
-import static java.sql.Types.CHAR;
 import static java.sql.Types.CLOB;
 import static java.sql.Types.DATE;
 import static java.sql.Types.DECIMAL;
 import static java.sql.Types.DOUBLE;
 import static java.sql.Types.FLOAT;
 import static java.sql.Types.INTEGER;
-import static java.sql.Types.LONGVARBINARY;
-import static java.sql.Types.LONGVARCHAR;
 import static java.sql.Types.NULL;
 import static java.sql.Types.NUMERIC;
 import static java.sql.Types.REAL;
@@ -69,57 +64,6 @@ public abstract class JdbcUtils {
         }
 
         return wrapperClass;
-    }
-
-    public static String nameOf(int jdbcType) {
-        return JDBCType.valueOf(jdbcType).getName();
-    }
-
-    // see javax.sql.rowset.RowSetMetaDataImpl
-    // and https://db.apache.org/derby/docs/10.5/ref/rrefjdbc20377.html
-    public static Class<?> classOf(int jdbcType) {
-
-        switch (jdbcType) {
-            case NUMERIC:
-            case DECIMAL:
-                return BigDecimal.class;
-            case BOOLEAN:
-            case BIT:
-                return Boolean.class;
-            case TINYINT:
-                return Byte.class;
-            case SMALLINT:
-                return Short.class;
-            case INTEGER:
-                return Integer.class;
-            case BIGINT:
-                return Long.class;
-            case REAL:
-                return Float.class;
-            case FLOAT:
-            case DOUBLE:
-                return Double.class;
-            case BINARY:
-            case VARBINARY:
-            case LONGVARBINARY:
-                return byte[].class;
-            case CHAR:
-            case VARCHAR:
-            case LONGVARCHAR:
-                return String.class;
-            case DATE:
-                return Date.class;
-            case TIME:
-                return Time.class;
-            case TIMESTAMP:
-                return Timestamp.class;
-            case BLOB:
-                return Blob.class;
-            case CLOB:
-                return Clob.class;
-            default:
-                throw new IllegalArgumentException("Unsupported JDBC type [" + jdbcType + "/" + nameOf(jdbcType) + "]");
-        }
     }
 
     public static int fromClass(Class<?> clazz) {

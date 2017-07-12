@@ -5,53 +5,73 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.ResponseType;
+import org.elasticsearch.xpack.sql.protocol.shared.Request;
+import org.elasticsearch.xpack.sql.protocol.shared.Response;
+
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Status;
-
-import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
 
 public class MetaTableResponse extends Response {
-
-    public static final MetaTableResponse EMPTY = new MetaTableResponse(emptyList());
-
     public final List<String> tables;
 
     public MetaTableResponse(List<String> tables) {
-        super(Action.META_TABLE);
+        if (tables == null) {
+            throw new IllegalArgumentException("[tables] must not be null");
+        }
         this.tables = tables;
     }
 
+    MetaTableResponse(Request request, DataInput in) throws IOException {
+        int length = in.readInt();
+        List<String> list = new ArrayList<>(length);
+        for (int i = 0; i < length; i++) {
+            list.add(in.readUTF());
+        }
+        tables = unmodifiableList(list);
+    }
+
     @Override
-    public void encode(DataOutput out) throws IOException {
-        out.writeInt(Status.toSuccess(action));
+    public void write(int clientVersion, DataOutput out) throws IOException {
         out.writeInt(tables.size());
         for (String t : tables) {
             out.writeUTF(t);
         }
     }
 
-    public static MetaTableResponse decode(DataInput in) throws IOException {
-        int length = in.readInt();
-        if (length < 1) {
-            return MetaTableResponse.EMPTY;
-        }
-
-        List<String> list = new ArrayList<>(length);
-
-        for (int i = 0; i < length; i++) {
-            list.add(in.readUTF());
-        }
-        return new MetaTableResponse(list);
+    @Override
+    protected String toStringBody() {
+        return String.join(", ", tables);
     }
 
     @Override
-    public String toString() {
-        return tables.toString();
+    public RequestType requestType() {
+        return RequestType.META_TABLE;
     }
+
+    @Override
+    public ResponseType responseType() {
+        return ResponseType.META_TABLE;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        MetaTableResponse other = (MetaTableResponse) obj;
+        return tables.equals(other.tables);
+    }
+
+    @Override
+    public int hashCode() {
+        return tables.hashCode();
+    }
+
 }

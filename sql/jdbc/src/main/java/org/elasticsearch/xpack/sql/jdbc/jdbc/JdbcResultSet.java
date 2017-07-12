@@ -16,6 +16,7 @@ import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Date;
+import java.sql.JDBCType;
 import java.sql.NClob;
 import java.sql.Ref;
 import java.sql.ResultSet;
@@ -316,14 +317,14 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             return type.cast(val);
         }
 
-        int columnType = cursor.columns().get(columnIndex - 1).type;
+        JDBCType columnType = cursor.columns().get(columnIndex - 1).type;
         
         T t = TypeConverter.convert(val, columnType, type);
         
         if (t != null) {
             return t;
         }
-        throw new SQLException(format(Locale.ROOT, "Conversion from type %s to %s not supported", JdbcUtils.nameOf(columnType), type.getName()));
+        throw new SQLException("Conversion from type [" + columnType + "] to [" + type.getName() + "] not supported");
     }
 
     @Override

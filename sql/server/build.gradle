@@ -5,18 +5,21 @@ description = 'The server components of SQL for Elasticsearch'
 dependencies {
   compile project(':x-pack-elasticsearch:sql:jdbc-proto')
   compile project(':x-pack-elasticsearch:sql:cli-proto')
+  compile project(':x-pack-elasticsearch:sql:shared-proto')
   provided "org.elasticsearch.plugin:aggs-matrix-stats-client:${project.versions.elasticsearch}"
   //NOCOMMIT - we should upgrade to the latest 4.5.x if not 4.7
   compile 'org.antlr:antlr4-runtime:4.5.1-1'
   provided "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
-  
+
 }
 
 dependencyLicenses {
   mapping from: /jdbc-proto.*/, to: 'elasticsearch'
   mapping from: /cli-proto.*/, to: 'elasticsearch'
+  mapping from: /shared-proto.*/, to: 'elasticsearch'
   ignoreSha 'jdbc-proto'
   ignoreSha 'cli-proto'
+  ignoreSha 'shared-proto'
 }
 
 // NOCOMMIT probably not a good thing to rely on.....

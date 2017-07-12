@@ -16,23 +16,23 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableResponse;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.SqlExceptionType;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.ProtoUtils;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Page;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.ResponseType;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageResponse;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Response;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.TimeoutInfo;
 import org.elasticsearch.xpack.sql.jdbc.util.BytesArray;
 import org.elasticsearch.xpack.sql.jdbc.util.FastByteArrayInputStream;
 import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
+import org.elasticsearch.xpack.sql.protocol.shared.Request;
+import org.elasticsearch.xpack.sql.protocol.shared.Response;
 
 import java.io.Closeable;
 import java.io.DataInput;
 import java.io.DataInputStream;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.time.Instant;
@@ -66,67 +66,21 @@ public class JdbcHttpClient implements Closeable {
     }
 
     public Cursor query(String sql, TimeZone timeZone, RequestMeta meta) throws SQLException {
-        BytesArray ba = http.put(out -> queryRequest(out, meta, sql, timeZone));
-        return doIO(ba, in -> queryResponse(in, meta));
-    }
-
-    private void queryRequest(DataOutput out, RequestMeta meta, String sql, TimeZone timeZone) throws IOException {
         int fetch = meta.fetchSize() >= 0 ? meta.fetchSize() : conCfg.pageSize();
-        ProtoUtils.write(out, new QueryInitRequest(fetch, sql, timeZone, timeout(meta)));
+        QueryInitRequest request = new QueryInitRequest(fetch, sql, timeZone, timeout(meta));
+        BytesArray ba = http.put(out -> Proto.INSTANCE.writeRequest(request, out));
+        QueryInitResponse response = doIO(ba, in -> (QueryInitResponse) readResponse(request, in));
+        return new DefaultCursor(this, response.requestId, (Page) response.data, meta);
     }
 
+    /**
+     * Read the next page of results, updating the {@link Page} and returning
+     * the scroll id to use to fetch the next page.
+     */
     public String nextPage(String requestId, Page page, RequestMeta meta) throws SQLException {
-        BytesArray ba = http.put(out -> ProtoUtils.write(out, new QueryPageRequest(requestId, timeout(meta))));
-        return doIO(ba, in -> pageResponse(in, page));
-    }
-
-    private TimeoutInfo timeout(RequestMeta meta) {
-        // client time
-        long clientTime = Instant.now().toEpochMilli();
-
-        // timeout (in ms)
-        long timeout = meta.timeoutInMs();
-        if (timeout == 0) {
-            timeout = conCfg.getQueryTimeout();
-        }
-        return new TimeoutInfo(clientTime, timeout, conCfg.getPageTimeout());
-    }
-
-    private Cursor queryResponse(DataInput in, RequestMeta meta) throws IOException, SQLException {
-        QueryInitResponse response = readResponse(in, Action.QUERY_INIT);
-
-        // finally read data
-        // allocate columns
-        int rows = in.readInt();
-        Page page = Page.of(response.columns, rows);
-        readData(in, page, rows);
-
-        return new DefaultCursor(this, response.requestId, page, meta);
-    }
-
-    private void readData(DataInput in, Page page, int rows) throws IOException {
-        page.resize(rows);
-        int[] jdbcTypes = page.columnInfo().stream()
-                .mapToInt(c -> c.type)
-                .toArray();
-        
-        for (int row = 0; row < rows; row++) {
-            for (int column = 0; column < jdbcTypes.length; column++) {
-                page.column(column)[row] = ProtoUtils.readValue(in, jdbcTypes[column]);
-            }
-        }
-    }
-
-    private String pageResponse(DataInput in, Page page) throws IOException, SQLException {
-        QueryPageResponse response = readResponse(in, Action.QUERY_PAGE);
-
-        // read the data
-        // allocate columns
-        int rows = in.readInt();
-        page.resize(rows); // NOCOMMIT I believe this is duplicated with readData
-        readData(in, page, rows);
-
-        return response.requestId;
+        QueryPageRequest request = new QueryPageRequest(requestId, timeout(meta), page);
+        BytesArray ba = http.put(out -> Proto.INSTANCE.writeRequest(request, out));
+        return doIO(ba, in -> ((QueryPageResponse) readResponse(request, in)).requestId);
     }
 
     public InfoResponse serverInfo() throws SQLException {
@@ -137,26 +91,21 @@ public class JdbcHttpClient implements Closeable {
     }
 
     private InfoResponse fetchServerInfo() throws SQLException {
-        BytesArray ba = http.put(out -> ProtoUtils.write(out, new InfoRequest()));
-        return doIO(ba, in -> readResponse(in, Action.INFO));
+        InfoRequest request = new InfoRequest();
+        BytesArray ba = http.put(out -> Proto.INSTANCE.writeRequest(request, out));
+        return doIO(ba, in -> (InfoResponse) readResponse(request, in));
     }
 
     public List<String> metaInfoTables(String pattern) throws SQLException {
-        BytesArray ba = http.put(out -> ProtoUtils.write(out, new MetaTableRequest(pattern)));
-
-        return doIO(ba, in -> {
-            MetaTableResponse res = readResponse(in, Action.META_TABLE);
-            return res.tables;
-        });
+        MetaTableRequest request = new MetaTableRequest(pattern);
+        BytesArray ba = http.put(out -> Proto.INSTANCE.writeRequest(request, out));
+        return doIO(ba, in -> ((MetaTableResponse) readResponse(request, in)).tables);
     }
 
     public List<MetaColumnInfo> metaInfoColumns(String tablePattern, String columnPattern) throws SQLException {
-        BytesArray ba = http.put(out -> ProtoUtils.write(out, new MetaColumnRequest(tablePattern, columnPattern)));
-
-        return doIO(ba, in -> {
-            MetaColumnResponse res = readResponse(in, Action.META_COLUMN);
-            return res.columns;
-        });
+        MetaColumnRequest request = new MetaColumnRequest(tablePattern, columnPattern);
+        BytesArray ba = http.put(out -> Proto.INSTANCE.writeRequest(request, out));
+        return doIO(ba, in -> ((MetaColumnResponse) readResponse(request, in)).columns);
     }
 
     public void close() {
@@ -179,36 +128,29 @@ public class JdbcHttpClient implements Closeable {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static <R extends Response> R readResponse(DataInput in, Action expected) throws IOException, SQLException {
-        String errorMessage = ProtoUtils.readHeader(in);
-        if (errorMessage != null) {
-            throw new JdbcException(errorMessage);
-        }
-        
-        int header = in.readInt();
+    private static Response readResponse(Request request, DataInput in) throws IOException, SQLException {
+        Response response = Proto.INSTANCE.readResponse(request, in);
 
-        Action action = Action.from(header);
-        if (expected != action) {
-            throw new JdbcException("Expected response for %s, found %s", expected, action);
-        }
-
-        Response response = ProtoUtils.readResponse(in, header);
-
-        // NOCOMMIT why not move the throw login into readResponse?
-        if (response instanceof ExceptionResponse) {
+        if (response.responseType() == ResponseType.EXCEPTION) {
             ExceptionResponse ex = (ExceptionResponse) response;
-            throw SqlExceptionType.asException(ex.asSql, ex.message);
+            throw ex.asException();
         }
-        if (response instanceof ErrorResponse) {
+        if (response.responseType() == ResponseType.EXCEPTION) {
             ErrorResponse error = (ErrorResponse) response;
             throw new JdbcException("%s", error.stack);
         }
-        if (response instanceof Response) {
-            // NOCOMMIT I'd feel more comfortable either returning Response and passing the class in and calling responseClass.cast(response)
-            return (R) response;
-        }
+        return response;
+    }
 
-        throw new JdbcException("Invalid response status %08X", header);
+    private TimeoutInfo timeout(RequestMeta meta) {
+        // client time
+        long clientTime = Instant.now().toEpochMilli();
+
+        // timeout (in ms)
+        long timeout = meta.timeoutInMs();
+        if (timeout == 0) {
+            timeout = conCfg.getQueryTimeout();
+        }
+        return new TimeoutInfo(clientTime, timeout, conCfg.getPageTimeout());
     }
 }

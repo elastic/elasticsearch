@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.client;
 
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Page;
+import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
+
 import java.sql.SQLException;
 import java.util.List;
-
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
-import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
 
 class DefaultCursor implements Cursor {
 

@@ -1,0 +1,13 @@
+description = 'Request and response objects shared by the cli and jdbc.'
+
+dependencies {
+  testCompile project(':x-pack-elasticsearch:sql:test-utils')
+}
+
+forbiddenApisMain {
+  // does not depend on core, so only jdk and http signatures should be checked
+  signaturesURLs = [this.class.getResource('/forbidden/jdk-signatures.txt')]
+}
+
+// Tested in cli-proto and jdbc-proto
+test.enabled = false

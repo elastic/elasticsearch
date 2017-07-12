@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.util;
 
 import java.util.function.Consumer;
 
-public interface ThrowableConsumer<T> extends Consumer<T> {
+public interface ThrowableConsumer<T> extends Consumer<T> { // NOCOMMIT replace with CheckedConsumer
 
     @Override
     default void accept(T t) {

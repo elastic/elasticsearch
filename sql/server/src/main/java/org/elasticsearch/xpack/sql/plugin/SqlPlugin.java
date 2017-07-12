@@ -24,15 +24,15 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
-import org.elasticsearch.xpack.sql.plugin.jdbc.action.JdbcAction;
-import org.elasticsearch.xpack.sql.plugin.jdbc.action.TransportJdbcAction;
-import org.elasticsearch.xpack.sql.plugin.jdbc.http.JdbcHttpHandler;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.TransportSqlAction;
 import org.elasticsearch.xpack.sql.plugin.sql.rest.RestSqlAction;
 import org.elasticsearch.xpack.sql.server.cli.CliAction;
 import org.elasticsearch.xpack.sql.server.cli.CliHttpHandler;
 import org.elasticsearch.xpack.sql.server.cli.TransportCliAction;
+import org.elasticsearch.xpack.sql.server.jdbc.JdbcAction;
+import org.elasticsearch.xpack.sql.server.jdbc.JdbcHttpHandler;
+import org.elasticsearch.xpack.sql.server.jdbc.TransportJdbcAction;
 
 import java.util.Arrays;
 import java.util.Collection;

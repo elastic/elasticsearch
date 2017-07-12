@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.protocol.shared.Request;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -20,15 +21,13 @@ public class QueryInitRequest extends Request {
     public final TimeoutInfo timeout;
 
     public QueryInitRequest(int fetchSize, String query, TimeZone timeZone, TimeoutInfo timeout) {
-        super(Action.QUERY_INIT);
         this.fetchSize = fetchSize;
         this.query = query;
         this.timeZone = timeZone;
         this.timeout = timeout;
     }
 
-    QueryInitRequest(DataInput in) throws IOException {
-        super(Action.QUERY_INIT);
+    QueryInitRequest(int clientVersion, DataInput in) throws IOException {
         fetchSize = in.readInt();
         query = in.readUTF();
         timeZone = TimeZone.getTimeZone(in.readUTF());
@@ -36,22 +35,26 @@ public class QueryInitRequest extends Request {
     }
 
     @Override
-    public void encode(DataOutput out) throws IOException {
-        out.writeInt(action.value()); // NOCOMMIT this should be written by the caller
+    public void write(DataOutput out) throws IOException {
         out.writeInt(fetchSize);
         out.writeUTF(query);
         out.writeUTF(timeZone.getID());
-        timeout.encode(out);
+        timeout.write(out);
     }
 
     @Override
-    public String toString() {
+    protected String toStringBody() {
         StringBuilder b = new StringBuilder();
-        b.append("SqlInitReq[").append(query).append(']');
+        b.append("query=[").append(query).append(']');
         if (false == timeZone.getID().equals("UTC")) {
-            b.append('[').append(timeZone.getID()).append(']');
+            b.append(" timeZone=[").append(timeZone.getID()).append(']');
         }
         return b.toString();
+    }
+
+    @Override
+    public RequestType requestType() {
+        return RequestType.QUERY_INIT;
     }
 
     @Override

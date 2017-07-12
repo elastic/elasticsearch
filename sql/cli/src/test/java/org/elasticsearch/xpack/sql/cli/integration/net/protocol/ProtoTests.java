@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.cli.net.client.CliHttpClient;
 import org.elasticsearch.xpack.sql.cli.net.protocol.CommandResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
-import org.elasticsearch.xpack.sql.cli.net.protocol.Response;
 import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
+import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 

@@ -5,41 +5,72 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.protocol.shared.Nullable;
+import org.elasticsearch.xpack.sql.protocol.shared.Request;
+
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.Locale;
-
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
-
-import static java.lang.String.format;
+import java.util.Objects;
 
 public class QueryPageRequest extends Request {
-
     public final String requestId;
     public final TimeoutInfo timeout;
+    private final transient Page data;
 
-    public QueryPageRequest(String requestId, TimeoutInfo timeout) {
-        super(Action.QUERY_PAGE);
+    public QueryPageRequest(String requestId, TimeoutInfo timeout, @Nullable Page data) {
+        if (requestId == null) {
+            throw new IllegalArgumentException("[requestId] must not be null");
+        }
+        if (timeout == null) {
+            throw new IllegalArgumentException("[timeout] must not be null");
+        }
         this.requestId = requestId;
         this.timeout = timeout;
+        this.data = data;
+    }
+
+    QueryPageRequest(int clientVersion, DataInput in) throws IOException {
+        this.requestId = in.readUTF();
+        this.timeout = new TimeoutInfo(in);
+        this.data = null; // Data isn't used on the server side
     }
 
     @Override
-    public void encode(DataOutput out) throws IOException {
-        out.writeInt(action.value());
+    public void write(DataOutput out) throws IOException {
         out.writeUTF(requestId);
-        timeout.encode(out);
+        timeout.write(out);
     }
 
-    public static QueryPageRequest decode(DataInput in) throws IOException {
-        String requestId = in.readUTF();
-        TimeoutInfo timeout = new TimeoutInfo(in);
-        return new QueryPageRequest(requestId, timeout);
+    public Page data() {
+        return data;
     }
 
     @Override
-    public String toString() {
-        return format(Locale.ROOT, "QueryPageReq[%s]", requestId);
+    protected String toStringBody() {
+        return requestId;
+    }
+
+    @Override
+    public RequestType requestType() {
+        return RequestType.QUERY_PAGE;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        QueryPageRequest other = (QueryPageRequest) obj;
+        return requestId.equals(other.requestId)
+                && timeout.equals(other.timeout);
+        // data is intentionally ignored
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(requestId, timeout);
+        // data is intentionally ignored
     }
 }

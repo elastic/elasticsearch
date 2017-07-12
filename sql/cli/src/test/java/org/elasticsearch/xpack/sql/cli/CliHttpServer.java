@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.cli;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xpack.sql.cli.net.protocol.Response;
+import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.elasticsearch.xpack.sql.test.server.ProtoHttpServer;
 
 /**

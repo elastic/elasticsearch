@@ -59,7 +59,7 @@ class JdbcParameterMetaData implements ParameterMetaData, JdbcWrapper {
 
     @Override
     public String getParameterClassName(int param) throws SQLException {
-        return JdbcUtils.nameOf(paramInfo(param).type.getVendorTypeNumber().intValue());
+        return paramInfo(param).type.name();  // NOCOMMIT this is almost certainly wrong
     }
 
     @Override

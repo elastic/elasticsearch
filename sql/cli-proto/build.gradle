@@ -1,13 +1,17 @@
-apply plugin: 'elasticsearch.build'
-
 description = 'Request and response objects shared by the cli and ' +
     'its backend in :sql:server'
 
 dependencies {
+  compile project(':x-pack-elasticsearch:sql:shared-proto')
   testCompile project(':x-pack-elasticsearch:sql:test-utils')
 }
 
 forbiddenApisMain {
   // does not depend on core, so only jdk and http signatures should be checked
   signaturesURLs = [this.class.getResource('/forbidden/jdk-signatures.txt')]
+}
+
+dependencyLicenses {
+  mapping from: /shared-proto.*/, to: 'elasticsearch'
+  ignoreSha 'shared-proto'
 }

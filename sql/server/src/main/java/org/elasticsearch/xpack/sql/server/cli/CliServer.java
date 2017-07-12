@@ -10,14 +10,17 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.cli.net.protocol.CommandRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.CommandResponse;
+import org.elasticsearch.xpack.sql.cli.net.protocol.ErrorResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
-import org.elasticsearch.xpack.sql.cli.net.protocol.Request;
-import org.elasticsearch.xpack.sql.cli.net.protocol.Response;
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.execution.search.SearchHitRowSetCursor;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageRequest;
+import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto.SqlExceptionType;
+import org.elasticsearch.xpack.sql.protocol.shared.Request;
+import org.elasticsearch.xpack.sql.protocol.shared.Response;
+import org.elasticsearch.xpack.sql.server.AbstractSqlServer;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.TimeZone;
@@ -26,7 +29,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.sql.util.StringUtils.EMPTY;
 
-public class CliServer {
+public class CliServer extends AbstractSqlServer {
 
     private final PlanExecutor executor;
     private final Supplier<InfoResponse> infoResponse;
@@ -37,21 +40,35 @@ public class CliServer {
         this.infoResponse = () -> new InfoResponse(nodeName.get(), clusterName, version.major, version.minor, version.toString(),
                 build.shortHash(), build.date());
     }
-    
-    public void handle(Request req, ActionListener<Response> listener) {
+
+    @Override
+    protected void innerHandle(Request req, ActionListener<Response> listener) {
+        RequestType requestType = (RequestType) req.requestType();
         try {
-            if (req instanceof InfoRequest) {
+            switch (requestType) {
+            case INFO:
                 listener.onResponse(info((InfoRequest) req));
-            }
-            else if (req instanceof CommandRequest) {
+                break;
+            case COMMAND:
                 command((CommandRequest) req, listener);
-            }
-            else {
-                listener.onResponse(new ExceptionResponse(req.requestType(), "Invalid requested", null));
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported action [" + requestType + "]");
             }
         } catch (Exception ex) {
-            listener.onResponse(CliServerProtoUtils.exception(ex, req.requestType()));
+            listener.onResponse(exceptionResponse(req, ex));
         }
+    }
+
+    @Override
+    protected ErrorResponse buildErrorResponse(Request request, String message, String cause, String stack) {
+        return new ErrorResponse((RequestType) request.requestType(), message, cause, stack);
+    }
+
+    @Override
+    protected ExceptionResponse buildExceptionResponse(Request request, String message, String cause,
+            SqlExceptionType exceptionType) {
+        return new ExceptionResponse((RequestType) request.requestType(), message, cause, exceptionType);
     }
 
     public InfoResponse info(InfoRequest req) {
@@ -70,13 +87,10 @@ public class CliServer {
                         requestId = StringUtils.nullAsEmpty(((SearchHitRowSetCursor) c).scrollId());
                     }
 
+                    // NOCOMMIT it looks like this tries to buffer the entire response in memory before returning it which is going to OOM some po
+                    // NOCOMMIT also this blocks the current thread while it iterates the cursor
                     listener.onResponse(new CommandResponse(start, stop, requestId, CliUtils.toString(c)));
                 }, 
-                ex -> listener.onResponse(CliServerProtoUtils.exception(ex, req.requestType()))));
+                ex -> listener.onResponse(exceptionResponse(req, ex))));
     }
-
-    public void queryPage(QueryPageRequest req, ActionListener<Response> listener) {
-        throw new UnsupportedOperationException();
-    }
-
 }

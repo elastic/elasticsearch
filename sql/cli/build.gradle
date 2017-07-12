@@ -10,13 +10,12 @@ dependencies {
   compile "org.jline:jline:3.3.1"
   compile project(':x-pack-elasticsearch:sql:net-client')
   compile project(':x-pack-elasticsearch:sql:cli-proto')
+  compile project(':x-pack-elasticsearch:sql:shared-proto')
 
-  testCompile project(":x-pack-elasticsearch:transport-client") // NOCOMMIT probably can remove this
-  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
+  // Used by embedded sql instance
+  testCompile project(":x-pack-elasticsearch:transport-client")
+  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts') // NOCOMMIT remove this?
   testCompile project(':x-pack-elasticsearch:sql:test-utils')
-
-  // Used by the hack to run InternalTestCluster if not running against a gradle-started cluster.
-  testCompile project(path: ':modules:lang-painless', configuration: 'runtime')
 
   runtime "org.fusesource.jansi:jansi:1.16"
   runtime "org.elasticsearch:jna:4.4.0-1"
@@ -24,8 +23,10 @@ dependencies {
 
 dependencyLicenses {
   mapping from: /cli-proto.*/, to: 'elasticsearch'
-  mapping from: /net-client.*/, to: 'elasticsearch'
+  mapping from: /shared-proto.*/, to: 'elasticsearch'
+  mapping from: /net.*/, to: 'elasticsearch'
   ignoreSha 'cli-proto'
+  ignoreSha 'shared-proto'
   ignoreSha 'net-client'
 }
 

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.cli.net.protocol;
 
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.protocol.shared.Request;
 
 import java.io.DataInput;
 import java.io.DataOutput;

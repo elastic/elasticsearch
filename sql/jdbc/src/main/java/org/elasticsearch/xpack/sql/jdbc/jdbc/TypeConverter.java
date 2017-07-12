@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
 import java.sql.Date;
+import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -21,25 +22,6 @@ import java.util.TimeZone;
 import java.util.function.Function;
 
 import static java.lang.String.format;
-import static java.sql.Types.BIGINT;
-import static java.sql.Types.BINARY;
-import static java.sql.Types.BIT;
-import static java.sql.Types.BOOLEAN;
-import static java.sql.Types.CHAR;
-import static java.sql.Types.DATE;
-import static java.sql.Types.DOUBLE;
-import static java.sql.Types.FLOAT;
-import static java.sql.Types.INTEGER;
-import static java.sql.Types.LONGVARBINARY;
-import static java.sql.Types.LONGVARCHAR;
-import static java.sql.Types.REAL;
-import static java.sql.Types.SMALLINT;
-import static java.sql.Types.TIME;
-import static java.sql.Types.TIMESTAMP;
-import static java.sql.Types.TIMESTAMP_WITH_TIMEZONE;
-import static java.sql.Types.TINYINT;
-import static java.sql.Types.VARBINARY;
-import static java.sql.Types.VARCHAR;
 import static java.util.Calendar.DAY_OF_MONTH;
 import static java.util.Calendar.ERA;
 import static java.util.Calendar.HOUR_OF_DAY;
@@ -99,7 +81,7 @@ abstract class TypeConverter {
     }
 
     @SuppressWarnings("unchecked")
-    static <T> T convert(Object val, int columnType, Class<T> type) throws SQLException {
+    static <T> T convert(Object val, JDBCType columnType, Class<T> type) throws SQLException {
         if (type == null) {
             return (T) asNative(val, columnType);
         }
@@ -161,7 +143,7 @@ abstract class TypeConverter {
     }
 
     // keep in check with JdbcUtils#columnType
-    private static Object asNative(Object v, int columnType) {
+    private static Object asNative(Object v, JDBCType columnType) {
         Object result = null;
         switch (columnType) {
             case BIT:
@@ -198,7 +180,7 @@ abstract class TypeConverter {
         return nativeValue == null ? null : String.valueOf(nativeValue);
     }
 
-    private static Boolean asBoolean(Object val, int columnType) {
+    private static Boolean asBoolean(Object val, JDBCType columnType) {
         switch (columnType) {
             case BIT:
             case BOOLEAN:
@@ -215,7 +197,7 @@ abstract class TypeConverter {
         }
     }
 
-    private static Byte asByte(Object val, int columnType) throws SQLException {
+    private static Byte asByte(Object val, JDBCType columnType) throws SQLException {
         switch (columnType) {
             case BIT:
             case BOOLEAN:
@@ -235,7 +217,7 @@ abstract class TypeConverter {
         return null;
     }
 
-    private static Short asShort(Object val, int columnType) throws SQLException {
+    private static Short asShort(Object val, JDBCType columnType) throws SQLException {
         switch (columnType) {
             case BIT:
             case BOOLEAN:
@@ -255,7 +237,7 @@ abstract class TypeConverter {
         return null;
     }
 
-    private static Integer asInteger(Object val, int columnType) throws SQLException {
+    private static Integer asInteger(Object val, JDBCType columnType) throws SQLException {
         switch (columnType) {
             case BIT:
             case BOOLEAN:
@@ -275,7 +257,7 @@ abstract class TypeConverter {
         return null;
     }
 
-    private static Long asLong(Object val, int columnType) throws SQLException {
+    private static Long asLong(Object val, JDBCType columnType) throws SQLException {
         switch (columnType) {
             case BIT:
             case BOOLEAN:
@@ -302,7 +284,7 @@ abstract class TypeConverter {
         return null;
     }
 
-    private static Float asFloat(Object val, int columnType) throws SQLException {
+    private static Float asFloat(Object val, JDBCType columnType) throws SQLException {
         switch (columnType) {
             case BIT:
             case BOOLEAN:
@@ -322,7 +304,7 @@ abstract class TypeConverter {
         return null;
     }
 
-    private static Double asDouble(Object val, int columnType) throws SQLException {
+    private static Double asDouble(Object val, JDBCType columnType) throws SQLException {
         switch (columnType) {
             case BIT:
             case BOOLEAN:
@@ -342,7 +324,7 @@ abstract class TypeConverter {
         return null;
     }
 
-    private static Date asDate(Object val, int columnType) throws SQLException {
+    private static Date asDate(Object val, JDBCType columnType) throws SQLException {
         switch (columnType) {
             case TIME:
                 // time has no date component
@@ -357,7 +339,7 @@ abstract class TypeConverter {
         return null;
     }
 
-    private static Time asTime(Object val, int columnType) throws SQLException {
+    private static Time asTime(Object val, JDBCType columnType) throws SQLException {
         switch (columnType) {
             case DATE:
                 // date has no time component
@@ -372,7 +354,7 @@ abstract class TypeConverter {
         return null;
     }
 
-    private static Timestamp asTimestamp(Object val, int columnType) throws SQLException {
+    private static Timestamp asTimestamp(Object val, JDBCType columnType) throws SQLException {
         switch (columnType) {
             case DATE:
                 return new Timestamp(utcMillisRemoveTime(((Number) val).longValue()));
@@ -387,26 +369,26 @@ abstract class TypeConverter {
         return null;
     }
 
-    private static byte[] asByteArray(Object val, int columnType) {
+    private static byte[] asByteArray(Object val, JDBCType columnType) {
         throw new UnsupportedOperationException();
     }
-    private static LocalDate asLocalDate(Object val, int columnType) {
-        throw new UnsupportedOperationException();
-    }
-
-    private static LocalTime asLocalTime(Object val, int columnType) {
+    private static LocalDate asLocalDate(Object val, JDBCType columnType) {
         throw new UnsupportedOperationException();
     }
 
-    private static LocalDateTime asLocalDateTime(Object val, int columnType) {
+    private static LocalTime asLocalTime(Object val, JDBCType columnType) {
         throw new UnsupportedOperationException();
     }
 
-    private static OffsetTime asOffsetTime(Object val, int columnType) {
+    private static LocalDateTime asLocalDateTime(Object val, JDBCType columnType) {
         throw new UnsupportedOperationException();
     }
 
-    private static OffsetDateTime asOffsetDateTime(Object val, int columnType) {
+    private static OffsetTime asOffsetTime(Object val, JDBCType columnType) {
+        throw new UnsupportedOperationException();
+    }
+
+    private static OffsetDateTime asOffsetDateTime(Object val, JDBCType columnType) {
         throw new UnsupportedOperationException();
     }
 

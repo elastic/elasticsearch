@@ -10,6 +10,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.sql.cli.net.protocol.CliRoundTripTestUtils.assertRoundTripCurrentVersion;
+import static org.elasticsearch.xpack.sql.cli.net.protocol.InfoRequestTests.randomInfoRequest;
 
 public class InfoResponseTests extends ESTestCase {
     static InfoResponse randomInfoResponse() {
@@ -18,7 +19,7 @@ public class InfoResponseTests extends ESTestCase {
     }
 
     public void testRoundTrip() throws IOException {
-        assertRoundTripCurrentVersion(randomInfoResponse());
+        assertRoundTripCurrentVersion(randomInfoRequest(), randomInfoResponse());
     }
 
     public void testToString() {

@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.server.cli;
 
-import java.util.Objects;
-
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.xpack.sql.cli.net.protocol.Request;
+import org.elasticsearch.xpack.sql.protocol.shared.Request;
+
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 

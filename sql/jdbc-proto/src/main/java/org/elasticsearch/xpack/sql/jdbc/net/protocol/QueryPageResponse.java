@@ -5,38 +5,72 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.ResponseType;
+import org.elasticsearch.xpack.sql.protocol.shared.Request;
+import org.elasticsearch.xpack.sql.protocol.shared.Response;
+
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.Locale;
+import java.util.Objects;
 
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Status;
-
-import static java.lang.String.format;
-
-public class QueryPageResponse extends DataResponse {
-
+public class QueryPageResponse extends Response {
     public final String requestId;
+    private final ResultPage data;
 
-    public QueryPageResponse(String requestId, Object data) {
-        super(Action.QUERY_PAGE, data);
+    public QueryPageResponse(String requestId, ResultPage data) {
+        if (requestId == null) {
+            throw new IllegalArgumentException("[requestId] must not be null");
+        }
+        if (data == null) {
+            throw new IllegalArgumentException("[data] must not be null");
+        }
         this.requestId = requestId;
+        this.data = data;
+    }
+
+    QueryPageResponse(Request request, DataInput in) throws IOException {
+        this.requestId = in.readUTF();
+        QueryPageRequest queryPageRequest = (QueryPageRequest) request;
+        data = queryPageRequest.data();
+        queryPageRequest.data().read(in);
     }
 
     @Override
-    public void encode(DataOutput out) throws IOException {
-        out.writeInt(Status.toSuccess(action));
+    public void write(int clientVersion, DataOutput out) throws IOException {
         out.writeUTF(requestId);
-    }
-
-    public static QueryPageResponse decode(DataInput in) throws IOException {
-        String requestId = in.readUTF();
-        return new QueryPageResponse(requestId, null);
+        data.write(out);
     }
 
     @Override
-    public String toString() {
-        return format(Locale.ROOT, "QueryPageRes[%s]", requestId);
+    protected String toStringBody() {
+        return "requestId=[" + requestId
+                + "] data=[\n" + data + "]";
+    }
+
+    @Override
+    public RequestType requestType() {
+        return RequestType.QUERY_PAGE;
+    }
+
+    @Override
+    public ResponseType responseType() {
+        return ResponseType.QUERY_PAGE;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        QueryPageResponse other = (QueryPageResponse) obj;
+        return requestId.equals(other.requestId)
+                && data.equals(other.data);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(requestId, data);
     }
 }

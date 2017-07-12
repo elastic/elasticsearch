@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.framework;
 
+import java.sql.JDBCType;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -13,7 +14,6 @@ import java.util.Calendar;
 import java.util.Locale;
 import java.util.TimeZone;
 
-import static org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcUtils.nameOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -51,9 +51,8 @@ public class JdbcAssert {
             int expectedType = expectedMeta.getColumnType(column);
             int actualType = actualMeta.getColumnType(column);
 
-            assertEquals(
-                    "Different column type for column [" + expectedName + "] (" + nameOf(expectedType) + " != " + nameOf(actualType) + ")",
-                    expectedType, actualType);
+            assertEquals("Different column type for column [" + expectedName + "] (" + JDBCType.valueOf(expectedType) + " != "
+                    + JDBCType.valueOf(actualType) + ")", expectedType, actualType);
         }
     }
 

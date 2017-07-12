@@ -15,6 +15,8 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto;
+import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto;
+import org.elasticsearch.xpack.sql.server.AbstractSqlServer;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.io.DataInputStream;
@@ -39,7 +41,7 @@ public class CliHttpHandler extends BaseRestHandler {
         }
 
         try (DataInputStream in = new DataInputStream(request.content().streamInput())) {
-            CliRequest cliRequest = new CliRequest(Proto.readRequest(in));
+            CliRequest cliRequest = new CliRequest(Proto.INSTANCE.readRequest(in));
             return c -> client.executeLocally(CliAction.INSTANCE, cliRequest,
                                                 ActionListener.wrap(response -> cliResponse(c, response), ex -> error(c, ex)));
         }
@@ -49,7 +51,9 @@ public class CliHttpHandler extends BaseRestHandler {
         BytesRestResponse restResponse = null;
         
         try {
-            restResponse = new BytesRestResponse(OK, TEXT_CONTENT_TYPE, CliServerProtoUtils.write(response.response()));
+            // NOCOMMIT use a real version
+            restResponse = new BytesRestResponse(OK, TEXT_CONTENT_TYPE,
+                    AbstractSqlServer.write(AbstractProto.CURRENT_VERSION, response.response()));
         } catch (IOException ex) {
             restResponse = new BytesRestResponse(INTERNAL_SERVER_ERROR, TEXT_CONTENT_TYPE, StringUtils.EMPTY);
         }

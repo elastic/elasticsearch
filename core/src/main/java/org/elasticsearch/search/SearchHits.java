@@ -95,10 +95,6 @@ public final class SearchHits implements Streamable, ToXContent, Iterable<Search
         return Arrays.stream(getHits()).iterator();
     }
 
-    public SearchHit[] internalHits() {
-        return this.hits;
-    }
-
     public static final class Fields {
         public static final String HITS = "hits";
         public static final String TOTAL = "total";

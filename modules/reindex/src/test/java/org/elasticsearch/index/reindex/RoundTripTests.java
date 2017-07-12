@@ -223,6 +223,8 @@ public class RoundTripTests extends ESTestCase {
         String idOrCode = randomSimpleString(random());
         Map<String, Object> params = Collections.emptyMap();
 
-        return new Script(type, lang, idOrCode, params);
+        type = ScriptType.STORED;
+
+        return new Script(type, type == ScriptType.STORED ? null : lang, idOrCode, params);
     }
 }

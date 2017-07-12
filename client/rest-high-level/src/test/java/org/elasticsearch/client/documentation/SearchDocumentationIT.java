@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
@@ -95,27 +96,21 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder(); // <2>
             searchSourceBuilder.query(QueryBuilders.matchAllQuery()); // <3>
             // end::search-request-basic
-
-            // tag::search-response-basic
-            SearchResponse searchResponse = client.search(searchRequest); // <1>
-            TimeValue took = searchResponse.getTook();
-            boolean timedOut = searchResponse.isTimedOut();
-            SearchHits hits = searchResponse.getHits();  // <2>
-            long totalHits = hits.getTotalHits();
-            double maxScore = hits.getMaxScore();
-            SearchHit[] searchHits = hits.getHits(); // <3>
-            String docId = searchHits[0].getId();
-            String documentSource = searchHits[0].getSourceAsString();
-            // end::search-response-basic
         }
         {
-            // tag::search-request-details
-            SearchRequest searchRequest = new SearchRequest("posts"); // <1>
-            searchRequest.types("doc"); // <2>
-            searchRequest.routing("routing"); // <3>
-            searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen()); // <4>
-            searchRequest.preference("_local"); // <5>
-            // end::search-request-details
+            // tag::search-request-indices-types
+            SearchRequest searchRequest = new SearchRequest("posts");
+            searchRequest.types("doc");
+            // end::search-request-indices-types
+            // tag::search-request-routing
+            searchRequest.routing("routing"); // <1>
+            // end::search-request-routing
+            // tag::search-request-indicesOptions
+            searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::search-request-indicesOptions
+            // tag::search-request-preference
+            searchRequest.preference("_local"); // <1>
+            // end::search-request-preference
             assertNotNull(client.search(searchRequest));
         }
         {
@@ -126,43 +121,76 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             sourceBuilder.size(5); // <4>
             sourceBuilder.sort(new ScoreSortBuilder().order(SortOrder.ASC));
             sourceBuilder.timeout(new TimeValue(60, TimeUnit.SECONDS)); // <5>
-
-            SearchRequest searchRequest = new SearchRequest();
-            searchRequest.source(sourceBuilder);
             // end::search-source-basics
 
-            // tag::search-response-details
+            // tag::search-source-setter
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(sourceBuilder);
+            // end::search-source-setter
+
+            // tag::search-execute
             SearchResponse searchResponse = client.search(searchRequest);
-            RestStatus status = searchResponse.status(); // <1>
-            TimeValue took = searchResponse.getTook(); // <2>
+            // end::search-execute
+
+            // tag::search-execute-async
+            client.searchAsync(searchRequest, new ActionListener<SearchResponse>() {
+                @Override
+                public void onResponse(SearchResponse searchResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            });
+            // end::search-execute-async
+
+            // tag::search-response-1
+            RestStatus status = searchResponse.status();
+            TimeValue took = searchResponse.getTook();
             Boolean terminatedEarly = searchResponse.isTerminatedEarly();
             boolean timedOut = searchResponse.isTimedOut();
-            int totalShards = searchResponse.getTotalShards(); // <3>
+            // end::search-response-1
+
+            // tag::search-response-2
+            int totalShards = searchResponse.getTotalShards();
             int successfulShards = searchResponse.getSuccessfulShards();
             int failedShards = searchResponse.getFailedShards();
-            if (searchResponse.getShardFailures().length > 0) {
-                // <4>
+            for (ShardSearchFailure failure : searchResponse.getShardFailures()) {
+                // failures should be handled here
             }
-            // end::search-response-details
+            // end::search-response-2
             assertNotNull(searchResponse);
 
-            // tag::search-hits-details
-            SearchHits hits = searchResponse.getHits(); // <1>
-            long totalHits = hits.getTotalHits(); // <2>
+            // tag::search-hits-get
+            SearchHits hits = searchResponse.getHits();
+            // end::search-hits-get
+            // tag::search-hits-info
+            long totalHits = hits.getTotalHits();
             float maxScore = hits.getMaxScore();
+            // end::search-hits-info
+            // tag::search-hits-singleHit
             SearchHit[] searchHits = hits.getHits();
-            for (SearchHit hit : searchHits) { // <3>
-                String index = hit.getIndex(); // <4>
+            for (SearchHit hit : searchHits) {
+                // do something with the SearchHit
+            }
+            // end::search-hits-singleHit
+            for (SearchHit hit : searchHits) {
+                // tag::search-hits-singleHit-properties
+                String index = hit.getIndex();
                 String type = hit.getType();
                 String id = hit.getId();
                 float score = hit.getScore();
-                String sourceAsString = hit.getSourceAsString(); // <5>
-                Map<String, Object> sourceAsMap = hit.getSourceAsMap(); // <6>
-                String documentTitle = (String) sourceAsMap.get("title"); // <7>
-                List<Object> users = (List<Object>) sourceAsMap.get("user"); // <8>
-                Map<String, Object> innerObject = (Map<String, Object>) sourceAsMap.get("innerObject"); // <9>
+                // end::search-hits-singleHit-properties
+                // tag::search-hits-singleHit-source
+                String sourceAsString = hit.getSourceAsString();
+                Map<String, Object> sourceAsMap = hit.getSourceAsMap();
+                String documentTitle = (String) sourceAsMap.get("title");
+                List<Object> users = (List<Object>) sourceAsMap.get("user");
+                Map<String, Object> innerObject = (Map<String, Object>) sourceAsMap.get("innerObject");
+                // end::search-hits-singleHit-source
             }
-            // end::search-hits-details
             assertEquals(3, totalHits);
             assertNotNull(hits.getHits()[0].getSourceAsString());
             assertNotNull(hits.getHits()[0].getSourceAsMap().get("title"));

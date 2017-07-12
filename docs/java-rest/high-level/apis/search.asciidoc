@@ -4,11 +4,11 @@
 [[java-rest-high-document-search-request]]
 ==== Search Request
 
-The `SearchRequest` is used for any operation that has to do with retrieving 
-documents, aggregations, suggestions and also offers ways of requesting 
+The `SearchRequest` is used for any operation that has to do with searching
+documents, aggregations, suggestions and also offers ways of requesting
 highlighting on the resulting documents.
 
-In its most basic form, a query can be added to the request like this: 
+In its most basic form, a query can be added to the request like this:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -16,49 +16,50 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-basic]
 --------------------------------------------------
 
 <1> Creates the `SeachRequest`. Without arguments this runs against all indices.
-<2> Most details about the search can be added to the `SearchSourceBuilder`.
+<2> Most parameters of the search can be added to the `SearchSourceBuilder`
+which contains everything that
+in the Rest API would be placed in the search request body.
 <3> Add a `match_all` query to the `SearchSourceBuilder`.
 
-When the search is executed, it returns a `SearchResponse` object that serves
-as an entry point to a lot of information about the search response and the
-results:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-response-basic]
---------------------------------------------------
-
-<1> Actually perform the search. The response contains information about the
-execution of the request itself, like the `took` time or if the request timed
-out.
-<2> Get the `SearchHits` from the response. This object provides access to
-global result parameters like number of total hits or the maximum score.
-<3> Get the individual `SearchHit` objects. These are returned in the order
-determined by the search. `SearchHit` provides access to document details like
-its id or the document `source`.
-
-==== Optional request arguments
+==== Optional arguments
 
 Lets first look at some of the optional argument of a `SearchRequest`.
+First of all, the request can be restricted to one or more indices using the
+constructor or to on or more types using a setter:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-details]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-indices-types]
 --------------------------------------------------
 
-<1> The request can be restricted to one or more indices by passing their names
-to the constructor. 
-<2> The request can also be limited to one or more types.
-<3> Optional: provide a routing parameter for the request.
-<4> Optional: `IndicesOptions` control how unavailable indices are resolved and
+There are a couple of other interesting optional parameters:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-routing]
+--------------------------------------------------
+<1> Set a routing parameter
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-indicesOptions]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
 how wildcard expressions are expanded
-<5> Optional: Set the preference to execute the search to prefer local shards.
-Defaults to randomize across shards.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-preference]
+--------------------------------------------------
+<1> Use the preference parameter e.g. to execute the search to prefer local
+shards. The The default is to randomize across shards.
 
 ==== Using the SearchSourceBuilder
 
-Most options controlling the search behavior can be set on the `SearchSourceBuilder`, 
-which contains more or less the equivalent of the options in the search request body of the Rest API.
+Most options controlling the search behavior can be set on the
+`SearchSourceBuilder`,
+which contains more or less the equivalent of the options in the search request
+body of the Rest API.
 
 Here are a few examples of some common options:
 
@@ -66,38 +67,114 @@ Here are a few examples of some common options:
 --------------------------------------------------
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-basics]
 --------------------------------------------------
-<1> Create a `SearchSourceBuilder` with default options. 
+<1> Create a `SearchSourceBuilder` with default options.
 <2> Set the query. Can be any type of `QueryBuilder`
-<3> Set the `from` option that determines the result index to start searching from. Defaults to 0.
-<4> Set the `size` option that determines the number of search hits to return. Defaults to 10.
-<5> Set an optional timeout that controls how long the search is allowed to take.
+<3> Set the `from` option that determines the result index to start searching
+from. Defaults to 0.
+<4> Set the `size` option that determines the number of search hits to return.
+Defaults to 10.
+<5> Set an optional timeout that controls how long the search is allowed to
+take.
 
-==== Accessing SearchResponse details
-
-The `SearchResponse` that is returned by performing `client.search(searchRequest)` provides details about the search execution as well as access to the document returned as a result. First, lets look at some of the information provided by the `SearchResponse` itself:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-response-details]
---------------------------------------------------
-<1> The HTTP status code
-<2> Information about query execution time, early termination or timeouts
-<3> Information about successful and failed shards for this search
-<4> Possible failures could be handled here
-
-To get access to the returned documents, we need to first get the `SearchHits` contained in the response after which we 
-can iterate over the individual documents and can access their score and the document source:
+After this, the `SearchSourceBuilder` only needs to be added to the
+`SearchRequest`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-hits-details]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-setter]
 --------------------------------------------------
-<1> Get the `SearchHits`
-<2> Get some global information about all hits, like total number of hits or the maximum score
-<3> Iterate over the result documents
-<4> Access basic information like index, type, docId and score of each search hit
-<5> Access document source as a JSON string
-<6> Alternatively, access document source as key/value map.
-<7> Get regular field from sourceMap using the fields name.
-<8> Multi-valued fields are returned as lists of objects and need to be cast accordingly
-<9> Nested objects are returned as another key/value map and need to be cast accordingly 
+
+
+[[java-rest-high-document-search-sync]]
+==== Synchronous Execution
+
+When executing a `SearchRequest` in the following manner, the client waits
+for the `SearchResponse` to be returned before continuing with code execution:  
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-execute]
+--------------------------------------------------
+
+[[java-rest-high-document-search-async]]
+==== Asynchronous Execution
+
+
+Executing a `SearchRequest` can also be done in an asynchronous fashion so that
+the client can return directly. Users need to specify how the response or
+potential failures will be handled by passing in appropriate listeners:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-execute-async]
+--------------------------------------------------
+<1> Called when the execution is successfully completed.
+<2> Called when the whole `SearchRequest` fails.
+
+==== SearchResponse
+
+The `SearchResponse` that is returned by executing the search provides details
+about the search execution itself as well as access to the documents returned.
+First, there is useful information about the request execution itself, like the
+HTTP status code, execution time or wether the request terminated early or timed
+out: 
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-response-1]
+--------------------------------------------------
+
+Second, the response also provides information about the execution on the
+shard level by offering statistics about the total number of shards that were
+affected by the search, and the successful vs. unsuccessful shards. Possible
+failures can also be handled by iterating over an array off
+`ShardSearchFailures` like in the following example:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-response-2]
+--------------------------------------------------
+
+To get access to the returned documents, we need to first get the `SearchHits`
+contained in the response:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-hits-get]
+--------------------------------------------------
+
+The `SearchHits` provides global information about all hits, like total number
+of hits or the maximum score:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-hits-info]
+--------------------------------------------------
+
+Nested inside the `SearchHits` are the individual search results that can
+be iterated over like this:
+
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-hits-singleHit]
+--------------------------------------------------
+
+The `SearchHit` provides access to basic information like index, type, docId and
+score of each search hit:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-hits-singleHit-properties]
+--------------------------------------------------
+
+Furthermore, it lets you get back the document source, either as a simple
+JSON-String or as a map of key/value pairs. In this map, regular fields 
+are keyed by the field name and contain the field value. Multi-valued fields are
+returned as lists of objects, nested objects as another key/value map. These
+cases need to be case accordingly:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-hits-singleHit-source]
+--------------------------------------------------

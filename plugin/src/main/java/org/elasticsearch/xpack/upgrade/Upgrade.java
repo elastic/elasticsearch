@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -51,7 +52,11 @@ import java.util.function.Supplier;
 
 public class Upgrade implements ActionPlugin {
 
-    public static final Version UPGRADE_INTRODUCED = Version.V_5_5_0; // TODO: Probably will need to change this to 5.6.0
+    public static final Version UPGRADE_INTRODUCED = Version.V_5_6_0;
+
+    // this is the required index.format setting for 6.0 services (watcher and security) to start up
+    // this index setting is set by the upgrade API or automatically when a 6.0 index template is created
+    private static final int EXPECTED_INDEX_FORMAT_VERSION = 6;
 
     private final Settings settings;
     private final List<BiFunction<InternalClient, ClusterService, IndexUpgradeCheck>> upgradeCheckFactories;
@@ -91,6 +96,13 @@ public class Upgrade implements ActionPlugin {
         );
     }
 
+    /**
+     * Checks the format of an internal index and returns true if the index is up to date or false if upgrade is required
+     */
+    public static boolean checkInternalIndexFormat(IndexMetaData indexMetaData) {
+        return indexMetaData.getSettings().getAsInt(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), 0) == EXPECTED_INDEX_FORMAT_VERSION;
+    }
+
     static BiFunction<InternalClient, ClusterService, IndexUpgradeCheck> getWatcherUpgradeCheckFactory(Settings settings) {
         return (internalClient, clusterService) ->
                 new IndexUpgradeCheck<Boolean>("watcher",
@@ -98,7 +110,7 @@ public class Upgrade implements ActionPlugin {
                         indexMetaData -> {
                             if (".watches".equals(indexMetaData.getIndex().getName()) ||
                                     indexMetaData.getAliases().containsKey(".watches")) {
-                                if (indexMetaData.getMappings().size() == 1 && indexMetaData.getMappings().containsKey("doc")) {
+                                if (checkInternalIndexFormat(indexMetaData)) {
                                     return UpgradeActionRequired.UP_TO_DATE;
                                 } else {
                                     return UpgradeActionRequired.UPGRADE;

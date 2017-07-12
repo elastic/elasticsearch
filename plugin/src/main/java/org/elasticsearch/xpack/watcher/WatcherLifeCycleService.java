@@ -19,6 +19,7 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.upgrade.Upgrade;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
@@ -33,10 +34,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 
 public class WatcherLifeCycleService extends AbstractComponent implements ClusterStateListener {
-
-    // this is the required index.format setting for watcher to start up at all
-    // this index setting is set by the upgrade API or automatically when a 6.0 index template is created
-    private static final int EXPECTED_INDEX_FORMAT_VERSION = 6;
 
     private final WatcherService watcherService;
     private final ClusterService clusterService;
@@ -163,11 +160,10 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
                 IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
                 IndexMetaData triggeredWatchesIndexMetaData = WatchStoreUtils.getConcreteIndex(TriggeredWatchStore.INDEX_NAME,
                         event.state().metaData());
-                String indexFormatSetting = IndexMetaData.INDEX_FORMAT_SETTING.getKey();
                 boolean isIndexInternalFormatWatchIndex = watcherIndexMetaData == null ||
-                        watcherIndexMetaData.getSettings().getAsInt(indexFormatSetting, 0) == EXPECTED_INDEX_FORMAT_VERSION;
+                        Upgrade.checkInternalIndexFormat(watcherIndexMetaData);
                 boolean isIndexInternalFormatTriggeredWatchIndex = triggeredWatchesIndexMetaData == null ||
-                        triggeredWatchesIndexMetaData.getSettings().getAsInt(indexFormatSetting, 0) == EXPECTED_INDEX_FORMAT_VERSION;
+                        Upgrade.checkInternalIndexFormat(triggeredWatchesIndexMetaData);
                 if (isIndexInternalFormatTriggeredWatchIndex && isIndexInternalFormatWatchIndex) {
                     executor.execute(() -> start(event.state(), false));
                 } else {

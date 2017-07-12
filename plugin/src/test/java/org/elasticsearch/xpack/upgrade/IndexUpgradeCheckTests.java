@@ -28,14 +28,15 @@ public class IndexUpgradeCheckTests extends ESTestCase {
         IndexMetaData watcherIndex = newTestIndexMeta(".watches", Settings.EMPTY);
         assertThat(check.actionRequired(watcherIndex), equalTo(UpgradeActionRequired.UPGRADE));
 
-        IndexMetaData watcherIndexWithAlias = newTestIndexMeta("my_watches", ".watches", Settings.EMPTY, "watch");
+        IndexMetaData watcherIndexWithAlias = newTestIndexMeta("my_watches", ".watches", Settings.EMPTY);
         assertThat(check.actionRequired(watcherIndexWithAlias), equalTo(UpgradeActionRequired.UPGRADE));
 
-        IndexMetaData watcherIndexWithAliasUpgraded = newTestIndexMeta("my_watches", ".watches", Settings.EMPTY, "doc");
+        IndexMetaData watcherIndexWithAliasUpgraded = newTestIndexMeta("my_watches", ".watches",
+                Settings.builder().put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), "6").put().build());
         assertThat(check.actionRequired(watcherIndexWithAliasUpgraded), equalTo(UpgradeActionRequired.UP_TO_DATE));
     }
 
-    public static IndexMetaData newTestIndexMeta(String name, String alias, Settings indexSettings, String type) throws IOException {
+    public static IndexMetaData newTestIndexMeta(String name, String alias, Settings indexSettings) throws IOException {
         Settings build = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -49,15 +50,11 @@ public class IndexUpgradeCheckTests extends ESTestCase {
             // Create alias
             builder.putAlias(AliasMetaData.newAliasMetaDataBuilder(alias).build());
         }
-        if (type != null) {
-            // Create fake type
-            builder.putMapping(type, "{}");
-        }
         return builder.build();
     }
 
     public static IndexMetaData newTestIndexMeta(String name, Settings indexSettings) throws IOException {
-        return newTestIndexMeta(name, null, indexSettings, "foo");
+        return newTestIndexMeta(name, null, indexSettings);
     }
 
 }

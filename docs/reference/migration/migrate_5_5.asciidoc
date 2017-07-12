@@ -29,3 +29,12 @@ requested alias or a requested type did not exist on the get alias or get
 mapping APIs, respectively. Starting in Elasticsearch 5.5.0, these APIs
 consistently return a 404 in any case when an alias or type is requested that
 does not exist.
+
+[[breaking_55_java_api_changes]]
+[float]
+=== Java API changes
+
+The `has_child`, `has_parent` and `parent_id` queries have moved to parent-join module. Also the
+`children` aggregation has been moved to the parent-join module.
+The parent-join module should be loaded when using the transport client. Alternatively use the `PreBuiltTransportClient`
+client, which load the module automatically.

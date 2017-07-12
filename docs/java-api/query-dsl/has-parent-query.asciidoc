@@ -3,9 +3,20 @@
 
 See {ref}/query-dsl-has-parent-query.html[Has Parent]
 
+When using the `has_parent` query it is important to use the `PreBuiltTransportClient` instead of the regular client:
+
 [source,java]
 --------------------------------------------------
-QueryBuilder qb = hasParentQuery(
+Settings settings = Settings.builder().put("cluster.name", "elasticsearch").build();
+TransportClient client = new PreBuiltTransportClient(settings);
+client.addTransportAddress(new InetSocketTransportAddress(new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 9300)));
+--------------------------------------------------
+
+Otherwise the parent-join module doesn't get loaded and the `has_parent` query can't be used from the transport client.
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = JoinQueryBuilders.hasParentQuery(
     "blog",                         <1>
     termQuery("tag","something"),   <2>
     false                           <3>

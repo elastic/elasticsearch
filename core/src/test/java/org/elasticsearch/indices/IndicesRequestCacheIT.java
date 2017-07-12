@@ -112,7 +112,8 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 equalTo(0L));
 
         final SearchResponse r1 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-25")).get();
+                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-25")).setPreFilterShardSize(Integer.MAX_VALUE)
+            .get();
         assertSearchResponse(r1);
         assertThat(r1.getHits().getTotalHits(), equalTo(7L));
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -121,7 +122,8 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 equalTo(5L));
 
         final SearchResponse r2 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26")).get();
+                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
+            .setPreFilterShardSize(Integer.MAX_VALUE).get();
         assertSearchResponse(r2);
         assertThat(r2.getHits().getTotalHits(), equalTo(7L));
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -130,7 +132,8 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 equalTo(7L));
 
         final SearchResponse r3 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27")).get();
+                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27")).setPreFilterShardSize(Integer.MAX_VALUE)
+            .get();
         assertSearchResponse(r3);
         assertThat(r3.getHits().getTotalHits(), equalTo(7L));
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),

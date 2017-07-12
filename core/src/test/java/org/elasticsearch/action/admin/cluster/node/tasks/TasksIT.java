@@ -375,6 +375,9 @@ public class TasksIT extends ESIntegTestCase {
                     assertTrue(taskInfo.getDescription(), Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null]",
                         taskInfo.getDescription()));
                     break;
+                case SearchTransportService.QUERY_CAN_MATCH_NAME:
+                    assertTrue(taskInfo.getDescription(), Regex.simpleMatch("shardId[[test][*]]", taskInfo.getDescription()));
+                    break;
                 default:
                     fail("Unexpected action [" + taskInfo.getAction() + "] with description [" + taskInfo.getDescription() + "]");
             }

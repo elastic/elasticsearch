@@ -168,6 +168,11 @@
           "type" : "number",
           "description" : "The number of concurrent shard requests this search executes concurrently. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
           "default" : "The default grows with the number of nodes in the cluster but is at most 256."
+        },
+        "pre_filter_shard_size" : {
+          "type" : "number",
+          "description" : "A threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard bounds and the query are disjoint.",
+          "default" : 128
         }
       }
     },

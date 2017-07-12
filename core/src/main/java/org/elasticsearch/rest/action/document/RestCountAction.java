@@ -93,7 +93,7 @@ public class RestCountAction extends BaseRestHandler {
                 }
                 builder.field("count", response.getHits().totalHits());
                 buildBroadcastShardsHeader(builder, request, response.getTotalShards(), response.getSuccessfulShards(),
-                        response.getFailedShards(), response.getShardFailures());
+                    0, response.getFailedShards(), response.getShardFailures());
 
                 builder.endObject();
                 return new BytesRestResponse(response.status(), builder);

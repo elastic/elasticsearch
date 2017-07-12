@@ -850,7 +850,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    static boolean canRewriteToMatchNone(SearchSourceBuilder source) {
+    public static boolean canRewriteToMatchNone(SearchSourceBuilder source) {
         if (source == null || source.query() == null || source.query() instanceof MatchAllQueryBuilder) {
             return false;
         } else {

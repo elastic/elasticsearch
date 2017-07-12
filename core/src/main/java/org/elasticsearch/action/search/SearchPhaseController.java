@@ -597,12 +597,12 @@ public final class SearchPhaseController extends AbstractComponent {
     }
 
     /**
-     * A {@link org.elasticsearch.action.search.InitialSearchPhase.SearchPhaseResults} implementation
+     * A {@link InitialSearchPhase.ArraySearchPhaseResults} implementation
      * that incrementally reduces aggregation results as shard results are consumed.
      * This implementation can be configured to batch up a certain amount of results and only reduce them
      * iff the buffer is exhausted.
      */
-    static final class QueryPhaseResultConsumer extends InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> {
+    static final class QueryPhaseResultConsumer extends InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> {
         private final InternalAggregations[] aggsBuffer;
         private final TopDocs[] topDocsBuffer;
         private final boolean hasAggs;
@@ -704,9 +704,9 @@ public final class SearchPhaseController extends AbstractComponent {
     }
 
     /**
-     * Returns a new SearchPhaseResults instance. This might return an instance that reduces search responses incrementally.
+     * Returns a new ArraySearchPhaseResults instance. This might return an instance that reduces search responses incrementally.
      */
-    InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> newSearchPhaseResults(SearchRequest request, int numShards) {
+    InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> newSearchPhaseResults(SearchRequest request, int numShards) {
         SearchSourceBuilder source = request.source();
         boolean isScrollRequest = request.scroll() != null;
         final boolean hasAggs = source != null && source.aggregations() != null;
@@ -719,7 +719,7 @@ public final class SearchPhaseController extends AbstractComponent {
                 return new QueryPhaseResultConsumer(this, numShards, request.getBatchedReduceSize(), hasTopDocs, hasAggs);
             }
         }
-        return new InitialSearchPhase.SearchPhaseResults(numShards) {
+        return new InitialSearchPhase.ArraySearchPhaseResults(numShards) {
             @Override
             public ReducedQueryPhase reduce() {
                 return reducedQueryPhase(results.asList(), isScrollRequest);

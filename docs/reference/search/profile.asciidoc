@@ -41,6 +41,7 @@ This will yield the following result:
    "_shards": {
       "total": 1,
       "successful": 1,
+      "skipped" : 0,
       "failed": 0
    },
    "hits": {

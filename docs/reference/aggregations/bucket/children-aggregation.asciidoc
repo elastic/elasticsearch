@@ -116,8 +116,17 @@ Possible response:
 {
   "timed_out": false,
   "took": 25,
-  "_shards": { "total": 5, "successful": 5, "failed": 0 },
-  "hits": { "total": 3, "max_score": 0.0, hits: [] },
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "skipped" : 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": 3,
+    "max_score": 0.0,
+    "hits": []
+  },
   "aggregations": {
     "top-tags": {
       "doc_count_error_upper_bound": 0,

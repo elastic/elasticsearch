@@ -39,7 +39,7 @@ public class BroadcastActionsIT extends ESIntegTestCase {
     }
 
     public void testBroadcastOperations() throws IOException {
-        assertAcked(prepareCreate("test", 1).execute().actionGet(5000));
+        assertAcked(prepareCreate("test", 1));
 
         NumShards numShards = getNumShards("test");
 

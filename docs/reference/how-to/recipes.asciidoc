@@ -84,6 +84,7 @@ GET index/_search
   "_shards": {
     "total": 5,
     "successful": 5,
+    "skipped" : 0,
     "failed": 0
   },
   "hits": {
@@ -141,6 +142,7 @@ GET index/_search
   "_shards": {
     "total": 5,
     "successful": 5,
+    "skipped" : 0,
     "failed": 0
   },
   "hits": {
@@ -197,6 +199,7 @@ GET index/_search
   "_shards": {
     "total": 5,
     "successful": 5,
+    "skipped" : 0,
     "failed": 0
   },
   "hits": {

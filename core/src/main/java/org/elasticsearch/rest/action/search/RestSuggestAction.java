@@ -74,7 +74,7 @@ public class RestSuggestAction extends BaseRestHandler {
                     response.getTotalShards(), response.getShardFailures());
                 builder.startObject();
                 buildBroadcastShardsHeader(builder, request, response.getTotalShards(),
-                    response.getSuccessfulShards(), response.getFailedShards(), response.getShardFailures());
+                    response.getSuccessfulShards(), response.getFailedShards(), response.getSkippedShards(), response.getShardFailures());
                 Suggest suggest = response.getSuggest();
                 if (suggest != null) {
                     suggest.toInnerXContent(builder, request);

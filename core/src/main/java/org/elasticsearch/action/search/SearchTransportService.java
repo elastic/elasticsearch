@@ -101,8 +101,22 @@ public class SearchTransportService extends AbstractComponent {
     }
 
     public void sendFreeContext(Transport.Connection connection, long contextId, final ActionListener<SearchFreeContextResponse> listener) {
-        transportService.sendRequest(connection, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(contextId),
-            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new));
+        if (connection.getNode().getVersion().onOrAfter(Version.V_5_6_0_UNRELEASED)) {
+            transportService.sendRequest(connection, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(contextId),
+                TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new));
+        } else {
+            throw new IllegalArgumentException("can_match is not supported on pre 5.6.0 nodes");
+        }
+    }
+
+    public void sendCanMatch(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task, final
+                            ActionListener<CanMatchResponse> listener) {
+        if (connection.getNode().getVersion().onOrAfter(Version.V_5_6_0_UNRELEASED)) {
+            transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NAME, request, task,
+                TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, CanMatchResponse::new));
+        } else {
+            throw new IllegalArgumentException("can_match is not supported on pre 5.6.0 nodes");
+        }
     }
 
     public void sendClearAllScrollContexts(Transport.Connection connection, final ActionListener<TransportResponse> listener) {
@@ -302,8 +316,7 @@ public class SearchTransportService extends AbstractComponent {
             });
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, SearchFreeContextResponse::new);
         transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, () -> TransportRequest.Empty.INSTANCE,
-            ThreadPool.Names.SAME,
-            new TaskAwareTransportRequestHandler<TransportRequest.Empty>() {
+            ThreadPool.Names.SAME, new TaskAwareTransportRequestHandler<TransportRequest.Empty>() {
                 @Override
                 public void messageReceived(TransportRequest.Empty request, TransportChannel channel, Task task) throws Exception {
                     searchService.freeAllScrollContexts();
@@ -409,15 +422,14 @@ public class SearchTransportService extends AbstractComponent {
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, CanMatchResponse::new);
     }
 
-    // this feature is only really used in 6.0 but we added the endpoints to 5.6 to ensure if a user is on 5.6 and they desperately
-    // need it they can use cross cluster search with a 6.0 CCS Node or can use a 6.0 node as a coordinator to at least test if
-    // if would help their usecase. it also makes the feature in 6.x BWC with the latest 5.x release.
-    private static final class CanMatchResponse extends SearchPhaseResult {
+
+    public static final class CanMatchResponse extends SearchPhaseResult {
         private boolean canMatch;
 
-        private CanMatchResponse() {}
+        public CanMatchResponse() {
+        }
 
-        private CanMatchResponse(boolean canMatch) {
+        public CanMatchResponse(boolean canMatch) {
             this.canMatch = canMatch;
         }
 
@@ -431,6 +443,10 @@ public class SearchTransportService extends AbstractComponent {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(canMatch);
+        }
+
+        public boolean canMatch() {
+            return canMatch;
         }
     }
 

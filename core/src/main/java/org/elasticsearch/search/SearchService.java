@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -42,6 +43,9 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -831,5 +835,36 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public AliasFilter buildAliasFilter(ClusterState state, String index, String... expressions) {
         return indicesService.buildAliasFilter(state, index, expressions);
+    }
+
+    /**
+     * This method does a very quick rewrite of the query and returns true if the query can potentially match any documents.
+     * This method can have false positives while if it returns <code>false</code> the query won't match any documents on the current
+     * shard.
+     */
+    public boolean canMatch(ShardSearchRequest request) throws IOException {
+        assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
+        try (DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, null)) {
+            SearchSourceBuilder source = context.request().source();
+            if (canRewriteToMatchNone(source)) {
+                QueryBuilder queryBuilder = source.query();
+                return queryBuilder instanceof MatchNoneQueryBuilder == false;
+            }
+            return true; // null query means match_all
+        }
+    }
+
+    public static boolean canRewriteToMatchNone(SearchSourceBuilder source) {
+        if (source == null || source.query() == null || source.query() instanceof MatchAllQueryBuilder) {
+            return false;
+        } else {
+            AggregatorFactories.Builder aggregations = source.aggregations();
+            if (aggregations != null) {
+                if (aggregations.mustVisiteAllDocs()) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 }

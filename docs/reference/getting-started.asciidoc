@@ -707,6 +707,7 @@ And the response (partially shown):
   "_shards" : {
     "total" : 5,
     "successful" : 5,
+    "skipped" : 0,
     "failed" : 0
   },
   "hits" : {
@@ -774,6 +775,7 @@ to clutter the docs with it:
   "_shards" : {
     "total" : 5,
     "successful" : 5,
+    "skipped" : 0,
     "failed" : 0
   },
   "hits" : {
@@ -1104,6 +1106,7 @@ And the response (partially shown):
   "_shards": {
     "total": 5,
     "successful": 5,
+    "skipped" : 0,
     "failed": 0
   },
   "hits" : {

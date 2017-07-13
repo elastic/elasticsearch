@@ -31,7 +31,6 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -67,6 +66,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
     private final Object shardFailuresMutex = new Object();
     private final AtomicInteger successfulOps = new AtomicInteger();
+    private final AtomicInteger skippedOps = new AtomicInteger();
     private final TransportSearchAction.SearchTimeProvider timeProvider;
 
 
@@ -107,7 +107,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (getNumShards() == 0) {
             //no search shards to search on, bail with empty response
             //(it happens with search across _all with no indices around and consistent with broadcast operations)
-            listener.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, buildTookInMillis(),
+            listener.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, buildTookInMillis(),
                 ShardSearchFailure.EMPTY_ARRAY));
             return;
         }
@@ -169,35 +169,35 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     public final void onShardFailure(final int shardIndex, @Nullable SearchShardTarget shardTarget, Exception e) {
         // we don't aggregate shard failures on non active shards (but do keep the header counts right)
-        if (TransportActions.isShardNotAvailableException(e)) {
-            return;
-        }
-        AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
-        // lazily create shard failures, so we can early build the empty shard failure list in most cases (no failures)
-        if (shardFailures == null) { // this is double checked locking but it's fine since SetOnce uses a volatile read internally
-            synchronized (shardFailuresMutex) {
-                shardFailures = this.shardFailures.get(); // read again otherwise somebody else has created it?
-                if (shardFailures == null) { // still null so we are the first and create a new instance
-                    shardFailures = new AtomicArray<>(getNumShards());
-                    this.shardFailures.set(shardFailures);
+        if (TransportActions.isShardNotAvailableException(e) == false) {
+            AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
+            // lazily create shard failures, so we can early build the empty shard failure list in most cases (no failures)
+            if (shardFailures == null) { // this is double checked locking but it's fine since SetOnce uses a volatile read internally
+                synchronized (shardFailuresMutex) {
+                    shardFailures = this.shardFailures.get(); // read again otherwise somebody else has created it?
+                    if (shardFailures == null) { // still null so we are the first and create a new instance
+                        shardFailures = new AtomicArray<>(getNumShards());
+                        this.shardFailures.set(shardFailures);
+                    }
                 }
             }
-        }
-        ShardSearchFailure failure = shardFailures.get(shardIndex);
-        if (failure == null) {
-            shardFailures.set(shardIndex, new ShardSearchFailure(e, shardTarget));
-        } else {
-            // the failure is already present, try and not override it with an exception that is less meaningless
-            // for example, getting illegal shard state
-            if (TransportActions.isReadOverrideException(e)) {
+            ShardSearchFailure failure = shardFailures.get(shardIndex);
+            if (failure == null) {
                 shardFailures.set(shardIndex, new ShardSearchFailure(e, shardTarget));
+            } else {
+                // the failure is already present, try and not override it with an exception that is less meaningless
+                // for example, getting illegal shard state
+                if (TransportActions.isReadOverrideException(e)) {
+                    shardFailures.set(shardIndex, new ShardSearchFailure(e, shardTarget));
+                }
+            }
+
+            if (results.hasResult(shardIndex)) {
+                assert failure == null : "shard failed before but shouldn't: " + failure;
+                successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we have to adjust the counter
             }
         }
-
-        if (results.hasResult(shardIndex)) {
-            assert failure == null : "shard failed before but shouldn't: " + failure;
-            successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we have to adjust the counter
-        }
+        results.consumeShardFailure(shardIndex);
     }
 
     /**
@@ -264,7 +264,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
         return new SearchResponse(internalSearchResponse, scrollId, getNumShards(), successfulOps.get(),
-            buildTookInMillis(), buildShardFailures());
+            skippedOps.get(), buildTookInMillis(), buildShardFailures());
     }
 
     @Override
@@ -313,4 +313,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @param context the search context for the next phase
      */
     protected abstract SearchPhase getNextPhase(SearchPhaseResults<Result> results, SearchPhaseContext context);
+
+    @Override
+    protected void skipShard(SearchShardIterator iterator) {
+        super.skipShard(iterator);
+        successfulOps.incrementAndGet();
+        skippedOps.incrementAndGet();
+    }
 }

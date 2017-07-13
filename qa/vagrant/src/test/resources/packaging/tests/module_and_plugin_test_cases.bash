@@ -147,7 +147,7 @@ fi
     move_config
 
     CONF_DIR="$ESCONFIG" install_jvm_example
-    CONF_DIR="$ESCONFIG" ES_JVM_OPTIONS="$ESCONFIG/jvm.options" start_elasticsearch_service
+    CONF_DIR="$ESCONFIG" start_elasticsearch_service
     diff  <(curl -s localhost:9200/_cat/configured_example | sed 's/ //g') <(echo "foo")
     stop_elasticsearch_service
     CONF_DIR="$ESCONFIG" remove_jvm_example

@@ -23,6 +23,8 @@ import java.io.IOException;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -36,11 +38,15 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutSearchTemplateAction extends BaseRestHandler {
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(RestPutSearchTemplateAction.class));
+
     public RestPutSearchTemplateAction(Settings settings, RestController controller) {
         super(settings);
 
-        controller.registerHandler(POST, "/_search/template/{id}", this);
-        controller.registerHandler(PUT, "/_search/template/{id}", this);
+        controller.registerAsDeprecatedHandler(POST, "/_search/template/{id}", this,
+            "The stored search template API is deprecated. Use stored scripts instead.", DEPRECATION_LOGGER);
+        controller.registerAsDeprecatedHandler(PUT, "/_search/template/{id}", this,
+            "The stored search template API is deprecated. Use stored scripts instead.", DEPRECATION_LOGGER);
     }
 
     @Override

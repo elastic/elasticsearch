@@ -124,7 +124,7 @@ public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Reques
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] indices = null;
-        private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
+        private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
 
         // for serialization
         public Request() {

@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportResponse;
@@ -23,6 +24,7 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -122,4 +124,12 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         assertTrue(postUpgradeIsCalled.get());
     }
 
+    public void testIndexUpgradeInfoOnEmptyCluster() {
+        // On empty cluster asking for all indices shouldn't fail since no indices means nothing needs to be upgraded
+        Response response = client().prepareExecute(IndexUpgradeInfoAction.INSTANCE).setIndices("_all").get();
+        assertThat(response.getActions().entrySet(), empty());
+
+        // but calling on a particular index should fail
+        assertThrows(client().prepareExecute(IndexUpgradeInfoAction.INSTANCE).setIndices("test"), IndexNotFoundException.class);
+    }
 }

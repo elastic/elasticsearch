@@ -5,31 +5,6 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-import org.bouncycastle.asn1.DERIA5String;
-import org.bouncycastle.asn1.x509.GeneralName;
-import org.bouncycastle.asn1.x509.GeneralNames;
-import org.bouncycastle.openssl.PEMEncryptor;
-import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
-import org.bouncycastle.openssl.jcajce.JcePEMEncryptorBuilder;
-import org.bouncycastle.pkcs.PKCS10CertificationRequest;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
-
 import javax.security.auth.x500.X500Principal;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -58,6 +33,31 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import org.bouncycastle.asn1.DERIA5String;
+import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.openssl.PEMEncryptor;
+import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
+import org.bouncycastle.openssl.jcajce.JcePEMEncryptorBuilder;
+import org.bouncycastle.pkcs.PKCS10CertificationRequest;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cli.EnvironmentAwareCommand;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
 
 /**
  * CLI tool to make generation of certificates or certificate requests easier for users
@@ -89,11 +89,13 @@ public class CertificateTool extends EnvironmentAwareCommand {
                     new ConstructingObjectParser<>(
                             "instances",
                             a -> new CertificateInformation(
-                                    (String) a[0], (String) (a[1] == null ? a[0] : a[1]), (List<String>) a[2], (List<String>) a[3]));
+                                    (String) a[0], (String) (a[1] == null ? a[0] : a[1]),
+                                    (List<String>) a[2], (List<String>) a[3], (List<String>) a[4]));
             instanceParser.declareString(ConstructingObjectParser.constructorArg(), new ParseField("name"));
             instanceParser.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("filename"));
             instanceParser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("ip"));
             instanceParser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("dns"));
+            instanceParser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("cn"));
 
             PARSER.declareObjectArray(List::addAll, instanceParser, new ParseField("instances"));
         }
@@ -220,8 +222,9 @@ public class CertificateTool extends EnvironmentAwareCommand {
                 String dnsNames = terminal.readText("Enter DNS names for instance (comma-separated if more than one) []: ");
                 List<String> ipList = Arrays.asList(Strings.splitStringByCommaToArray(ipAddresses));
                 List<String> dnsList = Arrays.asList(Strings.splitStringByCommaToArray(dnsNames));
+                List<String> commonNames = null;
 
-                CertificateInformation information = new CertificateInformation(name, filename, ipList, dnsList);
+                CertificateInformation information = new CertificateInformation(name, filename, ipList, dnsList, commonNames);
                 List<String> validationErrors = information.validate();
                 if (validationErrors.isEmpty()) {
                     if (map.containsKey(name)) {
@@ -269,7 +272,8 @@ public class CertificateTool extends EnvironmentAwareCommand {
         fullyWriteFile(outputFile, (outputStream, pemWriter) -> {
             for (CertificateInformation certificateInformation : certInfo) {
                 KeyPair keyPair = CertUtils.generateKeyPair(keysize);
-                GeneralNames sanList = getSubjectAlternativeNamesValue(certificateInformation.ipAddresses, certificateInformation.dnsNames);
+                GeneralNames sanList = getSubjectAlternativeNamesValue(certificateInformation.ipAddresses, certificateInformation.dnsNames,
+                        certificateInformation.commonNames);
                 PKCS10CertificationRequest csr = CertUtils.generateCSR(keyPair, certificateInformation.name.x500Principal, sanList);
 
                 final String dirName = certificateInformation.name.filename + "/";
@@ -352,7 +356,8 @@ public class CertificateTool extends EnvironmentAwareCommand {
             for (CertificateInformation certificateInformation : certificateInformations) {
                 KeyPair keyPair = CertUtils.generateKeyPair(keysize);
                 Certificate certificate = CertUtils.generateSignedCertificate(certificateInformation.name.x500Principal,
-                        getSubjectAlternativeNamesValue(certificateInformation.ipAddresses, certificateInformation.dnsNames),
+                        getSubjectAlternativeNamesValue(certificateInformation.ipAddresses, certificateInformation.dnsNames,
+                                certificateInformation.commonNames),
                         keyPair, caInfo.caCert, caInfo.privateKey, days);
 
                 final String dirName = certificateInformation.name.filename + "/";
@@ -531,7 +536,7 @@ public class CertificateTool extends EnvironmentAwareCommand {
         }
     }
 
-    private static GeneralNames getSubjectAlternativeNamesValue(List<String> ipAddresses, List<String> dnsNames) {
+    private static GeneralNames getSubjectAlternativeNamesValue(List<String> ipAddresses, List<String> dnsNames, List<String> commonNames) {
         Set<GeneralName> generalNameList = new HashSet<>();
         for (String ip : ipAddresses) {
             generalNameList.add(new GeneralName(GeneralName.iPAddress, ip));
@@ -539,6 +544,10 @@ public class CertificateTool extends EnvironmentAwareCommand {
 
         for (String dns : dnsNames) {
             generalNameList.add(new GeneralName(GeneralName.dNSName, dns));
+        }
+
+        for (String cn : commonNames) {
+            generalNameList.add(CertUtils.createCommonName(cn));
         }
 
         if (generalNameList.isEmpty()) {
@@ -551,11 +560,13 @@ public class CertificateTool extends EnvironmentAwareCommand {
         final Name name;
         final List<String> ipAddresses;
         final List<String> dnsNames;
+        final List<String> commonNames;
 
-        CertificateInformation(String name, String filename, List<String> ipAddresses, List<String> dnsNames) {
+        CertificateInformation(String name, String filename, List<String> ipAddresses, List<String> dnsNames, List<String> commonNames) {
             this.name = Name.fromUserProvidedName(name, filename);
             this.ipAddresses = ipAddresses == null ? Collections.emptyList() : ipAddresses;
             this.dnsNames = dnsNames == null ? Collections.emptyList() : dnsNames;
+            this.commonNames = commonNames == null ? Collections.emptyList() : commonNames;
         }
 
         List<String> validate() {

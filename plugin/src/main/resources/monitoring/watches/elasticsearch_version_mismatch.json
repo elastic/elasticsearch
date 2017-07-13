@@ -71,8 +71,7 @@
             "search": {
               "request": {
                 "indices": [
-                  ".monitoring-alerts-6",
-                  ".monitoring-alerts-2"
+                  ".monitoring-alerts-6"
                 ],
                 "body": {
                   "size": 1,

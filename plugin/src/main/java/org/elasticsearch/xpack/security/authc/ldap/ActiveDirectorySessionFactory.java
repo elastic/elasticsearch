@@ -190,7 +190,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
 
     static String getBindDN(Settings settings) {
         String bindDN = BIND_DN.get(settings);
-        if (bindDN.isEmpty() == false && bindDN.indexOf('\\') < 0 && bindDN.indexOf('@') < 0) {
+        if (bindDN.isEmpty() == false && bindDN.indexOf('\\') < 0 && bindDN.indexOf('@') < 0 && bindDN.indexOf('=') < 0) {
             bindDN = bindDN + "@" + settings.get(AD_DOMAIN_NAME_SETTING);
         }
         return bindDN;

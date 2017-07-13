@@ -27,13 +27,12 @@ dependencyLicenses {
   mapping from: /bc.*/, to: 'bouncycastle'
   mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
   mapping from: /transport-netty.*/, to: 'elasticsearch'
-  mapping from: /rest.*/, to: 'elasticsearch'
+  mapping from: /elasticsearch-rest-client.*/, to: 'elasticsearch'
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
-  mapping from: /sniffer.*/, to: 'elasticsearch'
-  ignoreSha 'rest'
+  ignoreSha 'elasticsearch-rest-client'
   ignoreSha 'transport-netty4'
-  ignoreSha 'sniffer'
+  ignoreSha 'elasticsearch-rest-client-sniffer'
 }
 
 licenseHeaders {
@@ -74,8 +73,8 @@ dependencies {
   testCompile 'com.google.code.findbugs:jsr305:3.0.1'
 
   // monitoring deps
-  compile "org.elasticsearch.client:rest:${version}"
-  compile "org.elasticsearch.client:sniffer:${version}"
+  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  compile "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}"
 
   // ml deps
   compile 'net.sf.supercsv:super-csv:2.4.0'

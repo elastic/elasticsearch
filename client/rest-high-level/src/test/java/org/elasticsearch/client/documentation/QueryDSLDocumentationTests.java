@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
+import org.elasticsearch.join.query.JoinQueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
@@ -77,8 +78,6 @@ import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.exponentialDecayFunction;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.randomFunction;
-import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
-import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
 
 /**
  * Examples of using the transport client that are imported into the transport client documentation.
@@ -218,7 +217,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
     public void testHasChild() {
         // tag::has_child
-        hasChildQuery(
+        JoinQueryBuilders.hasChildQuery(
                 "blog_tag",                                          // <1>
                 termQuery("tag","something"),                        // <2>
                 ScoreMode.None);                                     // <3>
@@ -227,7 +226,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
     public void testHasParent() {
         // tag::has_parent
-        hasParentQuery(
+        JoinQueryBuilders.hasParentQuery(
             "blog",                                                  // <1>
             termQuery("tag","something"),                            // <2>
             false);                                                  // <3>

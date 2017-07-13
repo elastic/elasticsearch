@@ -98,6 +98,7 @@ PUT /_search/template/my_template
 }
 ------------------------------------------
 // CONSOLE
+// TEST[warning:The stored search template API is deprecated. Use stored scripts instead.]
 
 and refer to it in the `template` query with the `id` parameter:
 

@@ -286,7 +286,7 @@ public class AggregatorFactories {
             }
         }
 
-        public boolean mustVisiteAllDocs() {
+        public boolean mustVisitAllDocs() {
             for (AggregationBuilder builder : aggregationBuilders) {
                 if (builder instanceof GlobalAggregationBuilder) {
                     return true;

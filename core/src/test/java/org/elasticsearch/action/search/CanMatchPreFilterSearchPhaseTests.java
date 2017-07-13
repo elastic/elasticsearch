@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
@@ -102,6 +103,18 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         }
     }
 
+    public void testOldNodesTriggerException() {
+        SearchTransportService searchTransportService = new SearchTransportService(
+            Settings.builder().put("search.remote.connect", false).build(), null);
+        DiscoveryNode node = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), VersionUtils.getPreviousVersion(Version
+            .CURRENT.minimumCompatibilityVersion()));
+        SearchAsyncActionTests.MockConnection mockConnection = new SearchAsyncActionTests.MockConnection(node);
+        IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
+            () -> searchTransportService.sendCanMatch(mockConnection, null, null, null));
+        assertEquals("can_match is not supported on pre " + Version
+            .CURRENT.minimumCompatibilityVersion() + " nodes", illegalArgumentException.getMessage());
+    }
+
     public void testFilterWithFailure() throws InterruptedException {
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(),
             System::nanoTime);
@@ -117,13 +130,18 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             @Override
             public void sendCanMatch(Transport.Connection connection, ShardSearchTransportRequest request, SearchTask task,
                                      ActionListener<CanMatchResponse> listener) {
-                new Thread(() ->  {
-                    if (request.shardId().id() == 0) {
-                        listener.onResponse(new CanMatchResponse(shard1));
-                    } else {
-                        listener.onFailure(new NullPointerException());
-                    }
-                }).start();
+                boolean throwException = request.shardId().id() != 0;
+                if (throwException && randomBoolean()) {
+                    throw new IllegalArgumentException("boom");
+                } else {
+                    new Thread(() -> {
+                        if (throwException == false) {
+                            listener.onResponse(new CanMatchResponse(shard1));
+                        } else {
+                            listener.onFailure(new NullPointerException());
+                        }
+                    }).start();
+                }
             }
         };
 

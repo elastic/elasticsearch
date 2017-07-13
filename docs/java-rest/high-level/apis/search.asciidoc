@@ -96,6 +96,23 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregatio
 
 We will later see how to <<java-rest-high-retrieve-aggs,access aggregations>> in the `SearchResponse`.
 
+===== Requesting Suggestions
+
+To add Suggestions to the search request, use one of the `SuggestionBuilder` implementations
+that are easily accessible from the `SuggestBuilders` factory class. Suggesion builders
+need to be added to the top level `SuggestBuilder` before setting them on the  `SearchSourceBuilder`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-suggestion]
+--------------------------------------------------
+<1> Creates a new `TermSuggestionBuilder` for the `user` field and
+the text `kmichy`
+<2> Adds the suggestion builder and names it `suggest_user`
+
+We will later see how to <<java-rest-high-retrieve-suggestions,retrieve suggestions>> from the 
+`SearchResponse`.
+
 [[java-rest-high-document-search-sync]]
 ==== Synchronous Execution
 
@@ -242,3 +259,18 @@ decide how to further process them based on their type:
 --------------------------------------------------
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations-iterator]
 --------------------------------------------------
+
+[[java-rest-high-retrieve-suggestions]]
+===== Retrieving Suggestions
+
+To get back the suggestions from a `SearchResponse`, use the `Suggest` object as an entry point and then retrieve the nested suggestion objects:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-suggestion-get]
+--------------------------------------------------
+<1> Use the `Suggest` class to access suggestions
+<2> Suggestions can be retrieved by name. You need to assign them to the correct
+type of Suggestion class (here `TermSuggestion`), otherwise a `ClassCastException` is thrown
+<3> Iterate over the suggestion entries
+<4> Iterate over the options in one entry

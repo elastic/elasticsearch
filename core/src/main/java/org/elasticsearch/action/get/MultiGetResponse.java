@@ -177,6 +177,6 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(this, true);
     }
 }

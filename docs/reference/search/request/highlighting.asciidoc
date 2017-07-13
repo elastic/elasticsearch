@@ -98,7 +98,7 @@ It's fast especially for large fields (> `1MB`) and for highlighting multi-term 
 `prefix` or `wildcard` because it can access the dictionary of terms for each document.
 The `fvh` highlighter always uses term vectors.
 
-* Plain highlighting. This mode is used in the `unified` when there is no other alternative.
+* Plain highlighting. This mode is used by the `unified` when there is no other alternative.
 It creates a tiny in-memory index and re-runs the original query criteria through
 Lucene's query execution planner to get access to low-level match information on
 the current document. This is repeated for every field and every document that

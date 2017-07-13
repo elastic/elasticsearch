@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction;
@@ -110,7 +111,7 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         IndexUpgradeService service = new IndexUpgradeService(Settings.EMPTY, Collections.singletonList(check));
 
         PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
-        service.upgrade(testIndex, clusterService().state(), future);
+        service.upgrade(new TaskId("abc", 123), testIndex, clusterService().state(), future);
         BulkByScrollResponse response = future.actionGet();
         assertThat(response.getCreated(), equalTo(2L));
 

@@ -14,6 +14,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.util.function.BiConsumer;
@@ -100,12 +101,13 @@ public class IndexUpgradeCheck<T> extends AbstractComponent {
     /**
      * Perform the index upgrade
      *
+     * @param task          the task that executes the upgrade operation
      * @param indexMetaData index metadata
      * @param state         current cluster state
      * @param listener      the listener that should be called upon completion of the upgrade
      */
-    public void upgrade(IndexMetaData indexMetaData, ClusterState state,
+    public void upgrade(TaskId task, IndexMetaData indexMetaData, ClusterState state,
                         ActionListener<BulkByScrollResponse> listener) {
-        reindexer.upgrade(indexMetaData.getIndex().getName(), state, listener);
+        reindexer.upgrade(task, indexMetaData.getIndex().getName(), state, listener);
     }
 }

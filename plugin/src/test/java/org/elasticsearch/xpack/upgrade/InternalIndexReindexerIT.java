@@ -29,6 +29,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.XPackPlugin;
 
@@ -76,7 +77,7 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
         createTestIndex("test");
         InternalIndexReindexer reindexer = createIndexReindexer(123, script("add_bar"), Strings.EMPTY_ARRAY);
         PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
-        reindexer.upgrade("test", clusterState(), future);
+        reindexer.upgrade(new TaskId("abc", 123), "test", clusterState(), future);
         BulkByScrollResponse response = future.actionGet();
         assertThat(response.getCreated(), equalTo(2L));
 
@@ -102,7 +103,7 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
         createTestIndex("test_v123");
         InternalIndexReindexer reindexer = createIndexReindexer(123, script("add_bar"), Strings.EMPTY_ARRAY);
         PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
-        reindexer.upgrade("test", clusterState(), future);
+        reindexer.upgrade(new TaskId("abc", 123), "test", clusterState(), future);
         assertThrows(future, ResourceAlreadyExistsException.class);
 
         // Make sure that the index is not marked as read-only
@@ -115,7 +116,7 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
         client().admin().indices().prepareAliases().addAlias("test-foo", "test_v123").get();
         InternalIndexReindexer reindexer = createIndexReindexer(123, script("add_bar"), Strings.EMPTY_ARRAY);
         PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
-        reindexer.upgrade("test", clusterState(), future);
+        reindexer.upgrade(new TaskId("abc", 123), "test", clusterState(), future);
         assertThrows(future, InvalidIndexNameException.class);
 
         // Make sure that the index is not marked as read-only
@@ -129,7 +130,7 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
             assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get());
             InternalIndexReindexer reindexer = createIndexReindexer(123, script("add_bar"), Strings.EMPTY_ARRAY);
             PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
-            reindexer.upgrade("test", clusterState(), future);
+            reindexer.upgrade(new TaskId("abc", 123), "test", clusterState(), future);
             assertThrows(future, IllegalStateException.class);
 
             // Make sure that the index is still marked as read-only
@@ -148,7 +149,7 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
         client().prepareIndex("test", "doc").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         InternalIndexReindexer reindexer = createIndexReindexer(123, script("fail"), Strings.EMPTY_ARRAY);
         PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
-        reindexer.upgrade("test", clusterState(), future);
+        reindexer.upgrade(new TaskId("abc", 123), "test", clusterState(), future);
         assertThrows(future, RuntimeException.class);
 
         // Make sure that the index is not marked as read-only
@@ -160,7 +161,7 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
 
         InternalIndexReindexer reindexer = createIndexReindexer(123, script("add_bar"), Strings.EMPTY_ARRAY);
         PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
-        reindexer.upgrade("test", withRandomOldNode(), future);
+        reindexer.upgrade(new TaskId("abc", 123), "test", withRandomOldNode(), future);
         assertThrows(future, IllegalStateException.class);
 
         // Make sure that the index is not marked as read-only

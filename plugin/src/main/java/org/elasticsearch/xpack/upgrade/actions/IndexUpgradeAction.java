@@ -25,6 +25,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.upgrade.IndexUpgradeService;
@@ -125,6 +128,16 @@ public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkB
         public int hashCode() {
             return Objects.hash(index);
         }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId) {
+                @Override
+                public boolean shouldCancelChildrenOnCancellation() {
+                    return true;
+                }
+            };
+        }
     }
 
     public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, BulkByScrollResponse, RequestBuilder> {
@@ -170,8 +183,16 @@ public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkB
         }
 
         @Override
-        protected final void masterOperation(final Request request, ClusterState state, ActionListener<BulkByScrollResponse> listener) {
-            indexUpgradeService.upgrade(request.index(), state, listener);
+        protected final void masterOperation(Task task, Request request, ClusterState state,
+                                             ActionListener<BulkByScrollResponse> listener) {
+            TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
+            indexUpgradeService.upgrade(taskId, request.index(), state, listener);
         }
+
+        @Override
+        protected final void masterOperation(Request request, ClusterState state, ActionListener<BulkByScrollResponse> listener) {
+            throw new UnsupportedOperationException("the task parameter is required");
+        }
+
     }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.tasks.TaskId;
 
 import java.util.HashMap;
 import java.util.List;
@@ -85,7 +86,7 @@ public class IndexUpgradeService extends AbstractComponent {
         }
     }
 
-    public void upgrade(String index, ClusterState state, ActionListener<BulkByScrollResponse> listener) {
+    public void upgrade(TaskId task, String index, ClusterState state, ActionListener<BulkByScrollResponse> listener) {
         IndexMetaData indexMetaData = state.metaData().index(index);
         if (indexMetaData == null) {
             throw new IndexNotFoundException(index);
@@ -95,7 +96,7 @@ public class IndexUpgradeService extends AbstractComponent {
             switch (upgradeActionRequired) {
                 case UPGRADE:
                     // this index needs to be upgraded - start the upgrade procedure
-                    check.upgrade(indexMetaData, state, listener);
+                    check.upgrade(task, indexMetaData, state, listener);
                     return;
                 case REINDEX:
                     // this index needs to be re-indexed

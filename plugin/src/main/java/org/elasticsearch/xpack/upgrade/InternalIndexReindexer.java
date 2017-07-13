@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.upgrade;
 
-import com.carrotsearch.hppc.procedures.ObjectProcedure;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -23,6 +23,7 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.util.function.BiConsumer;
@@ -59,9 +60,10 @@ public class InternalIndexReindexer<T> {
         this.postUpgrade = postUpgrade;
     }
 
-    public void upgrade(String index, ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
+    public void upgrade(TaskId task, String index, ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
+        ParentTaskAssigningClient parentAwareClient = new ParentTaskAssigningClient(client, task);
         preUpgrade.accept(ActionListener.wrap(
-                t -> innerUpgrade(index, clusterState, ActionListener.wrap(
+                t -> innerUpgrade(parentAwareClient, index, clusterState, ActionListener.wrap(
                         response -> postUpgrade.accept(t, ActionListener.wrap(
                                 empty -> listener.onResponse(response),
                                 listener::onFailure
@@ -71,22 +73,23 @@ public class InternalIndexReindexer<T> {
                 listener::onFailure));
     }
 
-    private void innerUpgrade(String index, ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
+    private void innerUpgrade(ParentTaskAssigningClient parentAwareClient, String index, ClusterState clusterState,
+                              ActionListener<BulkByScrollResponse> listener) {
         String newIndex = index + "_v" + version;
         try {
             checkMasterAndDataNodeVersion(clusterState);
-            client.admin().indices().prepareCreate(newIndex).execute(ActionListener.wrap(createIndexResponse ->
+            parentAwareClient.admin().indices().prepareCreate(newIndex).execute(ActionListener.wrap(createIndexResponse ->
                     setReadOnlyBlock(index, ActionListener.wrap(setReadOnlyResponse ->
-                            reindex(index, newIndex, ActionListener.wrap(
+                            reindex(parentAwareClient, index, newIndex, ActionListener.wrap(
                                     bulkByScrollResponse -> // Successful completion of reindexing - delete old index
-                                            removeReadOnlyBlock(index, ActionListener.wrap(unsetReadOnlyResponse ->
-                                                    client.admin().indices().prepareAliases().removeIndex(index)
+                                            removeReadOnlyBlock(parentAwareClient, index, ActionListener.wrap(unsetReadOnlyResponse ->
+                                                    parentAwareClient.admin().indices().prepareAliases().removeIndex(index)
                                                             .addAlias(newIndex, index).execute(ActionListener.wrap(deleteIndexResponse ->
                                                             listener.onResponse(bulkByScrollResponse), listener::onFailure
                                                     )), listener::onFailure
                                             )),
                                     e -> // Something went wrong during reindexing - remove readonly flag and report the error
-                                            removeReadOnlyBlock(index, ActionListener.wrap(unsetReadOnlyResponse -> {
+                                            removeReadOnlyBlock(parentAwareClient, index, ActionListener.wrap(unsetReadOnlyResponse -> {
                                                 listener.onFailure(e);
                                             }, e1 -> {
                                                 listener.onFailure(e);
@@ -105,19 +108,21 @@ public class InternalIndexReindexer<T> {
         }
     }
 
-    private void removeReadOnlyBlock(String index, ActionListener<UpdateSettingsResponse> listener) {
+    private void removeReadOnlyBlock(ParentTaskAssigningClient parentAwareClient, String index,
+                                     ActionListener<UpdateSettingsResponse> listener) {
         Settings settings = Settings.builder().put(IndexMetaData.INDEX_READ_ONLY_SETTING.getKey(), false).build();
-        client.admin().indices().prepareUpdateSettings(index).setSettings(settings).execute(listener);
+        parentAwareClient.admin().indices().prepareUpdateSettings(index).setSettings(settings).execute(listener);
     }
 
-    private void reindex(String index, String newIndex, ActionListener<BulkByScrollResponse> listener) {
+    private void reindex(ParentTaskAssigningClient parentAwareClient, String index, String newIndex,
+                         ActionListener<BulkByScrollResponse> listener) {
         SearchRequest sourceRequest = new SearchRequest(index);
         sourceRequest.types(types);
         IndexRequest destinationRequest = new IndexRequest(newIndex);
         ReindexRequest reindexRequest = new ReindexRequest(sourceRequest, destinationRequest);
         reindexRequest.setRefresh(true);
         reindexRequest.setScript(transformScript);
-        client.execute(ReindexAction.INSTANCE, reindexRequest, listener);
+        parentAwareClient.execute(ReindexAction.INSTANCE, reindexRequest, listener);
     }
 
     /**

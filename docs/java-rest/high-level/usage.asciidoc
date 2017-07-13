@@ -24,7 +24,7 @@ Add the following to your `pom.xml` file:
 --------------------------------------------------
 <dependency>
     <groupId>org.elasticsearch.client</groupId>
-    <artifactId>rest-high-level</artifactId>
+    <artifactId>elasticsearch-rest-high-level-client</artifactId>
     <version>{version}</version>
 </dependency>
 --------------------------------------------------
@@ -38,7 +38,7 @@ Add the following to your `build.gradle` file:
 ["source","groovy",subs="attributes"]
 --------------------------------------------------
 dependencies {
-    compile 'org.elasticsearch.client:rest-high-level:{version}'
+    compile 'org.elasticsearch.client:elasticsearch-rest-high-level-client:{version}'
 }
 --------------------------------------------------
 

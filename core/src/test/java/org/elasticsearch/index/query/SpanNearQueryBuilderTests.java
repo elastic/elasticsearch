@@ -112,6 +112,28 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         assertEquals(json, false, parsed.inOrder());
     }
 
+    public void testParsingSlopDefault() throws IOException {
+        String json =
+                "{\n" +
+                "  \"span_near\" : {\n" +
+                "    \"clauses\" : [ {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"field\" : {\n" +
+                "          \"value\" : \"value1\",\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }]\n" +
+                "  }\n" +
+                "}";
+
+        SpanNearQueryBuilder parsed = (SpanNearQueryBuilder) parseQuery(json);
+        assertEquals(json, 1, parsed.clauses().size());
+        assertEquals(json, SpanNearQueryBuilder.DEFAULT_SLOP, parsed.slop());
+        assertEquals(json, SpanNearQueryBuilder.DEFAULT_BOOST, parsed.boost(), 0.0);
+        assertEquals(json, SpanNearQueryBuilder.DEFAULT_IN_ORDER, parsed.inOrder());
+    }
+
     public void testCollectPayloadsDeprecated() throws Exception {
         assertEquals("We can remove support for ignoring collect_payloads in 6.0.0", 5, Version.CURRENT.major);
         String json =

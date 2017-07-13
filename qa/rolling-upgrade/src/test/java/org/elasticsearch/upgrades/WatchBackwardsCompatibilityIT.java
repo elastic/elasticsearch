@@ -163,7 +163,9 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
             try (RestClient client = buildClient(restClientSettings(), newHosts)) {
                 logger.info("checking that upgrade procedure on the new cluster is required, hosts [{}]", Arrays.asList(newHosts));
                 Map<String, String> params = Collections.singletonMap("error_trace", "true");
-                Map<String, Object> response = toMap(client().performRequest("GET", "_xpack/migration/assistance", params));
+                Map<String, String> assistanceParams = new HashMap<>(params);
+                assistanceParams.put("ignore", "404");
+                Map<String, Object> response = toMap(client().performRequest("GET", "_xpack/migration/assistance", assistanceParams));
                 String action = ObjectPath.evaluate(response, "indices.\\.watches.action_required");
                 logger.info("migration assistance response [{}]", action);
                 if ("upgrade".equals(action)) {
@@ -304,6 +306,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
                     "id='" + id + '\'' +
                     ", nodeName='" + nodeName + '\'' +
                     ", version=" + version +
+                    ", address=" + publishAddress +
                     '}';
         }
     }

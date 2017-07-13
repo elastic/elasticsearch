@@ -382,7 +382,7 @@ public class SearchTransportService extends AbstractComponent {
                     channel.sendResponse(new CanMatchResponse(canMatch));
                 }
             });
-        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, QuerySearchResult::new);
+        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, CanMatchResponse::new);
     }
 
     public static final class CanMatchResponse extends SearchPhaseResult {

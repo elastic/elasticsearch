@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
@@ -107,6 +108,10 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 false, true, null, null, context));
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03",
                 true, false, null, null, context));
+        // everything should be WITHIN query with upper bound Long.MAXVALUE
+        // see https://github.com/elastic/elasticsearch/issues/23436
+        assertEquals(Relation.WITHIN, ft.isFieldWithinQuery(reader, null, Long.MAX_VALUE,
+                true, true, null, null, context));
     }
 
     public void testIsFieldWithinQuery() throws IOException {
@@ -209,5 +214,36 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> ft.rangeQuery(date1, date2, true, true, context));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+    }
+
+    public void testParseToMilliseconds() {
+        DateFieldType ft = (DateFieldType) createDefaultFieldType();
+        long value = randomLong();
+        // rounding, "now" and timezone should not affect long values
+        DateTimeZone tz = randomDateTimeZone();
+        assertEquals(value,
+                ft.parseToMilliseconds(value, randomBoolean(), tz,
+                        new DateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER),
+                        () -> randomLong()));
+
+        // print date without time zone information, parsing back with tz should get back original
+        DateTime date = new DateTime(randomIntBetween(-9999, 9999),
+                randomIntBetween(1, 12), randomIntBetween(1, 28), randomIntBetween(0, 23),
+                randomIntBetween(0, 59), randomIntBetween(0, 59), randomIntBetween(0, 999),
+                tz);
+        assertEquals(date.getMillis(),
+                ft.parseToMilliseconds(date.toString("yyyy-MM-dd'T'HH:mm:ss.SSS"), randomBoolean(),
+                        tz, new DateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER),
+                        () -> randomLong()));
+
+        // test rounding
+        assertEquals(DateTime.parse("2017-01-01T00:00:00.000+00:00").getMillis(),
+                ft.parseToMilliseconds(date.toString("2017-01-01"), false,
+                        DateTimeZone.UTC, new DateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER),
+                        () -> randomLong()));
+        assertEquals(DateTime.parse("2017-01-01T23:59:59.999+00:00").getMillis(),
+                ft.parseToMilliseconds(date.toString("2017-01-01"), true,
+                        DateTimeZone.UTC, new DateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER),
+                        () -> randomLong()));
     }
 }

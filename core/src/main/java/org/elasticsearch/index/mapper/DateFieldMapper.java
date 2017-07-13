@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.StoredField;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
@@ -54,6 +54,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.LongSupplier;
+
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 /** A {@link FieldMapper} for ip addresses. */
@@ -240,7 +242,7 @@ public class DateFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            Query query = innerRangeQuery(value, value, true, true, null, null, context);
+            Query query = innerRangeQuery(value, value, true, true, null, null, context::nowInMillis);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -250,17 +252,17 @@ public class DateFieldMapper extends FieldMapper {
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             failIfNotIndexed();
-            return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, null, null, context);
+            return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, null, null, context::nowInMillis);
         }
 
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
+                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, LongSupplier nowInMillis) {
             failIfNotIndexed();
-            return innerRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser, context);
+            return innerRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser, nowInMillis);
         }
 
         Query innerRangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
+                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, LongSupplier nowInMillis) {
             failIfNotIndexed();
             DateMathParser parser = forcedDateParser == null
                     ? dateMathParser
@@ -269,7 +271,7 @@ public class DateFieldMapper extends FieldMapper {
             if (lowerTerm == null) {
                 l = Long.MIN_VALUE;
             } else {
-                l = parseToMilliseconds(lowerTerm, !includeLower, timeZone, parser, context);
+                l = parseToMilliseconds(lowerTerm, !includeLower, timeZone, parser, nowInMillis);
                 if (includeLower == false) {
                     ++l;
                 }
@@ -277,7 +279,7 @@ public class DateFieldMapper extends FieldMapper {
             if (upperTerm == null) {
                 u = Long.MAX_VALUE;
             } else {
-                u = parseToMilliseconds(upperTerm, includeUpper, timeZone, parser, context);
+                u = parseToMilliseconds(upperTerm, includeUpper, timeZone, parser, nowInMillis);
                 if (includeUpper == false) {
                     --u;
                 }
@@ -291,7 +293,11 @@ public class DateFieldMapper extends FieldMapper {
         }
 
         public long parseToMilliseconds(Object value, boolean roundUp,
-                @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
+                @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser, LongSupplier nowInMillis) {
+            if (value instanceof Long) {
+                return  (Long) value;
+            }
+
             DateMathParser dateParser = dateMathParser();
             if (forcedDateParser != null) {
                 dateParser = forcedDateParser;
@@ -303,7 +309,7 @@ public class DateFieldMapper extends FieldMapper {
             } else {
                 strValue = value.toString();
             }
-            return dateParser.parse(strValue, context::nowInMillis, roundUp, zone);
+            return dateParser.parse(strValue, nowInMillis, roundUp, zone);
         }
 
         @Override
@@ -335,7 +341,7 @@ public class DateFieldMapper extends FieldMapper {
 
             long fromInclusive = Long.MIN_VALUE;
             if (from != null) {
-                fromInclusive = parseToMilliseconds(from, !includeLower, timeZone, dateParser, context);
+                fromInclusive = parseToMilliseconds(from, !includeLower, timeZone, dateParser, context::nowInMillis);
                 if (includeLower == false) {
                     if (fromInclusive == Long.MAX_VALUE) {
                         return Relation.DISJOINT;
@@ -346,7 +352,7 @@ public class DateFieldMapper extends FieldMapper {
 
             long toInclusive = Long.MAX_VALUE;
             if (to != null) {
-                toInclusive = parseToMilliseconds(to, includeUpper, timeZone, dateParser, context);
+                toInclusive = parseToMilliseconds(to, includeUpper, timeZone, dateParser, context::nowInMillis);
                 if (includeUpper == false) {
                     if (toInclusive == Long.MIN_VALUE) {
                         return Relation.DISJOINT;

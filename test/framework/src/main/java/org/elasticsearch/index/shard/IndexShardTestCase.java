@@ -117,7 +117,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool(getClass().getName());
+        threadPool = new TestThreadPool(getClass().getName(), threadPoolSettings());
         primaryTerm = randomIntBetween(1, 100); // use random but fixed term for creating shards
     }
 
@@ -128,6 +128,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
         } finally {
             super.tearDown();
         }
+    }
+
+    public Settings threadPoolSettings() {
+        return Settings.EMPTY;
     }
 
     private Store createStore(IndexSettings indexSettings, ShardPath shardPath) throws IOException {

@@ -52,8 +52,10 @@ import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.LinkedList;
+import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.search.query.QueryCollectorContext.createCancellableCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createEarlySortingTerminationCollectorContext;
@@ -240,7 +242,8 @@ public class QueryPhase implements SearchPhase {
             for (QueryCollectorContext ctx : collectors) {
                 ctx.postProcess(result, shouldCollect);
             }
-            EsThreadPoolExecutor executor = searchContext.getSearchExecutor();
+            EsThreadPoolExecutor executor = (EsThreadPoolExecutor)
+                    searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);;
             if (executor instanceof QueueResizingEsThreadPoolExecutor) {
                 QueueResizingEsThreadPoolExecutor rExecutor = (QueueResizingEsThreadPoolExecutor) executor;
                 queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());

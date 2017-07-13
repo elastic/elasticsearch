@@ -35,7 +35,6 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -74,7 +73,6 @@ import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -174,7 +172,6 @@ final class DefaultSearchContext extends SearchContext {
         this.queryResult = new QuerySearchResult(id, shardTarget);
         this.fetchResult = new FetchSearchResult(id, shardTarget);
         this.indexShard = indexShard;
-        this.searchExecutor = indexShard.getThreadPool().executor(ThreadPool.Names.SEARCH);
         this.indexService = indexService;
         this.responseCollectorService = responseCollectorService;
         this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
@@ -183,11 +180,6 @@ final class DefaultSearchContext extends SearchContext {
         queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher.getIndexReader(), request::nowInMillis);
         queryShardContext.setTypes(request.types());
         queryBoost = request.indexBoost();
-    }
-
-    @Override
-    public EsThreadPoolExecutor getSearchExecutor() {
-        return (EsThreadPoolExecutor) this.searchExecutor;
     }
 
     @Override

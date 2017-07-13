@@ -27,8 +27,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -98,7 +96,6 @@ public class TestSearchContext extends SearchContext {
 
     private final long originNanoTime = System.nanoTime();
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
-    private final EsThreadPoolExecutor searchExecutor;
 
     public TestSearchContext(ThreadPool threadPool, BigArrays bigArrays, IndexService indexService) {
         this.bigArrays = bigArrays.withCircuitBreaking();
@@ -108,31 +105,20 @@ public class TestSearchContext extends SearchContext {
         this.threadPool = threadPool;
         this.indexShard = indexService.getShardOrNull(0);
         queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L);
-        this.searchExecutor = EsExecutors.newAutoQueueFixed("test_search_threadpool", 1, 100, 10, 1000, 100, TimeValue.timeValueSeconds(1),
-                EsExecutors.daemonThreadFactory("test_search_threadpool"), new ThreadContext(Settings.EMPTY));
     }
 
     public TestSearchContext(QueryShardContext queryShardContext) {
-        this(queryShardContext,
-                EsExecutors.newAutoQueueFixed("test_search_threadpool", 1, 100, 10, 1000, 100, TimeValue.timeValueSeconds(1),
-                        EsExecutors.daemonThreadFactory("test_search_threadpool"), new ThreadContext(Settings.EMPTY)));
+        this(queryShardContext, null);
     }
 
-    public TestSearchContext(QueryShardContext queryShardContext, EsThreadPoolExecutor searchExecutor) {
+    public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard) {
         this.bigArrays = null;
         this.indexService = null;
         this.indexFieldDataService = null;
         this.threadPool = null;
         this.fixedBitSetFilterCache = null;
-        this.indexShard = null;
+        this.indexShard = indexShard;
         this.queryShardContext = queryShardContext;
-        this.searchExecutor = searchExecutor;
-    }
-
-
-    @Override
-    public EsThreadPoolExecutor getSearchExecutor() {
-        return this.searchExecutor;
     }
 
     @Override
@@ -599,7 +585,6 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public void doClose() {
-        this.searchExecutor.shutdownNow();
     }
 
     @Override

@@ -1,5 +1,8 @@
 ---
 "Index data, search, and create things in the cluster state that we'll validate are there after the ugprade":
+  - skip:
+      features: warnings
+
   - do:
       indices.create:
         index: test_index
@@ -105,6 +108,8 @@
   - match: { "acknowledged": true }
 
   - do:
+      warnings:
+        - 'The stored search template API is deprecated. Use stored scripts instead.'
       put_template:
         id: test_search_template
         body:

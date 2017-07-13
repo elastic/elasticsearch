@@ -23,6 +23,7 @@ And here is a sample response:
     "_shards":{
         "total" : 1,
         "successful" : 1,
+        "skipped" : 0,
         "failed" : 0
     },
     "hits":{

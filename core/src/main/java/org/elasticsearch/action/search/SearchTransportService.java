@@ -74,6 +74,7 @@ public class SearchTransportService extends AbstractComponent {
     public static final String QUERY_FETCH_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query+fetch/scroll]";
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
+    public static final String QUERY_CAN_MATCH_NAME = "indices:data/read/search[can_match]";
 
     private final TransportService transportService;
     private final ResponseCollectorService responseCollectorService;
@@ -103,6 +104,22 @@ public class SearchTransportService extends AbstractComponent {
     public void sendFreeContext(Transport.Connection connection, long contextId, final ActionListener<SearchFreeContextResponse> listener) {
         transportService.sendRequest(connection, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(contextId),
             TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new));
+    }
+
+    public void sendCanMatch(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task, final
+                            ActionListener<CanMatchResponse> listener) {
+        if (connection.getNode().getVersion().onOrAfter(Version.CURRENT.minimumCompatibilityVersion())) {
+            transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NAME, request, task,
+                TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, CanMatchResponse::new));
+        } else {
+            // this might look weird but if we are in a CrossClusterSearch environment we can get a connection
+            // to a pre 5.latest node which is proxied by a 5.latest node under the hood since we are only compatible with 5.latest
+            // instead of sending the request we shortcut it here and let the caller deal with this -- see #25704
+            // also failing the request instead of returning a fake answer might trigger a retry on a replica which might be on a
+            // compatible node
+            throw new IllegalArgumentException("can_match is not supported on pre "+ Version.CURRENT.minimumCompatibilityVersion() +
+                " nodes");
+        }
     }
 
     public void sendClearAllScrollContexts(Transport.Connection connection, final ActionListener<TransportResponse> listener) {
@@ -295,8 +312,7 @@ public class SearchTransportService extends AbstractComponent {
             });
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, SearchFreeContextResponse::new);
         transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, () -> TransportRequest.Empty.INSTANCE,
-            ThreadPool.Names.SAME,
-            new TaskAwareTransportRequestHandler<TransportRequest.Empty>() {
+            ThreadPool.Names.SAME, new TaskAwareTransportRequestHandler<TransportRequest.Empty>() {
                 @Override
                 public void messageReceived(TransportRequest.Empty request, TransportChannel channel, Task task) throws Exception {
                     searchService.freeAllScrollContexts();
@@ -376,7 +392,47 @@ public class SearchTransportService extends AbstractComponent {
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, FetchSearchResult::new);
+
+        // this is super cheap and should not hit thread-pool rejections
+        transportService.registerRequestHandler(QUERY_CAN_MATCH_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SEARCH,
+            false, true, new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
+                @Override
+                public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel, Task task) throws Exception {
+                    boolean canMatch = searchService.canMatch(request);
+                    channel.sendResponse(new CanMatchResponse(canMatch));
+                }
+            });
+        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, CanMatchResponse::new);
     }
+
+    public static final class CanMatchResponse extends SearchPhaseResult {
+        private boolean canMatch;
+
+        public CanMatchResponse() {
+        }
+
+        public CanMatchResponse(boolean canMatch) {
+            this.canMatch = canMatch;
+        }
+
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            canMatch = in.readBoolean();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeBoolean(canMatch);
+        }
+
+        public boolean canMatch() {
+            return canMatch;
+        }
+    }
+
 
     /**
      * Returns a connection to the given node on the provided cluster. If the cluster alias is <code>null</code> the node will be resolved

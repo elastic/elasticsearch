@@ -26,7 +26,7 @@ Add the following to your `pom.xml` file:
 --------------------------------------------------
 <dependency>
     <groupId>org.elasticsearch.client</groupId>
-    <artifactId>sniffer</artifactId>
+    <artifactId>elasticsearch-rest-client-sniffer</artifactId>
     <version>{version}</version>
 </dependency>
 --------------------------------------------------
@@ -39,7 +39,7 @@ Add the following to your `build.gradle` file:
 ["source","groovy",subs="attributes"]
 --------------------------------------------------
 dependencies {
-    compile 'org.elasticsearch.client:sniffer:{version}'
+    compile 'org.elasticsearch.client:elasticsearch-rest-client-sniffer:{version}'
 }
 --------------------------------------------------
 

@@ -64,7 +64,7 @@ grant codeBase "${codebase.mocksocket-1.2.jar}" {
 };
 
 
-grant codeBase "${codebase.rest-6.0.0-beta1-SNAPSHOT.jar}" {
+grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT.jar}" {
   // rest makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";
 };

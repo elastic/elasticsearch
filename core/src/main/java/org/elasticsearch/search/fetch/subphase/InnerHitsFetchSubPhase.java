@@ -66,7 +66,7 @@ public final class InnerHitsFetchSubPhase implements FetchSubPhase {
                 innerHits.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
                 fetchPhase.execute(innerHits);
                 FetchSearchResult fetchResult = innerHits.fetchResult();
-                SearchHit[] internalHits = fetchResult.fetchResult().hits().internalHits();
+                SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
                 for (int j = 0; j < internalHits.length; j++) {
                     ScoreDoc scoreDoc = topDoc.scoreDocs[j];
                     SearchHit searchHitFields = internalHits[j];

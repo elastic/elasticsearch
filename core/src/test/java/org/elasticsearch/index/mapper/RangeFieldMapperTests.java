@@ -19,6 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.InetAddresses;
@@ -33,10 +34,10 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
 
-import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
-import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
+import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
+import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 
@@ -117,8 +118,11 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField pointField = fields[0];
+        assertEquals(2, fields.length);
+        IndexableField dvField = fields[0];
+        assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
+
+        IndexableField pointField = fields[1];
         assertEquals(2, pointField.fieldType().pointDimensionCount());
         assertFalse(pointField.fieldType().stored());
     }
@@ -145,7 +149,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
+        assertEquals(1, fields.length);
     }
 
     @Override
@@ -195,10 +199,12 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
+        assertEquals(3, fields.length);
+        IndexableField dvField = fields[0];
+        assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
+        IndexableField pointField = fields[1];
         assertEquals(2, pointField.fieldType().pointDimensionCount());
-        IndexableField storedField = fields[1];
+        IndexableField storedField = fields[2];
         assertTrue(storedField.fieldType().stored());
         String strVal = "5";
         if (type.equals("date_range")) {
@@ -232,8 +238,10 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField pointField = fields[0];
+        assertEquals(2, fields.length);
+        IndexableField dvField = fields[0];
+        assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
+        IndexableField pointField = fields[1];
         assertEquals(2, pointField.fieldType().pointDimensionCount());
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -277,9 +285,9 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             .endObject()
             .endObject().bytes(),
             XContentType.JSON));
-        assertEquals(2, doc.rootDoc().getFields("field").length);
+        assertEquals(3, doc.rootDoc().getFields("field").length);
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        IndexableField storedField = fields[1];
+        IndexableField storedField = fields[2];
         String expected = type.equals("ip_range") ? InetAddresses.toAddrString((InetAddress)getMax(type)) : getMax(type) +"";
         assertThat(storedField.stringValue(), containsString(expected));
 
@@ -294,11 +302,13 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             XContentType.JSON));
 
         fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
+        assertEquals(3, fields.length);
+        IndexableField dvField = fields[0];
+        assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
+        IndexableField pointField = fields[1];
         assertEquals(2, pointField.fieldType().pointDimensionCount());
         assertFalse(pointField.fieldType().stored());
-        storedField = fields[1];
+        storedField = fields[2];
         assertTrue(storedField.fieldType().stored());
         String strVal = "5";
         if (type.equals("date_range")) {
@@ -336,11 +346,13 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
+        assertEquals(3, fields.length);
+        IndexableField dvField = fields[0];
+        assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
+        IndexableField pointField = fields[1];
         assertEquals(2, pointField.fieldType().pointDimensionCount());
         assertFalse(pointField.fieldType().stored());
-        IndexableField storedField = fields[1];
+        IndexableField storedField = fields[2];
         assertTrue(storedField.fieldType().stored());
         String expected = type.equals("ip_range") ? InetAddresses.toAddrString((InetAddress)getMax(type)) : getMax(type) +"";
         assertThat(storedField.stringValue(), containsString(expected));

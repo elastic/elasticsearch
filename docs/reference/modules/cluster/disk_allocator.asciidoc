@@ -28,7 +28,7 @@ file or updated dynamically on a live cluster with the
     relocate shards once less than the configured amount of space is available on
     the node.
 
-`cluster.routing.allocation.disk.watermark.floodstage`::
+`cluster.routing.allocation.disk.watermark.flood_stage`::
 +
 --
     Controls the flood stage watermark. It defaults to 95%, meaning ES enforces
@@ -91,7 +91,7 @@ PUT _cluster/settings
   "transient": {
     "cluster.routing.allocation.disk.watermark.low": "100gb",
     "cluster.routing.allocation.disk.watermark.high": "50gb",
-    "cluster.routing.allocation.disk.watermark.floodstage": "10gb",
+    "cluster.routing.allocation.disk.watermark.flood_stage": "10gb",
     "cluster.info.update.interval": "1m"
   }
 }

@@ -186,3 +186,36 @@ setup() {
 
     systemctl stop elasticsearch.service
 }
+
+@test "[SYSTEMD] start Elasticsearch with custom JVM options" {
+    assert_file_exist $ESENVFILE
+    local temp=`mktemp -d`
+    cp "$ESCONFIG"/elasticsearch.yml "$temp"
+    cp "$ESCONFIG"/log4j2.properties "$temp"
+    touch "$temp/jvm.options"
+    chown -R elasticsearch:elasticsearch "$temp"
+    echo "-Xms512m" >> "$temp/jvm.options"
+    echo "-Xmx512m" >> "$temp/jvm.options"
+    # we have to disable Log4j from using JMX lest it will hit a security
+    # manager exception before we have configured logging; this will fail
+    # startup since we detect usages of logging before it is configured
+    echo "-Dlog4j2.disable.jmx=true" >> "$temp/jvm.options"
+    cp $ESENVFILE "$temp/elasticsearch"
+    echo "CONF_DIR=\"$temp\"" >> $ESENVFILE
+    echo "ES_JAVA_OPTS=\"-XX:-UseCompressedOops\"" >> $ESENVFILE
+    service elasticsearch start
+    wait_for_elasticsearch_status
+    curl -s -XGET localhost:9200/_nodes | fgrep '"heap_init_in_bytes":536870912'
+    curl -s -XGET localhost:9200/_nodes | fgrep '"using_compressed_ordinary_object_pointers":"false"'
+    service elasticsearch stop
+    cp "$temp/elasticsearch" $ESENVFILE
+}
+
+@test "[SYSTEMD] masking systemd-sysctl" {
+    clean_before_test
+
+    systemctl mask systemd-sysctl.service
+    install_package
+
+    systemctl unmask systemd-sysctl.service
+}

@@ -35,9 +35,11 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 
 SET HOSTNAME=%COMPUTERNAME%
 
-if "%ES_JVM_OPTIONS%" == "" (
+if "%CONF_DIR%" == "" (
 rem '0' is the batch file, '~dp' appends the drive and path
 set "ES_JVM_OPTIONS=%~dp0\..\config\jvm.options"
+) else (
+set "ES_JVM_OPTIONS=%CONF_DIR%\jvm.options"
 )
 
 @setlocal

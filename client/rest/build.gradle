@@ -28,6 +28,15 @@ targetCompatibility = JavaVersion.VERSION_1_7
 sourceCompatibility = JavaVersion.VERSION_1_7
 
 group = 'org.elasticsearch.client'
+archivesBaseName = 'elasticsearch-rest-client'
+
+publishing {
+  publications {
+    nebula {
+      artifactId = archivesBaseName
+    }
+  }
+}
 
 dependencies {
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"

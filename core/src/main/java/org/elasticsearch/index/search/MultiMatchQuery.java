@@ -89,7 +89,6 @@ public class MultiMatchQuery extends MatchQuery {
             final List<? extends Query> queries = queryBuilder.buildGroupedQueries(type, fieldNames, value, minimumShouldMatch);
             result = queryBuilder.combineGrouped(queries);
         }
-        assert result != null;
         return result;
     }
 
@@ -160,7 +159,7 @@ public class MultiMatchQuery extends MatchQuery {
                 String name = entry.getKey();
                 MappedFieldType fieldType = context.fieldMapper(name);
                 if (fieldType != null) {
-                    Analyzer actualAnalyzer = getAnalyzer(fieldType);
+                    Analyzer actualAnalyzer = getAnalyzer(fieldType, type == MultiMatchQueryBuilder.Type.PHRASE);
                     name = fieldType.name();
                     if (!groups.containsKey(actualAnalyzer)) {
                        groups.put(actualAnalyzer, new ArrayList<>());

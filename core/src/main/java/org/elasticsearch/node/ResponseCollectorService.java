@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
  * tasks executed on each node, making the EWMA of the values available to the
  * coordinating node.
  */
-public class ResponseCollectorService extends AbstractComponent implements ClusterStateListener {
+public final class ResponseCollectorService extends AbstractComponent implements ClusterStateListener {
 
     private static final double ALPHA = 0.3;
 
@@ -95,7 +95,7 @@ public class ResponseCollectorService extends AbstractComponent implements Clust
      * node's statistics. This includes the EWMA of queue size, response time,
      * and service time.
      */
-    public class ComputedNodeStats {
+    public static class ComputedNodeStats {
         public final String nodeId;
         public final double queueSize;
         public final double responseTime;
@@ -125,11 +125,11 @@ public class ResponseCollectorService extends AbstractComponent implements Clust
      * time, and service time, however, this class is private and intended only
      * to be used for the internal accounting of {@code ResponseCollectorService}.
      */
-    private class NodeStatistics {
-        public final String nodeId;
-        public final ExponentiallyWeightedMovingAverage queueSize;
-        public final ExponentiallyWeightedMovingAverage responseTime;
-        public double serviceTime;
+    private static class NodeStatistics {
+        final String nodeId;
+        final ExponentiallyWeightedMovingAverage queueSize;
+        final ExponentiallyWeightedMovingAverage responseTime;
+        double serviceTime;
 
         NodeStatistics(String nodeId,
                        ExponentiallyWeightedMovingAverage queueSizeEWMA,

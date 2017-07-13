@@ -31,14 +31,14 @@ import java.util.Objects;
  * result to get the piggybacked queue size and service time EWMA, adding those
  * values to the coordinating nodes' {@code ResponseCollectorService}.
  */
-public class SearchExecutionStatsCollector implements ActionListener<SearchPhaseResult> {
+final class SearchExecutionStatsCollector implements ActionListener<SearchPhaseResult> {
 
     private final SearchActionListener<SearchPhaseResult> listener;
     private final ResponseCollectorService collector;
     private final long startNanos;
 
-    public SearchExecutionStatsCollector(SearchActionListener<SearchPhaseResult> listener,
-                                         ResponseCollectorService collector) {
+    SearchExecutionStatsCollector(SearchActionListener<SearchPhaseResult> listener,
+                                  ResponseCollectorService collector) {
         this.listener = Objects.requireNonNull(listener, "listener cannot be null");
         this.collector = Objects.requireNonNull(collector, "response collector cannot be null");
         this.startNanos = System.nanoTime();

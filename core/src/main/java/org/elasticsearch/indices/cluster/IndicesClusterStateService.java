@@ -89,6 +89,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.CLOSED;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
@@ -560,6 +561,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexShardRoutingTable indexShardRoutingTable = routingTable.shardRoutingTable(shardRouting.shardId());
             final Set<String> pre60AllocationIds = indexShardRoutingTable.assignedShards()
                 .stream()
+                .flatMap(shr -> {
+                    if (shr.relocating()) {
+                        return Stream.of(shr, shr.getTargetRelocatingShard());
+                    } else {
+                        return Stream.of(shr);
+                    }
+                })
                 .filter(shr -> nodes.get(shr.currentNodeId()).getVersion().before(Version.V_6_0_0_alpha1))
                 .map(ShardRouting::allocationId)
                 .map(AllocationId::getId)

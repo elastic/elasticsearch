@@ -137,6 +137,25 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), equalTo("routing is required for [test]/[test]/[1]"));
     }
 
+    @Test
+    public void testThatMgetShouldWorkWithAliasRouting() throws IOException {
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias1").routing("abc"))
+            .addMapping("test", jsonBuilder()
+                .startObject().startObject("test").startObject("_routing").field("required", true).endObject().endObject().endObject()));
+
+        client().prepareIndex("alias1", "test", "1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
+            .setRefresh(true).get();
+
+        MultiGetResponse mgetResponse = client().prepareMultiGet()
+            .add(new MultiGetRequest.Item("alias1", "test", "1"))
+            .get();
+        assertEquals(1, mgetResponse.getResponses().length);
+
+        assertEquals("test", mgetResponse.getResponses()[0].getIndex());
+        assertFalse(mgetResponse.getResponses()[0].isFailed());
+    }
+
+
     @SuppressWarnings("unchecked")
     @Test
     public void testThatSourceFilteringIsSupported() throws Exception {

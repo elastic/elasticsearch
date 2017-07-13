@@ -18,6 +18,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheResponse;
+import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.IncomingRequest;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -234,9 +235,9 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
         Map<String, Map<Realm, User>> users = new HashMap<>();
         for (Realm realm : realms) {
             for (String username : usernames) {
-                PlainActionFuture<User> future = new PlainActionFuture<>();
+                PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
                 realm.authenticate(tokens.get(username), future, mock(IncomingRequest.class));
-                User user = future.actionGet();
+                User user = future.actionGet().getUser();
                 assertThat(user, notNullValue());
                 Map<Realm, User> realmToUser = users.get(username);
                 if (realmToUser == null) {
@@ -251,9 +252,9 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
 
         for (String username : usernames) {
             for (Realm realm : realms) {
-                PlainActionFuture<User> future = new PlainActionFuture<>();
+                PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
                 realm.authenticate(tokens.get(username), future, mock(IncomingRequest.class));
-                User user = future.actionGet();
+                User user = future.actionGet().getUser();
                 assertThat(user, sameInstance(users.get(username).get(realm)));
             }
         }
@@ -264,9 +265,9 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
         // now, user_a should have been evicted, but user_b should still be cached
         for (String username : usernames) {
             for (Realm realm : realms) {
-                PlainActionFuture<User> future = new PlainActionFuture<>();
+                PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
                 realm.authenticate(tokens.get(username), future, mock(IncomingRequest.class));
-                User user = future.actionGet();
+                User user = future.actionGet().getUser();
                 assertThat(user, notNullValue());
                 scenario.assertEviction(users.get(username).get(realm), user);
             }

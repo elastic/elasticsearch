@@ -5,9 +5,18 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Predicate;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.SuppressForbidden;
@@ -18,6 +27,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.security.authc.IncomingRequest;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
@@ -32,17 +42,6 @@ import org.elasticsearch.xpack.security.user.User;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.concurrent.ExecutionException;
-import java.util.function.Predicate;
-
-import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -89,12 +88,12 @@ public class ReservedRealmTests extends ESTestCase {
                               new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
         final String principal = ElasticUser.NAME;
 
-        PlainActionFuture<User> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         InetSocketAddress address = new InetSocketAddress(InetAddress.getLocalHost(), 100);
         when(incomingRequest.getRemoteAddress()).thenReturn(address);
         when(incomingRequest.getType()).thenReturn(IncomingRequest.RequestType.REST);
         reservedRealm.authenticate(new UsernamePasswordToken(principal, EMPTY_PASSWORD), future, incomingRequest);
-        assertThat(future.get().enabled(), equalTo(false));
+        assertThat(future.get().getUser().enabled(), equalTo(false));
     }
 
     public void testDisableDefaultPasswordAuthentication() throws Throwable {
@@ -106,19 +105,9 @@ public class ReservedRealmTests extends ESTestCase {
         final ReservedRealm reservedRealm = new ReservedRealm(environment, settings, usersStore, anonymousUser,
                 securityLifecycleService, new ThreadContext(Settings.EMPTY));
 
-        final ActionListener<User> listener = new ActionListener<User>() {
-            @Override
-            public void onResponse(User user) {
-                fail("Authentication should have failed because default-password is not allowed");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertThat(e, instanceOf(ElasticsearchSecurityException.class));
-                assertThat(e.getMessage(), containsString("failed to authenticate"));
-            }
-        };
+        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
         reservedRealm.doAuthenticate(new UsernamePasswordToken(expected.principal(), EMPTY_PASSWORD), listener, incomingRequest);
+        assertFailedAuthentication(listener, expected.principal());
     }
 
     public void testElasticEmptyPasswordAuthenticationFailsFromNonLocalhost() throws Throwable {
@@ -130,15 +119,13 @@ public class ReservedRealmTests extends ESTestCase {
                 new ReservedRealm(mock(Environment.class), settings, usersStore,
                         new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
 
-        PlainActionFuture<User> listener = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 
         InetSocketAddress address = new InetSocketAddress(InetAddress.getByName("128.9.8.1"), 100);
 
         when(incomingRequest.getRemoteAddress()).thenReturn(address);
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, EMPTY_PASSWORD),  listener, incomingRequest);
-
-        ElasticsearchSecurityException actual = expectThrows(ElasticsearchSecurityException.class, listener::actionGet);
-        assertThat(actual.getMessage(), containsString("failed to authenticate user [" + principal));
+        assertFailedAuthentication(listener, expected.principal());
     }
 
     @SuppressForbidden(reason = "allow getting localhost")
@@ -151,7 +138,7 @@ public class ReservedRealmTests extends ESTestCase {
                 new ReservedRealm(mock(Environment.class), settings, usersStore,
                         new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
 
-        PlainActionFuture<User> listener = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 
         InetSocketAddress address = new InetSocketAddress(InetAddress.getLocalHost(), 100);
 
@@ -159,7 +146,7 @@ public class ReservedRealmTests extends ESTestCase {
         when(incomingRequest.getType()).thenReturn(IncomingRequest.RequestType.REST);
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, EMPTY_PASSWORD),  listener, incomingRequest);
 
-        User user = listener.actionGet();
+        User user = listener.actionGet().getUser();
 
         assertEquals(expected, user);
         assertNotEquals(new ElasticUser(true, false), user);
@@ -177,10 +164,11 @@ public class ReservedRealmTests extends ESTestCase {
         final User expected = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
         final String principal = expected.principal();
 
-        PlainActionFuture<User> listener = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, EMPTY_PASSWORD), listener, mock(IncomingRequest.class));
-        final User authenticated = listener.actionGet();
-        assertNull(authenticated);
+        final AuthenticationResult result = listener.actionGet();
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.CONTINUE));
+        assertNull(result.getUser());
         verifyZeroInteractions(usersStore);
     }
 
@@ -192,7 +180,7 @@ public class ReservedRealmTests extends ESTestCase {
         verifySuccessfulAuthentication(false);
     }
 
-    private void verifySuccessfulAuthentication(boolean enabled) {
+    private void verifySuccessfulAuthentication(boolean enabled) throws Exception {
         final Settings settings = Settings.builder().put(ACCEPT_DEFAULT_PASSWORDS, randomBoolean()).build();
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
                 new AnonymousUser(settings), securityLifecycleService, new ThreadContext(Settings.EMPTY));
@@ -207,10 +195,9 @@ public class ReservedRealmTests extends ESTestCase {
         }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
 
         // test empty password
-        final PlainActionFuture<User> listener = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, EMPTY_PASSWORD), listener, incomingRequest);
-        ElasticsearchSecurityException expected = expectThrows(ElasticsearchSecurityException.class, listener::actionGet);
-        assertThat(expected.getMessage(), containsString("failed to authenticate user [" + principal));
+        assertFailedAuthentication(listener, expectedUser.principal());
 
         // the realm assumes it owns the hashed password so it fills it with 0's
         doAnswer((i) -> {
@@ -220,9 +207,9 @@ public class ReservedRealmTests extends ESTestCase {
         }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
 
         // test new password
-        final PlainActionFuture<User> authListener = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult> authListener = new PlainActionFuture<>();
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, newPassword), authListener, incomingRequest);
-        final User authenticated = authListener.actionGet();
+        final User authenticated = authListener.actionGet().getUser();
         assertEquals(expectedUser, authenticated);
         assertThat(expectedUser.enabled(), is(enabled));
 
@@ -349,30 +336,36 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     @SuppressForbidden(reason = "allow getting localhost")
-    public void testFailedAuthentication() throws UnknownHostException {
+    public void testFailedAuthentication() throws Exception {
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
                               new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
         InetSocketAddress address = new InetSocketAddress(InetAddress.getLocalHost(), 100);
 
         // maybe cache a successful auth
         if (randomBoolean()) {
-            PlainActionFuture<User> future = new PlainActionFuture<>();
+            PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
 
             IncomingRequest r = mock(IncomingRequest.class);
             when(r.getRemoteAddress()).thenReturn(address);
             when(r.getType()).thenReturn(IncomingRequest.RequestType.REST);
             reservedRealm.authenticate(new UsernamePasswordToken(ElasticUser.NAME, EMPTY_PASSWORD), future, r);
-            User user = future.actionGet();
+            User user = future.actionGet().getUser();
             assertEquals(new ElasticUser(true, true), user);
         }
 
-        PlainActionFuture<User> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         IncomingRequest r = mock(IncomingRequest.class);
         when(r.getRemoteAddress()).thenReturn(address);
         when(r.getType()).thenReturn(IncomingRequest.RequestType.REST);
         reservedRealm.authenticate(new UsernamePasswordToken(ElasticUser.NAME, new SecureString("foobar".toCharArray())), future, r);
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-        assertThat(e.getMessage(), containsString("failed to authenticate"));
+        assertFailedAuthentication(future, ElasticUser.NAME);
+    }
+
+    private void assertFailedAuthentication(PlainActionFuture<AuthenticationResult> future, String principal) throws Exception {
+        final AuthenticationResult result = future.get();
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
+        assertThat(result.getMessage(), containsString("failed to authenticate"));
+        assertThat(result.getMessage(), containsString(principal));
     }
 
     @SuppressWarnings("unchecked")

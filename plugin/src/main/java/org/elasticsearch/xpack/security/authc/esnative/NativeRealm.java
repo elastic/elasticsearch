@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.IncomingRequest;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
@@ -35,7 +36,8 @@ public class NativeRealm extends CachingUsernamePasswordRealm {
     }
 
     @Override
-    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener, IncomingRequest incomingRequest) {
+    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener,
+                                  IncomingRequest incomingRequest) {
         userStore.verifyPassword(token.principal(), token.credentials(), listener);
     }
 

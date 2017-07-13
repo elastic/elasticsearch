@@ -5,6 +5,13 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import java.net.InetSocketAddress;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -27,14 +34,9 @@ import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.security.support.Exceptions;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.User;
-
-import java.net.InetSocketAddress;
-import java.util.List;
-import java.util.Map;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 
@@ -170,7 +172,7 @@ public class AuthenticationService extends AbstractComponent {
          *     <li>look for a user token</li>
          *     <li>token extraction {@link #extractToken(Consumer)}</li>
          *     <li>token authentication {@link #consumeToken(AuthenticationToken)}</li>
-         *     <li>user lookup for run as if necessary {@link #consumeUser(User)} and
+         *     <li>user lookup for run as if necessary {@link #consumeUser(User, Map)} and
          *     {@link #lookupRunAsUser(User, String, Consumer)}</li>
          *     <li>write authentication into the context {@link #finishAuthentication(User)}</li>
          * </ol>
@@ -255,8 +257,8 @@ public class AuthenticationService extends AbstractComponent {
         /**
          * Consumes the {@link AuthenticationToken} provided by the caller. In the case of a {@code null} token, {@link #handleNullToken()}
          * is called. In the case of a {@code non-null} token, the realms are iterated over and the first realm that returns a non-null
-         * {@link User} is the authenticating realm and iteration is stopped. This user is then passed to {@link #consumeUser(User)} if no
-         * exception was caught while trying to authenticate the token
+         * {@link User} is the authenticating realm and iteration is stopped. This user is then passed to {@link #consumeUser(User, Map)}
+         * if no exception was caught while trying to authenticate the token
          */
         private void consumeToken(AuthenticationToken token) {
             if (token == null) {
@@ -264,22 +266,33 @@ public class AuthenticationService extends AbstractComponent {
             } else {
                 authenticationToken = token;
                 final List<Realm> realmsList = realms.asList();
+                final Map<Realm, Tuple<String, Exception>> messages = new LinkedHashMap<>();
                 final BiConsumer<Realm, ActionListener<User>> realmAuthenticatingConsumer = (realm, userListener) -> {
                     if (realm.supports(authenticationToken)) {
-                        realm.authenticate(authenticationToken, ActionListener.wrap((user) -> {
-                            if (user == null) {
-                                // the user was not authenticated, call this so we can audit the correct event
-                                request.realmAuthenticationFailed(authenticationToken, realm.name());
-                            } else {
+                        realm.authenticate(authenticationToken, ActionListener.wrap((result) -> {
+                            assert result != null : "Realm " + realm + " produced a null authentication result";
+                            if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
                                 // user was authenticated, populate the authenticated by information
                                 authenticatedBy = new RealmRef(realm.name(), realm.type(), nodeName);
+                                userListener.onResponse(result.getUser());
+                            } else {
+                                // the user was not authenticated, call this so we can audit the correct event
+                                request.realmAuthenticationFailed(authenticationToken, realm.name());
+                                if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
+                                    logger.info("Authentication of [{}] was terminated by realm [{}] - {}",
+                                            authenticationToken.principal(), realm.name(), result.getMessage());
+                                    userListener.onFailure(Exceptions.authenticationError(result.getMessage(), result.getException()));
+                                } else {
+                                    if (result.getMessage() != null) {
+                                        messages.put(realm, new Tuple<>(result.getMessage(), result.getException()));
+                                    }
+                                    userListener.onResponse(null);
+                                }
                             }
-                            userListener.onResponse(user);
                         }, (ex) -> {
-                            logger.warn(
-                                    "An error occurred while attempting to authenticate [{}] against realm [{}] - {}",
-                                    authenticationToken.principal(), realm.name(), ex);
-                            logger.debug("Authentication failed due to exception", ex);
+                            logger.warn(new ParameterizedMessage(
+                                    "An error occurred while attempting to authenticate [{}] against realm [{}]",
+                                    authenticationToken.principal(), realm.name()), ex);
                             userListener.onFailure(ex);
                         }), request);
                     } else {
@@ -287,7 +300,8 @@ public class AuthenticationService extends AbstractComponent {
                     }
                 };
                 final IteratingActionListener<User, Realm> authenticatingListener =
-                        new IteratingActionListener<>(ActionListener.wrap(this::consumeUser,
+                        new IteratingActionListener<>(ActionListener.wrap(
+                                (user) -> consumeUser(user, messages),
                                 (e) -> listener.onFailure(request.exceptionProcessingRequest(e, token))),
                         realmAuthenticatingConsumer, realmsList, threadContext);
                 try {
@@ -342,10 +356,9 @@ public class AuthenticationService extends AbstractComponent {
          * functionality is in use. When run as is not in use, {@link #finishAuthentication(User)} is called, otherwise we try to lookup
          * the run as user in {@link #lookupRunAsUser(User, String, Consumer)}
          */
-        private void consumeUser(User user) {
+        private void consumeUser(User user, Map<Realm, Tuple<String, Exception>> messages) {
             if (user == null) {
-                final Map<Realm, Tuple<String, Exception>> failureDetails = Realm.getAuthenticationFailureDetails(threadContext);
-                failureDetails.forEach((realm, tuple) -> {
+                messages.forEach((realm, tuple) -> {
                     final String message = tuple.v1();
                     final String cause = tuple.v2() == null ? "" : " (Caused by " + tuple.v2() + ")";
                     logger.warn("Authentication to realm {} failed - {}{}", realm.name(), message, cause);

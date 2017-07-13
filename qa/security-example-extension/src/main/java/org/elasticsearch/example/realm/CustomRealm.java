@@ -8,6 +8,7 @@ package org.elasticsearch.example.realm;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.IncomingRequest;
 import org.elasticsearch.xpack.security.authc.support.CharArrays;
 import org.elasticsearch.xpack.security.user.User;
@@ -49,13 +50,18 @@ public class CustomRealm extends Realm {
     }
 
     @Override
-    public void authenticate(AuthenticationToken authToken, ActionListener<User> listener, IncomingRequest incomingRequest) {
+    public void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener,
+                             IncomingRequest incomingRequest) {
         UsernamePasswordToken token = (UsernamePasswordToken)authToken;
         final String actualUser = token.principal();
-        if (KNOWN_USER.equals(actualUser) && CharArrays.constantTimeEquals(token.credentials().getChars(), KNOWN_PW.getChars())) {
-            listener.onResponse(new User(actualUser, ROLES));
+        if (KNOWN_USER.equals(actualUser)) {
+            if (CharArrays.constantTimeEquals(token.credentials().getChars(), KNOWN_PW.getChars())) {
+                listener.onResponse(AuthenticationResult.success(new User(actualUser, ROLES)));
+            } else {
+                listener.onResponse(AuthenticationResult.unsuccessful("Invalid password for user " + actualUser, null));
+            }
         } else {
-            listener.onResponse(null);
+            listener.onResponse(AuthenticationResult.notHandled());
         }
     }
 

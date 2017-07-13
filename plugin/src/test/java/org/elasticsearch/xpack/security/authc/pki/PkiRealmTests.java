@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.IncomingRequest;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
@@ -104,9 +105,11 @@ public class PkiRealmTests extends ESTestCase {
             return null;
         }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
 
-        PlainActionFuture<User> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(token, future, mock(IncomingRequest.class));
-        User user = future.actionGet();
+        final AuthenticationResult result = future.actionGet();
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        User user = result.getUser();
         assertThat(user, is(notNullValue()));
         assertThat(user.principal(), is("Elasticsearch Test Node"));
         assertThat(user.roles(), is(notNullValue()));
@@ -128,9 +131,9 @@ public class PkiRealmTests extends ESTestCase {
         threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
 
         X509AuthenticationToken token = realm.token(threadContext);
-        PlainActionFuture<User> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(token, future, mock(IncomingRequest.class));
-        User user = future.actionGet();
+        User user = future.actionGet().getUser();
         assertThat(user, is(notNullValue()));
         assertThat(user.principal(), is("elasticsearch"));
         assertThat(user.roles(), is(notNullValue()));
@@ -159,9 +162,9 @@ public class PkiRealmTests extends ESTestCase {
         threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
 
         X509AuthenticationToken token = realm.token(threadContext);
-        PlainActionFuture<User> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(token, future, mock(IncomingRequest.class));
-        User user = future.actionGet();
+        User user = future.actionGet().getUser();
         assertThat(user, is(notNullValue()));
         assertThat(user.principal(), is("Elasticsearch Test Node"));
         assertThat(user.roles(), is(notNullValue()));
@@ -190,9 +193,9 @@ public class PkiRealmTests extends ESTestCase {
         threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
 
         X509AuthenticationToken token = realm.token(threadContext);
-        PlainActionFuture<User> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(token, future, mock(IncomingRequest.class));
-        User user = future.actionGet();
+        User user = future.actionGet().getUser();
         assertThat(user, is(nullValue()));
     }
 

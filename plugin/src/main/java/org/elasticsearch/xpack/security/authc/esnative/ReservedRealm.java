@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordResponse;
@@ -88,7 +89,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     }
 
     @Override
-    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener, IncomingRequest incomingRequest) {
+    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener,
+                                  IncomingRequest incomingRequest) {
         if (incomingRequest.getType() != IncomingRequest.RequestType.REST) {
             doAuthenticate(token, listener, false);
         } else {
@@ -105,14 +107,14 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
-    private void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener, boolean acceptEmptyPassword) {
+    private void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener, boolean acceptEmptyPassword) {
         if (realmEnabled == false) {
-            listener.onResponse(null);
+            listener.onResponse(AuthenticationResult.notHandled());
         } else if (isReserved(token.principal(), config.globalSettings()) == false) {
-            listener.onResponse(null);
+            listener.onResponse(AuthenticationResult.notHandled());
         } else {
             getUserInfo(token.principal(), ActionListener.wrap((userInfo) -> {
-                Runnable action;
+                AuthenticationResult result;
                 if (userInfo != null) {
                     try {
                         if (userInfo.hasEmptyPassword) {
@@ -120,21 +122,18 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                             // Accepting the OLD_DEFAULT_PASSWORD_HASH is a transition step. We do not want to support
                             // this in a release.
                             if (isSetupMode(token.principal(), acceptEmptyPassword) == false) {
-                                action = () -> listener.onFailure(Exceptions.authenticationError("failed to authenticate user [{}]",
-                                        token.principal()));
+                                result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
                             } else if (verifyPassword(userInfo, token)
                                     || Hasher.BCRYPT.verify(token.credentials(), OLD_DEFAULT_PASSWORD_HASH)) {
-                                action = () -> listener.onResponse(getUser(token.principal(), userInfo));
+                                result = AuthenticationResult.success(getUser(token.principal(), userInfo));
                             } else {
-                                action = () -> listener.onFailure(Exceptions.authenticationError("failed to authenticate user [{}]",
-                                        token.principal()));
+                                result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
                             }
                         } else if (verifyPassword(userInfo, token)) {
                             final User user = getUser(token.principal(), userInfo);
-                            action = () -> listener.onResponse(user);
+                            result = AuthenticationResult.success(user);
                         } else {
-                            action = () -> listener.onFailure(Exceptions.authenticationError("failed to authenticate user [{}]",
-                                    token.principal()));
+                            result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
                         }
                     } finally {
                         if (userInfo.passwordHash != EMPTY_PASSWORD_HASH && userInfo.passwordHash != OLD_DEFAULT_PASSWORD_HASH) {
@@ -142,11 +141,10 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                         }
                     }
                 } else {
-                    action = () -> listener.onFailure(Exceptions.authenticationError("failed to authenticate user [{}]",
-                            token.principal()));
+                    result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
                 }
-                // we want the finally block to clear out the chars before we proceed further so we execute the action here
-                action.run();
+                // we want the finally block to clear out the chars before we proceed further so we handle the result here
+                listener.onResponse(result);
             }, listener::onFailure));
         }
     }

@@ -5,22 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.file;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger;
-import org.elasticsearch.xpack.security.authc.RealmConfig;
-import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.junit.After;
-import org.junit.Before;
-
 import java.io.BufferedWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -33,6 +17,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger;
+import org.elasticsearch.xpack.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.security.authc.support.Hasher;
+import org.elasticsearch.xpack.security.user.User;
+import org.junit.After;
+import org.junit.Before;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -91,8 +93,11 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
         FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService, latch::countDown);
 
+        User user = new User("bcrypt");
         assertThat(store.userExists("bcrypt"), is(true));
-        assertThat(store.verifyPassword("bcrypt", new SecureString("test123")), is(true));
+        AuthenticationResult result = store.verifyPassword("bcrypt", new SecureString("test123"), () -> user);
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        assertThat(result.getUser(), is(user));
 
         watcherService.start();
 
@@ -106,7 +111,9 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         }
 
         assertThat(store.userExists("foobar"), is(true));
-        assertThat(store.verifyPassword("foobar", new SecureString("barfoo")), is(true));
+        result = store.verifyPassword("foobar", new SecureString("barfoo"), () -> user);
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        assertThat(result.getUser(), is(user));
     }
 
     public void testStore_AutoReload_WithParseFailures() throws Exception {
@@ -126,7 +133,10 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
         FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService, latch::countDown);
 
-        assertTrue(store.verifyPassword("bcrypt", new SecureString("test123")));
+        User user = new User("bcrypt");
+        final AuthenticationResult result = store.verifyPassword("bcrypt", new SecureString("test123"), () -> user);
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        assertThat(result.getUser(), is(user));
 
         watcherService.start();
 

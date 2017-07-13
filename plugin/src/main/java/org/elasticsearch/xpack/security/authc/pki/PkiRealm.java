@@ -5,6 +5,18 @@
  */
 package org.elasticsearch.xpack.security.authc.pki;
 
+import javax.net.ssl.X509TrustManager;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -17,29 +29,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.security.authc.IncomingRequest;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
-import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
-import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
-import org.elasticsearch.xpack.ssl.CertUtils;
-import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
-import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.security.authc.IncomingRequest;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.RealmSettings;
-
-import javax.net.ssl.X509TrustManager;
-import java.security.cert.Certificate;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
+import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.ssl.CertUtils;
+import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
 
 public class PkiRealm extends Realm {
 
@@ -82,17 +83,19 @@ public class PkiRealm extends Realm {
     }
 
     @Override
-    public void authenticate(AuthenticationToken authToken, ActionListener<User> listener, IncomingRequest incomingRequest) {
+    public void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener,
+                             IncomingRequest incomingRequest) {
         X509AuthenticationToken token = (X509AuthenticationToken)authToken;
         if (isCertificateChainTrusted(trustManager, token, logger) == false) {
-            listener.onResponse(null);
+            listener.onResponse(AuthenticationResult.unsuccessful("Certificate for " + token.dn() + " is not trusted", null));
         } else {
             final Map<String, Object> metadata = Collections.singletonMap("pki_dn", token.dn());
             final UserRoleMapper.UserData user = new UserRoleMapper.UserData(token.principal(),
                     token.dn(), Collections.emptySet(), metadata, this.config);
             roleMapper.resolveRoles(user, ActionListener.wrap(
-                    roles -> listener.onResponse(new User(token.principal(),
-                            roles.toArray(new String[roles.size()]), null, null, metadata, true)),
+                    roles -> listener.onResponse(AuthenticationResult.success(
+                            new User(token.principal(), roles.toArray(new String[roles.size()]), null, null, metadata, true)
+                    )),
                     listener::onFailure
             ));
         }

@@ -5,17 +5,13 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.user.User;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
  * An authentication mechanism to which the default authentication {@link org.elasticsearch.xpack.security.authc.AuthenticationService
@@ -23,8 +19,6 @@ import java.util.Map;
  * authentication mechanism supporting its own specific authentication token type.
  */
 public abstract class Realm implements Comparable<Realm> {
-
-    private static final String AUTHENTICATION_FAILURES_KEY = "_xpack_security_auth_failures";
 
     protected final Logger logger;
     protected final String type;
@@ -37,21 +31,21 @@ public abstract class Realm implements Comparable<Realm> {
     }
 
     /**
-     * @return  The type of this realm
+     * @return The type of this realm
      */
     public String type() {
         return type;
     }
 
     /**
-     * @return  The name of this realm.
+     * @return The name of this realm.
      */
     public String name() {
         return config.name;
     }
 
     /**
-     * @return  The order of this realm within the executing realm chain.
+     * @return The order of this realm within the executing realm chain.
      */
     public int order() {
         return config.order;
@@ -63,7 +57,7 @@ public abstract class Realm implements Comparable<Realm> {
     }
 
     /**
-     * @return  {@code true} if this realm supports the given authentication token, {@code false} otherwise.
+     * @return {@code true} if this realm supports the given authentication token, {@code false} otherwise.
      */
     public abstract boolean supports(AuthenticationToken token);
 
@@ -71,22 +65,41 @@ public abstract class Realm implements Comparable<Realm> {
      * Attempts to extract an authentication token from the given context. If an appropriate token
      * is found it's returned, otherwise {@code null} is returned.
      *
-     * @param context   The context that will provide information about the incoming request
-     * @return          The authentication token or {@code null} if not found
+     * @param context The context that will provide information about the incoming request
+     * @return The authentication token or {@code null} if not found
      */
     public abstract AuthenticationToken token(ThreadContext context);
 
     /**
-     * Authenticates the given token in an asynchronous fashion. A successful authentication will call the
-     * {@link ActionListener#onResponse} with the User associated with the given token. An unsuccessful authentication calls
-     * with {@code null} on the argument.
+     * Authenticates the given token in an asynchronous fashion.
+     * <p>
+     * A successful authentication will call {@link ActionListener#onResponse} with a
+     * {@link AuthenticationResult#success successful} result, which includes the user associated with the given token.
+     * <br>
+     * If the realm does not support, or cannot handle the token, it will call {@link ActionListener#onResponse} with a
+     * {@link AuthenticationResult#notHandled not-handled} result.
+     * This can include cases where the token identifies as user that is not known by this realm.
+     * <br>
+     * If the realm can handle the token, but authentication failed it will typically call {@link ActionListener#onResponse} with a
+     * {@link AuthenticationResult#unsuccessful failure} result, which includes a diagnostic message regarding the failure.
+     * This can include cases where the token identifies a valid user, but has an invalid password.
+     * <br>
+     * If the realm wishes to assert that it has the exclusive right to handle the provided token, but authentication was not successful
+     * it typically call {@link ActionListener#onResponse} with a
+     * {@link AuthenticationResult#terminate termination} result, which includes a diagnostic message regarding the failure.
+     * This can include cases where the token identifies a valid user, but has an invalid password and no other realm is allowed to
+     * authenticate that user.
+     * </p>
+     * <p>
+     * The remote address should be {@code null} if the request initiated from the local node.
+     * </p>
      *
-     * The remote address should be null if the request initiated from the local node.
-     * @param token The authentication token
-     * @param listener The listener to pass the authentication result to
+     * @param token           The authentication token
+     * @param listener        The listener to pass the authentication result to
      * @param incomingRequest the request that is being authenticated
      */
-    public abstract void authenticate(AuthenticationToken token, ActionListener<User> listener, IncomingRequest incomingRequest);
+    public abstract void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener,
+                                      IncomingRequest incomingRequest);
 
     /**
      * Looks up the user identified the String identifier. A successful lookup will call the {@link ActionListener#onResponse}
@@ -117,35 +130,11 @@ public abstract class Realm implements Comparable<Realm> {
 
         /**
          * Constructs a realm which will be used for authentication.
+         *
          * @param config The configuration for the realm
          * @throws Exception an exception may be thrown if there was an error during realm creation
          */
         Realm create(RealmConfig config) throws Exception;
-    }
-
-    /**
-     * Provides a mechanism for a realm to report errors that were handled within a realm, but may
-     * provide useful diagnostics about why authentication failed.
-     */
-    protected final void setFailedAuthenticationDetails(String message, @Nullable Exception cause) {
-        final ThreadContext threadContext = config.threadContext();
-        Map<Realm, Tuple<String, Exception>> failures = threadContext.getTransient(AUTHENTICATION_FAILURES_KEY);
-        if (failures == null) {
-            failures = new LinkedHashMap<>();
-            threadContext.putTransient(AUTHENTICATION_FAILURES_KEY, failures);
-        }
-        failures.put(this, new Tuple<>(message, cause));
-    }
-
-    /**
-     * Retrieves any authentication failures messages that were set using {@link #setFailedAuthenticationDetails(String, Exception)}
-     */
-    static Map<Realm, Tuple<String, Exception>> getAuthenticationFailureDetails(ThreadContext threadContext) {
-        final Map<Realm, Tuple<String, Exception>> failures = threadContext.getTransient(AUTHENTICATION_FAILURES_KEY);
-        if (failures == null) {
-            return Collections.emptyMap();
-        }
-        return failures;
     }
 
 }

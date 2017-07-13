@@ -436,8 +436,9 @@ public class RealmsTests extends ESTestCase {
         }
 
         @Override
-        public void authenticate(AuthenticationToken token, ActionListener<User> listener, IncomingRequest incomingRequest) {
-            listener.onResponse(null);
+        public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener,
+                                 IncomingRequest incomingRequest) {
+            listener.onResponse(AuthenticationResult.notHandled());
         }
 
         @Override

@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.IncomingRequest;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
@@ -27,9 +28,9 @@ public class CustomRealmTests extends ESTestCase {
         CustomRealm realm = new CustomRealm(new RealmConfig("test", Settings.EMPTY, globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings)));
         SecureString password = CustomRealm.KNOWN_PW.clone();
         UsernamePasswordToken token = new UsernamePasswordToken(CustomRealm.KNOWN_USER, password);
-        PlainActionFuture<User> plainActionFuture = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult> plainActionFuture = new PlainActionFuture<>();
         realm.authenticate(token, plainActionFuture, mock(IncomingRequest.class));
-        User user = plainActionFuture.actionGet();
+        User user = plainActionFuture.actionGet().getUser();
         assertThat(user, notNullValue());
         assertThat(user.roles(), equalTo(CustomRealm.ROLES));
         assertThat(user.principal(), equalTo(CustomRealm.KNOWN_USER));
@@ -40,8 +41,9 @@ public class CustomRealmTests extends ESTestCase {
         CustomRealm realm = new CustomRealm(new RealmConfig("test", Settings.EMPTY, globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings)));
         SecureString password = CustomRealm.KNOWN_PW.clone();
         UsernamePasswordToken token = new UsernamePasswordToken(CustomRealm.KNOWN_USER + "1", password);
-        PlainActionFuture<User> plainActionFuture = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult> plainActionFuture = new PlainActionFuture<>();
         realm.authenticate(token, plainActionFuture, mock(IncomingRequest.class));
-        assertThat(plainActionFuture.actionGet(), nullValue());
+        final AuthenticationResult result = plainActionFuture.actionGet();
+        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
     }
 }

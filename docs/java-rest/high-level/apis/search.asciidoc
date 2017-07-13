@@ -96,6 +96,8 @@ sub-aggregation on the average age of employees in the company:
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations]
 --------------------------------------------------
 
+We will later see how to <<java-rest-high-access-aggs,access aggregations>> in the `SearchResponse`.
+
 [[java-rest-high-document-search-sync]]
 ==== Synchronous Execution
 
@@ -146,6 +148,7 @@ failures can also be handled by iterating over an array off
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-response-2]
 --------------------------------------------------
 
+[[java-rest-high-access-searchHits]]
 ===== Accessing SearchHits
 
 To get access to the returned documents, we need to first get the `SearchHits`
@@ -192,6 +195,7 @@ cases need to be case accordingly:
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-hits-singleHit-source]
 --------------------------------------------------
 
+[[java-rest-high-access-aggs]]
 ===== Accessing Aggregations
 
 Aggregations can be retrieved from the `SearchResponse` by first getting the

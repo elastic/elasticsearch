@@ -155,6 +155,7 @@ to `1h`.
 
 `bind_dn`::
 The DN of the user that will be used to bind to the LDAP and perform searches.
+Only applicable in {xpack-ref}/ldap-realm.html#ldap-user-search[user search mode].
 If this is not specified, an anonymous bind will be attempted.
 Defaults to Empty.
 

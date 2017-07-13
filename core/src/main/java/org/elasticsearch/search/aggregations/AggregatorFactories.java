@@ -26,6 +26,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
@@ -293,8 +295,18 @@ public class AggregatorFactories {
             }
         }
 
-        public Builder addAggregators(AggregatorFactories factories) {
-            throw new UnsupportedOperationException("This needs to be removed");
+        public boolean mustVisitAllDocs() {
+            for (AggregationBuilder builder : aggregationBuilders) {
+                if (builder instanceof GlobalAggregationBuilder) {
+                    return true;
+                } else if (builder instanceof TermsAggregationBuilder) {
+                    if (((TermsAggregationBuilder) builder).minDocCount() == 0) {
+                        return true;
+                    }
+                }
+
+            }
+            return false;
         }
 
         public Builder addAggregator(AggregationBuilder factory) {

@@ -76,6 +76,7 @@ public class SearchTransportService extends AbstractComponent {
     public static final String QUERY_FETCH_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query+fetch/scroll]";
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
+    public static final String QUERY_CAN_MATCH_NAME = "indices:data/read/search[can_match]";
 
     private final TransportService transportService;
 
@@ -395,7 +396,44 @@ public class SearchTransportService extends AbstractComponent {
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, FetchSearchResult::new);
+
+        // this is super cheap and should not hit thread-pool rejections
+        transportService.registerRequestHandler(QUERY_CAN_MATCH_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SEARCH,
+            false, true, new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
+                @Override
+                public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel, Task task) throws Exception {
+                    boolean canMatch = searchService.canMatch(request);
+                    channel.sendResponse(new CanMatchResponse(canMatch));
+                }
+            });
+        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, CanMatchResponse::new);
     }
+
+    // this feature is only really used in 6.0 but we added the endpoints to 5.6 to ensure if a user is on 5.6 and they desperately
+    // need it they can use cross cluster search with a 6.0 CCS Node or can use a 6.0 node as a coordinator to at least test if
+    // if would help their usecase. it also makes the feature in 6.x BWC with the latest 5.x release.
+    private static final class CanMatchResponse extends SearchPhaseResult {
+        private boolean canMatch;
+
+        private CanMatchResponse() {}
+
+        private CanMatchResponse(boolean canMatch) {
+            this.canMatch = canMatch;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            canMatch = in.readBoolean();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeBoolean(canMatch);
+        }
+    }
+
 
     /**
      * Returns a connection to the given node on the provided cluster. If the cluster alias is <code>null</code> the node will be resolved

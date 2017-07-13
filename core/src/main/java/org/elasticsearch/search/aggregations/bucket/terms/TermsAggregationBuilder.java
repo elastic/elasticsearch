@@ -178,6 +178,13 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     }
 
     /**
+     * Returns the minimum document count required per term
+     */
+    public long minDocCount() {
+        return bucketCountThresholds.getMinDocCount();
+    }
+
+    /**
      * Set the minimum document count terms should have on the shard in order to
      * appear in the response.
      */

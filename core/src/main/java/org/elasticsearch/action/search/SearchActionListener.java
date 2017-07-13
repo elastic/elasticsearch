@@ -29,7 +29,7 @@ import org.elasticsearch.search.SearchShardTarget;
 abstract class SearchActionListener<T extends SearchPhaseResult> implements ActionListener<T> {
 
     private final int requestIndex;
-    protected final SearchShardTarget searchShardTarget;
+    private final SearchShardTarget searchShardTarget;
 
     protected SearchActionListener(SearchShardTarget searchShardTarget,
                                    int shardIndex) {

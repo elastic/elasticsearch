@@ -127,7 +127,7 @@ public class SearchTransportService extends AbstractComponent {
         if (responseCollectorService == null) {
             handler = listener;
         } else {
-            handler = new SearchExecutionStatsCollector(listener, responseCollectorService, listener.searchShardTarget.getNodeId());
+            handler = new SearchExecutionStatsCollector(listener, responseCollectorService, connection.getNode().getId());
         }
         transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(handler, supplier));

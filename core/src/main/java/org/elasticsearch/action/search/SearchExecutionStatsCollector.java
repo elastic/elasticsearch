@@ -33,27 +33,29 @@ import java.util.Objects;
  */
 final class SearchExecutionStatsCollector implements ActionListener<SearchPhaseResult> {
 
-    private final SearchActionListener<SearchPhaseResult> listener;
+    private final ActionListener<SearchPhaseResult> listener;
+    private final String nodeId;
     private final ResponseCollectorService collector;
     private final long startNanos;
 
-    SearchExecutionStatsCollector(SearchActionListener<SearchPhaseResult> listener,
-                                  ResponseCollectorService collector) {
+    SearchExecutionStatsCollector(ActionListener<SearchPhaseResult> listener,
+                                  ResponseCollectorService collector,
+                                  String nodeId) {
         this.listener = Objects.requireNonNull(listener, "listener cannot be null");
         this.collector = Objects.requireNonNull(collector, "response collector cannot be null");
         this.startNanos = System.nanoTime();
+        this.nodeId = nodeId;
     }
 
     @Override
     public void onResponse(SearchPhaseResult response) {
         QuerySearchResult queryResult = response.queryResult();
-        if (queryResult != null) {
+        if (nodeId != null && queryResult != null) {
             final long serviceTimeEWMA = queryResult.serviceTimeEWMA();
             final int queueSize = queryResult.nodeQueueSize();
             final long responseDuration = System.nanoTime() - startNanos;
-            final String nodeId = listener.searchShardTarget.getNodeId();
             // EWMA/queue size may be -1 if the query node doesn't support capturing it
-            if (nodeId != null && serviceTimeEWMA > 0 && queueSize > 0) {
+            if (serviceTimeEWMA > 0 && queueSize > 0) {
                 collector.addNodeStatistics(nodeId, queueSize, responseDuration, serviceTimeEWMA);
             }
         }

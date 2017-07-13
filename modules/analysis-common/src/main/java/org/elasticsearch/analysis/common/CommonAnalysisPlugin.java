@@ -71,6 +71,7 @@ import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
+import org.elasticsearch.index.analysis.SoraniNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
@@ -118,6 +119,16 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.put("common_grams", requriesAnalysisSettings(CommonGramsTokenFilterFactory::new));
         filters.put("pattern_replace", requriesAnalysisSettings(PatternReplaceTokenFilterFactory::new));
         filters.put("pattern_capture", requriesAnalysisSettings(PatternCaptureGroupTokenFilterFactory::new));
+        filters.put("arabic_normalization", ArabicNormalizationFilterFactory::new);
+        filters.put("german_normalization", GermanNormalizationFilterFactory::new);
+        filters.put("hindi_normalization", HindiNormalizationFilterFactory::new);
+        filters.put("indic_normalization", IndicNormalizationFilterFactory::new);
+        filters.put("persian_normalization", PersianNormalizationFilterFactory::new);
+        filters.put("scandinavian_normalization", ScandinavianNormalizationFilterFactory::new);
+        filters.put("serbian_normalization", SerbianNormalizationFilterFactory::new);
+        filters.put("sorani_normalization", SoraniNormalizationFilterFactory::new);
+        filters.put("cjk_width", CJKWidthFilterFactory::new);
+        filters.put("cjk_bigram", CJKBigramFilterFactory::new);
         return filters;
     }
 

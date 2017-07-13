@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.cjk.CJKBigramFilter;
@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -49,7 +50,7 @@ public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
     private final int flags;
     private final boolean outputUnigrams;
 
-    public CJKBigramFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    CJKBigramFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         outputUnigrams = settings.getAsBooleanLenientForPreEs6Indices(
             indexSettings.getIndexVersionCreated(), "output_unigrams", false, deprecationLogger);

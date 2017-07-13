@@ -34,3 +34,7 @@ script otherwise an error will occur.  Note that a request using a stored script
 different from a request that puts a stored script.  The language of the script has
 already been stored as part of the cluster state and an `id` is sufficient to access
 all of the information necessary to execute a stored script.
+
+==== Stored template apis removed
+
+The PUT, GET and DELETE _template apis have been removed. Store templates with the stored scripts apis instead.

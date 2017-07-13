@@ -808,7 +808,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         for (String type : QueryStringQueryBuilder.allQueryableDefaultFields(context).keySet()) {
             fieldQueries.add(new ConstantScoreQuery(new TermQuery(new Term("_field_names", type))));
         }
-        expected = new DisjunctionMaxQuery(fieldQueries, 1f);
+        expected = new DisjunctionMaxQuery(fieldQueries, 0f);
         assertThat(query, equalTo(expected));
     }
 

@@ -373,7 +373,7 @@ public class QueryStringQueryParser extends XQueryParser {
         } else if (queries.size() == 1) {
             return queries.get(0);
         }
-        float tiebreaker = groupTieBreaker == null ? 1.0f : groupTieBreaker;
+        float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
         return new DisjunctionMaxQuery(queries, tiebreaker);
     }
 
@@ -415,7 +415,7 @@ public class QueryStringQueryParser extends XQueryParser {
     @Override
     protected Query getFuzzyQuery(String field, String termStr, float minSimilarity) throws ParseException {
         Map<String, Float> fields = extractMultiFields(field, false);
-        float tiebreaker = groupTieBreaker == null ? 1.0f : groupTieBreaker;
+        float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
             Query q = getFuzzyQuerySingle(entry.getKey(), termStr, minSimilarity);
@@ -463,7 +463,7 @@ public class QueryStringQueryParser extends XQueryParser {
     protected Query getPrefixQuery(String field, String termStr) throws ParseException {
         Map<String, Float> fields = extractMultiFields(field, false);
         if (fields != null) {
-            float tiebreaker = groupTieBreaker == null ? 1.0f : groupTieBreaker;
+            float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
             List<Query> queries = new ArrayList<>();
             for (Map.Entry<String, Float> entry : fields.entrySet()) {
                 Query q = getPrefixQuerySingle(entry.getKey(), termStr);
@@ -611,7 +611,7 @@ public class QueryStringQueryParser extends XQueryParser {
 
         Map<String, Float> fields = extractMultiFields(field, false);
         if (fields != null) {
-            float tiebreaker = groupTieBreaker == null ? 1.0f : groupTieBreaker;
+            float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
             List<Query> queries = new ArrayList<>();
             for (Map.Entry<String, Float> entry : fields.entrySet()) {
                 Query q = getWildcardQuerySingle(entry.getKey(), termStr);
@@ -660,7 +660,7 @@ public class QueryStringQueryParser extends XQueryParser {
     protected Query getRegexpQuery(String field, String termStr) throws ParseException {
         Map<String, Float> fields = extractMultiFields(field, false);
         if (fields != null) {
-            float tiebreaker = groupTieBreaker == null ? 1.0f : groupTieBreaker;
+            float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
             List<Query> queries = new ArrayList<>();
             for (Map.Entry<String, Float> entry : fields.entrySet()) {
                 Query q = getRegexpQuerySingle(entry.getKey(), termStr);

@@ -208,7 +208,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     @SuppressWarnings({ "unused", "unchecked" })
-    public void testSearchRequest_Aggregations() throws IOException {
+    public void testSearchRequestAggregations() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
             BulkRequest request = new BulkRequest();
@@ -227,8 +227,10 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             SearchRequest searchRequest = new SearchRequest();
             // tag::search-request-aggregations
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-            TermsAggregationBuilder aggregation = AggregationBuilders.terms("by_company").field("company.keyword")
-                    .subAggregation(AggregationBuilders.avg("average_age").field("age"));
+            TermsAggregationBuilder aggregation = AggregationBuilders.terms("by_company")
+                    .field("company.keyword");
+            aggregation.subAggregation(AggregationBuilders.avg("average_age")
+                    .field("age"));
             searchSourceBuilder.aggregation(aggregation);
             // end::search-request-aggregations
             searchSourceBuilder.query(QueryBuilders.matchAllQuery());
@@ -237,28 +239,22 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             {
                 // tag::search-request-aggregations-get
                 Aggregations aggregations = searchResponse.getAggregations();
-                Terms byCompanyAggregation = aggregations.get("by_company");
-                Bucket elasticBucket = byCompanyAggregation.getBucketByKey("Elastic");
-                Avg averageAge = elasticBucket.getAggregations().get("average_age");
+                Terms byCompanyAggregation = aggregations.get("by_company"); // <1>
+                Bucket elasticBucket = byCompanyAggregation.getBucketByKey("Elastic"); // <2>
+                Avg averageAge = elasticBucket.getAggregations().get("average_age"); // <3>
                 double avg = averageAge.getValue();
                 // end::search-request-aggregations-get
 
-                // tag::search-request-aggregations-get-wrongCast
                 try {
+                    // tag::search-request-aggregations-get-wrongCast
                     Range range = aggregations.get("by_company"); // <1>
+                    // end::search-request-aggregations-get-wrongCast
                 } catch (ClassCastException ex) {
-                    // expected
+                    assertEquals("org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms"
+                            + " cannot be cast to org.elasticsearch.search.aggregations.bucket.range.Range", ex.getMessage());
                 }
-                // end::search-request-aggregations-get-wrongCast
                 assertEquals(3, elasticBucket.getDocCount());
                 assertEquals(30, avg, 0.0);
-                ClassCastException ex = expectThrows(ClassCastException.class, () -> {
-                    Range range = aggregations.get("by_company");
-                });
-                assertEquals(
-                        "org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms"
-                        + " cannot be cast to org.elasticsearch.search.aggregations.bucket.range.Range",
-                        ex.getMessage());
             }
             Aggregations aggregations = searchResponse.getAggregations();
             {

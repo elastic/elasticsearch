@@ -58,7 +58,6 @@ indices:monitor/shard_stores
 indices:monitor/stats
 indices:monitor/upgrade
 indices:data/read/explain
-indices:data/read/field_stats
 indices:data/read/field_caps
 indices:data/read/get
 indices:data/read/xpack/graph/explore

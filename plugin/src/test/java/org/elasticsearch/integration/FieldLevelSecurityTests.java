@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -23,13 +22,13 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.join.ParentJoinPlugin;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -54,7 +53,6 @@ import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -662,87 +660,6 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
         assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
         assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field2"), is("value2"));
-    }
-
-    public void testFieldStatsApi() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
-        );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
-                .setRefreshPolicy(IMMEDIATE)
-                .get();
-
-        // user1 is granted access to field1 only:
-        FieldStatsResponse response = client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareFieldStats()
-                .setFields("field1", "field2", "field3")
-                .get();
-        assertThat(response.getAllFieldStats().size(), equalTo(1));
-        assertThat(response.getAllFieldStats().get("field1").getDocCount(), equalTo(1L));
-
-        // user2 is granted access to field2 only:
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-                .prepareFieldStats()
-                .setFields("field1", "field2", "field3")
-                .get();
-        assertThat(response.getAllFieldStats().size(), equalTo(1));
-        assertThat(response.getAllFieldStats().get("field2").getDocCount(), equalTo(1L));
-
-        // user3 is granted access to field1 and field2:
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-                .prepareFieldStats()
-                .setFields("field1", "field2", "field3")
-                .get();
-        assertThat(response.getAllFieldStats().size(), equalTo(2));
-        assertThat(response.getAllFieldStats().get("field1").getDocCount(), equalTo(1L));
-        assertThat(response.getAllFieldStats().get("field2").getDocCount(), equalTo(1L));
-
-        // user4 is granted access to no fields:
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
-                .prepareFieldStats()
-                .setFields("field1", "field2")
-                .get();
-        assertThat(response.getAllFieldStats().size(), equalTo(0));
-
-        // user5 has no field level security configured:
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
-                .prepareFieldStats()
-                .setFields("field1", "field2", "field3")
-                .get();
-        assertThat(response.getAllFieldStats().size(), equalTo(3));
-        assertThat(response.getAllFieldStats().get("field1").getDocCount(), equalTo(1L));
-        assertThat(response.getAllFieldStats().get("field2").getDocCount(), equalTo(1L));
-        assertThat(response.getAllFieldStats().get("field3").getDocCount(), equalTo(1L));
-
-        // user6 has field level security configured for field*:
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
-                .prepareFieldStats()
-                .setFields("field1", "field2", "field3")
-                .get();
-        assertThat(response.getAllFieldStats().size(), equalTo(3));
-        assertThat(response.getAllFieldStats().get("field1").getDocCount(), equalTo(1L));
-        assertThat(response.getAllFieldStats().get("field2").getDocCount(), equalTo(1L));
-        assertThat(response.getAllFieldStats().get("field3").getDocCount(), equalTo(1L));
-
-        // user7 has no field level security configured (roles with and without field level security):
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
-                .prepareFieldStats()
-                .setFields("field1", "field2", "field3")
-                .get();
-        assertThat(response.getAllFieldStats().size(), equalTo(3));
-        assertThat(response.getAllFieldStats().get("field1").getDocCount(), equalTo(1L));
-        assertThat(response.getAllFieldStats().get("field2").getDocCount(), equalTo(1L));
-        assertThat(response.getAllFieldStats().get("field3").getDocCount(), equalTo(1L));
-
-        // user8 has field level security configured for field1 and field2 (multiple roles):
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
-                .prepareFieldStats()
-                .setFields("field1", "field2", "field3")
-                .get();
-        assertThat(response.getAllFieldStats().size(), equalTo(2));
-        assertThat(response.getAllFieldStats().get("field1").getDocCount(), equalTo(1L));
-        assertThat(response.getAllFieldStats().get("field2").getDocCount(), equalTo(1L));
     }
 
     public void testScroll() throws Exception {

@@ -100,6 +100,8 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         });
 
         nodes = buildNodeAndVersions();
+        logger.info("Nodes in cluster before test: bwc [{}], new [{}], master [{}]", nodes.getBWCNodes(), nodes.getNewNodes(),
+                nodes.getMaster());
     }
 
     @Override
@@ -159,11 +161,13 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         HttpHost[] newHosts = nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new);
         if (newHosts.length > 0) {
             try (RestClient client = buildClient(restClientSettings(), newHosts)) {
-                logger.info("checking that upgrade procedure on the new cluster is required");
-                Map<String, Object> response = toMap(client().performRequest("GET", "/_xpack/migration/assistance"));
+                logger.info("checking that upgrade procedure on the new cluster is required, hosts [{}]", Arrays.asList(newHosts));
+                Map<String, String> params = Collections.singletonMap("error_trace", "true");
+                Map<String, Object> response = toMap(client().performRequest("GET", "_xpack/migration/assistance", params));
                 String action = ObjectPath.evaluate(response, "indices.\\.watches.action_required");
+                logger.info("migration assistance response [{}]", action);
                 if ("upgrade".equals(action)) {
-                    client.performRequest("POST", "_xpack/migration/upgrade/.watches");
+                    client.performRequest("POST", "_xpack/migration/upgrade/.watches", params);
                 }
             }
         }
@@ -173,9 +177,6 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
             throws IOException {
         HttpHost[] newHosts = nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new);
         HttpHost[] bwcHosts = nodes.getBWCNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new);
-
-        logger.info("# of bwc nodes [{}], number of new nodes [{}], master node [{}]", Arrays.asList(bwcHosts), Arrays.asList(newHosts),
-                nodes.getMaster().getPublishAddress());
         assertTrue("No nodes in cluster, cannot run any tests", newHosts.length > 0 || bwcHosts.length > 0);
 
         if (newHosts.length > 0) {

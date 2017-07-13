@@ -860,7 +860,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } else {
             AggregatorFactories.Builder aggregations = source.aggregations();
             if (aggregations != null) {
-                if (aggregations.mustVisiteAllDocs()) {
+                if (aggregations.mustVisitAllDocs()) {
                     return false;
                 }
             }

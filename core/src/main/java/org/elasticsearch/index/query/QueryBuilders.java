@@ -267,7 +267,7 @@ public abstract class QueryBuilders {
      * when no field is added (using {@link QueryStringQueryBuilder#field(String)}, will run the query once and non prefixed fields
      * will use the {@link QueryStringQueryBuilder#defaultField(String)} set. The second, when one or more fields are added
      * (using {@link QueryStringQueryBuilder#field(String)}), will run the parsed query against the provided fields, and combine
-     * them either using DisMax or a plain boolean query (see {@link QueryStringQueryBuilder#useDisMax(boolean)}).
+     * them either using Dismax.
      *
      * @param queryString The query string to run
      */

@@ -140,7 +140,7 @@ public class QueryStringIT extends ESIntegTestCase {
         assertHits(resp.getHits(), "1", "2");
         assertHitCount(resp, 2L);
 
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("127.0.0.1 1.8")).get();
+        resp = client().prepareSearch("test").setQuery(queryStringQuery("127.0.0.1 OR 1.8")).get();
         assertHits(resp.getHits(), "1", "2");
         assertHitCount(resp, 2L);
     }
@@ -201,7 +201,7 @@ public class QueryStringIT extends ESIntegTestCase {
         assertHitCount(resp, 2L);
 
         resp = client().prepareSearch("test")
-                .setQuery(queryStringQuery("Foo Bar").splitOnWhitespace(false))
+                .setQuery(queryStringQuery("Foo Bar"))
                 .get();
         assertHits(resp.getHits(), "1", "2", "3");
         assertHitCount(resp, 3L);
@@ -221,7 +221,7 @@ public class QueryStringIT extends ESIntegTestCase {
         assertHitCount(resp, 0L);
 
         resp = client().prepareSearch("test2").setQuery(
-                queryStringQuery("foo eggplant").defaultOperator(Operator.AND).useAllFields(true)).get();
+                queryStringQuery("foo eggplant").defaultOperator(Operator.OR).useAllFields(true)).get();
         assertHits(resp.getHits(), "1");
         assertHitCount(resp, 1L);
 
@@ -305,28 +305,16 @@ public class QueryStringIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch(index).setQuery(
             QueryBuilders.queryStringQuery("say what the fudge")
                 .defaultField("field")
-                .splitOnWhitespace(false)
                 .defaultOperator(Operator.AND)
                 .analyzer("lower_graphsyns")).get();
 
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
 
-        // and, split on whitespace means we should not recognize the multi-word synonym
-        searchResponse = client().prepareSearch(index).setQuery(
-            QueryBuilders.queryStringQuery("say what the fudge")
-                .defaultField("field")
-                .splitOnWhitespace(true)
-                .defaultOperator(Operator.AND)
-                .analyzer("lower_graphsyns")).get();
-
-        assertNoSearchHits(searchResponse);
-
         // or
         searchResponse = client().prepareSearch(index).setQuery(
             QueryBuilders.queryStringQuery("three what the fudge foo")
                 .defaultField("field")
-                .splitOnWhitespace(false)
                 .defaultOperator(Operator.OR)
                 .analyzer("lower_graphsyns")).get();
 
@@ -337,7 +325,6 @@ public class QueryStringIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch(index).setQuery(
             QueryBuilders.queryStringQuery("three what the fudge foo")
                 .defaultField("field")
-                .splitOnWhitespace(false)
                 .defaultOperator(Operator.OR)
                 .analyzer("lower_graphsyns")
                 .minimumShouldMatch("80%")).get();

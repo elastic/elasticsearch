@@ -396,12 +396,10 @@ filter looks up `user` objects with either `sAMAccountName` or
 
 `user_search.upn_filter`::
 Specifies a filter to use to lookup a user given a user principal name.
-The default filter looks up `user` objects with either
-a matching `userPrincipalName` or a `sAMAccountName` matching the account
-portion of the user principal name. If specified, this
+The default filter looks up `user` objects with
+a matching `userPrincipalName`. If specified, this
 must be a valid LDAP user search filter, for example
-`(&(objectClass=user)(sAMAccountName={0}))`. `{0}` is the value preceding the
-`@` sign in the user principal name and `{1}` is the full user principal name
+`(&(objectClass=user)(userPrincipalName={1}))`. `{1}` is the full user principal name
 provided by the user.
 
 `user_search.down_level_filter`::

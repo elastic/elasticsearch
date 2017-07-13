@@ -20,11 +20,13 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetaDataResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
@@ -517,24 +519,27 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
      */
     static class UpnADAuthenticator extends ADAuthenticator {
 
-        static final String UPN_USER_FILTER = "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={1})))";
+        static final String UPN_USER_FILTER = "(&(objectClass=user)(userPrincipalName={1}))";
 
         UpnADAuthenticator(RealmConfig config, TimeValue timeout, boolean ignoreReferralErrors, Logger logger,
                            GroupsResolver groupsResolver, LdapMetaDataResolver metaDataResolver, String domainDN) {
             super(config, timeout, ignoreReferralErrors, logger, groupsResolver, metaDataResolver, domainDN,
                     AD_UPN_USER_SEARCH_FILTER_SETTING, UPN_USER_FILTER);
+            if (userSearchFilter.contains("{0}")) {
+                new DeprecationLogger(logger).deprecated("The use of the account name variable {0} in the setting ["
+                        + RealmSettings.getFullSettingKey(config, AD_UPN_USER_SEARCH_FILTER_SETTING) +
+                        "] has been deprecated and will be removed in a future version!");
+            }
         }
 
         void searchForDN(LDAPInterface connection, String username, SecureString password, int timeLimitSeconds,
                          ActionListener<SearchResultEntry> listener) {
             String[] parts = username.split("@");
-            assert parts.length == 2;
+            assert parts.length == 2 : "there should have only been two values for " + username + " after splitting on '@'";
             final String accountName = parts[0];
-            final String domainName = parts[1];
-            final String domainDN = buildDnFromDomain(domainName);
             try {
-                Filter filter = createFilter(UPN_USER_FILTER, accountName, username);
-                searchForEntry(connection, domainDN, LdapSearchScope.SUB_TREE.scope(), filter,
+                Filter filter = createFilter(userSearchFilter, accountName, username);
+                searchForEntry(connection, userSearchDN, LdapSearchScope.SUB_TREE.scope(), filter,
                         timeLimitSeconds, ignoreReferralErrors, listener,
                         attributesToSearchFor(groupsResolver.attributes()));
             } catch (LDAPException e) {

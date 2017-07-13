@@ -102,18 +102,23 @@ setup:
 "Test search input mustache integration (using request template)":
 
   - do:
-      put_template:
+      put_script:
         id: "search-template"
         body: {
-                "query" : {
-                  "bool" : {
-                    "must" : [
-                      {
-                        "term" : {
-                          "value" : "val_{{num}}"
-                        }
+                "script": {
+                  "lang": "mustache",
+                  "source": {
+                    "query" : {
+                      "bool" : {
+                        "must" : [
+                          {
+                            "term" : {
+                              "value" : "val_{{num}}"
+                            }
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
                 }
               }

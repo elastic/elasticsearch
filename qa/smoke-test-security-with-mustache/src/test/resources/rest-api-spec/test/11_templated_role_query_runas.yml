@@ -93,12 +93,17 @@ setup:
             }
 
   - do:
-      put_template:
+      put_script:
         id: "1"
         body: >
             {
-              "term" : {
-                "username" : "{{_user.username}}"
+              "script": {
+                "lang": "mustache",
+                "source": {
+                  "term" : {
+                    "username" : "{{_user.username}}"
+                  }
+                }
               }
             }
 

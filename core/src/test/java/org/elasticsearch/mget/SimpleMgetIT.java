@@ -117,10 +117,10 @@ public class SimpleMgetIT extends ESIntegTestCase {
         MultiGetResponse mgetResponse = client().prepareMultiGet()
             .add(new MultiGetRequest.Item("alias1", "test", "1"))
             .get();
-        assertThat(mgetResponse.getResponses().length, is(1));
+        assertEquals(1, mgetResponse.getResponses().length);
 
-        assertThat(mgetResponse.getResponses()[0].getIndex(), is("test"));
-        assertThat(mgetResponse.getResponses()[0].isFailed(), is(false));
+        assertEquals("test", mgetResponse.getResponses()[0].getIndex());
+        assertFalse(mgetResponse.getResponses()[0].isFailed());
     }
 
     public void testThatParentPerDocumentIsSupported() throws Exception {

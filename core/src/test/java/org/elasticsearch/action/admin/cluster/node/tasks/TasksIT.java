@@ -34,7 +34,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.bulk.BulkAction;
-import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexResponse;
@@ -168,20 +167,22 @@ public class TasksIT extends ESIntegTestCase {
     }
 
     public void testTransportReplicationAllShardsTasks() {
-        registerTaskManageListeners(FieldStatsAction.NAME);  // main task
-        registerTaskManageListeners(FieldStatsAction.NAME + "[s]"); // shard level tasks
+        registerTaskManageListeners(ValidateQueryAction.NAME); // main task
+        registerTaskManageListeners(ValidateQueryAction.NAME + "[s]"); // shard
+                                                                       // level
+                                                                // tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().prepareFieldStats().setFields("field").get();
+        client().admin().indices().prepareValidateQuery("test").setAllShards(true).get();
 
         // the field stats operation should produce one main task
         NumShards numberOfShards = getNumShards("test");
-        assertEquals(1, numberOfEvents(FieldStatsAction.NAME, Tuple::v1));
+        assertEquals(1, numberOfEvents(ValidateQueryAction.NAME, Tuple::v1));
         // and then one operation per shard
-        assertEquals(numberOfShards.numPrimaries, numberOfEvents(FieldStatsAction.NAME + "[s]", Tuple::v1));
+        assertEquals(numberOfShards.numPrimaries, numberOfEvents(ValidateQueryAction.NAME + "[s]", Tuple::v1));
 
         // the shard level tasks should have the main task as a parent
-        assertParentTask(findEvents(FieldStatsAction.NAME + "[s]", Tuple::v1), findEvents(FieldStatsAction.NAME, Tuple::v1).get(0));
+        assertParentTask(findEvents(ValidateQueryAction.NAME + "[s]", Tuple::v1), findEvents(ValidateQueryAction.NAME, Tuple::v1).get(0));
     }
 
     public void testTransportBroadcastByNodeTasks() {

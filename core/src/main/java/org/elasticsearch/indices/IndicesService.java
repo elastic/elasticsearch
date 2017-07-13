@@ -34,7 +34,6 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -46,7 +45,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -81,11 +79,9 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -1151,34 +1147,6 @@ public class IndicesService extends AbstractLifecycleComponent
             // running a search that times out concurrently will likely timeout again if it's run while we have this `stale` result in the
             // cache. One other option is to not cache requests with a timeout at all...
             indicesRequestCache.invalidate(new IndexShardCacheEntity(context.indexShard()), directoryReader, request.cacheKey());
-        }
-    }
-
-    /**
-     * Fetch {@linkplain FieldStats} for a field. These stats are cached until the shard changes.
-     * @param shard the shard to use with the cache key
-     * @param searcher searcher to use to lookup the field stats
-     * @param field the actual field
-     * @param useCache should this request use the cache?
-     */
-    public FieldStats<?> getFieldStats(IndexShard shard, Engine.Searcher searcher, String field, boolean useCache) throws Exception {
-        MappedFieldType fieldType = shard.mapperService().fullName(field);
-        if (fieldType == null) {
-            return null;
-        }
-        if (useCache == false) {
-            return fieldType.stats(searcher.reader());
-        }
-        BytesReference cacheKey = new BytesArray("fieldstats:" + field);
-        BytesReference statsRef = cacheShardLevelResult(shard, searcher.getDirectoryReader(), cacheKey, out -> {
-            try {
-                out.writeOptionalWriteable(fieldType.stats(searcher.reader()));
-            } catch (IOException e) {
-                throw new IllegalStateException("Failed to write field stats output", e);
-            }
-        });
-        try (StreamInput in = statsRef.streamInput()) {
-            return in.readOptionalWriteable(FieldStats::readFrom);
         }
     }
 

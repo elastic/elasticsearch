@@ -99,8 +99,8 @@ We will later see how to <<java-rest-high-retrieve-aggs,access aggregations>> in
 ===== Requesting Suggestions
 
 To add Suggestions to the search request, use one of the `SuggestionBuilder` implementations
-that are easily accessible from the `SuggestBuilders` factory class. Suggesion builders
-need to be added to the top level `SuggestBuilder` before setting them on the  `SearchSourceBuilder`.
+that are easily accessible from the `SuggestBuilders` factory class. Suggestion builders
+need to be added to the top level `SuggestBuilder`, which itself can be set on the  `SearchSourceBuilder`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

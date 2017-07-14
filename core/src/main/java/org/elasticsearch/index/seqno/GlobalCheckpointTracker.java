@@ -205,7 +205,8 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         assert !primaryMode || localCheckpoints.values().stream().anyMatch(lcps -> lcps.inSync);
 
         // the routing table and replication group is set when the global checkpoint tracker operates in primary mode
-        assert !primaryMode || (routingTable != null && replicationGroup != null);
+        assert !primaryMode || (routingTable != null && replicationGroup != null) :
+            "primary mode but routing table is " + routingTable + " and replication group is " + replicationGroup;
 
         // during relocation handoff there are no entries blocking global checkpoint advancement
         assert !handoffInProgress || pendingInSync.isEmpty() :

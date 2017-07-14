@@ -54,6 +54,7 @@ setup() {
 }
 
 @test "[UPGRADE] check elasticsearch version is old version" {
+    echo "Expecting version \"$(cat upgrade_from_version)\""
     curl -s localhost:9200 | grep \"number\"\ :\ \"$(cat upgrade_from_version)\" || {
         echo "Installed an unexpected version:"
         curl -s localhost:9200

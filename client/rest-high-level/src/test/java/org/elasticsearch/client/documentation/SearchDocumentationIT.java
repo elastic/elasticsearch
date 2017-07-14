@@ -51,6 +51,11 @@ import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.SuggestBuilders;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -207,7 +212,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @SuppressWarnings({ "unused", "unchecked" })
+    @SuppressWarnings({ "unused" })
     public void testSearchRequestAggregations() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -278,6 +283,49 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                     }
                 }
                 // end::search-request-aggregations-iterator
+            }
+        }
+    }
+
+    @SuppressWarnings({ "unused", "rawtypes" })
+    public void testSearchRequestSuggestions() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            BulkRequest request = new BulkRequest();
+            request.add(new IndexRequest("posts", "doc", "1").source(XContentType.JSON, "user", "kimchy"));
+            request.add(new IndexRequest("posts", "doc", "2").source(XContentType.JSON, "user", "javanna"));
+            request.add(new IndexRequest("posts", "doc", "3").source(XContentType.JSON, "user", "tlrx"));
+            request.add(new IndexRequest("posts", "doc", "4").source(XContentType.JSON, "user", "cbuescher"));
+            request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            BulkResponse bulkResponse = client.bulk(request);
+            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertFalse(bulkResponse.hasFailures());
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            // tag::search-request-suggestion
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            SuggestionBuilder termSuggestionBuilder =
+                SuggestBuilders.termSuggestion("user").text("kmichy"); // <1>
+            SuggestBuilder suggestBuilder = new SuggestBuilder();
+            suggestBuilder.addSuggestion("suggest_user", termSuggestionBuilder); // <2>
+            searchSourceBuilder.suggest(suggestBuilder);
+            // end::search-request-suggestion
+            searchRequest.source(searchSourceBuilder);
+            SearchResponse searchResponse = client.search(searchRequest);
+            {
+                // tag::search-request-suggestion-get
+                Suggest suggest = searchResponse.getSuggest(); // <1>
+                TermSuggestion termSuggestion = suggest.getSuggestion("suggest_user"); // <2>
+                for (TermSuggestion.Entry entry : termSuggestion.getEntries()) { // <3>
+                    for (TermSuggestion.Entry.Option option : entry) { // <4>
+                        String suggestText = option.getText().string();
+                    }
+                }
+                // end::search-request-suggestion-get
+                assertEquals(1, termSuggestion.getEntries().size());
+                assertEquals(1, termSuggestion.getEntries().get(0).getOptions().size());
+                assertEquals("kimchy", termSuggestion.getEntries().get(0).getOptions().get(0).getText().string());
             }
         }
     }

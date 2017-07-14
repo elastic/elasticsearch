@@ -35,6 +35,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.plugin.repository.azure.AzureRepositoryPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
@@ -43,10 +45,14 @@ import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.store.MockFSDirectoryService;
+import org.elasticsearch.test.store.MockFSIndexStore;
 import org.junit.After;
 import org.junit.Before;
 
 import java.net.URISyntaxException;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
@@ -64,6 +70,12 @@ import static org.hamcrest.Matchers.greaterThan;
         supportsDedicatedMasters = false, numDataNodes = 1,
         transportClientRatio = 0.0)
 public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(AzureRepositoryPlugin.class, MockFSIndexStore.TestPlugin.class);
+    }
+
     private String getRepositoryPath() {
         String testName = "it-" + getTestName();
         return testName.contains(" ") ? Strings.split(testName, " ")[0] : testName;
@@ -75,9 +87,18 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegT
          * (can't have 2 consecutives hypens on Azure containers)
          */
         String testName = "snapshot-itest-"
-            .concat(RandomizedTest.getContext().getRunnerSeedAsString().toLowerCase(Locale.ROOT))
-            .concat(new Long(RandomizedTest.getContext().getRandom().nextLong()).toString());
+            .concat(RandomizedTest.getContext().getRunnerSeedAsString().toLowerCase(Locale.ROOT));
         return testName.contains(" ") ? Strings.split(testName, " ")[0] : testName;
+    }
+
+    @Override
+    public Settings indexSettings() {
+        // During restore we frequently restore index to exactly the same state it was before, that might cause the same
+        // checksum file to be written twice during restore operation
+        return Settings.builder().put(super.indexSettings())
+                .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE_SETTING.getKey(), false)
+                .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE_SETTING.getKey(), false)
+                .build();
     }
 
     @Before @After

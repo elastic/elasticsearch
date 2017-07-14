@@ -112,7 +112,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = "Basic " + Base64.getEncoder()
-                .encodeToString(("elastic:changeme").getBytes(StandardCharsets.UTF_8));
+                .encodeToString(("test_user:x-pack-test-password").getBytes(StandardCharsets.UTF_8));
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", token)
                 .build();

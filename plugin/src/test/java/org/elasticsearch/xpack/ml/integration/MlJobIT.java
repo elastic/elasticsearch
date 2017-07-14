@@ -36,7 +36,8 @@ import static org.hamcrest.Matchers.not;
 
 public class MlJobIT extends ESRestTestCase {
 
-    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("elastic", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
+    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("x_pack_rest_user",
+            SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
 
     @Override
     protected Settings restClientSettings() {

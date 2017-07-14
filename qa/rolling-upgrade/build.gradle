@@ -31,7 +31,7 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
             // TODO this sucks having to hardcode number of nodes, but node.config.numNodes isn't necessarily accurate for rolling
             httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health?wait_for_nodes=2&wait_for_status=yellow").openConnection();
             httpURLConnection.setRequestProperty("Authorization", "Basic " +
-                    Base64.getEncoder().encodeToString("elastic:changeme".getBytes(StandardCharsets.UTF_8)));
+                    Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8)));
             httpURLConnection.setRequestMethod("GET");
             httpURLConnection.setConnectTimeout(1000);
             httpURLConnection.setReadTimeout(30000); // read needs to wait for nodes!
@@ -114,6 +114,7 @@ subprojects {
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
       dependsOn copyTestNodeKeystore
       plugin ':x-pack-elasticsearch:plugin'
+      setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       distribution = 'zip'
       bwcVersion = version
       numBwcNodes = 2
@@ -146,6 +147,7 @@ subprojects {
     configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
       dependsOn oldClusterTestRunner, "${baseName}#oldClusterTestCluster#node1.stop"
       plugin ':x-pack-elasticsearch:plugin'
+      setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       distribution = 'zip'
       clusterName = 'rolling-upgrade'
       unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
@@ -175,6 +177,7 @@ subprojects {
     configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
       dependsOn(mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop")
       plugin ':x-pack-elasticsearch:plugin'
+      setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       distribution = 'zip'
       clusterName = 'rolling-upgrade'
       unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
@@ -228,7 +231,6 @@ subprojects {
       dependsOn = ["v${wireCompatVersions[-1]}#bwcTest"]
     }
   }
-  
   check.dependsOn(integTest)
 
   dependencies {

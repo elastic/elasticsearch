@@ -84,7 +84,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        String token = "Basic " + Base64.getEncoder().encodeToString("elastic:changeme".getBytes(StandardCharsets.UTF_8));
+        String token = "Basic " + Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", token)
                 // we increase the timeout here to 90 seconds to handle long waits for a green

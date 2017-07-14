@@ -5,13 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
-
 import com.unboundid.ldap.sdk.LDAPException;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -29,7 +22,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.authc.AuthenticationResult;
-import org.elasticsearch.xpack.security.authc.IncomingRequest;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapLoadBalancing;
@@ -44,6 +36,13 @@ import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.ssl.SSLService;
+
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 
 /**
@@ -143,8 +142,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
      * This user will then be passed to the listener
      */
     @Override
-    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener,
-                                  IncomingRequest incomingRequest) {
+    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
         // we submit to the threadpool because authentication using LDAP will execute blocking I/O for a bind request and we don't want
         // network threads stuck waiting for a socket to connect. After the bind, then all interaction with LDAP should be async
         final CancellableLdapRunnable cancellableLdapRunnable = new CancellableLdapRunnable(listener,

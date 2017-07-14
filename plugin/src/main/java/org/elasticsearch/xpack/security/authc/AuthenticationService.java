@@ -294,7 +294,7 @@ public class AuthenticationService extends AbstractComponent {
                                     "An error occurred while attempting to authenticate [{}] against realm [{}]",
                                     authenticationToken.principal(), realm.name()), ex);
                             userListener.onFailure(ex);
-                        }), request);
+                        }));
                     } else {
                         userListener.onResponse(null);
                     }
@@ -451,21 +451,16 @@ public class AuthenticationService extends AbstractComponent {
         }
     }
 
-    abstract static class AuditableRequest implements IncomingRequest {
+    abstract static class AuditableRequest {
 
         final AuditTrail auditTrail;
         final AuthenticationFailureHandler failureHandler;
         final ThreadContext threadContext;
-        private final InetSocketAddress remoteAddress;
-        private final RequestType requestType;
 
-        AuditableRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext,
-                         RequestType requestType, InetSocketAddress remoteAddress) {
+        AuditableRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext) {
             this.auditTrail = auditTrail;
             this.failureHandler = failureHandler;
             this.threadContext = threadContext;
-            this.remoteAddress = remoteAddress;
-            this.requestType = requestType;
         }
 
         abstract void realmAuthenticationFailed(AuthenticationToken token, String realm);
@@ -482,13 +477,6 @@ public class AuthenticationService extends AbstractComponent {
 
         abstract void authenticationSuccess(String realm, User user);
 
-        public InetSocketAddress getRemoteAddress() {
-            return remoteAddress;
-        }
-
-        public RequestType getType() {
-            return requestType;
-        }
     }
 
     static class AuditableTransportRequest extends AuditableRequest {
@@ -498,7 +486,7 @@ public class AuthenticationService extends AbstractComponent {
 
         AuditableTransportRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext,
                                   String action, TransportMessage message) {
-            super(auditTrail, failureHandler, threadContext, getType(message), getRemoteAddress(message));
+            super(auditTrail, failureHandler, threadContext);
             this.action = action;
             this.message = message;
         }
@@ -552,14 +540,6 @@ public class AuthenticationService extends AbstractComponent {
             return "transport request action [" + action + "]";
         }
 
-        private static RequestType getType(TransportMessage message) {
-            return message.remoteAddress() == null ? RequestType.LOCAL_NODE : RequestType.REMOTE_NODE;
-        }
-
-        private static InetSocketAddress getRemoteAddress(TransportMessage message) {
-            TransportAddress transportAddress = message.remoteAddress();
-            return transportAddress == null ? null : transportAddress.address();
-        }
     }
 
     static class AuditableRestRequest extends AuditableRequest {
@@ -569,7 +549,7 @@ public class AuthenticationService extends AbstractComponent {
         @SuppressWarnings("unchecked")
         AuditableRestRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext,
                              RestRequest request) {
-            super(auditTrail, failureHandler, threadContext, RequestType.REST, (InetSocketAddress) request.getRemoteAddress());
+            super(auditTrail, failureHandler, threadContext);
             this.request = request;
         }
 

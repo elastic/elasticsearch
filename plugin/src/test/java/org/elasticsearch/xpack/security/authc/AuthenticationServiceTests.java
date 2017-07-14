@@ -215,7 +215,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }, this::logAndFail));
         verify(auditTrail).authenticationSuccess(secondRealm.name(), user, "_action", message);
         verifyNoMoreInteractions(auditTrail);
-        verify(firstRealm, never()).authenticate(eq(token), any(ActionListener.class), any(IncomingRequest.class));
+        verify(firstRealm, never()).authenticate(eq(token), any(ActionListener.class));
         assertTrue(completed.get());
     }
 
@@ -571,7 +571,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         doThrow(authenticationError("realm doesn't like authenticate"))
-            .when(secondRealm).authenticate(eq(token), any(ActionListener.class), any(IncomingRequest.class));
+            .when(secondRealm).authenticate(eq(token), any(ActionListener.class));
         try {
             authenticateBlocking("_action", message, null);
             fail("exception should bubble out");
@@ -586,7 +586,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         doThrow(authenticationError("realm doesn't like authenticate"))
-                .when(secondRealm).authenticate(eq(token), any(ActionListener.class), any(IncomingRequest.class));
+                .when(secondRealm).authenticate(eq(token), any(ActionListener.class));
         try {
             authenticateBlocking(restRequest);
             fail("exception should bubble out");
@@ -882,7 +882,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 listener.onResponse(AuthenticationResult.success(user));
             }
             return null;
-        }).when(realm).authenticate(eq(token), any(ActionListener.class), any(IncomingRequest.class));
+        }).when(realm).authenticate(eq(token), any(ActionListener.class));
     }
 
     private Authentication authenticateBlocking(RestRequest restRequest) {

@@ -38,9 +38,7 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 public abstract class XPackRestTestCase extends ESClientYamlSuiteTestCase {
 
     private static final String BASIC_AUTH_VALUE =
-            basicAuthHeaderValue("elastic", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
-
-    private final SetOnce<Integer> oneAllowed401 = new SetOnce<>();
+            basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
 
     public XPackRestTestCase(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -56,26 +54,6 @@ public abstract class XPackRestTestCase extends ESClientYamlSuiteTestCase {
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
                 .build();
-    }
-
-
-    @Before
-    public void setPasswords() throws IOException {
-        BasicHeader authHeader = new BasicHeader("Authorization",
-                basicAuthHeaderValue("elastic", new SecureString("".toCharArray())));
-        String elasticUserPayload = "{\"password\" : \"" + SecuritySettingsSource.TEST_PASSWORD + "\"}";
-        try {
-            client().performRequest("put", "_xpack/security/user/elastic/_password", Collections.emptyMap(),
-                    new StringEntity(elasticUserPayload, ContentType.APPLICATION_JSON), authHeader);
-        } catch (ResponseException e) {
-            // The password might have already been set by the build.gradle file. So we ignore unsuccessful attempts
-            // due to failed authentication
-            if (e.getResponse().getStatusLine().getStatusCode() != 401) {
-                throw e;
-            } else {
-                oneAllowed401.set(e.getResponse().getStatusLine().getStatusCode());
-            }
-        }
     }
 
     /**

@@ -9,13 +9,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.authc.AuthenticationResult;
-import org.elasticsearch.xpack.security.authc.IncomingRequest;
-import org.elasticsearch.xpack.security.authc.support.CharArrays;
-import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.security.authc.support.CharArrays;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.security.user.User;
 
 public class CustomRealm extends Realm {
 
@@ -50,8 +49,7 @@ public class CustomRealm extends Realm {
     }
 
     @Override
-    public void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener,
-                             IncomingRequest incomingRequest) {
+    public void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener) {
         UsernamePasswordToken token = (UsernamePasswordToken)authToken;
         final String actualUser = token.principal();
         if (KNOWN_USER.equals(actualUser)) {

@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.security.authc.IncomingRequest;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.user.User;
 
@@ -72,17 +71,15 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
      * doAuthenticate
      * @param authToken The authentication token
      * @param listener to be called at completion
-     * @param incomingRequest the request that is being authenticated
      */
     @Override
-    public final void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener,
-                                   IncomingRequest incomingRequest) {
+    public final void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener) {
         UsernamePasswordToken token = (UsernamePasswordToken) authToken;
         try {
             if (cache == null) {
-                doAuthenticate(token, listener, incomingRequest);
+                doAuthenticate(token, listener);
             } else {
-                authenticateWithCache(token, listener, incomingRequest);
+                authenticateWithCache(token, listener);
             }
         } catch (Exception e) {
             // each realm should handle exceptions, if we get one here it should be considered fatal
@@ -90,8 +87,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         }
     }
 
-    private void authenticateWithCache(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener,
-                                       IncomingRequest incomingRequest) {
+    private void authenticateWithCache(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
         UserWithHash userWithHash = cache.get(token.principal());
         if (userWithHash == null) {
             if (logger.isDebugEnabled()) {
@@ -104,7 +100,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                     logger.debug("realm [{}] authenticated user [{}], with roles [{}]", name(), token.principal(), user.roles());
                 }
                 listener.onResponse(result);
-            }, listener::onFailure), incomingRequest);
+            }, listener::onFailure));
         } else if (userWithHash.hasHash()) {
             if (userWithHash.verify(token.credentials())) {
                 if (userWithHash.user.enabled()) {
@@ -122,7 +118,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                                    user.enabled(), user.roles());
                         }
                         listener.onResponse(result);
-                    }, listener::onFailure), incomingRequest);
+                    }, listener::onFailure));
                 }
             } else {
                 cache.invalidate(token.principal());
@@ -133,7 +129,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                                 name(), token.principal(), user.roles());
                     }
                     listener.onResponse(result);
-                }, listener::onFailure), incomingRequest);
+                }, listener::onFailure));
             }
         } else {
             cache.invalidate(token.principal());
@@ -144,12 +140,11 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                             "realm [{}] authenticated user [{}] with roles [{}]", name(), token.principal(), user.roles());
                 }
                 listener.onResponse(result);
-            }, listener::onFailure), incomingRequest);
+            }, listener::onFailure));
         }
     }
 
-    private void doAuthenticateAndCache(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener,
-                                        IncomingRequest incomingRequest) {
+    private void doAuthenticateAndCache(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
         ActionListener<AuthenticationResult> wrapped = ActionListener.wrap((result) -> {
             Objects.requireNonNull(result, "AuthenticationResult cannot be null");
             if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
@@ -160,7 +155,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             listener.onResponse(result);
         }, listener::onFailure);
 
-        doAuthenticate(token, wrapped, incomingRequest);
+        doAuthenticate(token, wrapped);
     }
 
     @Override
@@ -170,8 +165,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         return stats;
     }
 
-    protected abstract void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener,
-                                           IncomingRequest incomingRequest);
+    protected abstract void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener);
 
     @Override
     public final void lookupUser(String username, ActionListener<User> listener) {

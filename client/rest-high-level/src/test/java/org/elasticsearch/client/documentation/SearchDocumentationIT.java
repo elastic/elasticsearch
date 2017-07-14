@@ -107,8 +107,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             // tag::search-request-indices-types
-            SearchRequest searchRequest = new SearchRequest("posts");
-            searchRequest.types("doc");
+            SearchRequest searchRequest = new SearchRequest("posts"); // <1>
+            searchRequest.types("doc"); // <2>
             // end::search-request-indices-types
             // tag::search-request-routing
             searchRequest.routing("routing"); // <1>

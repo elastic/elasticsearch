@@ -16,21 +16,19 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-basic]
 --------------------------------------------------
 
 <1> Creates the `SeachRequest`. Without arguments this runs against all indices.
-<2> Most parameters of the search can be added to the `SearchSourceBuilder`
-which contains everything that
-in the Rest API would be placed in the search request body.
+<2> Most search parameters are added to the `SearchSourceBuilder`. It offers setters for everything that goes into the search request body.
 <3> Add a `match_all` query to the `SearchSourceBuilder`.
 
 ===== Optional arguments
 
-Lets first look at some of the optional argument of a `SearchRequest`.
-First of all, the request can be restricted to one or more indices using the
-constructor or to on or more types using a setter:
+Lets first look at some of the optional arguments of a `SearchRequest`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-indices-types]
 --------------------------------------------------
+<1> Restricts the request to an index
+<2> Limits the request to a type
 
 There are a couple of other interesting optional parameters:
 
@@ -52,7 +50,7 @@ how wildcard expressions are expanded
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-preference]
 --------------------------------------------------
 <1> Use the preference parameter e.g. to execute the search to prefer local
-shards. The The default is to randomize across shards.
+shards. The default is to randomize across shards.
 
 ===== Using the SearchSourceBuilder
 

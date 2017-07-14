@@ -358,6 +358,7 @@ the following:
 
 [source,js]
 -------------------------
+## INCORRECT - DEPRECATED SYNTAX, DO NOT USE
 GET _search
 {
   "query": {

@@ -2,7 +2,7 @@
 === Watching Event Data
 
 If you are indexing event data, such as log messages, network traffic, or a web feed, you can create a watch to email notifications when certain events occur.
-For example, if you index a feed of RSPVs for meetup events happening around the world, you can create a watch that alerts you to interesting events.
+For example, if you index a feed of RSVPs for meetup events happening around the world, you can create a watch that alerts you to interesting events.
 
 To index the meetup data, you can use https://www.elastic.co/products/logstash[Logstash] to ingest live data from the Meetup.com streaming API, `http://stream.meetup.com/2/rsvps`.
 

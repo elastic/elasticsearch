@@ -86,7 +86,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             }
         }
 
-        SearchTransportService transportService = new SearchTransportService(Settings.EMPTY, null);
+        SearchTransportService transportService = new SearchTransportService(Settings.EMPTY, null, null);
         Map<String, Transport.Connection> lookup = new HashMap<>();
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));

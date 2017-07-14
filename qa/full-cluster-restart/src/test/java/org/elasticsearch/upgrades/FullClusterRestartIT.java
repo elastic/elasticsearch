@@ -350,6 +350,71 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     }
 
+    public void testShrink() throws IOException {
+        String shrunkenIndex = index + "_shrunk";
+        int numDocs;
+        if (runningAgainstOldCluster) {
+            XContentBuilder mappingsAndSettings = jsonBuilder();
+            mappingsAndSettings.startObject();
+            {
+                mappingsAndSettings.startObject("mappings");
+                mappingsAndSettings.startObject("doc");
+                mappingsAndSettings.startObject("properties");
+                {
+                    mappingsAndSettings.startObject("field");
+                    mappingsAndSettings.field("type", "text");
+                    mappingsAndSettings.endObject();
+                }
+                mappingsAndSettings.endObject();
+                mappingsAndSettings.endObject();
+                mappingsAndSettings.endObject();
+            }
+            mappingsAndSettings.endObject();
+            client().performRequest("PUT", "/" + index, Collections.emptyMap(),
+                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+
+            numDocs = randomIntBetween(512, 1024);
+            indexRandomDocuments(numDocs, true, true, i -> {
+                return JsonXContent.contentBuilder().startObject()
+                    .field("field", "value")
+                    .endObject();
+            });
+
+            String updateSettingsRequestBody = "{\"settings\": {\"index.blocks.write\": true}}";
+            Response rsp = client().performRequest("PUT", "/" + index + "/_settings", Collections.emptyMap(),
+                new StringEntity(updateSettingsRequestBody, ContentType.APPLICATION_JSON));
+            assertEquals(200, rsp.getStatusLine().getStatusCode());
+
+            String shrinkIndexRequestBody = "{\"settings\": {\"index.number_of_shards\": 1}}";
+            rsp = client().performRequest("PUT", "/" + index + "/_shrink/" + shrunkenIndex, Collections.emptyMap(),
+                new StringEntity(shrinkIndexRequestBody, ContentType.APPLICATION_JSON));
+            assertEquals(200, rsp.getStatusLine().getStatusCode());
+
+            rsp = client().performRequest("POST", "/_refresh");
+            assertEquals(200, rsp.getStatusLine().getStatusCode());
+        } else {
+            numDocs = countOfIndexedRandomDocuments();
+        }
+
+        Map<?, ?> response = toMap(client().performRequest("GET", "/" + index + "/_search"));
+        assertNoFailures(response);
+        int totalShards = (int) XContentMapValues.extractValue("_shards.total", response);
+        assertThat(totalShards, greaterThan(1));
+        int successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
+        assertEquals(totalShards, successfulShards);
+        int totalHits = (int) XContentMapValues.extractValue("hits.total", response);
+        assertEquals(numDocs, totalHits);
+
+        response = toMap(client().performRequest("GET", "/" + shrunkenIndex+ "/_search"));
+        assertNoFailures(response);
+        totalShards = (int) XContentMapValues.extractValue("_shards.total", response);
+        assertEquals(1, totalShards);
+        successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
+        assertEquals(1, successfulShards);
+        totalHits = (int) XContentMapValues.extractValue("hits.total", response);
+        assertEquals(numDocs, totalHits);
+    }
+
     void assertBasicSearchWorks(int count) throws IOException {
         logger.info("--> testing basic search");
         Map<String, Object> response = toMap(client().performRequest("GET", "/" + index + "/_search"));

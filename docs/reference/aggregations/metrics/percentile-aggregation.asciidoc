@@ -247,8 +247,6 @@ it. It would not be the case on more skewed distributions.
 [[search-aggregations-metrics-percentile-aggregation-compression]]
 ==== Compression
 
-experimental[The `compression` parameter is specific to the current internal implementation of percentiles, and may change in the future]
-
 Approximate algorithms must balance memory utilization with estimation accuracy.
 This balance can be controlled using a `compression` parameter:
 
@@ -286,8 +284,6 @@ TDigest roughly 64KB in size.  In practice data tends to be more random and
 the TDigest will use less memory.
 
 ==== HDR Histogram
-
-experimental[]
 
 https://github.com/HdrHistogram/HdrHistogram[HDR Histogram] (High Dynamic Range Histogram) is an alternative implementation
 that can be useful when calculating percentiles for latency measurements as it can be faster than the t-digest implementation

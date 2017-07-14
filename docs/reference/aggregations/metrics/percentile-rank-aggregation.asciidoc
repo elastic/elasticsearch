@@ -159,8 +159,6 @@ This will interpret the `script` parameter as an `inline` script with the `painl
 
 ==== HDR Histogram
 
-experimental[]
-
 https://github.com/HdrHistogram/HdrHistogram[HDR Histogram] (High Dynamic Range Histogram) is an alternative implementation
 that can be useful when calculating percentile ranks for latency measurements as it can be faster than the t-digest implementation
 with the trade-off of a larger memory footprint. This implementation maintains a fixed worse-case percentage error (specified as a

@@ -79,7 +79,7 @@ compound::   Whether the segment is stored in a compound file. When true, this
 
 To add additional information that can be used for debugging, use the `verbose` flag.
 
-experimental[The format of the additional verbose information is experimental and can change at any time]
+experimental[The format of the additional detail information is experimental as it depends on the output returned by Lucene]
 
 [source,js]
 --------------------------------------------------

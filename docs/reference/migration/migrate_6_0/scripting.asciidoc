@@ -41,7 +41,7 @@ The PUT, GET and DELETE `_search/template` apis have been removed. Store search 
 
 For example, previously one might have stored a search template with the following:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT /_search/template/my_template
 {
@@ -55,7 +55,7 @@ PUT /_search/template/my_template
 
 And instead one would now use the following:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT /_scripts/my_template
 {

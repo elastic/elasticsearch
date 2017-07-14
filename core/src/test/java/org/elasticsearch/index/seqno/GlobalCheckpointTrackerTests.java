@@ -379,9 +379,12 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
                 randomActiveAndInitializingAllocationIds(numberOfActiveAllocationsIds, numberOfInitializingIds);
         final Set<AllocationId> activeAllocationIds = activeAndInitializingAllocationIds.v1();
         final Set<AllocationId> initializingIds = activeAndInitializingAllocationIds.v2();
-        tracker.updateFromMaster(initialClusterStateVersion, ids(activeAllocationIds), routingTable(initializingIds), emptySet());
+        IndexShardRoutingTable routingTable = routingTable(initializingIds);
+        tracker.updateFromMaster(initialClusterStateVersion, ids(activeAllocationIds), routingTable, emptySet());
         AllocationId primaryId = activeAllocationIds.iterator().next();
         tracker.activatePrimaryMode(primaryId.getId(), NO_OPS_PERFORMED);
+        assertThat(tracker.getReplicationGroup().getInSyncAllocationIds(), equalTo(ids(activeAllocationIds)));
+        assertThat(tracker.getReplicationGroup().getRoutingTable(), equalTo(routingTable));
 
         // first we assert that the in-sync and tracking sets are set up correctly
         assertTrue(activeAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
@@ -400,18 +403,22 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
                             == SequenceNumbersService.UNASSIGNED_SEQ_NO));
 
         // now we will remove some allocation IDs from these and ensure that they propagate through
-        final List<AllocationId> removingActiveAllocationIds = randomSubsetOf(activeAllocationIds);
+        final Set<AllocationId> removingActiveAllocationIds = new HashSet<>(randomSubsetOf(activeAllocationIds));
         final Set<AllocationId> newActiveAllocationIds =
                 activeAllocationIds.stream().filter(a -> !removingActiveAllocationIds.contains(a)).collect(Collectors.toSet());
         final List<AllocationId> removingInitializingAllocationIds = randomSubsetOf(initializingIds);
         final Set<AllocationId> newInitializingAllocationIds =
                 initializingIds.stream().filter(a -> !removingInitializingAllocationIds.contains(a)).collect(Collectors.toSet());
-        tracker.updateFromMaster(initialClusterStateVersion + 1, ids(newActiveAllocationIds), routingTable(newInitializingAllocationIds),
+        routingTable = routingTable(newInitializingAllocationIds);
+        tracker.updateFromMaster(initialClusterStateVersion + 1, ids(newActiveAllocationIds), routingTable,
             emptySet());
         assertTrue(newActiveAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
         assertTrue(removingActiveAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()) == null));
         assertTrue(newInitializingAllocationIds.stream().noneMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
         assertTrue(removingInitializingAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()) == null));
+        assertThat(tracker.getReplicationGroup().getInSyncAllocationIds(), equalTo(
+            ids(Sets.difference(Sets.union(activeAllocationIds, newActiveAllocationIds), removingActiveAllocationIds))));
+        assertThat(tracker.getReplicationGroup().getRoutingTable(), equalTo(routingTable));
 
         /*
          * Now we will add an allocation ID to each of active and initializing and ensure they propagate through. Using different lengths
@@ -670,6 +677,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         assertThat(newPrimary.localCheckpoints, equalTo(oldPrimary.localCheckpoints));
         assertThat(newPrimary.globalCheckpoint, equalTo(oldPrimary.globalCheckpoint));
         assertThat(newPrimary.routingTable, equalTo(oldPrimary.routingTable));
+        assertThat(newPrimary.replicationGroup, equalTo(oldPrimary.replicationGroup));
 
         oldPrimary.completeRelocationHandoff();
         assertFalse(oldPrimary.primaryMode);

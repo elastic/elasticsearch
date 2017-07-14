@@ -129,7 +129,7 @@ public class RecoverySourceHandler {
      * performs the recovery from the local engine to the target
      */
     public RecoveryResponse recoverToTarget() throws IOException {
-        cancellableThreads.execute(() -> runUnderOperationPermit(() -> {
+        runUnderPrimaryPermit(() -> {
             final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
             ShardRouting targetShardRouting = routingTable.getByAllocationId(request.targetAllocationId());
             if (targetShardRouting == null) {
@@ -137,13 +137,8 @@ public class RecoverySourceHandler {
                     request.targetNode());
                 throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
             }
-            if (targetShardRouting.initializing() == false) {
-                logger.debug("delaying recovery of {} as it is not listed as initializing on the source node {}. " +
-                        "known shards state is [{}]", request.shardId(), request.sourceNode(), targetShardRouting.state());
-                throw new DelayRecoveryException("source node has the state of the target shard to be [" +
-                    targetShardRouting.state() + "], expecting to be [initializing]");
-            }
-        }));
+            assert targetShardRouting.initializing() : "expected recovery target to be initializing but was " + targetShardRouting;
+        });
 
         try (Translog.View translogView = shard.acquireTranslogView()) {
 
@@ -179,7 +174,7 @@ public class RecoverySourceHandler {
                 }
             }
 
-            cancellableThreads.execute(() -> runUnderOperationPermit(() -> shard.initiateTracking(request.targetAllocationId())));
+            runUnderPrimaryPermit(() -> shard.initiateTracking(request.targetAllocationId()));
 
             try {
                 prepareTargetForTranslog(translogView.estimateTotalOperations(startingSeqNo));
@@ -200,15 +195,19 @@ public class RecoverySourceHandler {
         return response;
     }
 
-    private void runUnderOperationPermit(CancellableThreads.Interruptable runnable) throws InterruptedException {
-        final PlainActionFuture<Releasable> onAcquired = new PlainActionFuture<>();
-        shard.acquirePrimaryOperationPermit(onAcquired, ThreadPool.Names.SAME);
-        try (Releasable ignored = onAcquired.actionGet()) {
-            if (shard.state() == IndexShardState.RELOCATED) {
-                throw new IndexShardRelocatedException(shard.shardId());
+    private void runUnderPrimaryPermit(CancellableThreads.Interruptable runnable) {
+        cancellableThreads.execute(() -> {
+            final PlainActionFuture<Releasable> onAcquired = new PlainActionFuture<>();
+            shard.acquirePrimaryOperationPermit(onAcquired, ThreadPool.Names.SAME);
+            try (Releasable ignored = onAcquired.actionGet()) {
+                // check that the IndexShard still has the primary authority. This needs to be checked under operation permit to prevent
+                // races, as IndexShard will change its state to RELOCATED only when it holds all operation permits, see IndexShard.relocated()
+                if (shard.state() == IndexShardState.RELOCATED) {
+                    throw new IndexShardRelocatedException(shard.shardId());
+                }
+                runnable.run();
             }
-            runnable.run();
-        }
+        });
     }
 
     /**
@@ -461,19 +460,18 @@ public class RecoverySourceHandler {
         cancellableThreads.checkForCancel();
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("finalizing recovery");
-        cancellableThreads.execute(() -> {
-            /*
-             * Before marking the shard as in-sync we acquire an operation permit. We do this so that there is a barrier between marking a
-             * shard as in-sync and relocating a shard. If we acquire the permit then no relocation handoff can complete before we are done
-             * marking the shard as in-sync. If the relocation handoff holds all the permits then after the handoff completes and we acquire
-             * the permit then the state of the shard will be relocated and this recovery will fail.
-             */
-            runUnderOperationPermit(() -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint));
-            recoveryTarget.finalizeRecovery(shard.getGlobalCheckpoint());
-        });
+        /*
+         * Before marking the shard as in-sync we acquire an operation permit. We do this so that there is a barrier between marking a
+         * shard as in-sync and relocating a shard. If we acquire the permit then no relocation handoff can complete before we are done
+         * marking the shard as in-sync. If the relocation handoff holds all the permits then after the handoff completes and we acquire
+         * the permit then the state of the shard will be relocated and this recovery will fail.
+         */
+        runUnderPrimaryPermit(() -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint));
+        cancellableThreads.execute(() -> recoveryTarget.finalizeRecovery(shard.getGlobalCheckpoint()));
 
         if (request.isPrimaryRelocation()) {
             logger.trace("performing relocation hand-off");
+            // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
             cancellableThreads.execute(() -> shard.relocated("to " + request.targetNode(), recoveryTarget::handoffPrimaryContext));
             /*
              * if the recovery process fails after setting the shard state to RELOCATED, both relocation source and

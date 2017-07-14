@@ -677,10 +677,15 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("shard_id [").append(shardId().getIndex().getName()).append("][").append(shardId().id()).append("]\n");
-        for (ShardRouting shard : this) {
-            sb.append("--").append(shard.shortSummary()).append("\n");
+        sb.append("IndexShardRoutingTable(").append(shardId()).append("){");
+        final int numShards = shards.size();
+        for (int i = 0; i < numShards; i++) {
+            sb.append(shards.get(i).shortSummary());
+            if (i < numShards - 1) {
+                sb.append(", ");
+            }
         }
+        sb.append("}");
         return sb.toString();
     }
 }

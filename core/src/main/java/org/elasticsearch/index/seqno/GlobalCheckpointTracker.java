@@ -116,12 +116,12 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      * - computed based on local checkpoints, if the tracker is in primary mode
      * - received from the primary, if the tracker is in replica mode
      */
-    long globalCheckpoint;
+    volatile long globalCheckpoint;
 
     /**
      * Cached value for the last replication group that was computed
      */
-    private ReplicationGroup cachedReplicationGroup;
+    volatile ReplicationGroup replicationGroup;
 
     public static class LocalCheckpointState implements Writeable {
 
@@ -204,6 +204,9 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         // there is at least one in-sync shard copy when the global checkpoint tracker operates in primary mode (i.e. the shard itself)
         assert !primaryMode || localCheckpoints.values().stream().anyMatch(lcps -> lcps.inSync);
 
+        // the routing table and replication group is set when the global checkpoint tracker operates in primary mode
+        assert !primaryMode || (routingTable != null && replicationGroup != null);
+
         // during relocation handoff there are no entries blocking global checkpoint advancement
         assert !handoffInProgress || pendingInSync.isEmpty() :
             "entries blocking global checkpoint advancement during relocation handoff: " + pendingInSync;
@@ -216,8 +219,12 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
             "global checkpoint is not up-to-date, expected: " +
                 computeGlobalCheckpoint(pendingInSync, localCheckpoints.values(), globalCheckpoint) + " but was: " + globalCheckpoint;
 
-        assert cachedReplicationGroup == null || cachedReplicationGroup.equals(calculateReplicationGroup()) :
-            "cached replication group out of sync: expected: " + calculateReplicationGroup() + " but was: " + cachedReplicationGroup;
+        // we have a routing table iff we have a replication group
+        assert (routingTable == null) == (replicationGroup == null) :
+            "routing table is " + routingTable + " but replication group is " + replicationGroup;
+
+        assert replicationGroup == null || replicationGroup.equals(calculateReplicationGroup()) :
+            "cached replication group out of sync: expected: " + calculateReplicationGroup() + " but was: " + replicationGroup;
 
         // all assigned shards from the routing table are tracked
         assert routingTable == null || localCheckpoints.keySet().containsAll(routingTable.getAllAllocationIds()) :
@@ -249,7 +256,8 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         this.globalCheckpoint = globalCheckpoint;
         this.localCheckpoints = new HashMap<>(1 + indexSettings.getNumberOfReplicas());
         this.pendingInSync = new HashSet<>();
-        this.cachedReplicationGroup = null;
+        this.routingTable = null;
+        this.replicationGroup = null;
         assert invariant();
     }
 
@@ -258,21 +266,14 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      *
      * @return the replication group
      */
-    public synchronized ReplicationGroup getReplicationGroup() {
+    public ReplicationGroup getReplicationGroup() {
         assert primaryMode;
-        if (cachedReplicationGroup == null) {
-            cachedReplicationGroup = calculateReplicationGroup();
-        }
-        return cachedReplicationGroup;
+        return replicationGroup;
     }
 
-    private synchronized ReplicationGroup calculateReplicationGroup() {
+    private ReplicationGroup calculateReplicationGroup() {
         return new ReplicationGroup(routingTable,
             localCheckpoints.entrySet().stream().filter(e -> e.getValue().inSync).map(Map.Entry::getKey).collect(Collectors.toSet()));
-    }
-
-    private synchronized void invalidateReplicationGroupCache() {
-        cachedReplicationGroup = null;
     }
 
     /**
@@ -280,7 +281,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      *
      * @return the global checkpoint
      */
-    public synchronized long getGlobalCheckpoint() {
+    public long getGlobalCheckpoint() {
         return globalCheckpoint;
     }
 
@@ -370,7 +371,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
             }
             appliedClusterStateVersion = applyingClusterStateVersion;
             this.routingTable = routingTable;
-            invalidateReplicationGroupCache();
+            replicationGroup = calculateReplicationGroup();
             if (primaryMode && removedEntries) {
                 updateGlobalCheckpointOnPrimary();
             }
@@ -435,7 +436,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
             }
         } else {
             lcps.inSync = true;
-            invalidateReplicationGroupCache();
+            replicationGroup = calculateReplicationGroup();
             logger.trace("marked [{}] as in-sync", allocationId);
             updateGlobalCheckpointOnPrimary();
         }
@@ -481,7 +482,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
             pendingInSync.remove(allocationId);
             pending = false;
             lcps.inSync = true;
-            invalidateReplicationGroupCache();
+            replicationGroup = calculateReplicationGroup();
             logger.trace("marked [{}] as in-sync", allocationId);
             notifyAllWaiters();
         }
@@ -601,6 +602,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
             localCheckpoints.put(entry.getKey(), entry.getValue().copy());
         }
         routingTable = primaryContext.getRoutingTable();
+        replicationGroup = calculateReplicationGroup();
         updateGlobalCheckpointOnPrimary();
         // reapply missed cluster state update
         // note that if there was no cluster state update between start of the engine of this shard and the call to

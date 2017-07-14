@@ -56,6 +56,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
@@ -383,7 +384,7 @@ public abstract class TransportReplicationAction<
             Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener,
             PrimaryShardReference primaryShardReference) {
             return new ReplicationOperation<>(request, primaryShardReference, listener,
-                    replicasProxy, clusterService::state, logger, actionName);
+                    replicasProxy, logger, actionName);
         }
     }
 
@@ -629,7 +630,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    private IndexShard getIndexShard(ShardId shardId) {
+    protected IndexShard getIndexShard(ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         return indexService.getShard(shardId.id());
     }
@@ -1004,6 +1005,11 @@ public abstract class TransportReplicationAction<
         @Override
         public long globalCheckpoint() {
             return indexShard.getGlobalCheckpoint();
+        }
+
+        @Override
+        public ReplicationGroup getReplicationGroup() {
+            return indexShard.getReplicationGroup();
         }
 
     }

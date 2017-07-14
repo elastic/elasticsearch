@@ -66,6 +66,14 @@ via the <<multi-fields>> parameter.
 [float]
 === Settings to prevent mappings explosion
 
+Defining too many fields in an index is a condition that can lead to a
+mapping explosion, which can cause out of memory errors and difficult
+situations to recover from. This problem may be more common than expected.
+As an example, consider a situation in which every new document inserted
+introduces new fields. This is quite common with dynamic mappings.
+Every time a document contains new fields, those will end up in the index's
+mappings. This isn't worrying for a small amount of data, but it can become a
+problem as the mapping grows.
 The following settings allow you to limit the number of field mappings that
 can be created manually or dynamically, in order to prevent bad documents from
 causing a mapping explosion:

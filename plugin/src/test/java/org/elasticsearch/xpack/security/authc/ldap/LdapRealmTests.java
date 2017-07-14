@@ -285,7 +285,7 @@ public class LdapRealmTests extends LdapTestCase {
 
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, sslService);
         LdapRealm ldap = new LdapRealm(LdapRealm.LDAP_TYPE, config, ldapFactory,
-                new DnRoleMapper(LdapRealm.LDAP_TYPE, config, resourceWatcherService), threadPool);
+                new DnRoleMapper(config, resourceWatcherService), threadPool);
 
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken("Horatio Hornblower", new SecureString(PASSWORD)), future);
@@ -346,7 +346,7 @@ public class LdapRealmTests extends LdapTestCase {
 
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, sslService);
         LdapRealm realm = new LdapRealm(LdapRealm.LDAP_TYPE, config, ldapFactory,
-                new DnRoleMapper(LdapRealm.LDAP_TYPE, config, resourceWatcherService), threadPool);
+                new DnRoleMapper(config, resourceWatcherService), threadPool);
 
         Map<String, Object> stats = realm.usageStats();
         assertThat(stats, is(notNullValue()));

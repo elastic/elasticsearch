@@ -5,7 +5,18 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
@@ -14,15 +25,9 @@ import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
+import org.elasticsearch.xpack.security.authc.support.RoleMappingFileBootstrapCheck;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.ssl.SSLService;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * Provides a single entry point into dealing with all standard XPack security {@link Realm realms}.
@@ -78,7 +83,7 @@ public class InternalRealms {
      * This excludes the {@link ReservedRealm}, as it cannot be configured dynamically.
      * @return A map from <em>realm-type</em> to a collection of <code>Setting</code> objects.
      */
-    public static Map<String,Set<Setting<?>>> getSettings() {
+    public static Map<String, Set<Setting<?>>> getSettings() {
         Map<String, Set<Setting<?>>> map = new HashMap<>();
         map.put(FileRealm.TYPE, FileRealm.getSettings());
         map.put(NativeRealm.TYPE, NativeRealm.getSettings());
@@ -91,4 +96,21 @@ public class InternalRealms {
     private InternalRealms() {
     }
 
+    public static List<BootstrapCheck> getBootstrapChecks(final Settings globalSettings) {
+        final List<BootstrapCheck> checks = new ArrayList<>();
+        final Map<String, Settings> settingsByRealm = RealmSettings.getRealmSettings(globalSettings);
+        settingsByRealm.forEach((name, settings) -> {
+            final RealmConfig realmConfig = new RealmConfig(name, settings, globalSettings, null);
+            switch (realmConfig.type()) {
+                case LdapRealm.AD_TYPE:
+                case LdapRealm.LDAP_TYPE:
+                case PkiRealm.TYPE:
+                    final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(realmConfig);
+                    if (check != null) {
+                        checks.add(check);
+                    }
+            }
+        });
+        return checks;
+    }
 }

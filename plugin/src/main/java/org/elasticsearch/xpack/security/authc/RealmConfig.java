@@ -16,6 +16,7 @@ public class RealmConfig {
     final String name;
     final boolean enabled;
     final int order;
+    private final String type;
     final Settings settings;
 
     private final Environment env;
@@ -35,6 +36,7 @@ public class RealmConfig {
         this.env = env;
         enabled = RealmSettings.ENABLED_SETTING.get(settings);
         order = RealmSettings.ORDER_SETTING.get(settings);
+        type = RealmSettings.TYPE_SETTING.get(settings);
         this.threadContext = threadContext;
     }
     
@@ -48,6 +50,10 @@ public class RealmConfig {
     
     public int order() {
         return order;
+    }
+
+    public String type() {
+        return type;
     }
 
     public Settings settings() {

@@ -5,6 +5,25 @@
  */
 package org.elasticsearch.xpack.security;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.time.Clock;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
@@ -35,6 +54,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
@@ -158,25 +178,6 @@ import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-
-import java.io.IOException;
-import java.security.GeneralSecurityException;
-import java.time.Clock;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -496,13 +497,15 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
 
     public List<BootstrapCheck> getBootstrapChecks() {
         if (enabled) {
-            return Arrays.asList(
-                new SSLBootstrapCheck(sslService, settings, env),
-                new TokenPassphraseBootstrapCheck(settings),
-                new TokenSSLBootstrapCheck(settings),
-                new PkiRealmBootstrapCheck(settings, sslService),
-                new ContainerPasswordBootstrapCheck()
+            final ArrayList<BootstrapCheck> checks = CollectionUtils.arrayAsArrayList(
+                    new SSLBootstrapCheck(sslService, settings, env),
+                    new TokenPassphraseBootstrapCheck(settings),
+                    new TokenSSLBootstrapCheck(settings),
+                    new PkiRealmBootstrapCheck(settings, sslService),
+                    new ContainerPasswordBootstrapCheck()
             );
+            checks.addAll(InternalRealms.getBootstrapChecks(settings));
+            return checks;
         } else {
             return Collections.emptyList();
         }

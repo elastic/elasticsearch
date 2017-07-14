@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.unit;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,6 +46,10 @@ public final class Fuzziness implements ToXContent, Writeable {
     public static final ParseField FIELD = new ParseField(X_FIELD_NAME);
 
     private final String fuzziness;
+    private int lowDistance;
+    private int highDistance;
+    private static final int DEFAULT_LOW_DISTANCE = 2;
+    private static final int DEFAULT_HIGH_DISTANCE = 5;
 
     private Fuzziness(int fuzziness) {
         if (fuzziness != 0 && fuzziness != 1 && fuzziness != 2) {
@@ -58,6 +63,17 @@ public final class Fuzziness implements ToXContent, Writeable {
             throw new IllegalArgumentException("fuzziness can't be null!");
         }
         this.fuzziness = fuzziness.toUpperCase(Locale.ROOT);
+        lowDistance = DEFAULT_LOW_DISTANCE;
+        highDistance = DEFAULT_HIGH_DISTANCE;
+    }
+
+    private Fuzziness(String fuzziness, int limit1, int limit2) {
+        if (fuzziness == null) {
+            throw new IllegalArgumentException("fuzziness can't be null!");
+        }
+        this.fuzziness = fuzziness.toUpperCase(Locale.ROOT);
+        this.lowDistance = limit1;
+        this.highDistance = limit2;
     }
 
     /**
@@ -100,6 +116,24 @@ public final class Fuzziness implements ToXContent, Writeable {
                 final String fuzziness = parser.text();
                 if (AUTO.asString().equalsIgnoreCase(fuzziness)) {
                     return AUTO;
+                } else if (fuzziness.toUpperCase().startsWith(AUTO.asString() + ":")) {
+                    String[] fuzzinessLimit = fuzziness.substring(AUTO.asString().length() + 1).split(",");
+                    if (fuzzinessLimit.length == 1) {
+                        try {
+                            int lowerLimit = Integer.parseInt(fuzzinessLimit[0]);
+                            int highLimit = Integer.parseInt(fuzzinessLimit[1]);
+
+                            if (lowerLimit < 0 || highLimit < 0 || lowerLimit > highLimit) {
+                                throw new ElasticsearchParseException("Auto fuzziness wrongly configured");
+                            }
+                            return new Fuzziness("AUTO", lowerLimit, highLimit);
+                        } catch (NumberFormatException e) {
+                            throw new ElasticsearchParseException("failed to parse [{}] as a \"auto:int,int\"", e,
+                                fuzziness);
+                        }
+                    } else {
+                        throw new ElasticsearchParseException("Auto fuzziness wrongly configured");
+                    }
                 }
                 try {
                     final int minimumSimilarity = Integer.parseInt(fuzziness);
@@ -143,9 +177,9 @@ public final class Fuzziness implements ToXContent, Writeable {
     public int asDistance(String text) {
         if (this.equals(AUTO)) { //AUTO
             final int len = termLen(text);
-            if (len <= 2) {
+            if (len <= lowDistance) {
                 return 0;
-            } else if (len > 5) {
+            } else if (len > highDistance) {
                 return 2;
             } else {
                 return 1;

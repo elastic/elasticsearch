@@ -93,8 +93,12 @@ public class FuzzinessTests extends ESTestCase {
                 if (randomBoolean()) {
                     json = Fuzziness.AUTO.toXContent(jsonBuilder().startObject(), null).endObject();
                 } else {
+                    String auto = randomBoolean() ? "AUTO" : "auto";
+                    if (randomBoolean()){
+                        auto += ":" + randomIntBetween(0, 3) + "," + randomIntBetween(3, 10);
+                    }
                     json = jsonBuilder().startObject()
-                            .field(Fuzziness.X_FIELD_NAME, randomBoolean() ? "AUTO" : "auto")
+                            .field(Fuzziness.X_FIELD_NAME, auto)
                             .endObject();
                 }
                 XContentParser parser = createParser(json);

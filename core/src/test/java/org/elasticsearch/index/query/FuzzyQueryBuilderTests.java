@@ -120,6 +120,29 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         assertThat(fuzzyQuery.getPrefixLength(), equalTo(1));
     }
 
+    public void testToQueryWithStringFieldDefinedFuzziness() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+            "    \"fuzzy\":{\n" +
+            "        \"" + STRING_FIELD_NAME + "\":{\n" +
+            "            \"value\":\"sh\",\n" +
+            "            \"fuzziness\": \"AUTO:2,5\",\n" +
+            "            \"prefix_length\":1,\n" +
+            "            \"boost\":2.0\n" +
+            "        }\n" +
+            "    }\n" +
+            "}";
+        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        assertThat(parsedQuery, instanceOf(BoostQuery.class));
+        BoostQuery boostQuery = (BoostQuery) parsedQuery;
+        assertThat(boostQuery.getBoost(), equalTo(2.0f));
+        assertThat(boostQuery.getQuery(), instanceOf(FuzzyQuery.class));
+        FuzzyQuery fuzzyQuery = (FuzzyQuery) boostQuery.getQuery();
+        assertThat(fuzzyQuery.getTerm(), equalTo(new Term(STRING_FIELD_NAME, "sh")));
+        assertThat(fuzzyQuery.getMaxEdits(), equalTo(Fuzziness.AUTO.asDistance("sh")));
+        assertThat(fuzzyQuery.getPrefixLength(), equalTo(1));
+    }
+
     public void testToQueryWithNumericField() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +

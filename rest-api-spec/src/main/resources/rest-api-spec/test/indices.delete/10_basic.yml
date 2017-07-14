@@ -33,9 +33,6 @@ setup:
         ignore_unavailable: true
   - do:
       indices.get:
-        index: index
-  - do:
-      indices.get:
         index: index,index2
   - is_true: index
   - is_true: index2
@@ -76,10 +73,6 @@ setup:
   - do:
       indices.delete:
         index: alia*
-
-  - do:
-      indices.get:
-        index: index
   - do:
       indices.get:
         index: index,index2
@@ -110,9 +103,6 @@ setup:
         index: alia*,index2
   - do:
       indices.get:
-        index: index
-  - do:
-      indices.get:
         index: index,index2
         ignore_unavailable: true
   - is_true: index
@@ -127,7 +117,6 @@ setup:
       indices.delete:
         index: index2,alia*
         allow_no_indices: false
-
   - do:
       indices.get:
         index: index,index2

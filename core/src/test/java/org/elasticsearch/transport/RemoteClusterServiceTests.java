@@ -123,7 +123,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             knownNodes.add(otherSeedTransport.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService transportService = MockTransportService.mockTcp(Settings.EMPTY, Version.CURRENT, threadPool,
+            try (MockTransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool,
                 null)) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
@@ -169,7 +169,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             knownNodes.add(otherSeedTransport.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService transportService = MockTransportService.mockTcp(Settings.EMPTY, Version.CURRENT, threadPool,
+            try (MockTransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool,
                 null)) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
@@ -211,7 +211,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             assertTrue(seedNode.getVersion().before(Version.V_5_3_0));
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService transportService = MockTransportService.mockTcp(Settings.EMPTY, Version.CURRENT, threadPool,
+            try (MockTransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool,
                 null)) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
@@ -251,7 +251,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             knownNodes.add(c2N2Node);
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService transportService = MockTransportService.mockTcp(
+            try (MockTransportService transportService = MockTransportService.createNewService(
                     settings,
                     Version.CURRENT,
                     threadPool,

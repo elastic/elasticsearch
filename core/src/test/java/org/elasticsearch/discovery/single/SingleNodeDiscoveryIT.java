@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.PingContextProvider;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenPing;
@@ -76,7 +75,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
         final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
         try {
             final MockTransportService pingTransport =
-                    MockTransportService.mockTcp(settings, version, threadPool, null);
+                    MockTransportService.createNewService(settings, version, threadPool, null);
             pingTransport.start();
             closeables.push(pingTransport);
             final TransportService nodeTransport =

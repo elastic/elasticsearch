@@ -134,38 +134,6 @@ public final class MockTransportService extends TransportService {
             clusterSettings);
     }
 
-    public static MockTransportService mockTcp(Settings settings, Version version, ThreadPool threadPool,
-                                             @Nullable ClusterSettings clusterSettings) {
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,  new NoneCircuitBreakerService(),
-            namedWriteableRegistry, new NetworkService(settings, Collections.emptyList()), version);
-        if (version.equals(Version.CURRENT)) {
-            return new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, clusterSettings);
-        } else {
-            return new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, (boundAddress) ->
-                createLocal(settings, boundAddress.publishAddress(), settings.get(Node.NODE_NAME_SETTING.getKey(),
-                    UUIDs.randomBase64UUID()), version), clusterSettings);
-        }
-    }
-
-    /** Creates a DiscoveryNode representing the local node. */
-    private static DiscoveryNode createLocal(Settings settings, TransportAddress publishAddress, String nodeId, Version version) {
-        Map<String, String> attributes = new HashMap<>(Node.NODE_ATTRIBUTES.get(settings).getAsMap());
-        Set<DiscoveryNode.Role> roles = new HashSet<>();
-        if (Node.NODE_INGEST_SETTING.get(settings)) {
-            roles.add(DiscoveryNode.Role.INGEST);
-        }
-        if (Node.NODE_MASTER_SETTING.get(settings)) {
-            roles.add(DiscoveryNode.Role.MASTER);
-        }
-        if (Node.NODE_DATA_SETTING.get(settings)) {
-            roles.add(DiscoveryNode.Role.DATA);
-        }
-
-        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes, roles, version);
-    }
-
-
     private final Transport original;
 
     /**

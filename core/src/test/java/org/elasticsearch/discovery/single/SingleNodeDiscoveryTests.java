@@ -50,7 +50,7 @@ public class SingleNodeDiscoveryTests extends ESTestCase {
         final Stack<Closeable> stack = new Stack<>();
         try {
             final MockTransportService transportService =
-                    MockTransportService.mockTcp(settings, version, threadPool, null);
+                    MockTransportService.createNewService(settings, version, threadPool, null);
             stack.push(transportService);
             transportService.start();
             final DiscoveryNode node = transportService.getLocalNode();

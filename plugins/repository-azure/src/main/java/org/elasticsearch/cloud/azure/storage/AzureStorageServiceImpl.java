@@ -282,24 +282,23 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         EnumSet<BlobListingDetails> enumBlobListingDetails = EnumSet.of(BlobListingDetails.METADATA);
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        if (blobContainer.exists()) {
-            for (ListBlobItem blobItem : blobContainer.listBlobs(keyPath + (prefix == null ? "" : prefix),false,enumBlobListingDetails,null,null)) {
-                URI uri = blobItem.getUri();
-                logger.trace("blob url [{}]", uri);
+        SocketAccess.doPrivilegedVoidException(() -> {
+            if (blobContainer.exists()) {
+                for (ListBlobItem blobItem : blobContainer.listBlobs(keyPath + (prefix==null ? "" : prefix),false,
+                    enumBlobListingDetails, null, null)) {
+                    URI uri = blobItem.getUri();
+                    logger.trace("blob url [{}]", uri);
 
-                // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
-                // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
-                String blobPath = uri.getPath().substring(1 + container.length() + 1);
-                if (!(blobItem instanceof CloudBlockBlob)){
-                    logger.warn("blob url [{}] is not a CloudBlockBlob",uri);
-                    continue;
+                    // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
+                    // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
+                    String blobPath = uri.getPath().substring(1 + container.length() + 1);
+                    BlobProperties properties = ((CloudBlockBlob) blobItem).getProperties();
+                    String name = blobPath.substring(keyPath.length());
+                    logger.trace("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength());
+                    blobsBuilder.put(name, new PlainBlobMetaData(name, properties.getLength()));
                 }
-                BlobProperties properties = ((CloudBlockBlob) blobItem).getProperties();
-                String name = blobPath.substring(keyPath.length());
-                logger.trace("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength());
-                blobsBuilder.put(name, new PlainBlobMetaData(name, properties.getLength()));
             }
-        }
+        });
         return blobsBuilder.immutableMap();
     }
 

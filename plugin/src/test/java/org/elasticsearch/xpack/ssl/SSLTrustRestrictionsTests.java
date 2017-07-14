@@ -28,6 +28,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Transport;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -42,6 +43,7 @@ import static org.hamcrest.Matchers.is;
  * @see RestrictedTrustManager
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
+@TestLogging("org.elasticsearch.xpack.ssl.RestrictedTrustManager:DEBUG")
 public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
     /**
@@ -107,23 +109,16 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
                 .put(nodeSSL);
 
         restrictionsPath = configPath.resolve("trust_restrictions.yml");
-        writeRestrictions("\"*.trusted\"");
+        writeRestrictions("*.trusted");
         builder.put("xpack.ssl.trust_restrictions.path", restrictionsPath);
         builder.put("resource.reload.interval.high", RESOURCE_RELOAD_MILLIS + "ms");
 
         return builder.build();
     }
 
-    @Before
-    public void resetRestrictions() {
-        if (restrictionsPath != null) {
-            writeRestrictions("\"*.trusted\"");
-        }
-    }
-
     private void writeRestrictions(String trustedPattern) {
         try {
-            Files.write(restrictionsPath, Collections.singleton("trust.subject_name: " + trustedPattern));
+            Files.write(restrictionsPath, Collections.singleton("trust.subject_name: \"" + trustedPattern + "\""));
         } catch (IOException e) {
             throw new ElasticsearchException("failed to write restrictions", e);
         }
@@ -144,6 +139,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     }
 
     public void testCertificateWithTrustedNameIsAccepted() throws Exception {
+        writeRestrictions("*.trusted");
         try {
             tryConnect(trustedCert);
         } catch (SSLHandshakeException | SocketException ex) {
@@ -152,6 +148,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     }
 
     public void testCertificateWithUntrustedNameFails() throws Exception {
+        writeRestrictions("*.trusted");
         try {
             tryConnect(untrustedCert);
             fail("handshake should have failed, but was successful");
@@ -160,25 +157,19 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         }
     }
     public void testRestrictionsAreReloaded() throws Exception {
+        writeRestrictions("*");
         try {
-            tryConnect(trustedCert);
+            tryConnect(untrustedCert);
         } catch (SSLHandshakeException | SocketException ex) {
             fail("handshake should have been successful, but failed with " + ex);
         }
-        writeRestrictions("\"nothing\"");
+        writeRestrictions("*.trusted");
         Thread.sleep(WAIT_RELOAD_MILLIS);
         try {
-            tryConnect(trustedCert);
+            tryConnect(untrustedCert);
             fail("handshake should have failed, but was successful");
         } catch (SSLHandshakeException | SocketException ex) {
             // expected
-        }
-        writeRestrictions("\"*\"");
-        Thread.sleep(WAIT_RELOAD_MILLIS);
-        try {
-            tryConnect(trustedCert);
-        } catch (SSLHandshakeException | SocketException ex) {
-            fail("handshake should have been successful, but failed with " + ex);
         }
     }
 

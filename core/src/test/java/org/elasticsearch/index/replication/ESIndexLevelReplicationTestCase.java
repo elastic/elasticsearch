@@ -41,10 +41,10 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -82,6 +82,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -225,11 +226,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             HashSet<String> activeIds = new HashSet<>();
             activeIds.addAll(activeIds());
             activeIds.add(primary.routingEntry().allocationId().getId());
-            HashSet<String> initializingIds = new HashSet<>();
-            initializingIds.addAll(initializingIds());
-            initializingIds.remove(primary.routingEntry().allocationId().getId());
-            primary.updateShardState(ShardRoutingHelper.moveToStarted(primary.routingEntry()), primary.getPrimaryTerm(), null,
-                currentClusterStateVersion.incrementAndGet(), activeIds, initializingIds, Collections.emptySet());
+            ShardRouting startedRoutingEntry = ShardRoutingHelper.moveToStarted(primary.routingEntry());
+            IndexShardRoutingTable routingTable = routingTable(shr -> shr == primary.routingEntry() ? startedRoutingEntry : shr);
+            primary.updateShardState(startedRoutingEntry, primary.getPrimaryTerm(), null,
+                currentClusterStateVersion.incrementAndGet(), activeIds, routingTable, Collections.emptySet());
             for (final IndexShard replica : replicas) {
                 recoverReplica(replica);
             }
@@ -282,7 +282,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             primary = replica;
             assert primary.routingEntry().active() : "only active replicas can be promoted to primary: " + primary.routingEntry();
             PlainActionFuture<PrimaryReplicaSyncer.ResyncTask> fut = new PlainActionFuture<>();
-            primary.updateShardState(replica.routingEntry().moveActiveReplicaToPrimary(),
+            ShardRouting primaryRouting = replica.routingEntry().moveActiveReplicaToPrimary();
+            IndexShardRoutingTable routingTable = routingTable(shr -> shr == replica.routingEntry() ? primaryRouting : shr);
+
+            primary.updateShardState(primaryRouting,
                 newTerm, (shard, listener) -> primaryReplicaSyncer.resync(shard,
                     new ActionListener<PrimaryReplicaSyncer.ResyncTask>() {
                         @Override
@@ -296,7 +299,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                             listener.onFailure(e);
                             fut.onFailure(e);
                         }
-                    }), currentClusterStateVersion.incrementAndGet(), activeIds(), initializingIds(), Collections.emptySet());
+                    }), currentClusterStateVersion.incrementAndGet(), activeIds(), routingTable, Collections.emptySet());
 
             return fut;
         }
@@ -306,9 +309,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 .filter(ShardRouting::active).map(ShardRouting::allocationId).map(AllocationId::getId).collect(Collectors.toSet());
         }
 
-        private synchronized Set<String> initializingIds() {
-            return shardRoutings().stream()
-                .filter(ShardRouting::initializing).map(ShardRouting::allocationId).map(AllocationId::getId).collect(Collectors.toSet());
+        private synchronized IndexShardRoutingTable routingTable(Function<ShardRouting, ShardRouting> transformer) {
+            IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(primary.shardId());
+            shardRoutings().stream().map(transformer).forEach(routingTable::addShard);
+            return routingTable.build();
         }
 
         synchronized boolean removeReplica(IndexShard replica) throws IOException {
@@ -333,7 +337,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
             boolean markAsRecovering) throws IOException {
             ESIndexLevelReplicationTestCase.this.recoverReplica(replica, primary, targetSupplier, markAsRecovering, activeIds(),
-                initializingIds());
+                routingTable(Function.identity()));
         }
 
         public synchronized DiscoveryNode getPrimaryNode() {
@@ -411,8 +415,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         private void updateAllocationIDsOnPrimary() throws IOException {
+
             primary.updateShardState(primary.routingEntry(), primary.getPrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
-                activeIds(), initializingIds(), Collections.emptySet());
+                activeIds(), routingTable(Function.identity()), Collections.emptySet());
         }
     }
 
@@ -433,7 +438,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         public void execute() {
             try {
-                new ReplicationOperation<Request, ReplicaRequest, PrimaryResult>(request, new PrimaryRef(),
+                new ReplicationOperation<>(request, new PrimaryRef(),
                     new ActionListener<PrimaryResult>() {
                         @Override
                         public void onResponse(PrimaryResult result) {
@@ -444,24 +449,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                         public void onFailure(Exception e) {
                             listener.onFailure(e);
                         }
-                    }, new ReplicasRef(), () -> null, logger, opType) {
-
-                    @Override
-                    protected List<ShardRouting> getShards(ShardId shardId, ClusterState state) {
-                        return replicationGroup.shardRoutings();
-                    }
-
-                    @Override
-                    protected String checkActiveShardCount() {
-                        return null;
-                    }
-
-                    @Override
-                    protected Set<String> getInSyncAllocationIds(ShardId shardId, ClusterState clusterState) {
-                        return replicationGroup.shardRoutings().stream().filter(ShardRouting::active).map(r -> r.allocationId().getId())
-                            .collect(Collectors.toSet());
-                    }
-                }.execute();
+                    }, new ReplicasRef(), logger, opType).execute();
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -503,6 +491,12 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             @Override
             public long globalCheckpoint() {
                 return replicationGroup.getPrimary().getGlobalCheckpoint();
+            }
+
+            @Override
+            public org.elasticsearch.index.shard.ReplicationGroup getReplicationGroup() {
+                return new org.elasticsearch.index.shard.ReplicationGroup(replicationGroup.routingTable(Function.identity()),
+                    replicationGroup.activeIds());
             }
 
         }

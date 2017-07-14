@@ -32,6 +32,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -148,7 +149,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      *                (ready to recover from another shard)
      */
     protected IndexShard newShard(boolean primary) throws IOException {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("index", "_na_", 0), "n1", primary,
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("index", "_na_", 0), randomAlphaOfLength(10), primary,
             ShardRoutingState.INITIALIZING,
             primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
         return newShard(shardRouting);
@@ -369,10 +370,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
     public static void updateRoutingEntry(IndexShard shard, ShardRouting shardRouting) throws IOException {
         Set<String> inSyncIds =
             shardRouting.active() ? Collections.singleton(shardRouting.allocationId().getId()) : Collections.emptySet();
-        Set<String> initializingIds =
-            shardRouting.initializing() ? Collections.singleton(shardRouting.allocationId().getId()) : Collections.emptySet();
+        IndexShardRoutingTable newRoutingTable = new IndexShardRoutingTable.Builder(shardRouting.shardId())
+            .addShard(shardRouting)
+            .build();
         shard.updateShardState(shardRouting, shard.getPrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
-            inSyncIds, initializingIds, Collections.emptySet());
+            inSyncIds, newRoutingTable, Collections.emptySet());
     }
 
     protected void recoveryEmptyReplica(IndexShard replica) throws IOException {
@@ -403,9 +405,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
                                   final IndexShard primary,
                                   final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
                                   final boolean markAsRecovering) throws IOException {
+        IndexShardRoutingTable.Builder newRoutingTable = new IndexShardRoutingTable.Builder(replica.shardId());
+        newRoutingTable.addShard(primary.routingEntry());
+        if (replica.routingEntry().isRelocationTarget() == false) {
+            newRoutingTable.addShard(replica.routingEntry());
+        }
         recoverReplica(replica, primary, targetSupplier, markAsRecovering,
             Collections.singleton(primary.routingEntry().allocationId().getId()),
-            Collections.singleton(replica.routingEntry().allocationId().getId()));
+            newRoutingTable.build());
     }
 
     /**
@@ -421,7 +428,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                                         final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
                                         final boolean markAsRecovering,
                                         final Set<String> inSyncIds,
-                                        final Set<String> initializingIds) throws IOException {
+                                        final IndexShardRoutingTable routingTable) throws IOException {
         final DiscoveryNode pNode = getFakeDiscoNode(primary.routingEntry().currentNodeId());
         final DiscoveryNode rNode = getFakeDiscoNode(replica.routingEntry().currentNodeId());
         if (markAsRecovering) {
@@ -447,23 +454,30 @@ public abstract class IndexShardTestCase extends ESTestCase {
             primary,
             recoveryTarget,
             request,
-            () -> 0L,
-            e -> () -> {},
             (int) ByteSizeUnit.MB.toBytes(1),
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), pNode.getName()).build());
+        final ShardRouting initializingReplicaRouting = replica.routingEntry();
         primary.updateShardState(primary.routingEntry(), primary.getPrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
-            inSyncIds, initializingIds, Collections.emptySet());
+            inSyncIds, routingTable, Collections.emptySet());
         recovery.recoverToTarget();
         recoveryTarget.markAsDone();
-        Set<String> initializingIdsWithoutReplica = new HashSet<>(initializingIds);
-        initializingIdsWithoutReplica.remove(replica.routingEntry().allocationId().getId());
+        IndexShardRoutingTable newRoutingTable =
+            initializingReplicaRouting.isRelocationTarget() ?
+                new IndexShardRoutingTable.Builder(routingTable)
+                    .removeShard(primary.routingEntry())
+                    .addShard(replica.routingEntry())
+                    .build() :
+                new IndexShardRoutingTable.Builder(routingTable)
+                .removeShard(initializingReplicaRouting)
+                .addShard(replica.routingEntry())
+                .build();
         Set<String> inSyncIdsWithReplica = new HashSet<>(inSyncIds);
         inSyncIdsWithReplica.add(replica.routingEntry().allocationId().getId());
         // update both primary and replica shard state
         primary.updateShardState(primary.routingEntry(), primary.getPrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
-            inSyncIdsWithReplica, initializingIdsWithoutReplica, Collections.emptySet());
+            inSyncIdsWithReplica, newRoutingTable, Collections.emptySet());
         replica.updateShardState(replica.routingEntry().moveToStarted(), replica.getPrimaryTerm(), null,
-            currentClusterStateVersion.get(), inSyncIdsWithReplica, initializingIdsWithoutReplica, Collections.emptySet());
+            currentClusterStateVersion.get(), inSyncIdsWithReplica, newRoutingTable, Collections.emptySet());
     }
 
     private Store.MetadataSnapshot getMetadataSnapshotOrEmpty(IndexShard replica) throws IOException {

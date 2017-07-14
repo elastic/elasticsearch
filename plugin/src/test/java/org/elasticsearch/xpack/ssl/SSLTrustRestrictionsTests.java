@@ -156,6 +156,8 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
             // expected
         }
     }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2007")
     public void testRestrictionsAreReloaded() throws Exception {
         writeRestrictions("*");
         try {

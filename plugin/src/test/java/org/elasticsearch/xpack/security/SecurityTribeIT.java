@@ -160,8 +160,9 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
                                 .build();
                     }
                 };
+        final Settings settingsTemplate = cluster2SettingsSource.nodeSettings(0);
 
-        Map<String, String> asMap = new HashMap<>(cluster2SettingsSource.nodeSettings(0).getAsMap());
+        Map<String, String> asMap = new HashMap<>(settingsTemplate.getAsMap());
         asMap.remove(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey());
         Settings.Builder tribe1Defaults = Settings.builder();
         Settings.Builder tribe2Defaults = Settings.builder();
@@ -176,7 +177,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         }
         // TODO: rethink how these settings are generated for tribes once we support more than just string settings...
         MockSecureSettings secureSettingsTemplate =
-            (MockSecureSettings) Settings.builder().put(cluster2SettingsSource.nodeSettings(0)).getSecureSettings();
+            (MockSecureSettings) Settings.builder().put(settingsTemplate).getSecureSettings();
         MockSecureSettings secureSettings = new MockSecureSettings();
         if (secureSettingsTemplate != null) {
             for (String settingName : secureSettingsTemplate.getSettingNames()) {

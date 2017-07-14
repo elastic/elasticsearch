@@ -194,7 +194,9 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
                 ).build();
 
         IndexRoutingTable watchRoutingTable = IndexRoutingTable.builder(watchIndex)
-                .addShard(TestShardRouting.newShardRouting(shardId, "node_1", true, randomFrom(STARTED, RELOCATING)))
+                .addShard(randomBoolean() ?
+                        TestShardRouting.newShardRouting(shardId, "node_1", true, STARTED) :
+                        TestShardRouting.newShardRouting(shardId, "node_1", "node_2", true, RELOCATING))
                 .build();
         ClusterState clusterStateWithLocalShards = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(nodes)
@@ -204,7 +206,9 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         // shard moved over to node 2
         IndexRoutingTable watchRoutingTableNode2 = IndexRoutingTable.builder(watchIndex)
-                .addShard(TestShardRouting.newShardRouting(shardId, "node_2", true, randomFrom(STARTED, RELOCATING)))
+                .addShard(randomBoolean() ?
+                        TestShardRouting.newShardRouting(shardId, "node_2", true, STARTED) :
+                        TestShardRouting.newShardRouting(shardId, "node_2", "node_1", true, RELOCATING))
                 .build();
         ClusterState clusterStateWithoutLocalShards = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(nodes)
@@ -237,8 +241,8 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
                 .build();
 
         IndexRoutingTable previousWatchRoutingTable = IndexRoutingTable.builder(watchIndex)
-                .addShard(TestShardRouting.newShardRouting(secondShardId, "node_1", true, randomFrom(STARTED, RELOCATING)))
-                .addShard(TestShardRouting.newShardRouting(shardId, "node_2", true, randomFrom(STARTED, RELOCATING)))
+                .addShard(TestShardRouting.newShardRouting(secondShardId, "node_1", true, STARTED))
+                .addShard(TestShardRouting.newShardRouting(shardId, "node_2", true, STARTED))
                 .build();
 
         IndexMetaData indexMetaData = IndexMetaData.builder(Watch.INDEX)
@@ -255,8 +259,8 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
                 .build();
 
         IndexRoutingTable currentWatchRoutingTable = IndexRoutingTable.builder(watchIndex)
-                .addShard(TestShardRouting.newShardRouting(shardId, "node_1", false, randomFrom(STARTED, RELOCATING)))
-                .addShard(TestShardRouting.newShardRouting(secondShardId, "node_1", true, randomFrom(STARTED, RELOCATING)))
+                .addShard(TestShardRouting.newShardRouting(shardId, "node_1", false, STARTED))
+                .addShard(TestShardRouting.newShardRouting(secondShardId, "node_1", true, STARTED))
                 .addShard(TestShardRouting.newShardRouting(shardId, "node_2", true, STARTED))
                 .build();
 

@@ -374,7 +374,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         Index index = new Index(Watch.INDEX, "foo");
         ShardId shardId = new ShardId(index, 0);
         ShardRoutingState randomState = randomFrom(STARTED, RELOCATING);
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "current", true,
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "current", randomState == RELOCATING ? "other" : null, true,
                 randomState);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
                 .addShard(shardRouting).build();

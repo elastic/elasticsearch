@@ -125,15 +125,18 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         final Index index = metaDataBuilder.get(TriggeredWatchStore.INDEX_NAME).getIndex();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         for (int i = 0; i < numShards; i++) {
-            ShardRoutingState state;
+            final ShardRoutingState state;
+            final String currentNodeId;
             if (numStartedShards-- > 0) {
                 state = ShardRoutingState.STARTED;
+                currentNodeId = "_node_id";
             } else {
                 state = ShardRoutingState.UNASSIGNED;
+                currentNodeId = null;
             }
             ShardId shardId = new ShardId(index, 0);
             indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId)
-                    .addShard(TestShardRouting.newShardRouting(shardId, "_node_id", null, true, state,
+                    .addShard(TestShardRouting.newShardRouting(shardId, currentNodeId, null, true, state,
                             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")))
                     .build());
             indexRoutingTableBuilder.addReplica();

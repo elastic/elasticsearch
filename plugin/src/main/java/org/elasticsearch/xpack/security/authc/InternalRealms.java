@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -62,14 +63,18 @@ public class InternalRealms {
      * This excludes the {@link ReservedRealm}, as it cannot be created dynamically.
      * @return A map from <em>realm-type</em> to <code>Factory</code>
      */
-    public static Map<String, Realm.Factory> getFactories(
-            ThreadPool threadPool, ResourceWatcherService resourceWatcherService,
-            SSLService sslService, NativeUsersStore nativeUsersStore,
-            NativeRoleMappingStore nativeRoleMappingStore) {
+    public static Map<String, Realm.Factory> getFactories(ThreadPool threadPool, ResourceWatcherService resourceWatcherService,
+                                                          SSLService sslService, NativeUsersStore nativeUsersStore,
+                                                          NativeRoleMappingStore nativeRoleMappingStore,
+                                                          SecurityLifecycleService securityLifecycleService) {
 
         Map<String, Realm.Factory> map = new HashMap<>();
         map.put(FileRealm.TYPE, config -> new FileRealm(config, resourceWatcherService));
-        map.put(NativeRealm.TYPE, config -> new NativeRealm(config, nativeUsersStore));
+        map.put(NativeRealm.TYPE, config -> {
+            final NativeRealm nativeRealm = new NativeRealm(config, nativeUsersStore);
+            securityLifecycleService.addSecurityIndexHealthChangeListener(nativeRealm::onSecurityIndexHealthChange);
+            return nativeRealm;
+        });
         map.put(LdapRealm.AD_TYPE, config -> new LdapRealm(LdapRealm.AD_TYPE, config, sslService,
                 resourceWatcherService, nativeRoleMappingStore, threadPool));
         map.put(LdapRealm.LDAP_TYPE, config -> new LdapRealm(LdapRealm.LDAP_TYPE, config,

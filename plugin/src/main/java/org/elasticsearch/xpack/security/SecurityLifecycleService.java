@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 /**
@@ -145,6 +147,15 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
      */
     public boolean checkSecurityMappingVersion(Predicate<Version> requiredVersion) {
         return securityIndex.checkMappingVersion(requiredVersion);
+    }
+
+    /**
+     * Adds a listener which will be notified when the security index health changes. The previous and
+     * current health will be provided to the listener so that the listener can determine if any action
+     * needs to be taken.
+     */
+    public void addSecurityIndexHealthChangeListener(BiConsumer<ClusterIndexHealth, ClusterIndexHealth> listener) {
+        securityIndex.addIndexHealthChangeListener(listener);
     }
 
     // this is called in a lifecycle listener beforeStop on the cluster service

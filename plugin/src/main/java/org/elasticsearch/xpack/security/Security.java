@@ -323,8 +323,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore,
                 anonymousUser, securityLifecycleService, threadPool.getThreadContext());
         Map<String, Realm.Factory> realmFactories = new HashMap<>();
-        realmFactories.putAll(InternalRealms.getFactories(threadPool, resourceWatcherService,
-                sslService, nativeUsersStore, nativeRoleMappingStore));
+        realmFactories.putAll(InternalRealms.getFactories(threadPool, resourceWatcherService, sslService, nativeUsersStore,
+                nativeRoleMappingStore, securityLifecycleService));
         for (XPackExtension extension : extensions) {
             Map<String, Realm.Factory> newRealms = extension.getRealms(resourceWatcherService);
             for (Map.Entry<String, Realm.Factory> entry : newRealms.entrySet()) {
@@ -369,6 +369,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         }
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
             reservedRolesStore, rolesProviders, threadPool.getThreadContext(), licenseState);
+        securityLifecycleService.addSecurityIndexHealthChangeListener(allRolesStore::onSecurityIndexHealthChange);
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
         licenseState.addListener(allRolesStore::invalidateAll);

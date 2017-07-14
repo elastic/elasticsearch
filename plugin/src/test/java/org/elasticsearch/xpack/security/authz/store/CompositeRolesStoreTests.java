@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -31,11 +33,13 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
+import static org.elasticsearch.xpack.security.test.SecurityTestUtils.getClusterIndexHealth;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -209,6 +213,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
             verify(reservedRolesStore, times(2)).roleDescriptors();
         }
         verifyNoMoreInteractions(fileRolesStore, reservedRolesStore, nativeRolesStore);
+
+        // force a cache clear
+
     }
 
     public void testCustomRolesProviders() {
@@ -428,6 +435,51 @@ public class CompositeRolesStoreTests extends ESTestCase {
         compositeRolesStore.roles(roleNames, fieldPermissionsCache, future);
         role = future.actionGet();
         assertEquals(0, role.indices().groups().length);
+    }
+
+    public void testCacheClearOnIndexHealthChange() {
+        final AtomicInteger numInvalidation = new AtomicInteger(0);
+
+        CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
+                Settings.EMPTY, mock(FileRolesStore.class), mock(NativeRolesStore.class), mock(ReservedRolesStore.class),
+                Collections.emptyList(), new ThreadContext(Settings.EMPTY), new XPackLicenseState()) {
+            @Override
+            public void invalidateAll() {
+                numInvalidation.incrementAndGet();
+            }
+        };
+
+        int expectedInvalidation = 0;
+        // existing to no longer present
+        ClusterIndexHealth previousHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        ClusterIndexHealth currentHealth = null;
+        compositeRolesStore.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        assertEquals(++expectedInvalidation, numInvalidation.get());
+
+        // doesn't exist to exists
+        previousHealth = null;
+        currentHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        compositeRolesStore.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        assertEquals(++expectedInvalidation, numInvalidation.get());
+
+        // green or yellow to red
+        previousHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        currentHealth = getClusterIndexHealth(ClusterHealthStatus.RED);
+        compositeRolesStore.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        assertEquals(expectedInvalidation, numInvalidation.get());
+
+        // red to non red
+        previousHealth = getClusterIndexHealth(ClusterHealthStatus.RED);
+        currentHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        compositeRolesStore.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        assertEquals(++expectedInvalidation, numInvalidation.get());
+
+        // green to yellow or yellow to green
+        previousHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        currentHealth = getClusterIndexHealth(
+                previousHealth.getStatus() == ClusterHealthStatus.GREEN ? ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
+        compositeRolesStore.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        assertEquals(expectedInvalidation, numInvalidation.get());
     }
 
     private static class InMemoryRolesProvider implements BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>> {

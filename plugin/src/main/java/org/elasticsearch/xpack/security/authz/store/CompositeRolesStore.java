@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.security.authz.store;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -83,8 +85,7 @@ public class CompositeRolesStore extends AbstractComponent {
     public CompositeRolesStore(Settings settings, FileRolesStore fileRolesStore, NativeRolesStore nativeRolesStore,
                                ReservedRolesStore reservedRolesStore,
                                List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>> rolesProviders,
-                               ThreadContext threadContext,
-                               XPackLicenseState licenseState) {
+                               ThreadContext threadContext, XPackLicenseState licenseState) {
         super(settings);
         this.fileRolesStore = fileRolesStore;
         // invalidating all on a file based role update is heavy handed to say the least, but in general this should be infrequent so the
@@ -287,6 +288,16 @@ public class CompositeRolesStore extends AbstractComponent {
             usage.put("native", map);
             listener.onResponse(usage);
         }, listener::onFailure));
+    }
+
+    public void onSecurityIndexHealthChange(ClusterIndexHealth previousHealth, ClusterIndexHealth currentHealth) {
+        final boolean movedFromRedToNonRed = (previousHealth == null || previousHealth.getStatus() == ClusterHealthStatus.RED)
+                && currentHealth != null && currentHealth.getStatus() != ClusterHealthStatus.RED;
+        final boolean indexDeleted = previousHealth != null && currentHealth == null;
+
+        if (movedFromRedToNonRed || indexDeleted) {
+            invalidateAll();
+        }
     }
 
     /**

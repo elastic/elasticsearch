@@ -22,17 +22,13 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.network.InetAddresses;
@@ -211,25 +207,6 @@ public class IpFieldMapper extends FieldMapper {
             }
 
             return InetAddressPoint.newRangeQuery(name(), lower, upper);
-        }
-
-        @Override
-        public FieldStats.Ip stats(IndexReader reader) throws IOException {
-            String field = name();
-            FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(name());
-            if (fi == null) {
-                return null;
-            }
-            long size = PointValues.size(reader, field);
-            if (size == 0) {
-                return new FieldStats.Ip(reader.maxDoc(), 0, -1, -1, isSearchable(), isAggregatable());
-            }
-            int docCount = PointValues.getDocCount(reader, field);
-            byte[] min = PointValues.getMinPackedValue(reader, field);
-            byte[] max = PointValues.getMaxPackedValue(reader, field);
-            return new FieldStats.Ip(reader.maxDoc(), docCount, -1L, size,
-                isSearchable(), isAggregatable(),
-                InetAddressPoint.decode(min), InetAddressPoint.decode(max));
         }
 
         public static final class IpScriptDocValues extends ScriptDocValues<String> {

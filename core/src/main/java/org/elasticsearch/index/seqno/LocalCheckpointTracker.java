@@ -122,6 +122,19 @@ public class LocalCheckpointTracker {
     }
 
     /**
+     * Resets the checkpoint to the specified value.
+     *
+     * @param checkpoint the local checkpoint to reset this tracker to
+     */
+    synchronized void resetCheckpoint(final long checkpoint) {
+        assert checkpoint != SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        assert checkpoint <= this.checkpoint;
+        processedSeqNo.clear();
+        firstProcessedSeqNo = checkpoint + 1;
+        this.checkpoint = checkpoint;
+    }
+
+    /**
      * The current checkpoint which can be advanced by {@link #markSeqNoAsCompleted(long)}.
      *
      * @return the current checkpoint

@@ -971,7 +971,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThat((double)searchResponse.getHits().getAt(0).getScore(), closeTo(boost * searchResponse.getHits().getAt(1).getScore(), .1));
 
         searchResponse = client().prepareSearch()
-                .setQuery(queryStringQuery("\"phrase match\"").field("important", boost).field("less_important").useDisMax(false)).get();
+                .setQuery(queryStringQuery("\"phrase match\"").field("important", boost).field("less_important")).get();
         assertHitCount(searchResponse, 2L);
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));

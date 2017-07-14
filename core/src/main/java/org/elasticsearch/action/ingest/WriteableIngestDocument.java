@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,6 +28,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.Map;
 import java.util.Objects;
 
@@ -42,6 +45,12 @@ final class WriteableIngestDocument implements Writeable, ToXContent {
     WriteableIngestDocument(StreamInput in) throws IOException {
         Map<String, Object> sourceAndMetadata = in.readMap();
         Map<String, Object> ingestMetadata = in.readMap();
+        if (in.getVersion().before(Version.V_6_0_0_beta1)) {
+            ingestMetadata.computeIfPresent("timestamp", (k, o) -> {
+                Date date = (Date) o;
+                return date.toInstant().atZone(ZoneId.systemDefault());
+            });
+        }
         this.ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
     }
 

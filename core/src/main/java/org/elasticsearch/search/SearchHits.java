@@ -61,12 +61,6 @@ public final class SearchHits implements Streamable, ToXContent, Iterable<Search
         this.maxScore = maxScore;
     }
 
-    public void shardTarget(SearchShardTarget shardTarget) {
-        for (SearchHit hit : hits) {
-            hit.shard(shardTarget);
-        }
-    }
-
     /**
      * The total number of hits that matches the search request.
      */
@@ -99,10 +93,6 @@ public final class SearchHits implements Streamable, ToXContent, Iterable<Search
     @Override
     public Iterator<SearchHit> iterator() {
         return Arrays.stream(getHits()).iterator();
-    }
-
-    public SearchHit[] internalHits() {
-        return this.hits;
     }
 
     public static final class Fields {
@@ -180,7 +170,7 @@ public final class SearchHits implements Streamable, ToXContent, Iterable<Search
     @Override
     public void readFrom(StreamInput in) throws IOException {
         final boolean hasTotalHits;
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             hasTotalHits = in.readBoolean();
         } else {
             hasTotalHits = true;
@@ -205,7 +195,7 @@ public final class SearchHits implements Streamable, ToXContent, Iterable<Search
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         final boolean hasTotalHits;
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             hasTotalHits = totalHits >= 0;
             out.writeBoolean(hasTotalHits);
         } else {

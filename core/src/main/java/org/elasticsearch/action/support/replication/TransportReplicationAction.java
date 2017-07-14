@@ -53,8 +53,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
@@ -382,7 +384,7 @@ public abstract class TransportReplicationAction<
             Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener,
             PrimaryShardReference primaryShardReference) {
             return new ReplicationOperation<>(request, primaryShardReference, listener,
-                    replicasProxy, clusterService::state, logger, actionName);
+                    replicasProxy, logger, actionName);
         }
     }
 
@@ -523,8 +525,7 @@ public abstract class TransportReplicationAction<
             try {
                 final ReplicaResult replicaResult = shardOperationOnReplica(request, replica);
                 releasable.close(); // release shard operation lock before responding to caller
-                final TransportReplicationAction.ReplicaResponse response =
-                    new ReplicaResponse(replica.routingEntry().allocationId().getId(), replica.getLocalCheckpoint());
+                final TransportReplicationAction.ReplicaResponse response = new ReplicaResponse(replica.getLocalCheckpoint());
                 replicaResult.respond(new ResponseListener(response));
             } catch (final Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
@@ -629,7 +630,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    private IndexShard getIndexShard(ShardId shardId) {
+    protected IndexShard getIndexShard(ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         return indexService.getShard(shardId.id());
     }
@@ -1006,19 +1007,22 @@ public abstract class TransportReplicationAction<
             return indexShard.getGlobalCheckpoint();
         }
 
+        @Override
+        public ReplicationGroup getReplicationGroup() {
+            return indexShard.getReplicationGroup();
+        }
+
     }
 
 
     public static class ReplicaResponse extends ActionResponse implements ReplicationOperation.ReplicaResponse {
         private long localCheckpoint;
-        private String allocationId;
 
         ReplicaResponse() {
 
         }
 
-        public ReplicaResponse(String allocationId, long localCheckpoint) {
-            this.allocationId = allocationId;
+        public ReplicaResponse(long localCheckpoint) {
             this.localCheckpoint = localCheckpoint;
         }
 
@@ -1027,9 +1031,9 @@ public abstract class TransportReplicationAction<
             if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
                 super.readFrom(in);
                 localCheckpoint = in.readZLong();
-                allocationId = in.readString();
             } else {
                 // 5.x used to read empty responses, which don't really read anything off the stream, so just do nothing.
+                localCheckpoint = SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT;
             }
         }
 
@@ -1038,7 +1042,6 @@ public abstract class TransportReplicationAction<
             if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
                 super.writeTo(out);
                 out.writeZLong(localCheckpoint);
-                out.writeString(allocationId);
             } else {
                 // we use to write empty responses
                 Empty.INSTANCE.writeTo(out);
@@ -1048,11 +1051,6 @@ public abstract class TransportReplicationAction<
         @Override
         public long localCheckpoint() {
             return localCheckpoint;
-        }
-
-        @Override
-        public String allocationId() {
-            return allocationId;
         }
     }
 
@@ -1210,6 +1208,8 @@ public abstract class TransportReplicationAction<
             super.readFrom(in);
             if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
                 globalCheckpoint = in.readZLong();
+            } else {
+                globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
             }
         }
 

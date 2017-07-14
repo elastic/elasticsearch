@@ -48,6 +48,7 @@ import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
@@ -68,10 +69,13 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -301,7 +305,7 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     private static ParsedDocument testParsedDocument(String id, String routing, Document document, BytesReference source, Mapping mappingUpdate) {
-        Field uidField = new Field("_id", id, IdFieldMapper.Defaults.FIELD_TYPE);
+        Field uidField = new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(uidField);
@@ -1486,7 +1490,7 @@ public class InternalEngineTests extends ESTestCase {
             .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), "1h") // make sure this doesn't kick in on us
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codecName)
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_4_0)
-            .put(MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, true)
             .put(IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.getKey(),
                 between(10, 10 * IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.get(Settings.EMPTY)))
             .build());
@@ -2020,12 +2024,12 @@ public class InternalEngineTests extends ESTestCase {
 
         try {
             initialEngine = engine;
-            initialEngine
-                .seqNoService()
-                .updateAllocationIdsFromMaster(
-                        randomNonNegativeLong(),
-                        new HashSet<>(Arrays.asList("primary", "replica")),
-                        Collections.emptySet());
+            final ShardRouting primary = TestShardRouting.newShardRouting(shardId, "node1", true, ShardRoutingState.STARTED);
+            final ShardRouting replica = TestShardRouting.newShardRouting(shardId, "node2", false, ShardRoutingState.STARTED);
+            initialEngine.seqNoService().updateAllocationIdsFromMaster(1L, new HashSet<>(Arrays.asList(primary.allocationId().getId(),
+                replica.allocationId().getId())),
+                new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(replica).build(), Collections.emptySet());
+            initialEngine.seqNoService().activatePrimaryMode(primary.allocationId().getId(), primarySeqNo);
             for (int op = 0; op < opCount; op++) {
                 final String id;
                 // mostly index, sometimes delete
@@ -2069,8 +2073,9 @@ public class InternalEngineTests extends ESTestCase {
                     // only update rarely as we do it every doc
                     replicaLocalCheckpoint = randomIntBetween(Math.toIntExact(replicaLocalCheckpoint), Math.toIntExact(primarySeqNo));
                 }
-                initialEngine.seqNoService().updateLocalCheckpointForShard("primary", initialEngine.seqNoService().getLocalCheckpoint());
-                initialEngine.seqNoService().updateLocalCheckpointForShard("replica", replicaLocalCheckpoint);
+                initialEngine.seqNoService().updateLocalCheckpointForShard(primary.allocationId().getId(),
+                    initialEngine.seqNoService().getLocalCheckpoint());
+                initialEngine.seqNoService().updateLocalCheckpointForShard(replica.allocationId().getId(), replicaLocalCheckpoint);
 
                 if (rarely()) {
                     localCheckpoint = primarySeqNo;
@@ -2198,10 +2203,10 @@ public class InternalEngineTests extends ESTestCase {
                 assertThat(localCheckpoint, greaterThanOrEqualTo(prevLocalCheckpoint));
                 assertThat(maxSeqNo, greaterThanOrEqualTo(prevMaxSeqNo));
                 try (IndexReader reader = DirectoryReader.open(commit)) {
-                    FieldStats stats = SeqNoFieldMapper.SeqNoDefaults.FIELD_TYPE.stats(reader);
+                    Long highest = getHighestSeqNo(reader);
                     final long highestSeqNo;
-                    if (stats != null) {
-                        highestSeqNo = (long) stats.getMaxValue();
+                    if (highest != null) {
+                        highestSeqNo = highest.longValue();
                     } else {
                         highestSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
                     }
@@ -2221,6 +2226,16 @@ public class InternalEngineTests extends ESTestCase {
         } finally {
             IOUtils.close(commits);
         }
+    }
+
+    private static Long getHighestSeqNo(final IndexReader reader) throws IOException {
+        final String fieldName = SeqNoFieldMapper.NAME;
+        long size = PointValues.size(reader, fieldName);
+        if (size == 0) {
+            return null;
+        }
+        byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
+        return LongPoint.decodeDimension(max, 0);
     }
 
     private static FixedBitSet getSeqNosSet(final IndexReader reader, final long highestSeqNo) throws IOException {
@@ -2344,11 +2359,11 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     protected Term newUid(String id) {
-        return new Term("_id", id);
+        return new Term("_id", Uid.encodeId(id));
     }
 
     protected Term newUid(ParsedDocument doc) {
-        return new Term("_id", doc.id());
+        return newUid(doc.id());
     }
 
     protected Engine.Get newGet(boolean realtime, ParsedDocument doc) {
@@ -2809,6 +2824,7 @@ public class InternalEngineTests extends ESTestCase {
                     final Translog.Index index = (Translog.Index) operation;
                     final String indexName = mapperService.index().getName();
                     final Engine.Index engineIndex = IndexShard.prepareIndex(docMapper(index.type()),
+                            mapperService.getIndexSettings().getIndexVersionCreated(),
                         source(indexName, index.type(), index.id(), index.source(), XContentFactory.xContentType(index.source()))
                             .routing(index.routing()).parent(index.parent()), index.seqNo(), index.primaryTerm(),
                         index.version(), index.versionType().versionTypeForReplicationAndRecovery(), origin,
@@ -3984,6 +4000,67 @@ public class InternalEngineTests extends ESTestCase {
             return new Tuple<>(seqNo, primaryTerm);
         } catch (Exception e) {
             throw new EngineException(shardId, "unable to retrieve sequence id", e);
+        }
+    }
+
+    public void testRestoreLocalCheckpointFromTranslog() throws IOException {
+        engine.close();
+        InternalEngine actualEngine = null;
+        try {
+            final Set<Long> completedSeqNos = new HashSet<>();
+            final SequenceNumbersService seqNoService =
+                    new SequenceNumbersService(
+                            shardId,
+                            defaultSettings,
+                            SequenceNumbersService.NO_OPS_PERFORMED,
+                            SequenceNumbersService.NO_OPS_PERFORMED,
+                            SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                @Override
+                public void markSeqNoAsCompleted(long seqNo) {
+                    super.markSeqNoAsCompleted(seqNo);
+                    completedSeqNos.add(seqNo);
+                }
+            };
+            actualEngine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG)) {
+                @Override
+                public SequenceNumbersService seqNoService() {
+                    return seqNoService;
+                }
+            };
+            final int operations = randomIntBetween(0, 1024);
+            final Set<Long> expectedCompletedSeqNos = new HashSet<>();
+            for (int i = 0; i < operations; i++) {
+                if (rarely() && i < operations - 1) {
+                    continue;
+                }
+                expectedCompletedSeqNos.add((long) i);
+            }
+
+            final ArrayList<Long> seqNos = new ArrayList<>(expectedCompletedSeqNos);
+            Randomness.shuffle(seqNos);
+            for (final long seqNo : seqNos) {
+                final String id = Long.toString(seqNo);
+                final ParsedDocument doc = testParsedDocument(id, null, testDocumentWithTextField(), SOURCE, null);
+                final Term uid = newUid(doc);
+                final long time = System.nanoTime();
+                actualEngine.index(new Engine.Index(uid, doc, seqNo, 1, 1, VersionType.EXTERNAL, REPLICA, time, time, false));
+                if (rarely()) {
+                    actualEngine.rollTranslogGeneration();
+                }
+            }
+            final long currentLocalCheckpoint = actualEngine.seqNoService().getLocalCheckpoint();
+            final long resetLocalCheckpoint =
+                    randomIntBetween(Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED), Math.toIntExact(currentLocalCheckpoint));
+            actualEngine.seqNoService().resetLocalCheckpoint(resetLocalCheckpoint);
+            completedSeqNos.clear();
+            actualEngine.restoreLocalCheckpointFromTranslog();
+            final Set<Long> intersection = new HashSet<>(expectedCompletedSeqNos);
+            intersection.retainAll(LongStream.range(resetLocalCheckpoint + 1, operations).boxed().collect(Collectors.toSet()));
+            assertThat(completedSeqNos, equalTo(intersection));
+            assertThat(actualEngine.seqNoService().getLocalCheckpoint(), equalTo(currentLocalCheckpoint));
+            assertThat(actualEngine.seqNoService().generateSeqNo(), equalTo((long) operations));
+        } finally {
+            IOUtils.close(actualEngine);
         }
     }
 

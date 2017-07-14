@@ -21,8 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.queryparser.classic.MapperQueryParser;
-import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
@@ -34,6 +32,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -49,11 +48,8 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -61,7 +57,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static java.util.Collections.unmodifiableMap;
@@ -90,7 +85,6 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     private final Map<String, Query> namedQueries = new HashMap<>();
-    private final MapperQueryParser queryParser = new MapperQueryParser(this);
     private boolean allowUnmappedFields;
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
@@ -149,11 +143,6 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public boolean queryStringAllowLeadingWildcard() {
         return indexSettings.isQueryStringAllowLeadingWildcard();
-    }
-
-    public MapperQueryParser queryParser(QueryParserSettings settings) {
-        queryParser.reset(settings);
-        return queryParser;
     }
 
     public BitSetProducer bitsetFilter(Query filter) {
@@ -326,6 +315,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /** Return the script service to allow compiling scripts. */
+    @Override
     public final ScriptService getScriptService() {
         failIfFrozen();
         return scriptService;
@@ -387,5 +377,9 @@ public class QueryShardContext extends QueryRewriteContext {
     public Client getClient() {
         failIfFrozen(); // we somebody uses a terms filter with lookup for instance can't be cached...
         return super.getClient();
+    }
+
+    public QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
+        return AbstractQueryBuilder.parseInnerQueryBuilder(parser);
     }
 }

@@ -33,11 +33,15 @@ Vagrant.configure(2) do |config|
       [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
     SHELL
   end
-  # Wheezy's backports don't contain Openjdk 8 and the backflips required to
-  # get the sun jdk on there just aren't worth it. We have jessie for testing
-  # debian and it works fine.
+  # Wheezy's backports don't contain Openjdk 8 and the backflips
+  # required to get the sun jdk on there just aren't worth it. We have
+  # jessie and stretch for testing debian and it works fine.
   config.vm.define "debian-8" do |config|
     config.vm.box = "elastic/debian-8-x86_64"
+    deb_common config
+  end
+  config.vm.define "debian-9" do |config|
+    config.vm.box = "elastic/debian-9-x86_64"
     deb_common config
   end
   config.vm.define "centos-6" do |config|

@@ -26,7 +26,6 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class NioSocketChannelTests extends AbstractNioChannelTestCase {
@@ -68,7 +67,6 @@ public class NioSocketChannelTests extends AbstractNioChannelTestCase {
         assertTrue(socketChannel.isOpen());
         assertTrue(connectFuture.connectFailed());
         assertThat(connectFuture.getException(), instanceOf(ConnectException.class));
-        assertThat(connectFuture.getException().getMessage(), containsString("Connection refused"));
 
         thread.join();
     }

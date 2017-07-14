@@ -147,7 +147,7 @@ fi
     move_config
 
     CONF_DIR="$ESCONFIG" install_jvm_example
-    CONF_DIR="$ESCONFIG" ES_JVM_OPTIONS="$ESCONFIG/jvm.options" start_elasticsearch_service
+    CONF_DIR="$ESCONFIG" start_elasticsearch_service
     diff  <(curl -s localhost:9200/_cat/configured_example | sed 's/ //g') <(echo "foo")
     stop_elasticsearch_service
     CONF_DIR="$ESCONFIG" remove_jvm_example
@@ -277,7 +277,7 @@ fi
 }
 
 @test "[$GROUP] install repository-hdfs plugin" {
-    install_and_check_plugin repository hdfs hadoop-client-*.jar hadoop-common-*.jar hadoop-annotations-*.jar hadoop-auth-*.jar hadoop-hdfs-*.jar htrace-core-*.jar guava-*.jar protobuf-java-*.jar commons-logging-*.jar commons-cli-*.jar commons-collections-*.jar commons-configuration-*.jar commons-io-*.jar commons-lang-*.jar servlet-api-*.jar slf4j-api-*.jar
+    install_and_check_plugin repository hdfs hadoop-client-*.jar hadoop-common-*.jar hadoop-annotations-*.jar hadoop-auth-*.jar hadoop-hdfs-client-*.jar htrace-core4-*.jar guava-*.jar protobuf-java-*.jar commons-logging-*.jar commons-cli-*.jar commons-collections-*.jar commons-configuration-*.jar commons-io-*.jar commons-lang-*.jar servlet-api-*.jar slf4j-api-*.jar
 }
 
 @test "[$GROUP] install size mapper plugin" {

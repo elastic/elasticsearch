@@ -18,19 +18,25 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.DoubleRange;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatRange;
-import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.InetAddressRange;
+import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongRange;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
+import org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -49,17 +55,19 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
-import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
-import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
+import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
+import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 
 /** A {@link FieldMapper} for indexing numeric and date ranges, and creating queries */
 public class RangeFieldMapper extends FieldMapper {
@@ -78,8 +86,8 @@ public class RangeFieldMapper extends FieldMapper {
         private Boolean coerce;
         private Locale locale;
 
-        public Builder(String name, RangeType type) {
-            super(name, new RangeFieldType(type), new RangeFieldType(type));
+        public Builder(String name, RangeType type, Version indexVersionCreated) {
+            super(name, new RangeFieldType(type, indexVersionCreated), new RangeFieldType(type, indexVersionCreated));
             builder = this;
             locale = Locale.ROOT;
         }
@@ -159,7 +167,7 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node,
                                          ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(name, type);
+            Builder builder = new Builder(name, type, parserContext.indexVersionCreated());
             TypeParsers.parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -190,18 +198,18 @@ public class RangeFieldMapper extends FieldMapper {
         protected FormatDateTimeFormatter dateTimeFormatter;
         protected DateMathParser dateMathParser;
 
-        public RangeFieldType(RangeType type) {
+        RangeFieldType(RangeType type, Version indexVersionCreated) {
             super();
             this.rangeType = Objects.requireNonNull(type);
             setTokenized(false);
-            setHasDocValues(false);
+            setHasDocValues(indexVersionCreated.onOrAfter(Version.V_6_0_0_beta1));
             setOmitNorms(true);
             if (rangeType == RangeType.DATE) {
                 setDateTimeFormatter(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
             }
         }
 
-        public RangeFieldType(RangeFieldType other) {
+        RangeFieldType(RangeFieldType other) {
             super(other);
             this.rangeType = other.rangeType;
             if (other.dateTimeFormatter() != null) {
@@ -290,7 +298,8 @@ public class RangeFieldMapper extends FieldMapper {
 
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
                                 ShapeRelation relation, DateTimeZone timeZone, DateMathParser parser, QueryShardContext context) {
-            return rangeType.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper, relation, timeZone, parser, context);
+            return rangeType.rangeQuery(name(), hasDocValues(), lowerTerm, upperTerm, includeLower, includeUpper, relation,
+                timeZone, parser, context);
         }
     }
 
@@ -385,7 +394,7 @@ public class RangeFieldMapper extends FieldMapper {
         boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
         boolean docValued = fieldType.hasDocValues();
         boolean stored = fieldType.stored();
-        fields.addAll(fieldType().rangeType.createFields(name(), range, indexed, docValued, stored));
+        fields.addAll(fieldType().rangeType.createFields(context, name(), range, indexed, docValued, stored));
     }
 
     @Override
@@ -461,6 +470,33 @@ public class RangeFieldMapper extends FieldMapper {
             public InetAddress nextDown(Object value) {
                 return InetAddressPoint.nextDown((InetAddress)value);
             }
+
+            @Override
+            public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
+                final byte[] encoded = new byte[5 + (16 * 2) * ranges.size()];
+                ByteArrayDataOutput out = new ByteArrayDataOutput(encoded);
+                out.writeVInt(ranges.size());
+                for (Range range : ranges) {
+                    out.writeVInt(16);
+                    InetAddress fromValue = (InetAddress) range.from;
+                    byte[] encodedFromValue = InetAddressPoint.encode(fromValue);
+                    out.writeBytes(encodedFromValue, 0, encodedFromValue.length);
+
+                    out.writeVInt(16);
+                    InetAddress toValue = (InetAddress) range.to;
+                    byte[] encodedToValue = InetAddressPoint.encode(toValue);
+                    out.writeBytes(encodedToValue, 0, encodedToValue.length);
+                }
+                return new BytesRef(encoded, 0, out.getPosition());
+            }
+
+            @Override
+            BytesRef[] encodeRange(Object from, Object to) {
+                BytesRef encodedFrom = new BytesRef(InetAddressPoint.encode((InetAddress) from));
+                BytesRef encodedTo = new BytesRef(InetAddressPoint.encode((InetAddress) to));
+                return new BytesRef[]{encodedFrom, encodedTo};
+            }
+
             @Override
             public Query withinQuery(String field, Object from, Object to, boolean includeLower, boolean includeUpper) {
                 InetAddress lower = (InetAddress)from;
@@ -522,10 +558,21 @@ public class RangeFieldMapper extends FieldMapper {
             public Long nextDown(Object value) {
                 return (long) LONG.nextDown(value);
             }
+
             @Override
-            public Query rangeQuery(String field, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                                    ShapeRelation relation, @Nullable DateTimeZone timeZone, @Nullable DateMathParser parser,
-                                    QueryShardContext context) {
+            public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
+                return LONG.encodeRanges(ranges);
+            }
+
+            @Override
+            BytesRef[] encodeRange(Object from, Object to) {
+                return LONG.encodeRange(from, to);
+            }
+
+            @Override
+            public Query rangeQuery(String field, boolean hasDocValues, Object lowerTerm, Object upperTerm, boolean includeLower,
+                                    boolean includeUpper, ShapeRelation relation, @Nullable DateTimeZone timeZone,
+                                    @Nullable DateMathParser parser, QueryShardContext context) {
                 DateTimeZone zone = (timeZone == null) ? DateTimeZone.UTC : timeZone;
                 DateMathParser dateMathParser = (parser == null) ?
                     new DateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER) : parser;
@@ -536,7 +583,8 @@ public class RangeFieldMapper extends FieldMapper {
                     dateMathParser.parse(upperTerm instanceof BytesRef ? ((BytesRef) upperTerm).utf8ToString() : upperTerm.toString(),
                         context::nowInMillis, false, zone);
 
-                return super.rangeQuery(field, low, high, includeLower, includeUpper, relation, zone, dateMathParser, context);
+                return super.rangeQuery(field, hasDocValues, low, high, includeLower, includeUpper, relation, zone,
+                    dateMathParser, context);
             }
             @Override
             public Query withinQuery(String field, Object from, Object to, boolean includeLower, boolean includeUpper) {
@@ -569,6 +617,17 @@ public class RangeFieldMapper extends FieldMapper {
             public Float nextDown(Object value) {
                 return Math.nextDown(((Number)value).floatValue());
             }
+
+            @Override
+            public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
+                return DOUBLE.encodeRanges(ranges);
+            }
+
+            @Override
+            BytesRef[] encodeRange(Object from, Object to) {
+                return DOUBLE.encodeRange(((Number) from).floatValue(), ((Number) to).floatValue());
+            }
+
             @Override
             public Field getRangeField(String name, Range r) {
                 return new FloatRange(name, new float[] {((Number)r.from).floatValue()}, new float[] {((Number)r.to).floatValue()});
@@ -609,6 +668,19 @@ public class RangeFieldMapper extends FieldMapper {
             public Double nextDown(Object value) {
                 return Math.nextDown(((Number)value).doubleValue());
             }
+
+            @Override
+            public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
+                return BinaryRangeUtil.encodeDoubleRanges(ranges);
+            }
+
+            @Override
+            BytesRef[] encodeRange(Object from, Object to) {
+                byte[] fromValue = BinaryRangeUtil.encode(((Number) from).doubleValue());
+                byte[] toValue = BinaryRangeUtil.encode(((Number) to).doubleValue());
+                return new BytesRef[]{new BytesRef(fromValue), new BytesRef(toValue)};
+            }
+
             @Override
             public Field getRangeField(String name, Range r) {
                 return new DoubleRange(name, new double[] {((Number)r.from).doubleValue()}, new double[] {((Number)r.to).doubleValue()});
@@ -651,6 +723,17 @@ public class RangeFieldMapper extends FieldMapper {
             public Integer nextDown(Object value) {
                 return ((Number)value).intValue() - 1;
             }
+
+            @Override
+            public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
+                return LONG.encodeRanges(ranges);
+            }
+
+            @Override
+            BytesRef[] encodeRange(Object from, Object to) {
+                return LONG.encodeRange(from, to);
+            }
+
             @Override
             public Field getRangeField(String name, Range r) {
                 return new IntRange(name, new int[] {((Number)r.from).intValue()}, new int[] {((Number)r.to).intValue()});
@@ -688,6 +771,19 @@ public class RangeFieldMapper extends FieldMapper {
             public Long nextDown(Object value) {
                 return ((Number)value).longValue() - 1;
             }
+
+            @Override
+            public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
+                return BinaryRangeUtil.encodeLongRanges(ranges);
+            }
+
+            @Override
+            BytesRef[] encodeRange(Object from, Object to) {
+                byte[] encodedFrom = BinaryRangeUtil.encode(((Number) from).longValue());
+                byte[] encodedTo = BinaryRangeUtil.encode(((Number) to).longValue());
+                return new BytesRef[]{new BytesRef(encodedFrom), new BytesRef(encodedTo)};
+            }
+
             @Override
             public Field getRangeField(String name, Range r) {
                 return new LongRange(name, new long[] {((Number)r.from).longValue()},
@@ -726,13 +822,22 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         public abstract Field getRangeField(String name, Range range);
-        public List<IndexableField> createFields(String name, Range range, boolean indexed, boolean docValued, boolean stored) {
+        public List<IndexableField> createFields(ParseContext context, String name, Range range, boolean indexed,
+                                                 boolean docValued, boolean stored) {
             assert range != null : "range cannot be null when creating fields";
             List<IndexableField> fields = new ArrayList<>();
             if (indexed) {
                 fields.add(getRangeField(name, range));
             }
-            // todo add docValues ranges once aggregations are supported
+            if (docValued) {
+                BinaryRangesDocValuesField field = (BinaryRangesDocValuesField) context.doc().getByKey(name);
+                if (field == null) {
+                    field = new BinaryRangesDocValuesField(name, range, this);
+                    context.doc().addWithKey(name, field);
+                } else {
+                    field.add(range);
+                }
+            }
             if (stored) {
                 fields.add(new StoredField(name, range.toString()));
             }
@@ -759,28 +864,65 @@ public class RangeFieldMapper extends FieldMapper {
         public Object parse(Object value, boolean coerce) {
             return numberType.parse(value, coerce);
         }
-        public Query rangeQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo,
-                ShapeRelation relation, @Nullable DateTimeZone timeZone, @Nullable DateMathParser dateMathParser,
-                QueryShardContext context) {
+        public Query rangeQuery(String field, boolean hasDocValues, Object from, Object to, boolean includeFrom, boolean includeTo,
+                                ShapeRelation relation, @Nullable DateTimeZone timeZone, @Nullable DateMathParser dateMathParser,
+                                QueryShardContext context) {
             Object lower = from == null ? minValue() : parse(from, false);
             Object upper = to == null ? maxValue() : parse(to, false);
+            Query indexQuery;
             if (relation == ShapeRelation.WITHIN) {
-                return withinQuery(field, lower, upper, includeFrom, includeTo);
+                indexQuery = withinQuery(field, lower, upper, includeFrom, includeTo);
             } else if (relation == ShapeRelation.CONTAINS) {
-                return containsQuery(field, lower, upper, includeFrom, includeTo);
+                indexQuery = containsQuery(field, lower, upper, includeFrom, includeTo);
+            } else {
+                indexQuery = intersectsQuery(field, lower, upper, includeFrom, includeTo);
             }
-            return intersectsQuery(field, lower, upper, includeFrom, includeTo);
+            if (hasDocValues) {
+                final QueryType queryType;
+                if (relation == ShapeRelation.WITHIN) {
+                    queryType = QueryType.WITHIN;
+                } else if (relation == ShapeRelation.CONTAINS) {
+                    queryType = QueryType.CONTAINS;
+                } else {
+                    queryType = QueryType.INTERSECTS;
+                }
+                Query dvQuery = dvRangeQuery(field, queryType, lower, upper, includeFrom, includeTo);
+                return new IndexOrDocValuesQuery(indexQuery, dvQuery);
+            } else {
+                return indexQuery;
+            }
         }
+
+        // No need to take into account Range#includeFrom or Range#includeTo, because from and to have already been
+        // rounded up via parseFrom and parseTo methods.
+        public abstract BytesRef encodeRanges(Set<Range> ranges) throws IOException;
+
+        public Query dvRangeQuery(String field, QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
+            if (includeFrom == false) {
+                from = nextUp(from);
+            }
+
+            if (includeTo == false) {
+                to = nextDown(to);
+            }
+            BytesRef[] range = encodeRange(from, to);
+            return new BinaryDocValuesRangeQuery(field, queryType, range[0], range[1], from, to);
+        }
+
+        abstract BytesRef[] encodeRange(Object from, Object to);
 
         public final String name;
         private final NumberType numberType;
+
+
+
     }
 
     /** Class defining a range */
     public static class Range {
         RangeType type;
-        private Object from;
-        private Object to;
+        Object from;
+        Object to;
         private boolean includeFrom;
         private boolean includeTo;
 
@@ -803,6 +945,32 @@ public class RangeFieldMapper extends FieldMapper {
             sb.append(type == RangeType.IP ? InetAddresses.toAddrString((InetAddress)t) : t.toString());
             sb.append(includeTo ? ']' : ')');
             return sb.toString();
+        }
+    }
+
+    static class BinaryRangesDocValuesField extends CustomDocValuesField {
+
+        private final Set<Range> ranges;
+        private final RangeType rangeType;
+
+        BinaryRangesDocValuesField(String name, Range range, RangeType rangeType) {
+            super(name);
+            this.rangeType = rangeType;
+            ranges = new HashSet<>();
+            add(range);
+        }
+
+        void add(Range range) {
+            ranges.add(range);
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            try {
+                return rangeType.encodeRanges(ranges);
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to encode ranges", e);
+            }
         }
     }
 }

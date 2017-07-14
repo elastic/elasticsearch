@@ -35,8 +35,9 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
+import org.elasticsearch.transport.nio.channel.CloseFuture;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
@@ -45,7 +46,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.function.Consumer;
@@ -57,9 +57,8 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 
 public class NioTransport extends TcpTransport<NioChannel> {
 
-    // TODO: Need to add to places where we check if transport thread
-    public static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = "transport_worker";
-    public static final String TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX = "transport_acceptor";
+    public static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = Transports.NIO_TRANSPORT_WORKER_THREAD_NAME_PREFIX;
+    public static final String TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX = Transports.NIO_TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX;
 
     public static final Setting<Integer> NIO_WORKER_COUNT =
         new Setting<>("transport.nio.worker_count",
@@ -70,7 +69,6 @@ public class NioTransport extends TcpTransport<NioChannel> {
         intSetting("transport.nio.acceptor_count", 1, 1, Setting.Property.NodeScope);
 
     private final TcpReadHandler tcpReadHandler = new TcpReadHandler(this);
-    private final BigArrays bigArrays;
     private final ConcurrentMap<String, ChannelFactory> profileToChannelFactory = newConcurrentMap();
     private final OpenChannels openChannels = new OpenChannels(logger);
     private final ArrayList<AcceptingSelector> acceptors = new ArrayList<>();
@@ -81,7 +79,6 @@ public class NioTransport extends TcpTransport<NioChannel> {
     public NioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                         NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super("nio", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
-        this.bigArrays = bigArrays;
     }
 
     @Override
@@ -103,21 +100,29 @@ public class NioTransport extends TcpTransport<NioChannel> {
     }
 
     @Override
-    protected void closeChannels(List<NioChannel> channels) throws IOException {
-        IOException closingExceptions = null;
+    protected void closeChannels(List<NioChannel> channels, boolean blocking) throws IOException {
+        ArrayList<CloseFuture> futures = new ArrayList<>(channels.size());
         for (final NioChannel channel : channels) {
             if (channel != null && channel.isOpen()) {
-                try {
-                    channel.closeAsync().awaitClose();
-                } catch (Exception e) {
-                    if (closingExceptions == null) {
-                        closingExceptions = new IOException("failed to close channels");
-                    }
-                    closingExceptions.addSuppressed(e.getCause());
-                }
+                futures.add(channel.closeAsync());
             }
         }
+        if (blocking == false) {
+            return;
+        }
 
+        IOException closingExceptions = null;
+        for (CloseFuture future : futures) {
+            try {
+                future.awaitClose();
+                IOException closeException = future.getCloseException();
+                if (closeException != null) {
+                    closingExceptions = addClosingException(closingExceptions, closeException);
+                }
+            } catch (InterruptedException e) {
+                closingExceptions = addClosingException(closingExceptions, e);
+            }
+        }
         if (closingExceptions != null) {
             throw closingExceptions;
         }
@@ -169,13 +174,9 @@ public class NioTransport extends TcpTransport<NioChannel> {
                     acceptors.add(acceptor);
                 }
                 // loop through all profiles and start them up, special handling for default one
-                for (Map.Entry<String, Settings> entry : buildProfileSettings().entrySet()) {
-                    // merge fallback settings with default settings with profile settings so we have complete settings with default values
-                    final Settings settings = Settings.builder()
-                        .put(createFallbackSettings())
-                        .put(entry.getValue()).build();
-                    profileToChannelFactory.putIfAbsent(entry.getKey(), new ChannelFactory(settings, tcpReadHandler));
-                    bindServer(entry.getKey(), settings);
+                for (ProfileSettings profileSettings : profileSettings) {
+                    profileToChannelFactory.putIfAbsent(profileSettings.profileName, new ChannelFactory(profileSettings, tcpReadHandler));
+                    bindServer(profileSettings);
                 }
             }
             client = createClient();
@@ -226,50 +227,18 @@ public class NioTransport extends TcpTransport<NioChannel> {
         onException(channel, t instanceof Exception ? (Exception) t : new ElasticsearchException(t));
     }
 
-    private Settings createFallbackSettings() {
-        Settings.Builder fallbackSettingsBuilder = Settings.builder();
-
-        List<String> fallbackBindHost = TransportSettings.BIND_HOST.get(settings);
-        if (fallbackBindHost.isEmpty() == false) {
-            fallbackSettingsBuilder.putArray("bind_host", fallbackBindHost);
-        }
-
-        List<String> fallbackPublishHost = TransportSettings.PUBLISH_HOST.get(settings);
-        if (fallbackPublishHost.isEmpty() == false) {
-            fallbackSettingsBuilder.putArray("publish_host", fallbackPublishHost);
-        }
-
-        boolean fallbackTcpNoDelay = settings.getAsBoolean("transport.nio.tcp_no_delay",
-            NetworkService.TcpSettings.TCP_NO_DELAY.get(settings));
-        fallbackSettingsBuilder.put("tcp_no_delay", fallbackTcpNoDelay);
-
-        boolean fallbackTcpKeepAlive = settings.getAsBoolean("transport.nio.tcp_keep_alive",
-            NetworkService.TcpSettings.TCP_KEEP_ALIVE.get(settings));
-        fallbackSettingsBuilder.put("tcp_keep_alive", fallbackTcpKeepAlive);
-
-        boolean fallbackReuseAddress = settings.getAsBoolean("transport.nio.reuse_address",
-            NetworkService.TcpSettings.TCP_REUSE_ADDRESS.get(settings));
-        fallbackSettingsBuilder.put("reuse_address", fallbackReuseAddress);
-
-        ByteSizeValue fallbackTcpSendBufferSize = settings.getAsBytesSize("transport.nio.tcp_send_buffer_size",
-            TCP_SEND_BUFFER_SIZE.get(settings));
-        if (fallbackTcpSendBufferSize.getBytes() >= 0) {
-            fallbackSettingsBuilder.put("tcp_send_buffer_size", fallbackTcpSendBufferSize);
-        }
-
-        ByteSizeValue fallbackTcpBufferSize = settings.getAsBytesSize("transport.nio.tcp_receive_buffer_size",
-            TCP_RECEIVE_BUFFER_SIZE.get(settings));
-        if (fallbackTcpBufferSize.getBytes() >= 0) {
-            fallbackSettingsBuilder.put("tcp_receive_buffer_size", fallbackTcpBufferSize);
-        }
-
-        return fallbackSettingsBuilder.build();
-    }
-
     private NioClient createClient() {
         Supplier<SocketSelector> selectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
-        ChannelFactory channelFactory = new ChannelFactory(settings, tcpReadHandler);
+        ChannelFactory channelFactory = new ChannelFactory(new ProfileSettings(settings, "default"), tcpReadHandler);
         return new NioClient(logger, openChannels, selectorSupplier, defaultConnectionProfile.getConnectTimeout(), channelFactory);
+    }
+
+    private IOException addClosingException(IOException closingExceptions, Exception e) {
+        if (closingExceptions == null) {
+            closingExceptions = new IOException("failed to close channels");
+        }
+        closingExceptions.addSuppressed(e);
+        return closingExceptions;
     }
 
     class ClientChannelCloseListener implements Consumer<NioChannel> {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -66,6 +67,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
 
     private int successfulShards;
 
+    private int skippedShards;
+
     private ShardSearchFailure[] shardFailures;
 
     private long tookInMillis;
@@ -74,13 +77,15 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     public SearchResponse(SearchResponseSections internalResponse, String scrollId, int totalShards, int successfulShards,
-                          long tookInMillis, ShardSearchFailure[] shardFailures) {
+                          int skippedShards, long tookInMillis, ShardSearchFailure[] shardFailures) {
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
+        this.skippedShards = skippedShards;
         this.tookInMillis = tookInMillis;
         this.shardFailures = shardFailures;
+        assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
     }
 
     @Override
@@ -147,6 +152,14 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         return successfulShards;
     }
 
+
+    /**
+     * The number of shards skipped due to pre-filtering
+     */
+    public int getSkippedShards() {
+        return skippedShards;
+    }
+
     /**
      * The failed number of shards the search was executed on.
      */
@@ -206,8 +219,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         if (getNumReducePhases() != 1) {
             builder.field(NUM_REDUCE_PHASES.getPreferredName(), getNumReducePhases());
         }
-        RestActions.buildBroadcastShardsHeader(builder, params, getTotalShards(), getSuccessfulShards(), getFailedShards(),
-            getShardFailures());
+        RestActions.buildBroadcastShardsHeader(builder, params, getTotalShards(), getSuccessfulShards(), getSkippedShards(),
+            getFailedShards(), getShardFailures());
         internalResponse.toXContent(builder, params);
         return builder;
     }
@@ -226,6 +239,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         long tookInMillis = -1;
         int successfulShards = -1;
         int totalShards = -1;
+        int skippedShards = 0; // 0 for BWC
         String scrollId = null;
         List<ShardSearchFailure> failures = new ArrayList<>();
         while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -265,6 +279,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                                 successfulShards = parser.intValue();
                             } else if (RestActions.TOTAL_FIELD.match(currentFieldName)) {
                                 totalShards = parser.intValue();
+                            } else if (RestActions.SKIPPED_FIELD.match(currentFieldName)) {
+                                skippedShards = parser.intValue();
                             } else {
                                 parser.skipChildren();
                             }
@@ -287,7 +303,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         SearchResponseSections searchResponseSections = new SearchResponseSections(hits, aggs, suggest, timedOut, terminatedEarly,
                 profile, numReducePhases);
-        return new SearchResponse(searchResponseSections, scrollId, totalShards, successfulShards, tookInMillis,
+        return new SearchResponse(searchResponseSections, scrollId, totalShards, successfulShards, skippedShards, tookInMillis,
                 failures.toArray(new ShardSearchFailure[failures.size()]));
     }
 
@@ -308,6 +324,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            skippedShards = in.readVInt();
+        }
     }
 
     @Override
@@ -324,10 +343,14 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
 
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
+        if(out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            out.writeVInt(skippedShards);
+        }
     }
 
     @Override
     public String toString() {
         return Strings.toString(this);
     }
+
 }

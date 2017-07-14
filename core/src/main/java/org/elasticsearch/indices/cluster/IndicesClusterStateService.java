@@ -89,6 +89,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.CLOSED;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
@@ -382,14 +383,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     /**
      * Removes shards that are currently loaded by indicesService but have disappeared from the routing table of the current node.
-     * Also removes shards where the recovery source node has changed.
      * This method does not delete the shard data.
      *
      * @param state new cluster state
      */
     private void removeShards(final ClusterState state) {
-        final RoutingTable routingTable = state.routingTable();
-        final DiscoveryNodes nodes = state.nodes();
         final String localNodeId = state.nodes().getLocalNodeId();
         assert localNodeId != null;
 
@@ -557,17 +555,25 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 + "cluster state: " + shardRouting + " local: " + currentRoutingEntry;
 
         try {
-            final long primaryTerm = clusterState.metaData().index(shard.shardId().getIndex()).primaryTerm(shard.shardId().id());
+            final IndexMetaData indexMetaData = clusterState.metaData().index(shard.shardId().getIndex());
+            final long primaryTerm = indexMetaData.primaryTerm(shard.shardId().id());
+            final Set<String> inSyncIds = indexMetaData.inSyncAllocationIds(shard.shardId().id());
             final IndexShardRoutingTable indexShardRoutingTable = routingTable.shardRoutingTable(shardRouting.shardId());
-            /*
-             * Filter to shards that track sequence numbers and should be taken into consideration for checkpoint tracking. Shards on old
-             * nodes will go through a file-based recovery which will also transfer sequence number information.
-             */
-            final Set<String> activeIds = allocationIdsForShardsOnNodesThatUnderstandSeqNos(indexShardRoutingTable.activeShards(), nodes);
-            final Set<String> initializingIds =
-                    allocationIdsForShardsOnNodesThatUnderstandSeqNos(indexShardRoutingTable.getAllInitializingShards(), nodes);
-            shard.updateShardState(
-                    shardRouting, primaryTerm, primaryReplicaSyncer::resync, clusterState.version(), activeIds, initializingIds);
+            final Set<String> pre60AllocationIds = indexShardRoutingTable.assignedShards()
+                .stream()
+                .flatMap(shr -> {
+                    if (shr.relocating()) {
+                        return Stream.of(shr, shr.getTargetRelocatingShard());
+                    } else {
+                        return Stream.of(shr);
+                    }
+                })
+                .filter(shr -> nodes.get(shr.currentNodeId()).getVersion().before(Version.V_6_0_0_alpha1))
+                .map(ShardRouting::allocationId)
+                .map(AllocationId::getId)
+                .collect(Collectors.toSet());
+            shard.updateShardState(shardRouting, primaryTerm, primaryReplicaSyncer::resync, clusterState.version(),
+                inSyncIds, indexShardRoutingTable, pre60AllocationIds);
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed updating shard routing entry", e, clusterState);
             return;
@@ -588,17 +594,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     SHARD_STATE_ACTION_LISTENER, clusterState);
             }
         }
-    }
-
-    private Set<String> allocationIdsForShardsOnNodesThatUnderstandSeqNos(
-            final List<ShardRouting> shardRoutings,
-            final DiscoveryNodes nodes) {
-        return shardRoutings
-                .stream()
-                .filter(sr -> nodes.get(sr.currentNodeId()).getVersion().onOrAfter(Version.V_6_0_0_alpha1))
-                .map(ShardRouting::allocationId)
-                .map(AllocationId::getId)
-                .collect(Collectors.toSet());
     }
 
     /**
@@ -738,14 +733,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * - Updates and persists the new routing value.
          * - Updates the primary term if this shard is a primary.
          * - Updates the allocation ids that are tracked by the shard if it is a primary.
-         * See {@link GlobalCheckpointTracker#updateAllocationIdsFromMaster(long, Set, Set)} for details.
+         *   See {@link GlobalCheckpointTracker#updateFromMaster(long, Set, IndexShardRoutingTable, Set)} for details.
          *
          * @param shardRouting                the new routing entry
          * @param primaryTerm                 the new primary term
          * @param primaryReplicaSyncer        the primary-replica resync action to trigger when a term is increased on a primary
          * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
-         * @param activeAllocationIds         the allocation ids of the currently active shard copies
-         * @param initializingAllocationIds   the allocation ids of the currently initializing shard copies
+         * @param inSyncAllocationIds         the allocation ids of the currently in-sync shard copies
+         * @param routingTable                the shard routing table
          * @throws IndexShardRelocatedException if shard is marked as relocated and relocation aborted
          * @throws IOException                  if shard state could not be persisted
          */
@@ -753,8 +748,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                               long primaryTerm,
                               CheckedBiConsumer<IndexShard, ActionListener<ResyncTask>, IOException> primaryReplicaSyncer,
                               long applyingClusterStateVersion,
-                              Set<String> activeAllocationIds,
-                              Set<String> initializingAllocationIds) throws IOException;
+                              Set<String> inSyncAllocationIds,
+                              IndexShardRoutingTable routingTable,
+                              Set<String> pre60AllocationIds) throws IOException;
     }
 
     public interface AllocatedIndex<T extends Shard> extends Iterable<T>, IndexComponent {

@@ -6,8 +6,7 @@ formula:
 
     shard_num = hash(_routing) % num_primary_shards
 
-The default value used for `_routing` is the document's <<mapping-id-field,`_id`>>
-or the document's <<mapping-parent-field,`_parent`>> ID, if present.
+The default value used for `_routing` is the document's <<mapping-id-field,`_id`>>.
 
 Custom routing patterns can be implemented by specifying a custom `routing`
 value per document.  For instance:
@@ -133,5 +132,5 @@ less than `index.number_of_shards`.
 
 Once enabled, the partitioned index will have the following limitations:
 
-*   Mappings with parent-child relationships cannot be created within it.
+*   Mappings with <<parent-join,`join` field>> relationships cannot be created within it.
 *   All mappings within the index must have the `_routing` field marked as required.

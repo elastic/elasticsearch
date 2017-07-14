@@ -95,13 +95,6 @@ public class QueryRewriteContext {
         return xContentRegistry;
     }
 
-    /**
-     * Returns a new {@link QueryParseContext} that wraps the provided parser.
-     */
-    public QueryParseContext newParseContext(XContentParser parser) {
-        return new QueryParseContext(parser);
-    }
-
     public long nowInMillis() {
         return nowInMillis.getAsLong();
     }

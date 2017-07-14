@@ -39,6 +39,32 @@ For instance the following creates two parent documents in the `my_parent` conte
 PUT my_index/doc/1?refresh
 {
   "text": "This is a parent document",
+  "my_join_field": {
+    "name": "my_parent" <1>
+  }
+}
+
+PUT my_index/doc/2?refresh
+{
+  "text": "This is a another parent document",
+  "my_join_field": {
+    "name": "my_parent"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> This document is a `my_parent` document.
+
+When indexing parent documents, you can choose to specify just the name of the relation
+as a shortcut instead of encapsulating it in the normal object notation:
+
+[source,js]
+--------------------------------------------------
+PUT my_index/doc/1?refresh
+{
+  "text": "This is a parent document",
   "my_join_field": "my_parent" <1>
 }
 
@@ -51,7 +77,7 @@ PUT my_index/doc/2?refresh
 // CONSOLE
 // TEST[continued]
 
-<1> This document is a `my_parent` document.
+<1> Simpler notation for a parent document just uses the relation name.
 
 When indexing a child, the name of the relation as well as the parent id of the document
 must be added in the `_source`.
@@ -60,7 +86,7 @@ WARNING: It is required to index the lineage of a parent in the same shard so yo
 always route child documents using their greater parent id.
 
 
-For instance the following index two children documents pointing to the same parent `1
+For instance the following index two children documents pointing to the same parent `1`
 with a `routing` value equals to the `id` of the parent:
 
 [source,js]
@@ -150,12 +176,7 @@ Will return:
                 "_score": null,
                 "_source": {
                     "text": "This is a parent document",
-                    "my_join_field": "my_parent"
-                },
-                "fields": {
-                    "my_join_field": [
-                        "my_parent"   <1>
-                    ]
+                    "my_join_field": "my_parent" <1>
                 },
                 "sort": [
                     "1"
@@ -168,12 +189,7 @@ Will return:
                 "_score": null,
                 "_source": {
                     "text": "This is a another parent document",
-                    "my_join_field": "my_parent"
-                },
-                "fields": {
-                    "my_join_field": [
-                        "my_parent"  <2>
-                    ]
+                    "my_join_field": "my_parent" <2>
                 },
                 "sort": [
                     "2"
@@ -192,14 +208,6 @@ Will return:
                         "parent": "1"  <4>
                     }
                 },
-                "fields": {
-                    "my_join_field": [
-                        "my_child"
-                    ],
-                    "my_join_field#my_parent": [
-                        "1"
-                    ]
-                },
                 "sort": [
                     "3"
                 ]
@@ -216,14 +224,6 @@ Will return:
                         "name": "my_child",
                         "parent": "1"
                     }
-                },
-                "fields": {
-                    "my_join_field": [
-                        "my_child"
-                    ],
-                    "my_join_field#my_parent": [
-                        "1"
-                    ]
                 },
                 "sort": [
                     "4"

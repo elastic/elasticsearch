@@ -233,6 +233,23 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public void restoreLocalCheckpointFromTranslog() throws IOException {
+        try (ReleasableLock ignored = writeLock.acquire()) {
+            ensureOpen();
+            final long localCheckpoint = seqNoService().getLocalCheckpoint();
+            try (Translog.View view = getTranslog().newView()) {
+                final Translog.Snapshot snapshot = view.snapshot(localCheckpoint + 1);
+                Translog.Operation operation;
+                while ((operation = snapshot.next()) != null) {
+                    if (operation.seqNo() > localCheckpoint) {
+                        seqNoService().markSeqNoAsCompleted(operation.seqNo());
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
@@ -1333,6 +1350,24 @@ public class InternalEngine extends Engine {
                 e.addSuppressed(inner);
             }
             throw new EngineException(shardId, "failed to roll translog", e);
+        }
+    }
+
+    @Override
+    public void trimTranslog() throws EngineException {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            translog.trimUnreferencedReaders();
+        } catch (AlreadyClosedException e) {
+            failOnTragicEvent(e);
+            throw e;
+        } catch (Exception e) {
+            try {
+                failEngine("translog trimming failed", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new EngineException(shardId, "failed to trim translog", e);
         }
     }
 

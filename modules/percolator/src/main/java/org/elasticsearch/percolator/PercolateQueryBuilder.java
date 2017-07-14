@@ -68,7 +68,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -201,7 +200,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     PercolateQueryBuilder(StreamInput in) throws IOException {
         super(in);
         field = in.readString();
-        if (in.getVersion().before(Version.V_6_0_0_alpha3)) {
+        if (in.getVersion().before(Version.V_6_0_0_beta1)) {
             documentType = in.readString();
         } else {
             documentType = in.readOptionalString();
@@ -231,7 +230,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(field);
-        if (out.getVersion().before(Version.V_6_0_0_alpha3)) {
+        if (out.getVersion().before(Version.V_6_0_0_beta1)) {
             out.writeString(documentType);
         } else {
             out.writeOptionalString(documentType);
@@ -285,8 +284,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         builder.endObject();
     }
 
-    public static PercolateQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static PercolateQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
         String field = null;
@@ -385,7 +383,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) {
         if (document != null) {
             return this;
         }

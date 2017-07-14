@@ -1,5 +1,8 @@
 ---
 "Index data, search, and create things in the cluster state that we'll validate are there after the ugprade":
+  - skip:
+      features: warnings
+
   - do:
       indices.create:
         index: test_index
@@ -7,11 +10,37 @@
           settings:
             index:
               number_of_replicas: 0
+  - do:
+      indices.create:
+        index: multi_type_index
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.mapping.single_type: false
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "multi_type_index", "_type": "type1"}}'
+          - '{"f1": "v1_old", "f2": 0}'
+          - '{"index": {"_index": "multi_type_index", "_type": "type2"}}'
+          - '{"f1": "v1_old", "f2": 0}'
+
+  - do:
+      search:
+        index: multi_type_index
+
+  - match: { hits.total: 2 }
 
   - do:
       indices.create:
         index: index_with_replicas # dummy index to ensure we can recover indices with replicas just fine
-
+        body:
+          # if the node with the replica is the first to be restarted, then delayed
+          # allocation will kick in, and the cluster health won't return to GREEN
+          # before timing out
+          index.unassigned.node_left.delayed_timeout: "100ms"
   - do:
       bulk:
         refresh: true
@@ -79,6 +108,8 @@
   - match: { "acknowledged": true }
 
   - do:
+      warnings:
+        - 'The stored search template API is deprecated. Use stored scripts instead.'
       put_template:
         id: test_search_template
         body:

@@ -158,7 +158,7 @@ class NodeInfo {
                 args.add("${property.key.substring('tests.es.'.size())}=${property.value}")
             }
         }
-        env.put('ES_JVM_OPTIONS', new File(confDir, 'jvm.options'))
+        env.put('CONF_DIR', confDir)
         if (Version.fromString(nodeVersion).major == 5) {
             args.addAll("-E", "path.conf=${confDir}")
         } else {

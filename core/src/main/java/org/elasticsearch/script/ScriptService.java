@@ -231,28 +231,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         String id = idOrCode;
 
-        // lang may be null when looking up a stored script, so we must get the
-        // source to retrieve the lang before checking if the context is supported
         if (type == ScriptType.STORED) {
-            // search template requests can possibly pass in the entire path instead
-            // of just an id for looking up a stored script, so we parse the path and
-            // check for appropriate errors
-            String[] path = id.split("/");
-
-            if (path.length == 3) {
-                if (lang != null && lang.equals(path[1]) == false) {
-                    throw new IllegalStateException("conflicting script languages, found [" + path[1] + "] but expected [" + lang + "]");
-                }
-
-                id = path[2];
-
-                deprecationLogger.deprecated("use of </lang/id> [" + idOrCode + "] for looking up" +
-                    " stored scripts/templates has been deprecated, use only <id> [" + id + "] instead");
-            } else if (path.length != 1) {
-                throw new IllegalArgumentException("illegal stored script format [" + id + "] use only <id>");
-            }
-
-            // a stored script must be pulled from the cluster state every time in case
+            // * lang and options will both be null when looking up a stored script,
+            // so we must get the source to retrieve the them before checking if the
+            // context is supported
+            // * a stored script must be pulled from the cluster state every time in case
             // the script has been updated since the last compilation
             StoredScriptSource source = getScriptFromClusterState(id, lang);
             lang = source.getLang();
@@ -262,7 +245,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         // TODO: fix this through some API or something, that's wrong
         // special exception to prevent expressions from compiling as update or mapping scripts
-        boolean expression = "expression".equals(script.getLang());
+        boolean expression = "expression".equals(lang);
         boolean notSupported = context.name.equals(ExecutableScript.UPDATE_CONTEXT.name);
         if (expression && notSupported) {
             throw new UnsupportedOperationException("scripts of type [" + script.getType() + "]," +
@@ -303,7 +286,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 try {
                     // Either an un-cached inline script or indexed script
                     // If the script type is inline the name will be the same as the code for identification in exceptions
-
                     // but give the script engine the chance to be better, give it separate name + source code
                     // for the inline case, then its anonymous: null.
                     if (logger.isTraceEnabled()) {
@@ -379,22 +361,16 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     }
 
     StoredScriptSource getScriptFromClusterState(String id, String lang) {
-        if (lang != null && isLangSupported(lang) == false) {
-            throw new IllegalArgumentException("unable to get stored script with unsupported lang [" + lang + "]");
-        }
-
         ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
 
         if (scriptMetadata == null) {
-            throw new ResourceNotFoundException("unable to find script [" + id + "]" +
-                (lang == null ? "" : " using lang [" + lang + "]") + " in cluster state");
+            throw new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
         }
 
         StoredScriptSource source = scriptMetadata.getStoredScript(id, lang);
 
         if (source == null) {
-            throw new ResourceNotFoundException("unable to find script [" + id + "]" +
-                (lang == null ? "" : " using lang [" + lang + "]") + " in cluster state");
+            throw new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
         }
 
         return source;

@@ -29,12 +29,17 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -147,6 +152,65 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
     }
 
+    /*
+     * Simulate a scenario with two replicas where one of the replicas receives an extra document, the other replica is promoted on primary
+     * failure, the receiving replica misses the primary/replica re-sync and then recovers from the primary. We expect that a
+     * sequence-number based recovery is performed and the extra document does not remain after recovery.
+     */
+    public void testRecoveryToReplicaThatReceivedExtraDocument() throws Exception {
+        try (ReplicationGroup shards = createGroup(2)) {
+            shards.startAll();
+            final int docs = randomIntBetween(0, 16);
+            for (int i = 0; i < docs; i++) {
+                shards.index(
+                        new IndexRequest("index", "type", Integer.toString(i)).source("{}", XContentType.JSON));
+            }
+
+            shards.flush();
+            shards.syncGlobalCheckpoint();
+
+            final IndexShard oldPrimary = shards.getPrimary();
+            final IndexShard promotedReplica = shards.getReplicas().get(0);
+            final IndexShard remainingReplica = shards.getReplicas().get(1);
+            // slip the extra document into the replica
+            remainingReplica.applyIndexOperationOnReplica(
+                    remainingReplica.getLocalCheckpoint() + 1,
+                    remainingReplica.getPrimaryTerm(),
+                    1,
+                    VersionType.EXTERNAL,
+                    randomNonNegativeLong(),
+                    false,
+                    SourceToParse.source("index", "type", "replica", new BytesArray("{}"), XContentType.JSON),
+                    mapping -> {});
+            shards.promoteReplicaToPrimary(promotedReplica);
+            oldPrimary.close("demoted", randomBoolean());
+            oldPrimary.store().close();
+            shards.removeReplica(remainingReplica);
+            remainingReplica.close("disconnected", false);
+            remainingReplica.store().close();
+            // randomly introduce a conflicting document
+            final boolean extra = randomBoolean();
+            if (extra) {
+                promotedReplica.applyIndexOperationOnPrimary(
+                        Versions.MATCH_ANY,
+                        VersionType.INTERNAL,
+                        SourceToParse.source("index", "type", "primary", new BytesArray("{}"), XContentType.JSON),
+                        randomNonNegativeLong(),
+                        false,
+                        mapping -> {
+                        });
+            }
+            final IndexShard recoveredReplica =
+                    shards.addReplicaWithExistingPath(remainingReplica.shardPath(), remainingReplica.routingEntry().currentNodeId());
+            shards.recoverReplica(recoveredReplica);
+
+            assertThat(recoveredReplica.recoveryState().getIndex().fileDetails(), empty());
+            assertThat(recoveredReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(extra ? 1 : 0));
+
+            shards.assertAllEqual(docs + (extra ? 1 : 0));
+        }
+    }
+
     @TestLogging("org.elasticsearch.index.shard:TRACE,org.elasticsearch.indices.recovery:TRACE")
     public void testRecoveryAfterPrimaryPromotion() throws Exception {
         try (ReplicationGroup shards = createGroup(2)) {
@@ -157,14 +221,11 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 shards.flush();
                 committedDocs = totalDocs;
             }
-            // we need some indexing to happen to transfer local checkpoint information to the primary
-            // so it can update the global checkpoint and communicate to replicas
-            boolean expectSeqNoRecovery = totalDocs > 0;
-
 
             final IndexShard oldPrimary = shards.getPrimary();
             final IndexShard newPrimary = shards.getReplicas().get(0);
             final IndexShard replica = shards.getReplicas().get(1);
+            boolean expectSeqNoRecovery = true;
             if (randomBoolean()) {
                 // simulate docs that were inflight when primary failed, these will be rolled back
                 final int rollbackDocs = randomIntBetween(1, 5);
@@ -182,6 +243,12 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             }
 
             shards.promoteReplicaToPrimary(newPrimary);
+
+            // check that local checkpoint of new primary is properly tracked after primary promotion
+            assertThat(newPrimary.getLocalCheckpoint(), equalTo(totalDocs - 1L));
+            assertThat(IndexShardTestCase.getEngine(newPrimary).seqNoService()
+                .getTrackedLocalCheckpointForShard(newPrimary.routingEntry().allocationId().getId()), equalTo(totalDocs - 1L));
+
             // index some more
             totalDocs += shards.indexDocs(randomIntBetween(0, 5));
 

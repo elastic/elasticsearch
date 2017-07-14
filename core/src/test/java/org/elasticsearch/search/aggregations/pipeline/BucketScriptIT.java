@@ -496,7 +496,7 @@ public class BucketScriptIT extends ESIntegTestCase {
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(
                                         bucketScript("seriesArithmetic",
-                                                new Script(ScriptType.STORED, CustomScriptPlugin.NAME, "my_script", Collections.emptyMap()),
+                                                new Script(ScriptType.STORED, null, "my_script", Collections.emptyMap()),
                                                 "field2Sum", "field3Sum", "field4Sum"))).execute().actionGet();
 
         assertSearchResponse(response);

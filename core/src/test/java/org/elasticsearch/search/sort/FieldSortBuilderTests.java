@@ -22,7 +22,6 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -133,10 +132,8 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         parser.nextToken();
         parser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(parser);
-
         try {
-          FieldSortBuilder.fromXContent(context, "");
+          FieldSortBuilder.fromXContent(parser, "");
           fail("adding reverse sorting option should fail with an exception");
         } catch (IllegalArgumentException e) {
             // all good
@@ -145,7 +142,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
 
 
     @Override
-    protected FieldSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
-        return FieldSortBuilder.fromXContent(context, fieldName);
+    protected FieldSortBuilder fromXContent(XContentParser parser, String fieldName) throws IOException {
+        return FieldSortBuilder.fromXContent(parser, fieldName);
     }
 }

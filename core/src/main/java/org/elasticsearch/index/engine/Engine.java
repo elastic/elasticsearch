@@ -803,11 +803,17 @@ public abstract class Engine implements Closeable {
      */
     public abstract CommitId flush() throws EngineException;
 
+
+    /**
+     * checks and removes translog files that no longer need to be retained. See
+     * {@link org.elasticsearch.index.translog.TranslogDeletionPolicy} for details
+     */
+    public abstract void trimTranslog() throws EngineException;
+
     /**
      * Rolls the translog generation and cleans unneeded.
      */
     public abstract void rollTranslogGeneration() throws EngineException;
-
 
     /**
      * Force merges to 1 segment
@@ -1444,6 +1450,14 @@ public abstract class Engine implements Closeable {
      * Reverses a previous {@link #activateThrottling} call.
      */
     public abstract void deactivateThrottling();
+
+    /**
+     * Marks operations in the translog as completed. This is used to restore the state of the local checkpoint tracker on primary
+     * promotion.
+     *
+     * @throws IOException if an I/O exception occurred reading the translog
+     */
+    public abstract void restoreLocalCheckpointFromTranslog() throws IOException;
 
     /**
      * Fills up the local checkpoints history with no-ops until the local checkpoint

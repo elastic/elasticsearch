@@ -45,6 +45,8 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
     /** Default for flag controlling whether matches are required to be in-order */
     public static boolean DEFAULT_IN_ORDER = true;
+    /** Default slop value, this is the same that lucene {@link SpanNearQuery} uses if no slop is provided */
+    public static int DEFAULT_SLOP = 0;
 
     private static final ParseField SLOP_FIELD = new ParseField("slop");
     private static final ParseField CLAUSES_FIELD = new ParseField("clauses");
@@ -143,12 +145,10 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         builder.endObject();
     }
 
-    public static SpanNearQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static SpanNearQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        Integer slop = null;
-        boolean inOrder = SpanNearQueryBuilder.DEFAULT_IN_ORDER;
+        int slop = DEFAULT_SLOP;
+        boolean inOrder = DEFAULT_IN_ORDER;
         String queryName = null;
 
         List<SpanQueryBuilder> clauses = new ArrayList<>();
@@ -161,7 +161,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (CLAUSES_FIELD.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                        QueryBuilder query = parseInnerQueryBuilder(parser);
                         if (query instanceof SpanQueryBuilder == false) {
                             throw new ParsingException(parser.getTokenLocation(), "spanNear [clauses] must be of type span query");
                         }
@@ -189,10 +189,6 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
         if (clauses.isEmpty()) {
             throw new ParsingException(parser.getTokenLocation(), "span_near must include [clauses]");
-        }
-
-        if (slop == null) {
-            throw new ParsingException(parser.getTokenLocation(), "span_near must include [slop]");
         }
 
         SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(clauses.get(0), slop);

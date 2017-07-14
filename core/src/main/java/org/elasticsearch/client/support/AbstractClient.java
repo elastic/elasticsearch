@@ -280,10 +280,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequestBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.fieldstats.FieldStatsAction;
-import org.elasticsearch.action.fieldstats.FieldStatsRequest;
-import org.elasticsearch.action.fieldstats.FieldStatsRequestBuilder;
-import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
@@ -658,21 +654,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public ClearScrollRequestBuilder prepareClearScroll() {
         return new ClearScrollRequestBuilder(this, ClearScrollAction.INSTANCE);
-    }
-
-    @Override
-    public void fieldStats(FieldStatsRequest request, ActionListener<FieldStatsResponse> listener) {
-        execute(FieldStatsAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public ActionFuture<FieldStatsResponse> fieldStats(FieldStatsRequest request) {
-        return execute(FieldStatsAction.INSTANCE, request);
-    }
-
-    @Override
-    public FieldStatsRequestBuilder prepareFieldStats() {
-        return new FieldStatsRequestBuilder(this, FieldStatsAction.INSTANCE);
     }
 
     @Override

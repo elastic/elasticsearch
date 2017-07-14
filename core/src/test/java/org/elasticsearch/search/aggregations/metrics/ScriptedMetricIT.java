@@ -791,13 +791,13 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                         scriptedMetric("scripted")
                                 .params(params)
                                 .initScript(
-                                    new Script(ScriptType.STORED, CustomScriptPlugin.NAME, "initScript_stored", Collections.emptyMap()))
+                                    new Script(ScriptType.STORED, null, "initScript_stored", Collections.emptyMap()))
                                 .mapScript(
-                                    new Script(ScriptType.STORED, CustomScriptPlugin.NAME, "mapScript_stored", Collections.emptyMap()))
+                                    new Script(ScriptType.STORED, null, "mapScript_stored", Collections.emptyMap()))
                                 .combineScript(
-                                    new Script(ScriptType.STORED, CustomScriptPlugin.NAME, "combineScript_stored", Collections.emptyMap()))
+                                    new Script(ScriptType.STORED, null, "combineScript_stored", Collections.emptyMap()))
                                 .reduceScript(
-                                    new Script(ScriptType.STORED, CustomScriptPlugin.NAME, "reduceScript_stored", Collections.emptyMap())))
+                                    new Script(ScriptType.STORED, null, "reduceScript_stored", Collections.emptyMap())))
                 .get();
         assertSearchResponse(response);
         assertThat(response.getHits().getTotalHits(), equalTo(numDocs));

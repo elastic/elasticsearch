@@ -27,18 +27,14 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
@@ -235,25 +231,6 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return fields;
             }
-
-            @Override
-            FieldStats.Double stats(IndexReader reader, String fieldName,
-                                    boolean isSearchable, boolean isAggregatable) throws IOException {
-                FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(fieldName);
-                if (fi == null) {
-                    return null;
-                }
-                long size = PointValues.size(reader, fieldName);
-                if (size == 0) {
-                    return new FieldStats.Double(reader.maxDoc(), 0, -1, -1, isSearchable, isAggregatable);
-                }
-                int docCount = PointValues.getDocCount(reader, fieldName);
-                byte[] min = PointValues.getMinPackedValue(reader, fieldName);
-                byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
-                return new FieldStats.Double(reader.maxDoc(), docCount, -1L, size,
-                    isSearchable, isAggregatable,
-                    HalfFloatPoint.decodeDimension(min, 0), HalfFloatPoint.decodeDimension(max, 0));
-            }
         },
         FLOAT("float", NumericType.FLOAT) {
             @Override
@@ -330,25 +307,6 @@ public class NumberFieldMapper extends FieldMapper {
                     fields.add(new StoredField(name, value.floatValue()));
                 }
                 return fields;
-            }
-
-            @Override
-            FieldStats.Double stats(IndexReader reader, String fieldName,
-                                    boolean isSearchable, boolean isAggregatable) throws IOException {
-                FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(fieldName);
-                if (fi == null) {
-                    return null;
-                }
-                long size = PointValues.size(reader, fieldName);
-                if (size == 0) {
-                    return new FieldStats.Double(reader.maxDoc(), 0, -1, -1, isSearchable, isAggregatable);
-                }
-                int docCount = PointValues.getDocCount(reader, fieldName);
-                byte[] min = PointValues.getMinPackedValue(reader, fieldName);
-                byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
-                return new FieldStats.Double(reader.maxDoc(),docCount, -1L, size,
-                    isSearchable, isAggregatable,
-                    FloatPoint.decodeDimension(min, 0), FloatPoint.decodeDimension(max, 0));
             }
         },
         DOUBLE("double", NumericType.DOUBLE) {
@@ -427,25 +385,6 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return fields;
             }
-
-            @Override
-            FieldStats.Double stats(IndexReader reader, String fieldName,
-                                    boolean isSearchable, boolean isAggregatable) throws IOException {
-                FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(fieldName);
-                if (fi == null) {
-                    return null;
-                }
-                long size = PointValues.size(reader, fieldName);
-                if (size == 0) {
-                    return new FieldStats.Double(reader.maxDoc(),0, -1, -1, isSearchable, isAggregatable);
-                }
-                int docCount = PointValues.getDocCount(reader, fieldName);
-                byte[] min = PointValues.getMinPackedValue(reader, fieldName);
-                byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
-                return new FieldStats.Double(reader.maxDoc(),docCount, -1L, size,
-                    isSearchable, isAggregatable,
-                    DoublePoint.decodeDimension(min, 0), DoublePoint.decodeDimension(max, 0));
-            }
         },
         BYTE("byte", NumericType.BYTE) {
             @Override
@@ -496,12 +435,6 @@ public class NumberFieldMapper extends FieldMapper {
             public List<Field> createFields(String name, Number value,
                                             boolean indexed, boolean docValued, boolean stored) {
                 return INTEGER.createFields(name, value, indexed, docValued, stored);
-            }
-
-            @Override
-            FieldStats.Long stats(IndexReader reader, String fieldName,
-                                  boolean isSearchable, boolean isAggregatable) throws IOException {
-                return (FieldStats.Long) INTEGER.stats(reader, fieldName, isSearchable, isAggregatable);
             }
 
             @Override
@@ -558,12 +491,6 @@ public class NumberFieldMapper extends FieldMapper {
             public List<Field> createFields(String name, Number value,
                                             boolean indexed, boolean docValued, boolean stored) {
                 return INTEGER.createFields(name, value, indexed, docValued, stored);
-            }
-
-            @Override
-            FieldStats.Long stats(IndexReader reader, String fieldName,
-                                  boolean isSearchable, boolean isAggregatable) throws IOException {
-                return (FieldStats.Long) INTEGER.stats(reader, fieldName, isSearchable, isAggregatable);
             }
 
             @Override
@@ -681,25 +608,6 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return fields;
             }
-
-            @Override
-            FieldStats.Long stats(IndexReader reader, String fieldName,
-                                  boolean isSearchable, boolean isAggregatable) throws IOException {
-                FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(fieldName);
-                if (fi == null) {
-                    return null;
-                }
-                long size = PointValues.size(reader, fieldName);
-                if (size == 0) {
-                    return new FieldStats.Long(reader.maxDoc(), 0, -1, -1, isSearchable, isAggregatable);
-                }
-                int docCount = PointValues.getDocCount(reader, fieldName);
-                byte[] min = PointValues.getMinPackedValue(reader, fieldName);
-                byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
-                return new FieldStats.Long(reader.maxDoc(),docCount, -1L, size,
-                    isSearchable, isAggregatable,
-                    IntPoint.decodeDimension(min, 0), IntPoint.decodeDimension(max, 0));
-            }
         },
         LONG("long", NumericType.LONG) {
             @Override
@@ -811,25 +719,6 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return fields;
             }
-
-            @Override
-            FieldStats.Long stats(IndexReader reader, String fieldName,
-                                  boolean isSearchable, boolean isAggregatable) throws IOException {
-                FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(fieldName);
-                if (fi == null) {
-                    return null;
-                }
-                long size = PointValues.size(reader, fieldName);
-                if (size == 0) {
-                    return new FieldStats.Long(reader.maxDoc(), 0, -1, -1, isSearchable, isAggregatable);
-                }
-                int docCount = PointValues.getDocCount(reader, fieldName);
-                byte[] min = PointValues.getMinPackedValue(reader, fieldName);
-                byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
-                return new FieldStats.Long(reader.maxDoc(),docCount, -1L, size,
-                    isSearchable, isAggregatable,
-                    LongPoint.decodeDimension(min, 0), LongPoint.decodeDimension(max, 0));
-            }
         };
 
         private final String name;
@@ -857,8 +746,6 @@ public class NumberFieldMapper extends FieldMapper {
         abstract Number parse(Object value, boolean coerce);
         public abstract List<Field> createFields(String name, Number value, boolean indexed,
                                                  boolean docValued, boolean stored);
-        abstract FieldStats<? extends Number> stats(IndexReader reader, String fieldName,
-                                                    boolean isSearchable, boolean isAggregatable) throws IOException;
         Number valueForSearch(Number value) {
             return value;
         }
@@ -951,11 +838,6 @@ public class NumberFieldMapper extends FieldMapper {
                 query = new BoostQuery(query, boost());
             }
             return query;
-        }
-
-        @Override
-        public FieldStats stats(IndexReader reader) throws IOException {
-            return type.stats(reader, name(), isSearchable(), isAggregatable());
         }
 
         @Override

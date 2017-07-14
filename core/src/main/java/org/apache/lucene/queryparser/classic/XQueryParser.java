@@ -19,10 +19,22 @@
 
 package org.apache.lucene.queryparser.classic;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.query.QueryShardContext;
 
-public interface FieldQueryExtension {
+/**
+ * This class is just a workaround to make {@link QueryParser#handleBareFuzzy(String, Token, String)} accessible by sub-classes.
+ * It is needed for {@link QueryParser}s that need to override the parsing of the slop in a fuzzy query (e.g. word<b>~2</b>, word<b>~</b>).
+ *
+ * TODO: We should maybe rewrite this with the flexible query parser which matches the same syntax with more freedom.
+ */
+public class XQueryParser extends QueryParser {
+    public XQueryParser(String f, Analyzer a) {
+        super(f, a);
+    }
 
-    Query query(QueryShardContext context, String queryText);
+    @Override
+    protected Query handleBareFuzzy(String field, Token fuzzySlop, String termImage) throws ParseException {
+        return super.handleBareFuzzy(field, fuzzySlop, termImage);
+    }
 }

@@ -13,15 +13,21 @@
     - match:  { nodes.$master.modules.0.name: lang-mustache  }
 
 ---
-"Indexed template":
+"Stored template":
+  - skip:
+      features: "warnings"
 
   - do:
+      warnings:
+        - "The stored search template API is deprecated. Use stored scripts instead."
       put_template:
         id: "1"
         body: { "template": { "query": { "match_all": {}}, "size": "{{my_size}}" } }
   - match: { acknowledged: true }
 
   - do:
+      warnings:
+        - "The stored search template API is deprecated. Use stored scripts instead."
       get_template:
         id: 1
   - match: { found: true }
@@ -30,6 +36,8 @@
   - match: { template: /.*query\S\S\S\Smatch_all.*/ }
 
   - do:
+      warnings:
+        - "The stored search template API is deprecated. Use stored scripts instead."
       catch: missing
       get_template:
         id: 2
@@ -38,22 +46,30 @@
   - match: { _id: "2" }
 
   - do:
+      warnings:
+        - "The stored search template API is deprecated. Use stored scripts instead."
       delete_template:
         id: "1"
   - match: { acknowledged: true }
 
   - do:
+      warnings:
+        - "The stored search template API is deprecated. Use stored scripts instead."
       catch: missing
       delete_template:
         id: "non_existing"
 
   - do:
+      warnings:
+        - "The stored search template API is deprecated. Use stored scripts instead."
       catch: request
       put_template:
         id: "1"
         body: { "template": { "query": { "match{{}}_all": {}}, "size": "{{my_size}}" } }
 
   - do:
+      warnings:
+        - "The stored search template API is deprecated. Use stored scripts instead."
       catch: /failed\sto\sparse.*/
       put_template:
         id: "1"

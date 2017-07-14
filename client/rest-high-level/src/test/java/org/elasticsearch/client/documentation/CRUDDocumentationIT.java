@@ -283,7 +283,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request = new UpdateRequest("posts", "doc", "1").fetchSource(true);
             //tag::update-request-with-stored-script
             Script stored =
-                    new Script(ScriptType.STORED, "painless", "increment-field", parameters);  // <1>
+                    new Script(ScriptType.STORED, null, "increment-field", parameters);  // <1>
             request.script(stored);  // <2>
             //end::update-request-with-stored-script
             updateResponse = client.update(request);

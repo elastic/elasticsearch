@@ -17,27 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.action.fieldstats;
+package org.elasticsearch.index.search;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.index.query.QueryShardContext;
 
-public class FieldStatsAction extends Action<FieldStatsRequest, FieldStatsResponse, FieldStatsRequestBuilder> {
+public interface FieldQueryExtension {
 
-    public static final FieldStatsAction INSTANCE = new FieldStatsAction();
-    public static final String NAME = "indices:data/read/field_stats";
-
-    private FieldStatsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public FieldStatsResponse newResponse() {
-        return new FieldStatsResponse();
-    }
-
-    @Override
-    public FieldStatsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new FieldStatsRequestBuilder(client, this);
-    }
+    Query query(QueryShardContext context, String queryText);
 }

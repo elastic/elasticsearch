@@ -201,7 +201,7 @@ public class RecoverySourceHandler {
             shard.acquirePrimaryOperationPermit(onAcquired, ThreadPool.Names.SAME);
             try (Releasable ignored = onAcquired.actionGet()) {
                 // check that the IndexShard still has the primary authority. This needs to be checked under operation permit to prevent
-                // races, as IndexShard will change its state to RELOCATED only when it holds all operation permits, see IndexShard.relocated()
+                // races, as IndexShard will change to RELOCATED only when it holds all operation permits, see IndexShard.relocated()
                 if (shard.state() == IndexShardState.RELOCATED) {
                     throw new IndexShardRelocatedException(shard.shardId());
                 }

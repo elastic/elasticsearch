@@ -86,7 +86,7 @@ public class RatedRequestsTests extends ESTestCase {
         SearchSourceBuilder testRequest = null;
         if (randomBoolean() || forceRequest) {
             testRequest = new SearchSourceBuilder();
-            testRequest.size(randomInt());
+            testRequest.size(randomIntBetween(0, Integer.MAX_VALUE));
             testRequest.query(new MatchAllQueryBuilder());
         } else {
             int randomSize = randomIntBetween(1, 10);
@@ -198,7 +198,7 @@ public class RatedRequestsTests extends ESTestCase {
                         new NamedWriteableRegistry(namedWriteables)));
     }
 
-    private RatedRequest mutateTestItem(RatedRequest original) {
+    private static RatedRequest mutateTestItem(RatedRequest original) {
         String id = original.getId();
         SearchSourceBuilder testRequest = original.getTestRequest();
         List<RatedDocument> ratedDocs = original.getRatedDocs();

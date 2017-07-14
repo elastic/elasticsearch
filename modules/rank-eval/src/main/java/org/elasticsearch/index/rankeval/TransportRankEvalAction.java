@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
@@ -111,10 +110,8 @@ public class TransportRankEvalAction
                 String templateId = ratedRequest.getTemplateId();
                 TemplateScript.Factory templateScript = scriptsWithoutParams.get(templateId);
                 String resolvedRequest = templateScript.newInstance(params).execute();
-                try (XContentParser subParser = createParser(namedXContentRegistry, new BytesArray(resolvedRequest),
-                        XContentType.JSON)) {
-                    QueryParseContext parseContext = new QueryParseContext(subParser);
-                    ratedSearchSource = SearchSourceBuilder.fromXContent(parseContext);
+                try (XContentParser subParser = createParser(namedXContentRegistry, new BytesArray(resolvedRequest), XContentType.JSON)) {
+                    ratedSearchSource = SearchSourceBuilder.fromXContent(subParser);
                 } catch (IOException e) {
                     listener.onFailure(e);
                 }

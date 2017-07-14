@@ -68,24 +68,18 @@ public class RankEvalSpecTests extends ESTestCase {
         Collection<ScriptWithId> templates = null;
 
         if (randomBoolean()) {
-            final Map<String, Object> params = randomBoolean() ? Collections.emptyMap()
-                    : Collections.singletonMap("key", "value");
-            ScriptType scriptType = randomFrom(ScriptType.values());
+            final Map<String, Object> params = randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("key", "value");
             String script;
-            if (scriptType == ScriptType.INLINE) {
-                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    builder.startObject();
-                    builder.field("field", randomAlphaOfLengthBetween(1, 5));
-                    builder.endObject();
-                    script = builder.string();
-                }
-            } else {
-                script = randomAlphaOfLengthBetween(1, 5);
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                builder.startObject();
+                builder.field("field", randomAlphaOfLengthBetween(1, 5));
+                builder.endObject();
+                script = builder.string();
             }
 
             templates = new HashSet<>();
             templates.add(new ScriptWithId("templateId",
-                    new Script(scriptType, Script.DEFAULT_TEMPLATE_LANG, script, params)));
+                    new Script(ScriptType.INLINE, Script.DEFAULT_TEMPLATE_LANG, script, params)));
 
             Map<String, Object> templateParams = new HashMap<>();
             templateParams.put("key", "value");

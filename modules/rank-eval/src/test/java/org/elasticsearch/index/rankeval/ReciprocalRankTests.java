@@ -156,12 +156,12 @@ public class ReciprocalRankTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[to + 1 - from];
         for (int i = from; i <= to; i++) {
             hits[i] = new SearchHit(i, i + "", new Text(type), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new Index(index, "uuid"), 0));
+            hits[i].shard(new SearchShardTarget("testnode", new Index(index, "uuid"), 0, null));
         }
         return hits;
     }
 
-    private ReciprocalRank createTestItem() {
+    private static ReciprocalRank createTestItem() {
         ReciprocalRank testItem = new ReciprocalRank();
         testItem.setRelevantRatingThreshhold(randomIntBetween(0, 20));
         return testItem;
@@ -182,7 +182,7 @@ public class ReciprocalRankTests extends ESTestCase {
                 RankEvalTestHelper.copy(testItem, ReciprocalRank::new));
     }
 
-    private ReciprocalRank mutateTestItem(ReciprocalRank testItem) {
+    private static ReciprocalRank mutateTestItem(ReciprocalRank testItem) {
         int relevantThreshold = testItem.getRelevantRatingThreshold();
         ReciprocalRank rank = new ReciprocalRank();
         rank.setRelevantRatingThreshhold(

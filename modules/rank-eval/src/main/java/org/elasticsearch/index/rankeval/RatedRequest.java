@@ -22,14 +22,12 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
@@ -236,7 +234,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     private static final ParseField FIELDS_FIELD = new ParseField("summary_fields");
     private static final ParseField TEMPLATE_ID_FIELD = new ParseField("template_id");
 
-    private static final ConstructingObjectParser<RatedRequest, QueryParseContext> PARSER =
+    private static final ConstructingObjectParser<RatedRequest, Void> PARSER =
             new ConstructingObjectParser<>("requests",
                     a -> new RatedRequest((String) a[0], (List<RatedDocument>) a[1],
                             (SearchSourceBuilder) a[2], (Map<String, Object>) a[3], (String) a[4]));
@@ -246,20 +244,9 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> {
             return RatedDocument.fromXContent(p);
         }, RATINGS_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-            try {
-                return SearchSourceBuilder.fromXContent(c);
-            } catch (IOException ex) {
-                throw new ParsingException(p.getTokenLocation(), "error parsing request", ex);
-            }
-        }, REQUEST_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-            try {
-                return (Map) p.map();
-            } catch (IOException ex) {
-                throw new ParsingException(p.getTokenLocation(), "error parsing ratings", ex);
-            }
-        }, PARAMS_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) ->
+                SearchSourceBuilder.fromXContent(p), REQUEST_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> (Map) p.map(), PARAMS_FIELD);
         PARSER.declareStringArray(RatedRequest::setSummaryFields, FIELDS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TEMPLATE_ID_FIELD);
     }
@@ -275,7 +262,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
      * "ratings": [{ "1": 1 }, { "2": 0 }, { "3": 1 } ] }
      */
     public static RatedRequest fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, new QueryParseContext(parser));
+        return PARSER.apply(parser, null);
     }
 
     @Override

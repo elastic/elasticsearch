@@ -126,7 +126,7 @@ public class PrecisionTests extends ESTestCase {
         // add an unlabeled search hit
         SearchHit[] searchHits = Arrays.copyOf(toSearchHits(rated, "test", "testtype"), 3);
         searchHits[2] = new SearchHit(2, "2", new Text("testtype"), Collections.emptyMap());
-        searchHits[2].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0));
+        searchHits[2].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0, null));
 
         EvalQueryQuality evaluated = (new Precision()).evaluate("id", searchHits, rated);
         assertEquals((double) 2 / 3, evaluated.getQualityLevel(), 0.00001);
@@ -148,7 +148,7 @@ public class PrecisionTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[5];
         for (int i = 0; i < 5; i++) {
             hits[i] = new SearchHit(i, i + "", new Text("type"), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0));
+            hits[i].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0, null));
         }
         EvalQueryQuality evaluated = (new Precision()).evaluate("id", hits,
                 Collections.emptyList());
@@ -227,7 +227,7 @@ public class PrecisionTests extends ESTestCase {
                 RankEvalTestHelper.copy(testItem, Precision::new));
     }
 
-    private Precision mutateTestItem(Precision original) {
+    private static Precision mutateTestItem(Precision original) {
         boolean ignoreUnlabeled = original.getIgnoreUnlabeled();
         int relevantThreshold = original.getRelevantRatingThreshold();
         Precision precision = new Precision();
@@ -246,7 +246,7 @@ public class PrecisionTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[rated.size()];
         for (int i = 0; i < rated.size(); i++) {
             hits[i] = new SearchHit(i, i + "", new Text(type), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new Index(index, "uuid"), 0));
+            hits[i].shard(new SearchShardTarget("testnode", new Index(index, "uuid"), 0, null));
         }
         return hits;
     }

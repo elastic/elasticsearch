@@ -62,7 +62,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
             rated.add(new RatedDocument("index", "type", Integer.toString(i), relevanceRatings[i]));
             hits[i] = new SearchHit(i, Integer.toString(i), new Text("type"),
                     Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0));
+            hits[i].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0, null));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         assertEquals(13.84826362927298, dcg.evaluate("id", hits, rated).getQualityLevel(), 0.00001);
@@ -114,7 +114,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
             }
             hits[i] = new SearchHit(i, Integer.toString(i), new Text("type"),
                     Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0));
+            hits[i].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0, null));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         EvalQueryQuality result = dcg.evaluate("id", hits, rated);
@@ -171,7 +171,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         for (int i = 0; i < 4; i++) {
             hits[i] = new SearchHit(i, Integer.toString(i), new Text("type"),
                     Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0));
+            hits[i].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0, null));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         EvalQueryQuality result = dcg.evaluate("id", hits, ratedDocs);

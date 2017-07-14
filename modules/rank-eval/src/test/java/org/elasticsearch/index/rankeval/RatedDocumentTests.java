@@ -66,7 +66,7 @@ public class RatedDocumentTests extends ESTestCase {
                 RankEvalTestHelper.copy(testItem, RatedDocument::new));
     }
 
-    public void testInvalidParsing() throws IOException {
+    public void testInvalidParsing() {
         expectThrows(IllegalArgumentException.class,
                 () -> new RatedDocument(null, "abc", "abc", 10));
         expectThrows(IllegalArgumentException.class, () -> new RatedDocument("", "abc", "abc", 10));

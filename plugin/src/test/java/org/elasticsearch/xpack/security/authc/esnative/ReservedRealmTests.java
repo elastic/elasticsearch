@@ -286,16 +286,19 @@ public class ReservedRealmTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2003")
     public void testFailedAuthentication() throws Exception {
+        when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
+        SecureString password = new SecureString("password".toCharArray());
+        char[] hash = Hasher.BCRYPT.hash(password);
+        ReservedUserInfo userInfo = new ReservedUserInfo(hash, true, false);
+        mockGetAllReservedUserInfo(usersStore, Collections.singletonMap("elastic", userInfo));
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
                               new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
 
-        // maybe cache a successful auth
         if (randomBoolean()) {
             PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
 
-            reservedRealm.authenticate(new UsernamePasswordToken(ElasticUser.NAME, EMPTY_PASSWORD), future);
+            reservedRealm.authenticate(new UsernamePasswordToken(ElasticUser.NAME, password), future);
             User user = future.actionGet().getUser();
             assertEquals(new ElasticUser(true), user);
         }

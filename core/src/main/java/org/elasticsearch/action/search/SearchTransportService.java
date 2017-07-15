@@ -101,12 +101,8 @@ public class SearchTransportService extends AbstractComponent {
     }
 
     public void sendFreeContext(Transport.Connection connection, long contextId, final ActionListener<SearchFreeContextResponse> listener) {
-        if (connection.getNode().getVersion().onOrAfter(Version.V_5_6_0_UNRELEASED)) {
-            transportService.sendRequest(connection, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(contextId),
-                TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new));
-        } else {
-            throw new IllegalArgumentException("can_match is not supported on pre 5.6.0 nodes");
-        }
+        transportService.sendRequest(connection, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(contextId),
+            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new));
     }
 
     public void sendCanMatch(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task, final

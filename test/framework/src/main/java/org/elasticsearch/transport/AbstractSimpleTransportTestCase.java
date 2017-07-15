@@ -1412,7 +1412,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(version0Response.value1, equalTo(1));
     }
 
-    public void testMockFailToSendNoConnectRule() throws IOException {
+    public void testMockFailToSendNoConnectRule() throws Exception {
         serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC,
             (request, channel) -> {
                 assertThat("moshe", equalTo(request.message));
@@ -1455,6 +1455,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(((ConnectTransportException)cause).node(), equalTo(nodeA));
         }
 
+        // wait for the transport to process the sending failure and disconnect from node
+        assertBusy(() -> assertFalse(serviceB.nodeConnected(nodeA)));
+
+        // now try to connect again and see that it fails
         try {
             serviceB.connectToNode(nodeA);
             fail("exception should be thrown");

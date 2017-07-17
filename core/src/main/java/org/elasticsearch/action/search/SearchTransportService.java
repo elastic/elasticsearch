@@ -30,7 +30,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -57,6 +56,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /**
@@ -78,13 +78,13 @@ public class SearchTransportService extends AbstractComponent {
     public static final String QUERY_CAN_MATCH_NAME = "indices:data/read/search[can_match]";
 
     private final TransportService transportService;
-    private final ResponseCollectorService responseCollectorService;
+    private final BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper;
 
     public SearchTransportService(Settings settings, TransportService transportService,
-                                  ResponseCollectorService responseCollectorService) {
+                                  BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper) {
         super(settings);
         this.transportService = transportService;
-        this.responseCollectorService = responseCollectorService;
+        this.responseWrapper = responseWrapper;
     }
 
     public void sendFreeContext(Transport.Connection connection, final long contextId, OriginalIndices originalIndices) {
@@ -141,12 +141,7 @@ public class SearchTransportService extends AbstractComponent {
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Supplier<SearchPhaseResult> supplier = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
 
-        final ActionListener handler;
-        if (responseCollectorService == null) {
-            handler = listener;
-        } else {
-            handler = new SearchExecutionStatsCollector(listener, responseCollectorService, connection.getNode().getId());
-        }
+        final ActionListener handler = responseWrapper.apply(connection, listener);
         transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(handler, supplier));
     }

@@ -29,6 +29,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.TransportAction;
@@ -424,8 +425,8 @@ public class Node implements Closeable {
             final TransportService transportService = newTransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings());
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(this.settings, clusterService);
-            final SearchTransportService searchTransportService =  new SearchTransportService(settings,
-                transportService, responseCollectorService);
+            final SearchTransportService searchTransportService =  new SearchTransportService(settings, transportService,
+                SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
             final Consumer<Binder> httpBind;
             final HttpServerTransport httpServerTransport;
             if (networkModule.isHttpEnabled()) {

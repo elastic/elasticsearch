@@ -10,9 +10,12 @@ import java.util.concurrent.ExecutionException;
 
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionOptions;
+import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.ResultCode;
+import com.unboundid.ldap.sdk.SimpleBindRequest;
+import com.unboundid.ldap.sdk.SingleServerSet;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -109,6 +112,32 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
 
         final List<String> groups = resolveGroups(settings, WILLIAM_BUSH);
         assertThat(groups, iterableWithSize(0));
+    }
+
+    public void testSearchWithConnectionPoolForOneResult() throws Exception {
+        final LDAPURL ldapurl = new LDAPURL(ldapUrls()[0]);
+
+        try (LDAPConnectionPool pool =
+                     LdapUtils.privilegedConnect(() -> new LDAPConnectionPool(new SingleServerSet(ldapurl.getHost(), ldapurl.getPort()),
+                             new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"), 0, 20))) {
+
+            final Settings settings = Settings.builder()
+                    .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+                    .put("bind_password", "pass")
+                    .put("user_search.base_dn", "ou=groups,o=sevenSeas")
+                    .put("group_search.base_dn", "ou=groups,o=sevenSeas")
+                    .put("group_search.scope", LdapSearchScope.SUB_TREE)
+                    .build();
+            final SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
+            final PlainActionFuture<List<String>> future = new PlainActionFuture<>();
+            resolver.resolve(pool,
+                    "cn=Moultrie Crystal,ou=people,o=sevenSeas",
+                    TimeValue.timeValueSeconds(30),
+                    logger,
+                    null, future);
+            List<String> resolvedDNs = future.actionGet();
+            assertEquals(1, resolvedDNs.size());
+        }
     }
 
     private void connect(LDAPConnectionOptions options) throws LDAPException {

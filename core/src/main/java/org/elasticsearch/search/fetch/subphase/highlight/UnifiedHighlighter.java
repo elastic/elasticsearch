@@ -219,9 +219,9 @@ public class UnifiedHighlighter implements Highlighter {
 
     private OffsetSource getOffsetSource(MappedFieldType fieldType) {
         if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
-            return fieldType.storeTermVectorOffsets() ? OffsetSource.POSTINGS_WITH_TERM_VECTORS : OffsetSource.POSTINGS;
+            return fieldType.storeTermVectors() ? OffsetSource.POSTINGS_WITH_TERM_VECTORS : OffsetSource.POSTINGS;
         }
-        if (fieldType.storeTermVectors()) {
+        if (fieldType.storeTermVectorOffsets()) {
             return OffsetSource.TERM_VECTORS;
         }
         return OffsetSource.ANALYSIS;

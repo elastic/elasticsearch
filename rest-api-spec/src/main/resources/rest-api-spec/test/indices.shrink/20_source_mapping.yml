@@ -1,9 +1,8 @@
 ---
 "Shrink index ignores target template mapping":
     - skip:
-        version: " - 6.0.99"
-        reason: bug fixed in 5.6.0 but no way to expect warning for normal rest test but not for mixed cluster test 
-        features: "warnings"
+        version: " - 5.99.99"
+        reason: bug fixed in 5.6.0
 
     - do:
         cluster.state: {}
@@ -37,12 +36,10 @@
 
     # create template matching shrink target
     - do:
-        warnings:
-          - "Deprecated field [template] used, replaced by [index_patterns]"
         indices.put_template:
           name: tpl1
           body:
-            template: targ*
+            index_patterns: targ*
             mappings:
               test:
                 properties:

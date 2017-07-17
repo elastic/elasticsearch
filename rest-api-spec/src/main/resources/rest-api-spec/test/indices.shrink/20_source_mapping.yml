@@ -3,6 +3,7 @@
     - skip:
         version: " - 5.5.99"
         reason: bug fixed in 5.6.0
+        features: "warnings"
 
     - do:
         cluster.state: {}
@@ -36,6 +37,8 @@
 
     # create template matching shrink target
     - do:
+        warnings:
+          - "Deprecated field [template] used, replaced by [index_patterns]"
         indices.put_template:
           name: tpl1
           body:

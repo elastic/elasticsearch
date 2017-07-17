@@ -1,7 +1,7 @@
 ---
 "Shrink index ignores target template mapping":
     - skip:
-        version: " - 5.99.99"
+        version: " - 5.5.99"
         reason:  bug fixed in 6.0
 
     - do:

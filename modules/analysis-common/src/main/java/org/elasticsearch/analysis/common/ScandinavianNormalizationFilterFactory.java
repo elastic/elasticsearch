@@ -16,26 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.in.IndicNormalizationFilter;
+import org.apache.lucene.analysis.miscellaneous.ScandinavianNormalizationFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 
 /**
- * Factory for {@link IndicNormalizationFilter}
+ * Factory for {@link ScandinavianNormalizationFilter}
  */
-public class IndicNormalizationFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
+public class ScandinavianNormalizationFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
-    public IndicNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    ScandinavianNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new IndicNormalizationFilter(tokenStream);
+        return new ScandinavianNormalizationFilter(tokenStream);
     }
 
     @Override

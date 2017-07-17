@@ -24,22 +24,16 @@ import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.index.analysis.ApostropheFilterFactory;
-import org.elasticsearch.index.analysis.ArabicNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.ArabicStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.BrazilianStemTokenFilterFactory;
-import org.elasticsearch.index.analysis.CJKBigramFilterFactory;
-import org.elasticsearch.index.analysis.CJKWidthFilterFactory;
 import org.elasticsearch.index.analysis.ClassicFilterFactory;
 import org.elasticsearch.index.analysis.ClassicTokenizerFactory;
 import org.elasticsearch.index.analysis.CzechStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.DecimalDigitFilterFactory;
 import org.elasticsearch.index.analysis.DelimitedPayloadTokenFilterFactory;
 import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
-import org.elasticsearch.index.analysis.GermanNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.GermanStemTokenFilterFactory;
-import org.elasticsearch.index.analysis.HindiNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
-import org.elasticsearch.index.analysis.IndicNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.KeepTypesFilterFactory;
 import org.elasticsearch.index.analysis.KeepWordFilterFactory;
 import org.elasticsearch.index.analysis.KeywordTokenizerFactory;
@@ -50,15 +44,11 @@ import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.NGramTokenizerFactory;
 import org.elasticsearch.index.analysis.PathHierarchyTokenizerFactory;
 import org.elasticsearch.index.analysis.PatternTokenizerFactory;
-import org.elasticsearch.index.analysis.PersianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.ScandinavianFoldingFilterFactory;
-import org.elasticsearch.index.analysis.ScandinavianNormalizationFilterFactory;
-import org.elasticsearch.index.analysis.SerbianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
-import org.elasticsearch.index.analysis.SoraniNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
@@ -131,13 +121,13 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
     static final Map<String,Class<?>> KNOWN_TOKENFILTERS = new MapBuilder<String,Class<?>>()
         // exposed in ES
         .put("apostrophe",                ApostropheFilterFactory.class)
-        .put("arabicnormalization",       ArabicNormalizationFilterFactory.class)
+        .put("arabicnormalization",       MovedToAnalysisCommon.class)
         .put("arabicstem",                ArabicStemTokenFilterFactory.class)
         .put("asciifolding",              MovedToAnalysisCommon.class)
         .put("brazilianstem",             BrazilianStemTokenFilterFactory.class)
         .put("bulgarianstem",             MovedToAnalysisCommon.class)
-        .put("cjkbigram",                 CJKBigramFilterFactory.class)
-        .put("cjkwidth",                  CJKWidthFilterFactory.class)
+        .put("cjkbigram",                 MovedToAnalysisCommon.class)
+        .put("cjkwidth",                  MovedToAnalysisCommon.class)
         .put("classic",                   ClassicFilterFactory.class)
         .put("commongrams",               MovedToAnalysisCommon.class)
         .put("commongramsquery",          MovedToAnalysisCommon.class)
@@ -157,15 +147,15 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("germanstem",                GermanStemTokenFilterFactory.class)
         .put("germanlightstem",           MovedToAnalysisCommon.class)
         .put("germanminimalstem",         MovedToAnalysisCommon.class)
-        .put("germannormalization",       GermanNormalizationFilterFactory.class)
+        .put("germannormalization",       MovedToAnalysisCommon.class)
         .put("greeklowercase",            MovedToAnalysisCommon.class)
         .put("greekstem",                 MovedToAnalysisCommon.class)
-        .put("hindinormalization",        HindiNormalizationFilterFactory.class)
+        .put("hindinormalization",        MovedToAnalysisCommon.class)
         .put("hindistem",                 MovedToAnalysisCommon.class)
         .put("hungarianlightstem",        MovedToAnalysisCommon.class)
         .put("hunspellstem",              HunspellTokenFilterFactory.class)
         .put("hyphenationcompoundword",   MovedToAnalysisCommon.class)
-        .put("indicnormalization",        IndicNormalizationFilterFactory.class)
+        .put("indicnormalization",        MovedToAnalysisCommon.class)
         .put("irishlowercase",            MovedToAnalysisCommon.class)
         .put("indonesianstem",            MovedToAnalysisCommon.class)
         .put("italianlightstem",          MovedToAnalysisCommon.class)
@@ -181,7 +171,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("norwegianminimalstem",      MovedToAnalysisCommon.class)
         .put("patterncapturegroup",       MovedToAnalysisCommon.class)
         .put("patternreplace",            MovedToAnalysisCommon.class)
-        .put("persiannormalization",      PersianNormalizationFilterFactory.class)
+        .put("persiannormalization",      MovedToAnalysisCommon.class)
         .put("porterstem",                MovedToAnalysisCommon.class)
         .put("portuguesestem",            MovedToAnalysisCommon.class)
         .put("portugueselightstem",       MovedToAnalysisCommon.class)
@@ -189,12 +179,12 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("reversestring",             MovedToAnalysisCommon.class)
         .put("russianlightstem",          MovedToAnalysisCommon.class)
         .put("scandinavianfolding",       ScandinavianFoldingFilterFactory.class)
-        .put("scandinaviannormalization", ScandinavianNormalizationFilterFactory.class)
-        .put("serbiannormalization",      SerbianNormalizationFilterFactory.class)
+        .put("scandinaviannormalization", MovedToAnalysisCommon.class)
+        .put("serbiannormalization",      MovedToAnalysisCommon.class)
         .put("shingle",                   ShingleTokenFilterFactory.class)
         .put("minhash",                   MinHashTokenFilterFactory.class)
         .put("snowballporter",            MovedToAnalysisCommon.class)
-        .put("soraninormalization",       SoraniNormalizationFilterFactory.class)
+        .put("soraninormalization",       MovedToAnalysisCommon.class)
         .put("soranistem",                MovedToAnalysisCommon.class)
         .put("spanishlightstem",          MovedToAnalysisCommon.class)
         .put("standard",                  StandardTokenFilterFactory.class)

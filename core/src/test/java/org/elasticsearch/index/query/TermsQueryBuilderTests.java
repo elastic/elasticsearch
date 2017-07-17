@@ -93,7 +93,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     private TermsLookup randomTermsLookup() {
-        return new TermsLookup(randomBoolean() ? randomAlphaOfLength(10) : null, randomAlphaOfLength(10), randomAlphaOfLength(10),
+        return new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
                 termsPath).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
     }
 
@@ -278,6 +278,12 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertEquals("query must be rewritten first", e.getMessage());
         assertEquals(termsQueryBuilder.rewrite(createShardContext()), new TermsQueryBuilder(STRING_FIELD_NAME,
             randomTerms.stream().filter(x -> x != null).collect(Collectors.toList()))); // terms lookup removes null values
+    }
+
+    public void testNullIndexIsDeprecated() throws IOException {
+        TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder(STRING_FIELD_NAME, new TermsLookup(null, "foo", "bar", "baz"));
+        termsQueryBuilder.rewrite(createShardContext());
+        assertWarnings("Omitting the index in terms lookup is deprecated");
     }
 
     public void testGeo() throws Exception {

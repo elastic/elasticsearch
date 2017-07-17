@@ -37,6 +37,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -64,6 +66,7 @@ import java.util.stream.IntStream;
 public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME, "in");
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TermsQueryBuilder.class));
 
     private final String fieldName;
     private final List<?> values;
@@ -474,6 +477,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (this.termsLookup != null) {
             TermsLookup termsLookup = new TermsLookup(this.termsLookup);
             if (termsLookup.index() == null) { // TODO this should go away?
+                DEPRECATION_LOGGER.deprecated("Omitting the index in terms lookup is deprecated");
                 if (queryRewriteContext.getIndexSettings() != null) {
                     termsLookup.index(queryRewriteContext.getIndexSettings().getIndex().getName());
                 } else {

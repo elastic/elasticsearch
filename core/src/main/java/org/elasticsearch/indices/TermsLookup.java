@@ -88,7 +88,6 @@ public class TermsLookup implements Writeable, ToXContent {
             out.writeString(index);
         } else {
             out.writeOptionalString(index);
-
         }
         out.writeOptionalString(routing);
     }

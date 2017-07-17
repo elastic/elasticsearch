@@ -102,6 +102,8 @@ There are many options which are explained in detail in the Rest API documentati
 API parameters (e.g. `pre_tags`) are usually changed by
 setters with a similar name (e.g. `#preTags(String ...)`).
 
+Highlighted text fragments can <<java-rest-high-retrieve-highlighting,later be retrieved>> from the `SearchResponse`.
+
 ===== Requesting Aggregations
 
 Aggregations can be added to the search by first creating the appropriate
@@ -230,6 +232,7 @@ cases need to be cast accordingly:
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-hits-singleHit-source]
 --------------------------------------------------
 
+[[java-rest-high-retrieve-highlighting]]
 ===== Retrieving Highlighting
 
 If <<java-rest-high-request-highlighting,requested>>, highlighted text fragments can be retrieved from each `SearchHit` in the result. The hit object offers

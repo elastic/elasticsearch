@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -42,6 +43,9 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -512,7 +516,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().getId());
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(),
-                indexShard.shardId(), null, OriginalIndices.NONE);
+                indexShard.shardId(), request.getClusterAlias(), OriginalIndices.NONE);
         Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher("search") : searcher;
 
         final DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
@@ -831,5 +835,41 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public AliasFilter buildAliasFilter(ClusterState state, String index, String... expressions) {
         return indicesService.buildAliasFilter(state, index, expressions);
+    }
+
+    /**
+     * This method does a very quick rewrite of the query and returns true if the query can potentially match any documents.
+     * This method can have false positives while if it returns <code>false</code> the query won't match any documents on the current
+     * shard.
+     */
+    public boolean canMatch(ShardSearchRequest request) throws IOException {
+        assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
+        try (DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, null)) {
+            SearchSourceBuilder source = context.request().source();
+            if (canRewriteToMatchNone(source)) {
+                QueryBuilder queryBuilder = source.query();
+                return queryBuilder instanceof MatchNoneQueryBuilder == false;
+            }
+            return true; // null query means match_all
+        }
+    }
+
+    /**
+     * Returns true iff the given search source builder can be early terminated by rewriting to a match none query. Or in other words
+     * if the execution of a the search request can be early terminated without executing it. This is for instance not possible if
+     * a global aggregation is part of this request or if there is a suggest builder present.
+     */
+    public static boolean canRewriteToMatchNone(SearchSourceBuilder source) {
+        if (source == null || source.query() == null || source.query() instanceof MatchAllQueryBuilder || source.suggest() != null) {
+            return false;
+        } else {
+            AggregatorFactories.Builder aggregations = source.aggregations();
+            if (aggregations != null) {
+                if (aggregations.mustVisitAllDocs()) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 }

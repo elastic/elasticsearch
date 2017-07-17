@@ -53,6 +53,9 @@ import java.nio.file.FileSystemException;
 import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -542,6 +545,8 @@ public abstract class StreamInput extends InputStream {
                 return readBytesRef();
             case 22:
                 return readGeoPoint();
+            case 23:
+                return readZonedDateTime();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
@@ -560,6 +565,11 @@ public abstract class StreamInput extends InputStream {
     private DateTime readDateTime() throws IOException {
         final String timeZoneId = readString();
         return new DateTime(readLong(), DateTimeZone.forID(timeZoneId));
+    }
+
+    private ZonedDateTime readZonedDateTime() throws IOException {
+        final String timeZoneId = readString();
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(readLong()), ZoneId.of(timeZoneId));
     }
 
     private Object[] readArray() throws IOException {

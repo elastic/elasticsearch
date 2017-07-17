@@ -63,6 +63,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
@@ -614,8 +615,11 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         // check that at unknown node fails
         PlainActionFuture<ReplicaResponse> listener = new PlainActionFuture<>();
+        ShardRoutingState routingState = randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED,
+            ShardRoutingState.RELOCATING);
         proxy.performOn(
-            TestShardRouting.newShardRouting(shardId, "NOT THERE", false, randomFrom(ShardRoutingState.values())),
+            TestShardRouting.newShardRouting(shardId, "NOT THERE",
+                routingState == ShardRoutingState.RELOCATING ? state.nodes().iterator().next().getId() : null, false, routingState),
             new Request(),
                 randomNonNegativeLong(),
                 listener);
@@ -675,6 +679,13 @@ public class TransportReplicationActionTests extends ESTestCase {
         long primaryTerm = clusterService.state().getMetaData().index(index).primaryTerm(0);
         when(shard.getPrimaryTerm()).thenReturn(primaryTerm);
         when(shard.routingEntry()).thenReturn(routingEntry);
+        when(shard.getReplicationGroup()).thenReturn(
+            new ReplicationGroup(clusterService.state().routingTable().shardRoutingTable(shardId),
+                clusterService.state().metaData().index(index).inSyncAllocationIds(0)));
+        doAnswer(invocation -> {
+            ((ActionListener<Releasable>)invocation.getArguments()[0]).onResponse(() -> {});
+            return null;
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString());
 
         AtomicBoolean closed = new AtomicBoolean();
         Releasable releasable = () -> {
@@ -684,7 +695,12 @@ public class TransportReplicationActionTests extends ESTestCase {
         };
 
         TestAction action =
-            new TestAction(Settings.EMPTY, "testSeqNoIsSetOnPrimary", transportService, clusterService, shardStateAction, threadPool);
+            new TestAction(Settings.EMPTY, "testSeqNoIsSetOnPrimary", transportService, clusterService, shardStateAction, threadPool) {
+                @Override
+                protected IndexShard getIndexShard(ShardId shardId) {
+                    return shard;
+                }
+            };
 
         TransportReplicationAction<Request, Request, TestResponse>.PrimaryOperationTransportHandler primaryPhase =
             action.new PrimaryOperationTransportHandler();
@@ -1185,7 +1201,7 @@ public class TransportReplicationActionTests extends ESTestCase {
     class NoopReplicationOperation extends ReplicationOperation<Request, Request, TestAction.PrimaryResult<Request, TestResponse>> {
 
         NoopReplicationOperation(Request request, ActionListener<TestAction.PrimaryResult<Request, TestResponse>> listener) {
-            super(request, null, listener, null, null, TransportReplicationActionTests.this.logger, "noop");
+            super(request, null, listener, null, TransportReplicationActionTests.this.logger, "noop");
         }
 
         @Override

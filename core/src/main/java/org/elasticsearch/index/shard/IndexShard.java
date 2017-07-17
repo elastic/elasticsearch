@@ -44,6 +44,7 @@ import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -365,7 +366,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  final CheckedBiConsumer<IndexShard, ActionListener<ResyncTask>, IOException> primaryReplicaSyncer,
                                  final long applyingClusterStateVersion,
                                  final Set<String> inSyncAllocationIds,
-                                 final Set<String> initializingAllocationIds,
+                                 final IndexShardRoutingTable routingTable,
                                  final Set<String> pre60AllocationIds) throws IOException {
         final ShardRouting currentRouting;
         synchronized (mutex) {
@@ -385,7 +386,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (newRouting.primary()) {
                 final Engine engine = getEngineOrNull();
                 if (engine != null) {
-                    engine.seqNoService().updateAllocationIdsFromMaster(applyingClusterStateVersion, inSyncAllocationIds, initializingAllocationIds, pre60AllocationIds);
+                    engine.seqNoService().updateAllocationIdsFromMaster(applyingClusterStateVersion, inSyncAllocationIds, routingTable, pre60AllocationIds);
                 }
             }
 
@@ -679,7 +680,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             doc.addDynamicMappingsUpdate(docMapper.getMapping());
         }
         Term uid;
-        if (indexCreatedVersion.onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (indexCreatedVersion.onOrAfter(Version.V_6_0_0_beta1)) {
             uid = new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id()));
         } else if (docMapper.getDocumentMapper().idFieldMapper().fieldType().indexOptions() != IndexOptions.NONE) {
             uid = new Term(IdFieldMapper.NAME, doc.id());
@@ -776,7 +777,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Term extractUidForDelete(String type, String id) {
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
             assert indexSettings.isSingleType();
             // This is only correct because we create types dynamically on delete operations
             // otherwise this could match the same _id from a different type
@@ -986,6 +987,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Engine.CommitId commitId = engine.flush(force, waitIfOngoing);
         flushMetric.inc(System.nanoTime() - time);
         return commitId;
+    }
+
+    /**
+     * checks and removes translog files that no longer need to be retained. See
+     * {@link org.elasticsearch.index.translog.TranslogDeletionPolicy} for details
+     */
+    public void trimTranslog() {
+        verifyNotClosed();
+        final Engine engine = getEngine();
+        engine.trimTranslog();
     }
 
     /**
@@ -1712,6 +1723,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Returns the current replication group for the shard.
+     *
+     * @return the replication group
+     */
+    public ReplicationGroup getReplicationGroup() {
+        verifyPrimary();
+        return getEngine().seqNoService().getReplicationGroup();
+    }
+
+    /**
      * Updates the global checkpoint on a replica shard after it has been updated by the primary.
      *
      * @param globalCheckpoint the global checkpoint
@@ -1732,6 +1753,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              * while the global checkpoint update may have emanated from the primary when we were in that state, we could subsequently move
              * to recovery finalization, or even finished recovery before the update arrives here.
              */
+            assert state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED && state() != IndexShardState.RELOCATED :
+                "supposedly in-sync shard copy received a global checkpoint [" + globalCheckpoint + "] " +
+                    "that is higher than its local checkpoint [" + localCheckpoint + "]";
             return;
         }
         seqNoService.updateGlobalCheckpointOnReplica(globalCheckpoint, reason);

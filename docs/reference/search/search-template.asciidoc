@@ -402,17 +402,19 @@ The previous query will be rendered as:
 [[pre-registered-templates]]
 ===== Pre-registered template
 
-You can register search templates by storing them in the cluster state.
-There are REST APIs to manage these stored templates.
+You can register search templates by using the stored scripts api.
 
 [source,js]
 ------------------------------------------
-POST _search/template/<templatename>
+POST _scripts/<templatename>
 {
-    "template": {
-        "query": {
-            "match": {
-                "title": "{{query_string}}"
+    "script": {
+        "lang": "mustache",
+        "source": {
+            "query": {
+                "match": {
+                    "title": "{{query_string}}"
+                }
             }
         }
     }
@@ -440,7 +442,7 @@ This template can be retrieved by
 
 [source,js]
 ------------------------------------------
-GET _search/template/<templatename>
+GET _scripts/<templatename>
 ------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -450,10 +452,15 @@ which is rendered as:
 [source,js]
 ------------------------------------------
 {
-    "_id" : "<templatename>",
-    "lang" : "mustache",
-    "found" : true,
-    "template" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}"
+    "script" : {
+        "lang" : "mustache",
+        "source" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}",
+        "options": {
+          "content_type" : "application/json; charset=UTF-8"
+        }
+    },
+    "_id": "<templatename>",
+    "found": true
 }
 ------------------------------------------
 // TESTRESPONSE
@@ -462,7 +469,7 @@ This template can be deleted by
 
 [source,js]
 ------------------------------------------
-DELETE _search/template/<templatename>
+DELETE _scripts/<templatename>
 ------------------------------------------
 // CONSOLE
 // TEST[continued]

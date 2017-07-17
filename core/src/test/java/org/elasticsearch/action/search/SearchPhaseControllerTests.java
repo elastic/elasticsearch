@@ -22,7 +22,6 @@ package org.elasticsearch.action.search;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
@@ -43,7 +42,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestCluster;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -54,8 +52,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -188,7 +184,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         AtomicArray<SearchPhaseResult> queryResults = new AtomicArray<>(nShards);
         for (int shardIndex = 0; shardIndex < nShards; shardIndex++) {
             QuerySearchResult querySearchResult = new QuerySearchResult(shardIndex,
-                new SearchShardTarget("", new Index("", ""), shardIndex));
+                new SearchShardTarget("", new Index("", ""), shardIndex, null));
             TopDocs topDocs = new TopDocs(0, new ScoreDoc[0], 0);
             if (searchHitsSize > 0) {
                 int nDocs = randomIntBetween(0, searchHitsSize);
@@ -256,7 +252,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         AtomicArray<SearchPhaseResult> fetchResults = new AtomicArray<>(nShards);
         for (int shardIndex = 0; shardIndex < nShards; shardIndex++) {
             float maxScore = -1F;
-            SearchShardTarget shardTarget = new SearchShardTarget("", new Index("", ""), shardIndex);
+            SearchShardTarget shardTarget = new SearchShardTarget("", new Index("", ""), shardIndex, null);
             FetchSearchResult fetchSearchResult = new FetchSearchResult(shardIndex, shardTarget);
             List<SearchHit> searchHits = new ArrayList<>();
             for (ScoreDoc scoreDoc : mergedSearchDocs) {
@@ -292,8 +288,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
         request.setBatchedReduceSize(bufferSize);
-        InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(request, 3);
-        QuerySearchResult result = new QuerySearchResult(0, new SearchShardTarget("node", new Index("a", "b"), 0));
+        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(request, 3);
+        QuerySearchResult result = new QuerySearchResult(0, new SearchShardTarget("node", new Index("a", "b"), 0, null));
         result.topDocs(new TopDocs(0, new ScoreDoc[0], 0.0F), new DocValueFormat[0]);
         InternalAggregations aggs = new InternalAggregations(Arrays.asList(new InternalMax("test", 1.0D, DocValueFormat.RAW,
             Collections.emptyList(), Collections.emptyMap())));
@@ -301,7 +297,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         result.setShardIndex(0);
         consumer.consumeResult(result);
 
-        result = new QuerySearchResult(1, new SearchShardTarget("node", new Index("a", "b"), 0));
+        result = new QuerySearchResult(1, new SearchShardTarget("node", new Index("a", "b"), 0, null));
         result.topDocs(new TopDocs(0, new ScoreDoc[0], 0.0F), new DocValueFormat[0]);
         aggs = new InternalAggregations(Arrays.asList(new InternalMax("test", 3.0D, DocValueFormat.RAW,
             Collections.emptyList(), Collections.emptyMap())));
@@ -309,7 +305,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         result.setShardIndex(2);
         consumer.consumeResult(result);
 
-        result = new QuerySearchResult(1, new SearchShardTarget("node", new Index("a", "b"), 0));
+        result = new QuerySearchResult(1, new SearchShardTarget("node", new Index("a", "b"), 0, null));
         result.topDocs(new TopDocs(0, new ScoreDoc[0], 0.0F), new DocValueFormat[0]);
         aggs = new InternalAggregations(Arrays.asList(new InternalMax("test", 2.0D, DocValueFormat.RAW,
             Collections.emptyList(), Collections.emptyMap())));
@@ -339,7 +335,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
         request.setBatchedReduceSize(bufferSize);
-        InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> consumer =
+        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> consumer =
             searchPhaseController.newSearchPhaseResults(request, expectedNumResults);
         AtomicInteger max = new AtomicInteger();
         Thread[] threads = new Thread[expectedNumResults];
@@ -348,7 +344,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             threads[i] = new Thread(() -> {
                 int number = randomIntBetween(1, 1000);
                 max.updateAndGet(prev -> Math.max(prev, number));
-                QuerySearchResult result = new QuerySearchResult(id, new SearchShardTarget("node", new Index("a", "b"), id));
+                QuerySearchResult result = new QuerySearchResult(id, new SearchShardTarget("node", new Index("a", "b"), id, null));
                 result.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(0, number)}, number), new DocValueFormat[0]);
                 InternalAggregations aggs = new InternalAggregations(Arrays.asList(new InternalMax("test", (double) number,
                     DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap())));
@@ -378,14 +374,14 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
         request.setBatchedReduceSize(bufferSize);
-        InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> consumer =
+        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> consumer =
             searchPhaseController.newSearchPhaseResults(request, expectedNumResults);
         AtomicInteger max = new AtomicInteger();
         for (int i = 0; i < expectedNumResults; i++) {
             int id = i;
             int number = randomIntBetween(1, 1000);
             max.updateAndGet(prev -> Math.max(prev, number));
-            QuerySearchResult result = new QuerySearchResult(id, new SearchShardTarget("node", new Index("a", "b"), id));
+            QuerySearchResult result = new QuerySearchResult(id, new SearchShardTarget("node", new Index("a", "b"), id, null));
             result.topDocs(new TopDocs(1, new ScoreDoc[0], number), new DocValueFormat[0]);
             InternalAggregations aggs = new InternalAggregations(Arrays.asList(new InternalMax("test", (double) number,
                 DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap())));
@@ -411,14 +407,14 @@ public class SearchPhaseControllerTests extends ESTestCase {
             request.source(new SearchSourceBuilder().size(randomIntBetween(1, 10)));
         }
         request.setBatchedReduceSize(bufferSize);
-        InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> consumer =
+        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> consumer =
             searchPhaseController.newSearchPhaseResults(request, expectedNumResults);
         AtomicInteger max = new AtomicInteger();
         for (int i = 0; i < expectedNumResults; i++) {
             int id = i;
             int number = randomIntBetween(1, 1000);
             max.updateAndGet(prev -> Math.max(prev, number));
-            QuerySearchResult result = new QuerySearchResult(id, new SearchShardTarget("node", new Index("a", "b"), id));
+            QuerySearchResult result = new QuerySearchResult(id, new SearchShardTarget("node", new Index("a", "b"), id, null));
             result.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(0, number)}, number), new DocValueFormat[0]);
             result.setShardIndex(id);
             result.size(1);
@@ -454,7 +450,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 }
             }
             request.setBatchedReduceSize(bufferSize);
-            InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> consumer
+            InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> consumer
                 = searchPhaseController.newSearchPhaseResults(request, expectedNumResults);
             if ((hasAggs || hasTopDocs) && expectedNumResults > bufferSize) {
                 assertThat("expectedNumResults: " + expectedNumResults + " bufferSize: " + bufferSize,
@@ -470,11 +466,11 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         request.source(new SearchSourceBuilder().size(5).from(5));
         request.setBatchedReduceSize(randomIntBetween(2, 4));
-        InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> consumer =
+        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> consumer =
             searchPhaseController.newSearchPhaseResults(request, 4);
         int score = 100;
         for (int i = 0; i < 4; i++) {
-            QuerySearchResult result = new QuerySearchResult(i, new SearchShardTarget("node", new Index("a", "b"), i));
+            QuerySearchResult result = new QuerySearchResult(i, new SearchShardTarget("node", new Index("a", "b"), i, null));
             ScoreDoc[] docs = new ScoreDoc[3];
             for (int j = 0; j < docs.length; j++) {
                 docs[j] = new ScoreDoc(0, score--);

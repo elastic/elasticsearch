@@ -21,9 +21,9 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermContext;
 import org.apache.lucene.search.BooleanClause;
@@ -32,18 +32,16 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -127,15 +125,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
                 };
                 return new ConstantIndexFieldData.Builder(typeFunction);
             }
-        }
-
-        @Override
-        public FieldStats<?> stats(IndexReader reader) throws IOException {
-            if (reader.maxDoc() == 0) {
-                return null;
-            }
-            return new FieldStats.Text(reader.maxDoc(), reader.numDocs(), reader.maxDoc(), reader.maxDoc(),
-                    isSearchable(), isAggregatable());
         }
 
         @Override

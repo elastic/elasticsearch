@@ -139,7 +139,7 @@ public class MatchQuery {
 
     protected final QueryShardContext context;
 
-    protected String analyzer;
+    protected Analyzer analyzer;
 
     protected BooleanClause.Occur occur = BooleanClause.Occur.SHOULD;
 
@@ -167,7 +167,14 @@ public class MatchQuery {
         this.context = context;
     }
 
-    public void setAnalyzer(String analyzer) {
+    public void setAnalyzer(String analyzerName) {
+        this.analyzer = context.getMapperService().getIndexAnalyzers().get(analyzerName);
+        if (analyzer == null) {
+            throw new IllegalArgumentException("No analyzer found for [" + analyzerName + "]");
+        }
+    }
+
+    public void setAnalyzer(Analyzer analyzer) {
         this.analyzer = analyzer;
     }
 
@@ -215,17 +222,13 @@ public class MatchQuery {
         this.zeroTermsQuery = zeroTermsQuery;
     }
 
-    protected Analyzer getAnalyzer(MappedFieldType fieldType) {
-        if (this.analyzer == null) {
+    protected Analyzer getAnalyzer(MappedFieldType fieldType, boolean quoted) {
+        if (analyzer == null) {
             if (fieldType != null) {
-                return context.getSearchAnalyzer(fieldType);
+                return quoted ? context.getSearchQuoteAnalyzer(fieldType) : context.getSearchAnalyzer(fieldType);
             }
-            return context.getMapperService().searchAnalyzer();
+            return quoted ? context.getMapperService().searchQuoteAnalyzer() : context.getMapperService().searchAnalyzer();
         } else {
-            Analyzer analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
-            if (analyzer == null) {
-                throw new IllegalArgumentException("No analyzer found for [" + this.analyzer + "]");
-            }
             return analyzer;
         }
     }
@@ -252,7 +255,7 @@ public class MatchQuery {
             return blendTermQuery(new Term(fieldName, value.toString()), fieldType);
         }
 
-        Analyzer analyzer = getAnalyzer(fieldType);
+        Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE);
         assert analyzer != null;
         MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType);
         builder.setEnablePositionIncrements(this.enablePositionIncrements);
@@ -460,7 +463,7 @@ public class MatchQuery {
                     return query;
                 } catch (RuntimeException e) {
                     if (lenient) {
-                        return new TermQuery(term);
+                        return null;
                     } else {
                         throw e;
                     }
@@ -472,10 +475,7 @@ public class MatchQuery {
             return query;
         }
         if (fieldType != null) {
-            Query query = termQuery(fieldType, term.bytes(), lenient);
-            if (query != null) {
-                return query;
-            }
+            return termQuery(fieldType, term.bytes(), lenient);
         }
         return new TermQuery(term);
     }

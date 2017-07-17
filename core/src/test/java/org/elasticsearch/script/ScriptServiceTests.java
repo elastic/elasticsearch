@@ -18,13 +18,6 @@
  */
 package org.elasticsearch.script;
 
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Function;
-
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.cluster.ClusterName;
@@ -39,6 +32,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -77,8 +76,11 @@ public class ScriptServiceTests extends ESTestCase {
         scriptService = new ScriptService(finalSettings, engines, contexts) {
             @Override
             StoredScriptSource getScriptFromClusterState(String id, String lang) {
+                if (lang != null) {
+                    throw new IllegalArgumentException("expected null lang in test");
+                }
                 //mock the script that gets retrieved from an index
-                return new StoredScriptSource(lang, "1+1", Collections.emptyMap());
+                return new StoredScriptSource("test", "1+1", Collections.emptyMap());
             }
         };
     }
@@ -128,7 +130,7 @@ public class ScriptServiceTests extends ESTestCase {
         buildScriptService(Settings.EMPTY);
 
         assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
-        assertCompileAccepted("painless", "script", ScriptType.STORED, SearchScript.CONTEXT);
+        assertCompileAccepted(null, "script", ScriptType.STORED, SearchScript.CONTEXT);
     }
 
     public void testAllowAllScriptContextSettings() throws IOException {
@@ -146,7 +148,7 @@ public class ScriptServiceTests extends ESTestCase {
         buildScriptService(builder.build());
 
         assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
-        assertCompileRejected("painless", "script", ScriptType.STORED, SearchScript.CONTEXT);
+        assertCompileRejected(null, "script", ScriptType.STORED, SearchScript.CONTEXT);
     }
 
     public void testAllowSomeScriptContextSettings() throws IOException {
@@ -165,7 +167,7 @@ public class ScriptServiceTests extends ESTestCase {
         buildScriptService(builder.build());
 
         assertCompileRejected("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
-        assertCompileRejected("painless", "script", ScriptType.STORED, SearchScript.CONTEXT);
+        assertCompileRejected(null, "script", ScriptType.STORED, SearchScript.CONTEXT);
     }
 
     public void testAllowNoScriptContextSettings() throws IOException {
@@ -183,7 +185,7 @@ public class ScriptServiceTests extends ESTestCase {
 
         String type = scriptEngine.getType();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            scriptService.compile(new Script(randomFrom(ScriptType.values()), type, "test", Collections.emptyMap()), ExecutableScript.INGEST_CONTEXT));
+            scriptService.compile(new Script(ScriptType.INLINE, type, "test", Collections.emptyMap()), ExecutableScript.INGEST_CONTEXT));
         assertThat(e.getMessage(), containsString("script context [" + ExecutableScript.INGEST_CONTEXT.name + "] not supported"));
     }
 
@@ -216,7 +218,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testIndexedScriptCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        scriptService.compile(new Script(ScriptType.STORED, "test", "script", Collections.emptyMap()), randomFrom(contexts.values()));
+        scriptService.compile(new Script(ScriptType.STORED, null, "script", Collections.emptyMap()), randomFrom(contexts.values()));
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 

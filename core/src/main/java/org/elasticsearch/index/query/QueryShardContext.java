@@ -21,8 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.queryparser.classic.MapperQueryParser;
-import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
@@ -87,7 +85,6 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     private final Map<String, Query> namedQueries = new HashMap<>();
-    private final MapperQueryParser queryParser = new MapperQueryParser(this);
     private boolean allowUnmappedFields;
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
@@ -146,11 +143,6 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public boolean queryStringAllowLeadingWildcard() {
         return indexSettings.isQueryStringAllowLeadingWildcard();
-    }
-
-    public MapperQueryParser queryParser(QueryParserSettings settings) {
-        queryParser.reset(settings);
-        return queryParser;
     }
 
     public BitSetProducer bitsetFilter(Query filter) {

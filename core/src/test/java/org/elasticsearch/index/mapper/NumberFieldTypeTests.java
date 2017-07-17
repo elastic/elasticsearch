@@ -207,7 +207,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         ft.setIndexOptions(IndexOptions.DOCS);
         Query expected = new IndexOrDocValuesQuery(
                 LongPoint.newRangeQuery("field", 1, 3),
-                SortedNumericDocValuesField.newRangeQuery("field", 1, 3));
+                SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 3));
         assertEquals(expected, ft.rangeQuery("1", "3", true, true, null));
 
         ft.setIndexOptions(IndexOptions.NONE);

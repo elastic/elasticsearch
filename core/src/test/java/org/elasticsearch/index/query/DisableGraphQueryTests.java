@@ -220,32 +220,22 @@ public class DisableGraphQueryTests extends ESSingleNodeTestCase {
     public void testQueryString() throws IOException {
         QueryStringQueryBuilder builder = new QueryStringQueryBuilder("foo bar baz");
         builder.field("text_shingle_unigram");
-        builder.splitOnWhitespace(false);
         Query query = builder.doToQuery(shardContext);
         assertThat(expectedQueryWithUnigram, equalTo(query));
 
         builder = new QueryStringQueryBuilder("\"foo bar baz\"");
         builder.field("text_shingle_unigram");
-        builder.splitOnWhitespace(false);
         query = builder.doToQuery(shardContext);
-        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
-        DisjunctionMaxQuery maxQuery = (DisjunctionMaxQuery) query;
-        assertThat(maxQuery.getDisjuncts().size(), equalTo(1));
-        assertThat(expectedPhraseQueryWithUnigram, equalTo(maxQuery.getDisjuncts().get(0)));
+        assertThat(expectedPhraseQueryWithUnigram, equalTo(query));
 
         builder = new QueryStringQueryBuilder("foo bar baz biz");
         builder.field("text_shingle");
-        builder.splitOnWhitespace(false);
         query = builder.doToQuery(shardContext);
         assertThat(expectedQuery, equalTo(query));
 
         builder = new QueryStringQueryBuilder("\"foo bar baz biz\"");
         builder.field("text_shingle");
-        builder.splitOnWhitespace(false);
         query = builder.doToQuery(shardContext);
-        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
-        maxQuery = (DisjunctionMaxQuery) query;
-        assertThat(maxQuery.getDisjuncts().size(), equalTo(1));
-        assertThat(expectedPhraseQuery, equalTo(maxQuery.getDisjuncts().get(0)));
+        assertThat(expectedPhraseQuery, equalTo(query));
     }
 }

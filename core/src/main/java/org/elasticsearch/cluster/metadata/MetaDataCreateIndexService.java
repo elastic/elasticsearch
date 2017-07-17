@@ -264,58 +264,64 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 customs.put(entry.getKey(), entry.getValue());
                             }
 
-                            // apply templates, merging the mappings into the request mapping if exists
-                            for (IndexTemplateMetaData template : templates) {
-                                templateNames.add(template.getName());
-                                for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
-                                    String mappingString = cursor.value.string();
-                                    if (mappings.containsKey(cursor.key)) {
-                                        XContentHelper.mergeDefaults(mappings.get(cursor.key),
+                            final Index shrinkFromIndex = request.shrinkFrom();
+
+                            if (shrinkFromIndex == null) {
+                                // apply templates, merging the mappings into the request mapping if exists
+                                for (IndexTemplateMetaData template : templates) {
+                                    templateNames.add(template.getName());
+                                    for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
+                                        String mappingString = cursor.value.string();
+                                        if (mappings.containsKey(cursor.key)) {
+                                            XContentHelper.mergeDefaults(mappings.get(cursor.key),
                                                 MapperService.parseMapping(xContentRegistry, mappingString));
-                                    } else {
-                                        mappings.put(cursor.key,
-                                            MapperService.parseMapping(xContentRegistry, mappingString));
+                                        } else {
+                                            mappings.put(cursor.key,
+                                                MapperService.parseMapping(xContentRegistry, mappingString));
+                                        }
                                     }
-                                }
-                                // handle custom
-                                for (ObjectObjectCursor<String, Custom> cursor : template.customs()) {
-                                    String type = cursor.key;
-                                    IndexMetaData.Custom custom = cursor.value;
-                                    IndexMetaData.Custom existing = customs.get(type);
-                                    if (existing == null) {
-                                        customs.put(type, custom);
-                                    } else {
-                                        IndexMetaData.Custom merged = existing.mergeWith(custom);
-                                        customs.put(type, merged);
+                                    // handle custom
+                                    for (ObjectObjectCursor<String, Custom> cursor : template.customs()) {
+                                        String type = cursor.key;
+                                        IndexMetaData.Custom custom = cursor.value;
+                                        IndexMetaData.Custom existing = customs.get(type);
+                                        if (existing == null) {
+                                            customs.put(type, custom);
+                                        } else {
+                                            IndexMetaData.Custom merged = existing.mergeWith(custom);
+                                            customs.put(type, merged);
+                                        }
                                     }
-                                }
-                                //handle aliases
-                                for (ObjectObjectCursor<String, AliasMetaData> cursor : template.aliases()) {
-                                    AliasMetaData aliasMetaData = cursor.value;
-                                    //if an alias with same name came with the create index request itself,
-                                    // ignore this one taken from the index template
-                                    if (request.aliases().contains(new Alias(aliasMetaData.alias()))) {
-                                        continue;
-                                    }
-                                    //if an alias with same name was already processed, ignore this one
-                                    if (templatesAliases.containsKey(cursor.key)) {
-                                        continue;
-                                    }
+                                    //handle aliases
+                                    for (ObjectObjectCursor<String, AliasMetaData> cursor : template.aliases()) {
+                                        AliasMetaData aliasMetaData = cursor.value;
+                                        //if an alias with same name came with the create index request itself,
+                                        // ignore this one taken from the index template
+                                        if (request.aliases().contains(new Alias(aliasMetaData.alias()))) {
+                                            continue;
+                                        }
+                                        //if an alias with same name was already processed, ignore this one
+                                        if (templatesAliases.containsKey(cursor.key)) {
+                                            continue;
+                                        }
 
-                                    //Allow templatesAliases to be templated by replacing a token with the name of the index that we are applying it to
-                                    if (aliasMetaData.alias().contains("{index}")) {
-                                        String templatedAlias = aliasMetaData.alias().replace("{index}", request.index());
-                                        aliasMetaData = AliasMetaData.newAliasMetaData(aliasMetaData, templatedAlias);
-                                    }
+                                        //Allow templatesAliases to be templated by replacing a token with the name of the index that we are applying it to
+                                        if (aliasMetaData.alias().contains("{index}")) {
+                                            String templatedAlias = aliasMetaData.alias().replace("{index}", request.index());
+                                            aliasMetaData = AliasMetaData.newAliasMetaData(aliasMetaData, templatedAlias);
+                                        }
 
-                                    aliasValidator.validateAliasMetaData(aliasMetaData, request.index(), currentState.metaData());
-                                    templatesAliases.put(aliasMetaData.alias(), aliasMetaData);
+                                        aliasValidator.validateAliasMetaData(aliasMetaData, request.index(), currentState.metaData());
+                                        templatesAliases.put(aliasMetaData.alias(), aliasMetaData);
+                                    }
                                 }
                             }
                             Settings.Builder indexSettingsBuilder = Settings.builder();
-                            // apply templates, here, in reverse order, since first ones are better matching
-                            for (int i = templates.size() - 1; i >= 0; i--) {
-                                indexSettingsBuilder.put(templates.get(i).settings());
+                            if (shrinkFromIndex == null) {
+                                // apply templates, here, in reverse order, since first ones are better matching
+                                for (int i = templates.size() - 1; i >= 0; i--) {
+                                    indexSettingsBuilder.put(templates.get(i).settings());
+                                }
                             }
                             // now, put the request settings, so they override templates
                             indexSettingsBuilder.put(request.settings());
@@ -340,7 +346,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             }
                             indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
                             indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
-                            final Index shrinkFromIndex = request.shrinkFrom();
                             final IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index());
 
                             final int routingNumShards;

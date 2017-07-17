@@ -105,12 +105,15 @@
   - match: { "acknowledged": true }
 
   - do:
-      put_template:
+      put_script:
         id: test_search_template
         body:
-          query:
-            match:
-              f1: "{{f1}}"
+          script:
+            lang: mustache
+            source:
+              query:
+                match:
+                  f1: "{{f1}}"
   - match: { acknowledged: true }
 
   - do:

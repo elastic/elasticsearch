@@ -227,7 +227,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
             collapse = in.readOptionalWriteable(CollapseBuilder::new);
         }
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             trackTotalHits = in.readBoolean();
         } else {
             trackTotalHits = true;
@@ -283,7 +283,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             out.writeOptionalWriteable(collapse);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             out.writeBoolean(trackTotalHits);
         }
     }

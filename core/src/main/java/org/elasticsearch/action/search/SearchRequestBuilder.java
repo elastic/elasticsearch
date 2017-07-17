@@ -525,4 +525,25 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         this.request.setBatchedReduceSize(batchedReduceSize);
         return this;
     }
+
+    /**
+     * Sets the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
+     * reduce the number of shard requests fired per high level search request. Searches that hit the entire cluster can be throttled
+     * with this number to reduce the cluster load. The default grows with the number of nodes in the cluster but is at most <tt>256</tt>.
+     */
+    public SearchRequestBuilder setMaxConcurrentShardRequests(int maxConcurrentShardRequests) {
+        this.request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+        return this;
+    }
+
+    /**
+     * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
+     * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
+     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint. The default is <tt>128</tt>
+     */
+    public SearchRequestBuilder setPreFilterShardSize(int preFilterShardSize) {
+        this.request.setPreFilterShardSize(preFilterShardSize);
+        return this;
+    }
 }

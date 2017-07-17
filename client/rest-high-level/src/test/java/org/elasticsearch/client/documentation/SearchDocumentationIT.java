@@ -28,20 +28,41 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.range.Range;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.SuggestBuilders;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.hamcrest.Matchers.greaterThan;
@@ -63,6 +84,252 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
+    @SuppressWarnings({ "unused", "unchecked" })
+    public void testSearch() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            BulkRequest request = new BulkRequest();
+            request.add(new IndexRequest("posts", "doc", "1")
+                    .source(XContentType.JSON, "title", "In which order are my Elasticsearch queries executed?", "user",
+                            Arrays.asList("kimchy", "luca"), "innerObject", Collections.singletonMap("key", "value")));
+            request.add(new IndexRequest("posts", "doc", "2")
+                    .source(XContentType.JSON, "title", "Current status and upcoming changes in Elasticsearch", "user",
+                            Arrays.asList("kimchy", "christoph"), "innerObject", Collections.singletonMap("key", "value")));
+            request.add(new IndexRequest("posts", "doc", "3")
+                    .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch", "user",
+                            Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
+            request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            BulkResponse bulkResponse = client.bulk(request);
+            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertFalse(bulkResponse.hasFailures());
+        }
+        {
+            // tag::search-request-basic
+            SearchRequest searchRequest = new SearchRequest(); // <1>
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder(); // <2>
+            searchSourceBuilder.query(QueryBuilders.matchAllQuery()); // <3>
+            // end::search-request-basic
+        }
+        {
+            // tag::search-request-indices-types
+            SearchRequest searchRequest = new SearchRequest("posts"); // <1>
+            searchRequest.types("doc"); // <2>
+            // end::search-request-indices-types
+            // tag::search-request-routing
+            searchRequest.routing("routing"); // <1>
+            // end::search-request-routing
+            // tag::search-request-indicesOptions
+            searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::search-request-indicesOptions
+            // tag::search-request-preference
+            searchRequest.preference("_local"); // <1>
+            // end::search-request-preference
+            assertNotNull(client.search(searchRequest));
+        }
+        {
+            // tag::search-source-basics
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder(); // <1>
+            sourceBuilder.query(QueryBuilders.termQuery("user", "kimchy")); // <2>
+            sourceBuilder.from(0); // <3>
+            sourceBuilder.size(5); // <4>
+            sourceBuilder.sort(new ScoreSortBuilder().order(SortOrder.ASC));
+            sourceBuilder.timeout(new TimeValue(60, TimeUnit.SECONDS)); // <5>
+            // end::search-source-basics
+
+            // tag::search-source-setter
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(sourceBuilder);
+            // end::search-source-setter
+
+            // tag::search-execute
+            SearchResponse searchResponse = client.search(searchRequest);
+            // end::search-execute
+
+            // tag::search-execute-async
+            client.searchAsync(searchRequest, new ActionListener<SearchResponse>() {
+                @Override
+                public void onResponse(SearchResponse searchResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            });
+            // end::search-execute-async
+
+            // tag::search-response-1
+            RestStatus status = searchResponse.status();
+            TimeValue took = searchResponse.getTook();
+            Boolean terminatedEarly = searchResponse.isTerminatedEarly();
+            boolean timedOut = searchResponse.isTimedOut();
+            // end::search-response-1
+
+            // tag::search-response-2
+            int totalShards = searchResponse.getTotalShards();
+            int successfulShards = searchResponse.getSuccessfulShards();
+            int failedShards = searchResponse.getFailedShards();
+            for (ShardSearchFailure failure : searchResponse.getShardFailures()) {
+                // failures should be handled here
+            }
+            // end::search-response-2
+            assertNotNull(searchResponse);
+
+            // tag::search-hits-get
+            SearchHits hits = searchResponse.getHits();
+            // end::search-hits-get
+            // tag::search-hits-info
+            long totalHits = hits.getTotalHits();
+            float maxScore = hits.getMaxScore();
+            // end::search-hits-info
+            // tag::search-hits-singleHit
+            SearchHit[] searchHits = hits.getHits();
+            for (SearchHit hit : searchHits) {
+                // do something with the SearchHit
+            }
+            // end::search-hits-singleHit
+            for (SearchHit hit : searchHits) {
+                // tag::search-hits-singleHit-properties
+                String index = hit.getIndex();
+                String type = hit.getType();
+                String id = hit.getId();
+                float score = hit.getScore();
+                // end::search-hits-singleHit-properties
+                // tag::search-hits-singleHit-source
+                String sourceAsString = hit.getSourceAsString();
+                Map<String, Object> sourceAsMap = hit.getSourceAsMap();
+                String documentTitle = (String) sourceAsMap.get("title");
+                List<Object> users = (List<Object>) sourceAsMap.get("user");
+                Map<String, Object> innerObject = (Map<String, Object>) sourceAsMap.get("innerObject");
+                // end::search-hits-singleHit-source
+            }
+            assertEquals(3, totalHits);
+            assertNotNull(hits.getHits()[0].getSourceAsString());
+            assertNotNull(hits.getHits()[0].getSourceAsMap().get("title"));
+            assertNotNull(hits.getHits()[0].getSourceAsMap().get("user"));
+            assertNotNull(hits.getHits()[0].getSourceAsMap().get("innerObject"));
+        }
+    }
+
+    @SuppressWarnings({ "unused" })
+    public void testSearchRequestAggregations() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            BulkRequest request = new BulkRequest();
+            request.add(new IndexRequest("posts", "doc", "1")
+                    .source(XContentType.JSON, "company", "Elastic", "age", 20));
+            request.add(new IndexRequest("posts", "doc", "2")
+                    .source(XContentType.JSON, "company", "Elastic", "age", 30));
+            request.add(new IndexRequest("posts", "doc", "3")
+                    .source(XContentType.JSON, "company", "Elastic", "age", 40));
+            request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            BulkResponse bulkResponse = client.bulk(request);
+            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertFalse(bulkResponse.hasFailures());
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            // tag::search-request-aggregations
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            TermsAggregationBuilder aggregation = AggregationBuilders.terms("by_company")
+                    .field("company.keyword");
+            aggregation.subAggregation(AggregationBuilders.avg("average_age")
+                    .field("age"));
+            searchSourceBuilder.aggregation(aggregation);
+            // end::search-request-aggregations
+            searchSourceBuilder.query(QueryBuilders.matchAllQuery());
+            searchRequest.source(searchSourceBuilder);
+            SearchResponse searchResponse = client.search(searchRequest);
+            {
+                // tag::search-request-aggregations-get
+                Aggregations aggregations = searchResponse.getAggregations();
+                Terms byCompanyAggregation = aggregations.get("by_company"); // <1>
+                Bucket elasticBucket = byCompanyAggregation.getBucketByKey("Elastic"); // <2>
+                Avg averageAge = elasticBucket.getAggregations().get("average_age"); // <3>
+                double avg = averageAge.getValue();
+                // end::search-request-aggregations-get
+
+                try {
+                    // tag::search-request-aggregations-get-wrongCast
+                    Range range = aggregations.get("by_company"); // <1>
+                    // end::search-request-aggregations-get-wrongCast
+                } catch (ClassCastException ex) {
+                    assertEquals("org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms"
+                            + " cannot be cast to org.elasticsearch.search.aggregations.bucket.range.Range", ex.getMessage());
+                }
+                assertEquals(3, elasticBucket.getDocCount());
+                assertEquals(30, avg, 0.0);
+            }
+            Aggregations aggregations = searchResponse.getAggregations();
+            {
+                // tag::search-request-aggregations-asMap
+                Map<String, Aggregation> aggregationMap = aggregations.getAsMap();
+                Terms companyAggregation = (Terms) aggregationMap.get("by_company");
+                // end::search-request-aggregations-asMap
+            }
+            {
+                // tag::search-request-aggregations-asList
+                List<Aggregation> aggregationList = aggregations.asList();
+                // end::search-request-aggregations-asList
+            }
+            {
+                // tag::search-request-aggregations-iterator
+                for (Aggregation agg : aggregations) {
+                    String type = agg.getType();
+                    if (type.equals(TermsAggregationBuilder.NAME)) {
+                        Bucket elasticBucket = ((Terms) agg).getBucketByKey("Elastic");
+                        long numberOfDocs = elasticBucket.getDocCount();
+                    }
+                }
+                // end::search-request-aggregations-iterator
+            }
+        }
+    }
+
+    @SuppressWarnings({ "unused", "rawtypes" })
+    public void testSearchRequestSuggestions() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            BulkRequest request = new BulkRequest();
+            request.add(new IndexRequest("posts", "doc", "1").source(XContentType.JSON, "user", "kimchy"));
+            request.add(new IndexRequest("posts", "doc", "2").source(XContentType.JSON, "user", "javanna"));
+            request.add(new IndexRequest("posts", "doc", "3").source(XContentType.JSON, "user", "tlrx"));
+            request.add(new IndexRequest("posts", "doc", "4").source(XContentType.JSON, "user", "cbuescher"));
+            request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            BulkResponse bulkResponse = client.bulk(request);
+            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertFalse(bulkResponse.hasFailures());
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            // tag::search-request-suggestion
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            SuggestionBuilder termSuggestionBuilder =
+                SuggestBuilders.termSuggestion("user").text("kmichy"); // <1>
+            SuggestBuilder suggestBuilder = new SuggestBuilder();
+            suggestBuilder.addSuggestion("suggest_user", termSuggestionBuilder); // <2>
+            searchSourceBuilder.suggest(suggestBuilder);
+            // end::search-request-suggestion
+            searchRequest.source(searchSourceBuilder);
+            SearchResponse searchResponse = client.search(searchRequest);
+            {
+                // tag::search-request-suggestion-get
+                Suggest suggest = searchResponse.getSuggest(); // <1>
+                TermSuggestion termSuggestion = suggest.getSuggestion("suggest_user"); // <2>
+                for (TermSuggestion.Entry entry : termSuggestion.getEntries()) { // <3>
+                    for (TermSuggestion.Entry.Option option : entry) { // <4>
+                        String suggestText = option.getText().string();
+                    }
+                }
+                // end::search-request-suggestion-get
+                assertEquals(1, termSuggestion.getEntries().size());
+                assertEquals(1, termSuggestion.getEntries().get(0).getOptions().size());
+                assertEquals("kimchy", termSuggestion.getEntries().get(0).getOptions().get(0).getText().string());
+            }
+        }
+    }
+
     public void testScroll() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -73,7 +340,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                     .source(XContentType.JSON, "title", "Current status and upcoming changes in Elasticsearch"));
             request.add(new IndexRequest("posts", "doc", "3")
                     .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch"));
-            request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
+            request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request);
             assertSame(bulkResponse.status(), RestStatus.OK);
             assertFalse(bulkResponse.hasFailures());

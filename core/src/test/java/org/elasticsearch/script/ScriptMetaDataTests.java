@@ -37,43 +37,43 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
 
         XContentBuilder sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().startObject("template").field("field", "value").endObject().endObject();
-        builder.storeScript("template", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
+        builder.storeScript("template", StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().field("template", "value").endObject();
-        builder.storeScript("template_field", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
+        builder.storeScript("template_field", StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().startObject("script").field("field", "value").endObject().endObject();
-        builder.storeScript("script", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
+        builder.storeScript("script", StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().field("script", "value").endObject();
-        builder.storeScript("script_field", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
+        builder.storeScript("script_field", StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().field("field", "value").endObject();
-        builder.storeScript("any", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
+        builder.storeScript("any", StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
 
         ScriptMetaData scriptMetaData = builder.build();
-        assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("template", "lang").getSource());
-        assertEquals("value", scriptMetaData.getStoredScript("template_field", "lang").getSource());
-        assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("script", "lang").getSource());
-        assertEquals("value", scriptMetaData.getStoredScript("script_field", "lang").getSource());
-        assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("any", "lang").getSource());
+        assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("lang").getSource());
+        assertEquals("value", scriptMetaData.getStoredScript("lang").getSource());
+        assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("lang").getSource());
+        assertEquals("value", scriptMetaData.getStoredScript("lang").getSource());
+        assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("lang").getSource());
     }
 
     public void testDiff() throws Exception {
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
-        builder.storeScript("1", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"abc\"}"), XContentType.JSON));
-        builder.storeScript("2", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"def\"}"), XContentType.JSON));
-        builder.storeScript("3", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"ghi\"}"), XContentType.JSON));
+        builder.storeScript("1", StoredScriptSource.parse(new BytesArray("{\"foo\":\"abc\"}"), XContentType.JSON));
+        builder.storeScript("2", StoredScriptSource.parse(new BytesArray("{\"foo\":\"def\"}"), XContentType.JSON));
+        builder.storeScript("3", StoredScriptSource.parse(new BytesArray("{\"foo\":\"ghi\"}"), XContentType.JSON));
         ScriptMetaData scriptMetaData1 = builder.build();
 
         builder = new ScriptMetaData.Builder(scriptMetaData1);
-        builder.storeScript("2", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"changed\"}"), XContentType.JSON));
-        builder.deleteScript("3", "lang");
-        builder.storeScript("4", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"jkl\"}"), XContentType.JSON));
+        builder.storeScript("2", StoredScriptSource.parse(new BytesArray("{\"foo\":\"changed\"}"), XContentType.JSON));
+        builder.deleteScript("3");
+        builder.storeScript("4", StoredScriptSource.parse(new BytesArray("{\"foo\":\"jkl\"}"), XContentType.JSON));
         ScriptMetaData scriptMetaData2 = builder.build();
 
         ScriptMetaData.ScriptMetadataDiff diff = (ScriptMetaData.ScriptMetadataDiff) scriptMetaData2.diff(scriptMetaData1);
@@ -85,28 +85,27 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
         assertNotNull(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().get("4"));
 
         ScriptMetaData result = (ScriptMetaData) diff.apply(scriptMetaData1);
-        assertEquals("{\"foo\":\"abc\"}", result.getStoredScript("1", "lang").getSource());
-        assertEquals("{\"foo\":\"changed\"}", result.getStoredScript("2", "lang").getSource());
-        assertEquals("{\"foo\":\"jkl\"}", result.getStoredScript("4", "lang").getSource());
+        assertEquals("{\"foo\":\"abc\"}", result.getStoredScript("1").getSource());
+        assertEquals("{\"foo\":\"changed\"}", result.getStoredScript("2").getSource());
+        assertEquals("{\"foo\":\"jkl\"}", result.getStoredScript("4").getSource());
     }
 
     public void testBuilder() {
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
-        builder.storeScript("_id", StoredScriptSource.parse("_lang", new BytesArray("{\"script\":\"1 + 1\"}"), XContentType.JSON));
+        builder.storeScript("_id", StoredScriptSource.parse(new BytesArray("{\"script\":\"1 + 1\"}"), XContentType.JSON));
 
         ScriptMetaData result = builder.build();
-        assertEquals("1 + 1", result.getStoredScript("_id", "_lang").getSource());
+        assertEquals("1 + 1", result.getStoredScript("_id").getSource());
     }
 
     private ScriptMetaData randomScriptMetaData(XContentType sourceContentType) throws IOException {
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
         int numScripts = scaledRandomIntBetween(0, 32);
         for (int i = 0; i < numScripts; i++) {
-            String lang = randomAlphaOfLength(4);
             XContentBuilder sourceBuilder = XContentBuilder.builder(sourceContentType.xContent());
             sourceBuilder.startObject().field("script", randomAlphaOfLength(4)).endObject();
             builder.storeScript(randomAlphaOfLength(i + 1),
-                StoredScriptSource.parse(lang, sourceBuilder.bytes(), sourceBuilder.contentType()));
+                StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
         }
         return builder.build();
     }

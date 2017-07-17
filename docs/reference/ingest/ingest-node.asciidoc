@@ -205,8 +205,8 @@ POST _ingest/pipeline/_simulate
     // pipeline definition here
   },
   "docs" : [
-    { /** first document **/ },
-    { /** second document **/ },
+    { "_source": {/** first document **/} },
+    { "_source": {/** second document **/} },
     // ...
   ]
 }

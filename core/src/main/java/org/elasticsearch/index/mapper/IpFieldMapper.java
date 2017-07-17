@@ -178,6 +178,30 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query termsQuery(List<?> values, QueryShardContext context) {
+            InetAddress[] addresses = new InetAddress[values.size()];
+            int i = 0;
+            for (Object value : values) {
+                InetAddress address;
+                if (value instanceof InetAddress) {
+                    address = (InetAddress) value;
+                } else {
+                    if (value instanceof BytesRef) {
+                        value = ((BytesRef) value).utf8ToString();
+                    }
+                    if (value.toString().contains("/")) {
+                        // the `terms` query contains some prefix queries, so we cannot create a set query
+                        // and need to fall back to a disjunction of `term` queries
+                        return super.termsQuery(values, context);
+                    }
+                    address = InetAddresses.forString(value.toString());
+                }
+                addresses[i++] = address;
+            }
+            return InetAddressPoint.newSetQuery(name(), addresses);
+        }
+
+        @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             failIfNotIndexed();
             InetAddress lower;

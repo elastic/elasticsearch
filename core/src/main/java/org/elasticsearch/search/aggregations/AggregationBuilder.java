@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -36,7 +36,7 @@ import java.util.Map;
  */
 public abstract class AggregationBuilder
     extends ToXContentToBytes
-    implements NamedWriteable, ToXContent, BaseAggregationBuilder {
+        implements NamedWriteable, ToXContentFragment, BaseAggregationBuilder {
 
     protected final String name;
     protected AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();

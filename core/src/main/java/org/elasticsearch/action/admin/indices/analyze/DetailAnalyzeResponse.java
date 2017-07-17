@@ -24,12 +24,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class DetailAnalyzeResponse implements Streamable, ToXContent {
+public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
 
     DetailAnalyzeResponse() {
     }
@@ -190,7 +191,7 @@ public class DetailAnalyzeResponse implements Streamable, ToXContent {
         }
     }
 
-    public static class AnalyzeTokenList implements Streamable, ToXContent {
+    public static class AnalyzeTokenList implements Streamable, ToXContentObject {
         private String name;
         private AnalyzeResponse.AnalyzeToken[] tokens;
 
@@ -265,7 +266,7 @@ public class DetailAnalyzeResponse implements Streamable, ToXContent {
         }
     }
 
-    public static class CharFilteredText implements Streamable, ToXContent {
+    public static class CharFilteredText implements Streamable, ToXContentObject {
         private String name;
         private String[] texts;
         CharFilteredText() {

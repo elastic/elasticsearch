@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.pipeline.movavg.models;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -30,7 +30,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 
-public abstract class MovAvgModel implements NamedWriteable, ToXContent {
+public abstract class MovAvgModel implements NamedWriteable, ToXContentFragment {
 
     /**
      * Should this model be fit to the data via a cost minimizing algorithm by default?

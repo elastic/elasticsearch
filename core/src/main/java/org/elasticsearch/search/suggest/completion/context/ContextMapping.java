@@ -21,6 +21,7 @@ package org.elasticsearch.search.suggest.completion.context;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -40,7 +41,7 @@ import java.util.Set;
  *
  * Implementations have to define how contexts are parsed at query/index time
  */
-public abstract class ContextMapping<T extends ToXContent> implements ToXContent {
+public abstract class ContextMapping<T extends ToXContent> implements ToXContentFragment {
 
     public static final String FIELD_TYPE = "type";
     public static final String FIELD_NAME = "name";

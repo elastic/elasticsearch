@@ -93,7 +93,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     private TermsLookup randomTermsLookup() {
-        return new TermsLookup(randomBoolean() ? randomAlphaOfLength(10) : null, randomAlphaOfLength(10), randomAlphaOfLength(10),
+        return new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
                 termsPath).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
     }
 

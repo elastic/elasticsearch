@@ -1007,7 +1007,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
-        BytesReference bytes = XContentFactory.jsonBuilder().startObject().field("_ttl", 0).endObject().bytes();
+        BytesReference bytes = XContentFactory.jsonBuilder().startObject().field("_index", 0).endObject().bytes();
         MapperParsingException e = expectThrows(MapperParsingException.class, () ->
             mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
         assertTrue(e.getMessage(), e.getMessage().contains("cannot be added inside a document"));

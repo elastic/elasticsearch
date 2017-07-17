@@ -331,4 +331,10 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                 () -> mapperService.merge("type2", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, randomBoolean()));
         assertThat(e.getMessage(), Matchers.startsWith("Rejecting mapping update to [test] as the final mapping would have more than 1 type: "));
     }
+
+    public void testFieldIsMetadata(){
+        createIndex("test").mapperService();
+        String field = "_field_names";
+        assertTrue("'_field_names' not recognized as a meta data field", MapperService.isMetadataField(field));
+    }
 }

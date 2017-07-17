@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.sniff;
 
-import org.apache.http.HttpHost;
+import internal.org.apache.http.HttpHost;
 
 import java.io.IOException;
 import java.util.Collections;

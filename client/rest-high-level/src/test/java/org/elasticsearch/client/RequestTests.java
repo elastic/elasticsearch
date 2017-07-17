@@ -19,9 +19,9 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.util.EntityUtils;
+import internal.org.apache.http.HttpEntity;
+import internal.org.apache.http.entity.ByteArrayEntity;
+import internal.org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;

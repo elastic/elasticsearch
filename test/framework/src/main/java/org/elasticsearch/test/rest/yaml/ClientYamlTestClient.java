@@ -19,13 +19,13 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.entity.ContentType;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.util.EntityUtils;
+import internal.org.apache.http.Header;
+import internal.org.apache.http.HttpEntity;
+import internal.org.apache.http.HttpHost;
+import internal.org.apache.http.client.methods.HttpGet;
+import internal.org.apache.http.entity.ContentType;
+import internal.org.apache.http.message.BasicHeader;
+import internal.org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.HttpHost;
+import internal.org.apache.http.HttpHost;
 
 import java.util.HashSet;
 import java.util.Set;

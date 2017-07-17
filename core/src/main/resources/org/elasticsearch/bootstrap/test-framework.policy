@@ -71,6 +71,16 @@ grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT.jar}" 
   permission java.net.NetPermission "getProxySelector";
 };
 
+grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT-nodeps.jar}" {
+  // rest makes socket connections for rest tests
+  permission java.net.SocketPermission "*", "connect";
+};
+
+grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT-deps.jar}" {
+  // rest makes socket connections for rest tests
+  permission java.net.SocketPermission "*", "connect";
+};
+
 grant codeBase "${codebase.httpcore-nio-4.4.5.jar}" {
   // httpcore makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";

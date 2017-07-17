@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.sniff.documentation;
 
-import org.apache.http.HttpHost;
+import internal.org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.sniff.ElasticsearchHostsSniffer;
 import org.elasticsearch.client.sniff.HostsSniffer;

@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.http;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
+import internal.org.apache.http.HttpHeaders;
+import internal.org.apache.http.entity.ContentType;
+import internal.org.apache.http.entity.StringEntity;
+import internal.org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.rest.ESRestTestCase;

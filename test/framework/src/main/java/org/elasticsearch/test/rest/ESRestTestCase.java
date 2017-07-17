@@ -19,11 +19,11 @@
 
 package org.elasticsearch.test.rest;
 
-import org.apache.http.Header;
-import org.apache.http.HttpHost;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
-import org.apache.http.ssl.SSLContexts;
+import internal.org.apache.http.Header;
+import internal.org.apache.http.HttpHost;
+import internal.org.apache.http.message.BasicHeader;
+import internal.org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import internal.org.apache.http.ssl.SSLContexts;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.client.Response;

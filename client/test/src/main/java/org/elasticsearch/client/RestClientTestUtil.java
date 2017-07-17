@@ -22,8 +22,8 @@ package org.elasticsearch.client;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.apache.http.Header;
-import org.apache.http.message.BasicHeader;
+import internal.org.apache.http.Header;
+import internal.org.apache.http.message.BasicHeader;
 
 import java.util.ArrayList;
 import java.util.Arrays;

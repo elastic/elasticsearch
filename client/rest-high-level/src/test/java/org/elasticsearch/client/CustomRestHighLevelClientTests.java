@@ -19,19 +19,19 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.ProtocolVersion;
-import org.apache.http.RequestLine;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.message.BasicHttpResponse;
-import org.apache.http.message.BasicRequestLine;
-import org.apache.http.message.BasicStatusLine;
+import internal.org.apache.http.Header;
+import internal.org.apache.http.HttpEntity;
+import internal.org.apache.http.HttpHost;
+import internal.org.apache.http.HttpResponse;
+import internal.org.apache.http.ProtocolVersion;
+import internal.org.apache.http.RequestLine;
+import internal.org.apache.http.client.methods.HttpGet;
+import internal.org.apache.http.entity.ByteArrayEntity;
+import internal.org.apache.http.entity.ContentType;
+import internal.org.apache.http.message.BasicHeader;
+import internal.org.apache.http.message.BasicHttpResponse;
+import internal.org.apache.http.message.BasicRequestLine;
+import internal.org.apache.http.message.BasicStatusLine;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import internal.org.apache.http.HttpResponse;
+import internal.org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
 import static org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory.DEFAULT_BUFFER_LIMIT;
 

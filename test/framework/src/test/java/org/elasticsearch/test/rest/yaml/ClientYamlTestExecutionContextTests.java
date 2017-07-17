@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.rest.yaml;
 
-import org.apache.http.HttpEntity;
+import internal.org.apache.http.HttpEntity;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

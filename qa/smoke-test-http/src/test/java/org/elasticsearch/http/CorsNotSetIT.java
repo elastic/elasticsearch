@@ -19,7 +19,7 @@
 
 package org.elasticsearch.http;
 
-import org.apache.http.message.BasicHeader;
+import internal.org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.ESIntegTestCase;
 

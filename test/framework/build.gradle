@@ -20,6 +20,7 @@
 import org.elasticsearch.gradle.precommit.PrecommitTasks;
 
 dependencies {
+  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
   compile "org.elasticsearch:elasticsearch:${version}"
   compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   compile "junit:junit:${versions.junit}"

@@ -24,8 +24,8 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
+import internal.org.apache.http.HttpEntity;
+import internal.org.apache.http.HttpHost;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.test.rest;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.util.EntityUtils;
+import internal.org.apache.http.HttpEntity;
+import internal.org.apache.http.entity.ContentType;
+import internal.org.apache.http.entity.StringEntity;
+import internal.org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Response;

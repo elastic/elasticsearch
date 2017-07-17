@@ -19,18 +19,18 @@
 
 package org.elasticsearch.client;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpEntityEnclosingRequest;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.RequestLine;
-import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.entity.BufferedHttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.util.EntityUtils;
+import internal.org.apache.commons.logging.Log;
+import internal.org.apache.commons.logging.LogFactory;
+import internal.org.apache.http.Header;
+import internal.org.apache.http.HttpEntity;
+import internal.org.apache.http.HttpEntityEnclosingRequest;
+import internal.org.apache.http.HttpHost;
+import internal.org.apache.http.HttpResponse;
+import internal.org.apache.http.RequestLine;
+import internal.org.apache.http.client.methods.HttpUriRequest;
+import internal.org.apache.http.entity.BufferedHttpEntity;
+import internal.org.apache.http.entity.ContentType;
+import internal.org.apache.http.util.EntityUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;

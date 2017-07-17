@@ -19,8 +19,8 @@
 
 package org.elasticsearch.test.rest;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import internal.org.apache.http.entity.ContentType;
+import internal.org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 

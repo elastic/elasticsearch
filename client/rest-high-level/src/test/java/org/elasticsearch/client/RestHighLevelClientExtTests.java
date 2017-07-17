@@ -19,9 +19,9 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import internal.org.apache.http.HttpEntity;
+import internal.org.apache.http.entity.ContentType;
+import internal.org.apache.http.entity.StringEntity;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;

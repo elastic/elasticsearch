@@ -19,24 +19,24 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.ContentTooLongException;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpException;
-import org.apache.http.HttpResponse;
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.ContentDecoder;
-import org.apache.http.nio.IOControl;
-import org.apache.http.nio.entity.ContentBufferEntity;
-import org.apache.http.nio.protocol.AbstractAsyncResponseConsumer;
-import org.apache.http.nio.util.ByteBufferAllocator;
-import org.apache.http.nio.util.HeapByteBufferAllocator;
-import org.apache.http.nio.util.SimpleInputBuffer;
-import org.apache.http.protocol.HttpContext;
+import internal.org.apache.http.ContentTooLongException;
+import internal.org.apache.http.HttpEntity;
+import internal.org.apache.http.HttpException;
+import internal.org.apache.http.HttpResponse;
+import internal.org.apache.http.entity.ContentType;
+import internal.org.apache.http.nio.ContentDecoder;
+import internal.org.apache.http.nio.IOControl;
+import internal.org.apache.http.nio.entity.ContentBufferEntity;
+import internal.org.apache.http.nio.protocol.AbstractAsyncResponseConsumer;
+import internal.org.apache.http.nio.util.ByteBufferAllocator;
+import internal.org.apache.http.nio.util.HeapByteBufferAllocator;
+import internal.org.apache.http.nio.util.SimpleInputBuffer;
+import internal.org.apache.http.protocol.HttpContext;
 
 import java.io.IOException;
 
 /**
- * Default implementation of {@link org.apache.http.nio.protocol.HttpAsyncResponseConsumer}. Buffers the whole
+ * Default implementation of {@link internal.org.apache.http.nio.protocol.HttpAsyncResponseConsumer}. Buffers the whole
  * response content in heap memory, meaning that the size of the buffer is equal to the content-length of the response.
  * Limits the size of responses that can be read based on a configurable argument. Throws an exception in case the entity is longer
  * than the configured buffer limit.

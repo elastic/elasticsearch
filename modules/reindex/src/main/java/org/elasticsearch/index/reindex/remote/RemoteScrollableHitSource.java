@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.reindex.remote;
 
-import org.apache.http.ContentTooLongException;
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.util.EntityUtils;
+import internal.org.apache.http.ContentTooLongException;
+import internal.org.apache.http.HttpEntity;
+import internal.org.apache.http.entity.ContentType;
+import internal.org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;

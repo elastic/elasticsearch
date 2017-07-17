@@ -19,19 +19,19 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.ProtocolVersion;
-import org.apache.http.RequestLine;
-import org.apache.http.StatusLine;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.InputStreamEntity;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHttpResponse;
-import org.apache.http.message.BasicRequestLine;
-import org.apache.http.message.BasicStatusLine;
-import org.apache.http.util.EntityUtils;
+import internal.org.apache.http.HttpEntity;
+import internal.org.apache.http.HttpHost;
+import internal.org.apache.http.HttpResponse;
+import internal.org.apache.http.ProtocolVersion;
+import internal.org.apache.http.RequestLine;
+import internal.org.apache.http.StatusLine;
+import internal.org.apache.http.entity.ContentType;
+import internal.org.apache.http.entity.InputStreamEntity;
+import internal.org.apache.http.entity.StringEntity;
+import internal.org.apache.http.message.BasicHttpResponse;
+import internal.org.apache.http.message.BasicRequestLine;
+import internal.org.apache.http.message.BasicStatusLine;
+import internal.org.apache.http.util.EntityUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

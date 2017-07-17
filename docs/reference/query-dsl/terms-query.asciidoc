@@ -38,7 +38,7 @@ The terms lookup mechanism supports the following options:
 [horizontal]
 `index`::
     The index to fetch the term values from. Defaults to the
-    current index.
+    current index. Note, omitting the index is deprecated future version will require the index to be set explicitly.
 
 `type`::
     The type to fetch the term values from.

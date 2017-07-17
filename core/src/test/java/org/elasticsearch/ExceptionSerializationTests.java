@@ -54,7 +54,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreadsTests;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.DiscoverySettings;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.RecoveryEngineException;

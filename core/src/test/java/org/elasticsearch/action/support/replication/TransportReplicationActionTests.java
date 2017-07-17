@@ -102,8 +102,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
-import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
+import static org.elasticsearch.cluster.ClusterStateCreationUtils.state;
+import static org.elasticsearch.cluster.ClusterStateCreationUtils.stateWithActivePrimary;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;

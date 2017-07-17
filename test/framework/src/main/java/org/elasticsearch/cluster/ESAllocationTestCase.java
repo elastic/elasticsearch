@@ -20,7 +20,11 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -48,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -231,5 +236,23 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 }
             }
         }
+    }
+
+    /** reverse engineer the in sync aid based on the given indexRoutingTable **/
+    public static IndexMetaData updateActiveAllocations(IndexRoutingTable indexRoutingTable, IndexMetaData indexMetaData) {
+        IndexMetaData.Builder imdBuilder = IndexMetaData.builder(indexMetaData);
+        for (IndexShardRoutingTable shardTable : indexRoutingTable) {
+            for (ShardRouting shardRouting : shardTable) {
+                Set<String> insyncAids = shardTable.activeShards().stream().map(
+                    shr -> shr.allocationId().getId()).collect(Collectors.toSet());
+                final ShardRouting primaryShard = shardTable.primaryShard();
+                if (primaryShard.initializing() && primaryShard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
+                    // simulate a primary was initialized based on aid
+                    insyncAids.add(primaryShard.allocationId().getId());
+                }
+                imdBuilder.putInSyncAllocationIds(shardRouting.id(), insyncAids);
+            }
+        }
+        return imdBuilder.build();
     }
 }

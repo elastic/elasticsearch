@@ -202,7 +202,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                 threadPool.schedule(recoverAfterTime, ThreadPool.Names.GENERIC, () -> {
                     if (recovered.compareAndSet(false, true)) {
                         logger.info("recover_after_time [{}] elapsed. performing state recovery...", recoverAfterTime);
-                        gateway.performStateRecovery(recoveryListener);
+                        gateway.performStateRecovery(recoveryListener, Math.max(1, recoverAfterMasterNodes));
                     }
                 });
             }
@@ -219,7 +219,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
                     @Override
                     protected void doRun() throws Exception {
-                        gateway.performStateRecovery(recoveryListener);
+                        gateway.performStateRecovery(recoveryListener, Math.max(1, recoverAfterMasterNodes));
                     }
                 });
             }

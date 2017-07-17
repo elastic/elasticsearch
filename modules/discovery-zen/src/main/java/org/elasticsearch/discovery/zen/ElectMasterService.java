@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 
@@ -40,7 +39,7 @@ import java.util.stream.Collectors;
 public class ElectMasterService extends AbstractComponent {
 
     public static final Setting<Integer> DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING =
-        Setting.intSetting("discovery.zen.minimum_master_nodes", -1, Property.Dynamic, Property.NodeScope);
+        Setting.intSetting("discovery.zen.minimum_master_nodes", -1, Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private volatile int minimumMasterNodes;
 
@@ -164,7 +163,7 @@ public class ElectMasterService extends AbstractComponent {
         if (hasTooManyMasterNodes(oldState.nodes()) == false && hasTooManyMasterNodes(newState.nodes())) {
             logger.warn("value for setting \"{}\" is too low. This can result in data loss! Please set it to at least a quorum of master-" +
                     "eligible nodes (current value: [{}], total number of master-eligible nodes used for publishing in this round: [{}])",
-                ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minimumMasterNodes(),
+                DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minimumMasterNodes(),
                 newState.getNodes().getMasterNodes().size());
         }
     }

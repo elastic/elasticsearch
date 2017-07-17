@@ -18,7 +18,7 @@
  */
 
 
-package org.elasticsearch.action.support.replication;
+package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -272,21 +272,21 @@ public class ClusterStateCreationUtils {
         state.routingTable(RoutingTable.builder().add(indexRoutingTableBuilder.build()).build());
         return state.build();
     }
-    
-    
+
+
     /**
      * Creates cluster state with several indexes, shards and replicas and all shards STARTED.
      */
     public static ClusterState stateWithAssignedPrimariesAndReplicas(String[] indices, int numberOfShards, int numberOfReplicas) {
 
-        int numberOfDataNodes = numberOfReplicas + 1; 
+        int numberOfDataNodes = numberOfReplicas + 1;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < numberOfDataNodes + 1; i++) {
             final DiscoveryNode node = newNode(i);
             discoBuilder = discoBuilder.add(node);
         }
         discoBuilder.localNodeId(newNode(0).getId());
-        discoBuilder.masterNodeId(newNode(numberOfDataNodes + 1).getId()); 
+        discoBuilder.masterNodeId(newNode(numberOfDataNodes + 1).getId());
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
         Builder routingTableBuilder = RoutingTable.builder();
@@ -316,7 +316,7 @@ public class ClusterStateCreationUtils {
         state.metaData(metadataBuilder);
         state.routingTable(routingTableBuilder.build());
         return state.build();
-    }    
+    }
 
     /**
      * Creates cluster state with and index that has one shard and as many replicas as numberOfReplicas.

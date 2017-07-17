@@ -60,7 +60,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
@@ -135,7 +134,7 @@ public class TribeService extends AbstractLifecycleComponent {
         }
         sb.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "tribe"); // there is a special discovery implementation for tribe
         // nothing is going to be discovered, since no master will be elected
-        sb.put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0);
+        sb.put(DiscoveryModule.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0);
         if (sb.get("cluster.name") == null) {
             sb.put("cluster.name", "tribe_" + UUIDs.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
         }

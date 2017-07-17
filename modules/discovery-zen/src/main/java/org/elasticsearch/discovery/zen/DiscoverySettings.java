@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery;
+package org.elasticsearch.discovery.zen;
 
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -31,9 +31,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.util.EnumSet;
 
-/**
- * Exposes common discovery settings that may be supported by all the different discovery implementations
- */
 public class DiscoverySettings extends AbstractComponent {
 
     public static final int NO_MASTER_BLOCK_ID = 2;
@@ -60,8 +57,6 @@ public class DiscoverySettings extends AbstractComponent {
             Property.Dynamic, Property.NodeScope);
     public static final Setting<Boolean> PUBLISH_DIFF_ENABLE_SETTING =
         Setting.boolSetting("discovery.zen.publish_diff.enable", true, Property.Dynamic, Property.NodeScope);
-    public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING =
-        Setting.positiveTimeSetting("discovery.initial_state_timeout", TimeValue.timeValueSeconds(30), Property.NodeScope);
 
     private volatile ClusterBlock noMasterBlock;
     private volatile TimeValue publishTimeout;

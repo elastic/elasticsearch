@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.discovery;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -33,8 +34,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.discovery.zen.ZenDiscoveryPlugin;
 import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -51,11 +53,12 @@ public class TestZenDiscovery extends ZenDiscovery {
         Setting.boolSetting("discovery.zen.use_mock_pings", true, Setting.Property.NodeScope);
 
     /** A plugin which installs mock discovery and configures it to be used. */
-    public static class TestPlugin extends Plugin implements DiscoveryPlugin {
-        private Settings settings;
+    public static class TestPlugin extends ZenDiscoveryPlugin {
+
         public TestPlugin(Settings settings) {
-            this.settings = settings;
+            super(settings);
         }
+
         @Override
         public Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
                                                                   NamedWriteableRegistry namedWriteableRegistry,
@@ -69,7 +72,9 @@ public class TestZenDiscovery extends ZenDiscovery {
 
         @Override
         public List<Setting<?>> getSettings() {
-            return Collections.singletonList(USE_MOCK_PINGS);
+            List<Setting<?>> settings = new ArrayList<>(super.getSettings());
+            settings.add(USE_MOCK_PINGS);
+            return Collections.unmodifiableList(settings);
         }
 
         @Override

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery;
+package org.elasticsearch.discovery.zen;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;

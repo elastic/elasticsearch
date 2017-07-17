@@ -50,8 +50,20 @@ import static junit.framework.TestCase.fail;
 
 public class ClusterServiceUtils {
 
-    public static MasterService createMasterService(ThreadPool threadPool, ClusterState initialClusterState) {
-        MasterService masterService = new MasterService(Settings.EMPTY, threadPool);
+    public static class TestMasterService extends MasterService {
+
+        public TestMasterService(Settings settings, ThreadPool threadPool) {
+            super(settings, threadPool);
+        }
+
+        @Override
+        public ClusterState state() {
+            return super.state();
+        }
+    }
+
+    public static TestMasterService createMasterService(ThreadPool threadPool, ClusterState initialClusterState) {
+        TestMasterService masterService = new TestMasterService(Settings.EMPTY, threadPool);
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
         masterService.setClusterStatePublisher((event, ackListener) -> clusterStateRef.set(event.state()));
         masterService.setClusterStateSupplier(clusterStateRef::get);
@@ -59,7 +71,7 @@ public class ClusterServiceUtils {
         return masterService;
     }
 
-    public static MasterService createMasterService(ThreadPool threadPool, DiscoveryNode localNode) {
+    public static TestMasterService createMasterService(ThreadPool threadPool, DiscoveryNode localNode) {
         ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder()
                 .add(localNode)

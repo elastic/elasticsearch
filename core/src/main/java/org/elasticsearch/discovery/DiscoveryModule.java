@@ -29,9 +29,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.single.SingleNodeDiscovery;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -51,9 +50,11 @@ import java.util.function.Supplier;
 public class DiscoveryModule {
 
     public static final Setting<String> DISCOVERY_TYPE_SETTING =
-        new Setting<>("discovery.type", "zen", Function.identity(), Property.NodeScope);
+        new Setting<>("discovery.type", "single-node", Function.identity(), Property.NodeScope);
     public static final Setting<Optional<String>> DISCOVERY_HOSTS_PROVIDER_SETTING =
         new Setting<>("discovery.zen.hosts_provider", (String)null, Optional::ofNullable, Property.NodeScope);
+    public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING =
+        Setting.positiveTimeSetting("discovery.initial_state_timeout", TimeValue.timeValueSeconds(30), Property.NodeScope);
 
     private final Discovery discovery;
 
@@ -83,9 +84,6 @@ public class DiscoveryModule {
         }
 
         Map<String, Supplier<Discovery>> discoveryTypes = new HashMap<>();
-        discoveryTypes.put("zen",
-            () -> new ZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, masterService, clusterApplier,
-                clusterSettings, hostsProvider, allocationService));
         discoveryTypes.put("tribe", () -> new TribeDiscovery(settings, transportService, masterService, clusterApplier));
         discoveryTypes.put("single-node", () -> new SingleNodeDiscovery(settings, transportService, masterService, clusterApplier));
         for (DiscoveryPlugin plugin : plugins) {

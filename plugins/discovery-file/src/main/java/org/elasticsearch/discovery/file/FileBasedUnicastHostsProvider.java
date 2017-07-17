@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.UnicastHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.transport.TransportService;
 
@@ -41,9 +41,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static org.elasticsearch.discovery.zen.UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT;
-import static org.elasticsearch.discovery.zen.UnicastZenPing.resolveHostsLists;
 
 /**
  * An implementation of {@link UnicastHostsProvider} that reads hosts/ports
@@ -97,7 +94,7 @@ class FileBasedUnicastHostsProvider extends AbstractComponent implements Unicast
 
         final List<DiscoveryNode> discoNodes = new ArrayList<>();
         try {
-            discoNodes.addAll(resolveHostsLists(
+            discoNodes.addAll(UnicastHostsProvider.resolveHostsLists(
                 executorService,
                 logger,
                 hostsList,

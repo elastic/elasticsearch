@@ -131,7 +131,8 @@ import java.util.stream.Stream;
 
 import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
-import static org.elasticsearch.discovery.DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
@@ -593,7 +594,8 @@ public final class InternalTestCluster extends TestCluster {
             .put("node.name", name)
             .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), seed);
 
-        final boolean usingSingleNodeDiscovery = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(finalSettings.build()).equals("single-node");
+        final boolean usingSingleNodeDiscovery = DISCOVERY_TYPE_SETTING.exists(settings) &&
+            DISCOVERY_TYPE_SETTING.get(finalSettings.build()).equals("single-node");
         if (!usingSingleNodeDiscovery && autoManageMinMasterNodes) {
             assert finalSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null :
                 "min master nodes may not be set when auto managed";

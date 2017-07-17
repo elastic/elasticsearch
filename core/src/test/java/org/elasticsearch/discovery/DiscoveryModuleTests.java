@@ -27,8 +27,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.discovery.single.SingleNodeDiscovery;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NoopDiscovery;
@@ -100,7 +99,7 @@ public class DiscoveryModuleTests extends ESTestCase {
 
     public void testDefaults() {
         DiscoveryModule module = newModule(Settings.EMPTY, Collections.emptyList());
-        assertTrue(module.getDiscovery() instanceof ZenDiscovery);
+        assertTrue(module.getDiscovery() instanceof SingleNodeDiscovery);
     }
 
     public void testLazyConstructionDiscovery() {

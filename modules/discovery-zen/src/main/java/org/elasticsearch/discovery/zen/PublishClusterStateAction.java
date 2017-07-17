@@ -34,7 +34,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,7 +43,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.BlockingClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
@@ -65,6 +63,9 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction.serializeDiffClusterState;
+import static org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction.serializeFullClusterState;
 
 public class PublishClusterStateAction extends AbstractComponent {
 
@@ -342,26 +343,6 @@ public class PublishClusterStateAction extends AbstractComponent {
         }
     }
 
-
-    public static BytesReference serializeFullClusterState(ClusterState clusterState, Version nodeVersion) throws IOException {
-        BytesStreamOutput bStream = new BytesStreamOutput();
-        try (StreamOutput stream = CompressorFactory.COMPRESSOR.streamOutput(bStream)) {
-            stream.setVersion(nodeVersion);
-            stream.writeBoolean(true);
-            clusterState.writeTo(stream);
-        }
-        return bStream.bytes();
-    }
-
-    public static BytesReference serializeDiffClusterState(Diff diff, Version nodeVersion) throws IOException {
-        BytesStreamOutput bStream = new BytesStreamOutput();
-        try (StreamOutput stream = CompressorFactory.COMPRESSOR.streamOutput(bStream)) {
-            stream.setVersion(nodeVersion);
-            stream.writeBoolean(false);
-            diff.writeTo(stream);
-        }
-        return bStream.bytes();
-    }
 
     private Object lastSeenClusterStateMutex = new Object();
     private ClusterState lastSeenClusterState;

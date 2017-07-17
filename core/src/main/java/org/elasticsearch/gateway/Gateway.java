@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
 
@@ -47,7 +46,6 @@ public class Gateway extends AbstractComponent implements ClusterStateApplier {
 
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
 
-    private final int minimumMasterNodes;
     private final IndicesService indicesService;
 
     public Gateway(Settings settings, ClusterService clusterService, GatewayMetaState metaState,
@@ -58,18 +56,14 @@ public class Gateway extends AbstractComponent implements ClusterStateApplier {
         this.clusterService = clusterService;
         this.metaState = metaState;
         this.listGatewayMetaState = listGatewayMetaState;
-        this.minimumMasterNodes = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
         clusterService.addLowPriorityApplier(this);
     }
 
-    public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
+    public void performStateRecovery(final GatewayStateRecoveredListener listener, int requiredAllocations) throws GatewayException {
+        assert requiredAllocations > 0 : "require at least one allocation to recover";
         String[] nodesIds = clusterService.state().nodes().getMasterNodes().keys().toArray(String.class);
         logger.trace("performing state recovery from {}", Arrays.toString(nodesIds));
         TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
-
-
-        int requiredAllocation = Math.max(1, minimumMasterNodes);
-
 
         if (nodesState.hasFailures()) {
             for (FailedNodeException failedNodeException : nodesState.failures()) {
@@ -94,8 +88,8 @@ public class Gateway extends AbstractComponent implements ClusterStateApplier {
                 indices.addTo(cursor.value.getIndex(), 1);
             }
         }
-        if (found < requiredAllocation) {
-            listener.onFailure("found [" + found + "] metadata states, required [" + requiredAllocation + "]");
+        if (found < requiredAllocations) {
+            listener.onFailure("found [" + found + "] metadata states, required [" + requiredAllocations + "]");
             return;
         }
         // update the global state, and clean the indices, we elect them in the next phase
@@ -124,8 +118,8 @@ public class Gateway extends AbstractComponent implements ClusterStateApplier {
                     indexMetaDataCount++;
                 }
                 if (electedIndexMetaData != null) {
-                    if (indexMetaDataCount < requiredAllocation) {
-                        logger.debug("[{}] found [{}], required [{}], not adding", index, indexMetaDataCount, requiredAllocation);
+                    if (indexMetaDataCount < requiredAllocations) {
+                        logger.debug("[{}] found [{}], required [{}], not adding", index, indexMetaDataCount, requiredAllocations);
                     } // TODO if this logging statement is correct then we are missing an else here
                     try {
                         if (electedIndexMetaData.getState() == IndexMetaData.State.OPEN) {

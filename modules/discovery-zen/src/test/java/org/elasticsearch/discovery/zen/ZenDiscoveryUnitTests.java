@@ -21,11 +21,11 @@ package org.elasticsearch.discovery.zen;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.PublishClusterStateActionTests.AssertingAckListener;
 import org.elasticsearch.index.shard.ShardId;
@@ -76,15 +77,13 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.ESAllocationTestCase.updateActiveAllocations;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
-import static org.elasticsearch.cluster.routing.RoutingTableTests.updateActiveAllocations;
-import static org.elasticsearch.cluster.service.MasterServiceTests.discoveryState;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.zen.ZenDiscovery.shouldIgnoreOrRejectNewClusterState;
-import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -191,12 +190,12 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             toClose.addFirst(masterTransport);
             ClusterState state = ClusterStateCreationUtils.state(masterNode, masterNode, masterNode);
             // build the zen discovery and discovery service
-            MasterService masterMasterService = ClusterServiceUtils.createMasterService(threadPool, masterNode);
+            ClusterServiceUtils.TestMasterService masterMasterService = ClusterServiceUtils.createMasterService(threadPool, masterNode);
             toClose.addFirst(masterMasterService);
             // TODO: clustername shouldn't be stored twice in cluster service, but for now, work around it
-            state = ClusterState.builder(discoveryState(masterMasterService).getClusterName()).nodes(state.nodes()).build();
+            state = ClusterState.builder(masterMasterService.state().getClusterName()).nodes(state.nodes()).build();
             Settings settingsWithClusterName = Settings.builder().put(settings).put(
-                ClusterName.CLUSTER_NAME_SETTING.getKey(), discoveryState(masterMasterService).getClusterName().value()).build();
+                ClusterName.CLUSTER_NAME_SETTING.getKey(), masterMasterService.state().getClusterName().value()).build();
             ZenDiscovery masterZen = buildZenDiscovery(
                 settingsWithClusterName,
                 masterTransport, masterMasterService, threadPool);
@@ -209,7 +208,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             toClose.addFirst(otherTransport);
 
             DiscoveryNode otherNode = otherTransport.getLocalNode();
-            final ClusterState otherState = ClusterState.builder(discoveryState(masterMasterService).getClusterName())
+            final ClusterState otherState = ClusterState.builder(masterMasterService.state().getClusterName())
                 .nodes(DiscoveryNodes.builder().add(otherNode).localNodeId(otherNode.getId())).build();
             MasterService otherMasterService = ClusterServiceUtils.createMasterService(threadPool, otherNode);
             toClose.addFirst(otherMasterService);
@@ -223,7 +222,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
 
             // a new cluster state with a new discovery node (we will test if the cluster state
             // was updated by the presence of this node in NodesFaultDetection)
-            ClusterState newState = ClusterState.builder(discoveryState(masterMasterService)).incrementVersion().nodes(
+            ClusterState newState = ClusterState.builder(masterMasterService.state()).incrementVersion().nodes(
                 DiscoveryNodes.builder(state.nodes()).add(otherNode).masterNodeId(masterNode.getId())
             ).build();
 
@@ -263,9 +262,9 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             toClose.addFirst(masterTransport);
             ClusterState state = ClusterStateCreationUtils.state(masterNode, null, masterNode);
             // build the zen discovery and master service for the master node
-            MasterService masterMasterService = ClusterServiceUtils.createMasterService(threadPool, masterNode);
+            ClusterServiceUtils.TestMasterService masterMasterService = ClusterServiceUtils.createMasterService(threadPool, masterNode);
             toClose.addFirst(masterMasterService);
-            state = ClusterState.builder(discoveryState(masterMasterService).getClusterName()).nodes(state.nodes()).build();
+            state = ClusterState.builder(masterMasterService.state().getClusterName()).nodes(state.nodes()).build();
             ZenDiscovery masterZen = buildZenDiscovery(settings, masterTransport, masterMasterService, threadPool);
             masterZen.setCommittedState(state);
             toClose.addFirst(masterZen);
@@ -276,8 +275,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
 
             // a new cluster state with a new discovery node (we will test if the cluster state
             // was updated by the presence of this node in NodesFaultDetection)
-            ClusterState newState = ClusterState.builder(discoveryState(masterMasterService)).incrementVersion().nodes(
-                DiscoveryNodes.builder(discoveryState(masterMasterService).nodes()).masterNodeId(masterNode.getId())
+            ClusterState newState = ClusterState.builder(masterMasterService.state()).incrementVersion().nodes(
+                DiscoveryNodes.builder(masterMasterService.state().nodes()).masterNodeId(masterNode.getId())
             ).build();
 
 
@@ -301,7 +300,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
 
     private ZenDiscovery buildZenDiscovery(Settings settings, TransportService service, MasterService masterService,
                                            ThreadPool threadPool) {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Sets.newHashSet(
+            new ZenDiscoveryPlugin(settings).getSettings()));
         ClusterApplier clusterApplier = new ClusterApplier() {
             @Override
             public void setInitialState(ClusterState initialState) {

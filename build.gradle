@@ -226,6 +226,7 @@ subprojects {
     "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:rpm',
     "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:deb',
     "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
+    "org.elasticsearch.plugin:discovery-zen:${version}": ':modules:discovery-zen',
     // for transport client
     "org.elasticsearch.plugin:transport-netty4-client:${version}": ':modules:transport-netty4',
     "org.elasticsearch.plugin:reindex-client:${version}": ':modules:reindex',

@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -32,14 +33,16 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-
-import static org.elasticsearch.discovery.zen.PublishClusterStateAction.serializeFullClusterState;
 
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
@@ -132,5 +135,24 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                                                         serializeFullClusterState(currentState, Version.CURRENT).length()));
     }
 
+    public static BytesReference serializeFullClusterState(ClusterState clusterState, Version nodeVersion) throws IOException {
+        BytesStreamOutput bStream = new BytesStreamOutput();
+        try (StreamOutput stream = CompressorFactory.COMPRESSOR.streamOutput(bStream)) {
+            stream.setVersion(nodeVersion);
+            stream.writeBoolean(true);
+            clusterState.writeTo(stream);
+        }
+        return bStream.bytes();
+    }
+
+    public static BytesReference serializeDiffClusterState(Diff diff, Version nodeVersion) throws IOException {
+        BytesStreamOutput bStream = new BytesStreamOutput();
+        try (StreamOutput stream = CompressorFactory.COMPRESSOR.streamOutput(bStream)) {
+            stream.setVersion(nodeVersion);
+            stream.writeBoolean(false);
+            diff.writeTo(stream);
+        }
+        return bStream.bytes();
+    }
 
 }

@@ -38,6 +38,8 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchService;
@@ -50,8 +52,10 @@ import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.LinkedList;
+import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.search.query.QueryCollectorContext.createCancellableCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createEarlySortingTerminationCollectorContext;
@@ -237,6 +241,13 @@ public class QueryPhase implements SearchPhase {
             final QuerySearchResult result = searchContext.queryResult();
             for (QueryCollectorContext ctx : collectors) {
                 ctx.postProcess(result, shouldCollect);
+            }
+            EsThreadPoolExecutor executor = (EsThreadPoolExecutor)
+                    searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);;
+            if (executor instanceof QueueResizingEsThreadPoolExecutor) {
+                QueueResizingEsThreadPoolExecutor rExecutor = (QueueResizingEsThreadPoolExecutor) executor;
+                queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
+                queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
             }
             if (searchContext.getProfilers() != null) {
                 ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(searchContext.getProfilers());

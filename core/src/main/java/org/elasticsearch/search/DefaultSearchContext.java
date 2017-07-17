@@ -51,6 +51,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -81,6 +82,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 final class DefaultSearchContext extends SearchContext {
 
@@ -93,6 +95,7 @@ final class DefaultSearchContext extends SearchContext {
     private final BigArrays bigArrays;
     private final IndexShard indexShard;
     private final IndexService indexService;
+    private final ResponseCollectorService responseCollectorService;
     private final ContextIndexSearcher searcher;
     private final DfsSearchResult dfsResult;
     private final QuerySearchResult queryResult;
@@ -147,6 +150,7 @@ final class DefaultSearchContext extends SearchContext {
     private final long originNanoTime = System.nanoTime();
     private volatile long lastAccessTime = -1;
     private Profilers profilers;
+    private ExecutorService searchExecutor;
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
@@ -154,8 +158,8 @@ final class DefaultSearchContext extends SearchContext {
     private FetchPhase fetchPhase;
 
     DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget, Engine.Searcher engineSearcher,
-                         IndexService indexService, IndexShard indexShard,
-                         BigArrays bigArrays, Counter timeEstimateCounter, TimeValue timeout, FetchPhase fetchPhase) {
+                         IndexService indexService, IndexShard indexShard, BigArrays bigArrays, Counter timeEstimateCounter,
+                         TimeValue timeout, FetchPhase fetchPhase, ResponseCollectorService responseCollectorService) {
         this.id = id;
         this.request = request;
         this.fetchPhase = fetchPhase;
@@ -169,6 +173,7 @@ final class DefaultSearchContext extends SearchContext {
         this.fetchResult = new FetchSearchResult(id, shardTarget);
         this.indexShard = indexShard;
         this.indexService = indexService;
+        this.responseCollectorService = responseCollectorService;
         this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
         this.timeEstimateCounter = timeEstimateCounter;
         this.timeout = timeout;

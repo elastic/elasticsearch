@@ -102,7 +102,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
      */
-    private int slices = 1;
+    private SlicesCount slices = SlicesCount.DEFAULT;
 
     /**
      * Constructor for deserialization.
@@ -152,7 +152,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
                             + size + "]",
                     e);
         }
-        if (searchRequest.source().slice() != null && slices != 1) {
+        if (searchRequest.source().slice() != null && !slices.equals(SlicesCount.DEFAULT)) {
             e = addValidationError("can't specify both slice and workers", e);
         }
         return e;
@@ -340,10 +340,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
      */
-    public Self setSlices(int slices) {
-        if (slices < 1) {
-            throw new IllegalArgumentException("[slices] must be at least 1");
-        }
+    public Self setSlices(SlicesCount slices) {
         this.slices = slices;
         return self();
     }
@@ -351,7 +348,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
      */
-    public int getSlices() {
+    public SlicesCount getSlices() {
         return slices;
     }
 
@@ -369,9 +366,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
                 // Parent task will store result
                 .setShouldStoreResult(false)
                 // Split requests per second between all slices
-                .setRequestsPerSecond(requestsPerSecond / slices)
+                .setRequestsPerSecond(requestsPerSecond / slices) //todo need to have computed the actual thing here
                 // Sub requests don't have workers
-                .setSlices(1);
+                .setSlices(SlicesCount.ONE);
         if (size != -1) {
             // Size is split between workers. This means the size might round
             // down!
@@ -385,6 +382,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        // todo need to know the actual number here
         if (slices > 1) {
             return new ParentBulkByScrollTask(id, type, action, getDescription(), parentTaskId, slices);
         }
@@ -409,9 +407,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         maxRetries = in.readVInt();
         requestsPerSecond = in.readFloat();
         if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
-            slices = in.readVInt();
+            slices = new SlicesCount(in);
         } else {
-            slices = 1;
+            slices = SlicesCount.DEFAULT;
         }
     }
 
@@ -428,9 +426,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         out.writeVInt(maxRetries);
         out.writeFloat(requestsPerSecond);
         if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
-            out.writeVInt(slices);
+            slices.writeTo(out);
         } else {
-            if (slices > 1) {
+            if (slices.isAuto() || slices.number() > 1) {
                 throw new IllegalArgumentException("Attempting to send sliced reindex-style request to a node that doesn't support "
                         + "it. Version is [" + out.getVersion() + "] but must be [" + Version.V_5_1_1 + "]");
             }

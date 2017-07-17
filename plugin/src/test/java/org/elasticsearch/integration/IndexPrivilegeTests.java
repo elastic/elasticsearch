@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.is;
 
 //test is just too slow, please fix it to not be sleep-based
 @BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
-@ESIntegTestCase.ClusterScope(randomDynamicTemplates = false, maxNumDataNodes = 2)
+@ESIntegTestCase.ClusterScope(maxNumDataNodes = 2)
 public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
     private String jsonDoc = "{ \"name\" : \"elasticsearch\", \"body\": \"foo bar\" }";

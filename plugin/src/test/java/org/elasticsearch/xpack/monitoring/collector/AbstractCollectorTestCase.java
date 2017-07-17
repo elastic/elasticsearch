@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.elasticsearch.xpack.security.InternalClient;
 
-@ClusterScope(scope = ESIntegTestCase.Scope.SUITE, randomDynamicTemplates = false, transportClientRatio = 0.0)
+@ClusterScope(scope = ESIntegTestCase.Scope.SUITE, transportClientRatio = 0.0)
 public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase {
 
     @Override

@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
 
 @ESIntegTestCase.ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0,
-        randomDynamicTemplates = false, numDataNodes = 1, supportsDedicatedMasters = false)
+        numDataNodes = 1, supportsDedicatedMasters = false)
 public class WatchStatsTests extends AbstractWatcherIntegrationTestCase {
 
     private static CountDownLatch scriptStartedLatch = new CountDownLatch(1);

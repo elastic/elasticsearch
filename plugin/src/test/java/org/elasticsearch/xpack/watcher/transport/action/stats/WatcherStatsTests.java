@@ -25,7 +25,7 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false)
+@ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0)
 public class WatcherStatsTests extends AbstractWatcherIntegrationTestCase {
 
     @Override

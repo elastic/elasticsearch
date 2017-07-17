@@ -12,6 +12,13 @@
           "required" : true,
           "description" : "The name of the index"
         }
+      },
+      "params": {
+        "wait_for_completion": {
+          "type" : "boolean",
+          "default": true,
+          "description" : "Should the request block until the upgrade operation is completed"
+        }
       }
     }
   }

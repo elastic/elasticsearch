@@ -32,6 +32,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -103,6 +105,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
     );
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(MapperService.class));
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -351,6 +355,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Map<String, DocumentMapper> results = new LinkedHashMap<>(documentMappers.size() + 1);
 
         if (defaultMapper != null) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)
+                    && reason == MergeReason.MAPPING_UPDATE) { // only log in case of explicit mapping updates
+                DEPRECATION_LOGGER.deprecated("[_default_] mapping is deprecated since it is not useful anymore now that indexes " +
+                        "cannot have more than one type");
+            }
             assert defaultMapper.type().equals(DEFAULT_MAPPING);
             mappers.put(DEFAULT_MAPPING, defaultMapper);
             results.put(DEFAULT_MAPPING, defaultMapper);

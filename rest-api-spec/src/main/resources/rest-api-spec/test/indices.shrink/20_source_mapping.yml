@@ -34,12 +34,12 @@
           id:    "1"
           body:  { "count": "1" }
 
-    # create template matching shrink tagret
+    # create template matching shrink target
     - do:
         indices.put_template:
           name: tpl1
           body:
-            index_patterns: targ*
+            template: targ*
             mappings:
               test:
                 properties:

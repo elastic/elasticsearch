@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -313,5 +314,44 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             );
             assertThat(e.getMessage(), containsString("name cannot be empty string"));
         }
+    }
+
+    public void testOutOfRangeHalfFloatUpperBound() throws IOException {
+        DocumentMapper mapper = createDocumentMapper("half_float");
+        ThrowingRunnable runnable = () -> mapper.parse(createIndexRequest("65505"));
+        MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+        assertThat(e.getCause().getMessage(), containsString("only supports finite values"));
+    }
+
+    public void testOutOfRangeFloatUpperBound() throws IOException {
+        DocumentMapper mapper = createDocumentMapper("float");
+        ThrowingRunnable runnable = () -> mapper.parse(createIndexRequest(Double.toString(Math.pow(2, 150))));
+        MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+        assertThat(e.getCause().getMessage(), containsString("only supports finite values"));
+    }
+    
+    private DocumentMapper createDocumentMapper(String type) throws IOException {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", type)
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+            .string();
+
+        return parser.parse("type", new CompressedXContent(mapping));
+    }
+
+    private SourceToParse createIndexRequest(String value) throws IOException {
+        return SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("field", value)
+                .endObject()
+                .bytes(),
+            XContentType.JSON);
     }
 }

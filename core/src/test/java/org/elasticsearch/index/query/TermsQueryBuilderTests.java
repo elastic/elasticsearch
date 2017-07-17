@@ -280,6 +280,12 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             randomTerms.stream().filter(x -> x != null).collect(Collectors.toList()))); // terms lookup removes null values
     }
 
+    public void testNullIndexIsDeprecated() throws IOException {
+        TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder(STRING_FIELD_NAME, new TermsLookup(null, "foo", "bar", "baz"));
+        termsQueryBuilder.rewrite(createShardContext());
+        assertWarnings("Omitting the index in terms lookup is deprecated");
+    }
+
     public void testGeo() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         TermsQueryBuilder query = new TermsQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");

@@ -28,7 +28,7 @@ setup:
         index: _all
 
   - do:
-      catch: forbidden
+      catch: request
       search:
         index: test_index2
 
@@ -51,7 +51,7 @@ setup:
         index: test_*
 
   - do:
-      catch: forbidden
+      catch: request
       search:
         index: test_index2
 
@@ -74,7 +74,7 @@ setup:
         index: '*'
 
   - do:
-      catch: forbidden
+      catch: request
       search:
         index: test_index3
 

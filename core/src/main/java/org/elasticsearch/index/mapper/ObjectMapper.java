@@ -409,6 +409,35 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return dynamic;
     }
 
+    /**
+     * Returns the parent {@link ObjectMapper} instance of the specified object mapper or <code>null</code> if there
+     * isn't any.
+     */
+    public ObjectMapper getParentObjectMapper(MapperService mapperService) {
+        int indexOfLastDot = fullPath().lastIndexOf('.');
+        if (indexOfLastDot != -1) {
+            String parentNestObjectPath = fullPath().substring(0, indexOfLastDot);
+            return mapperService.getObjectMapper(parentNestObjectPath);
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Returns whether all parent objects fields are nested too.
+     */
+    public boolean parentObjectMapperAreNested(MapperService mapperService) {
+        for (ObjectMapper parent = getParentObjectMapper(mapperService);
+             parent != null;
+             parent = parent.getParentObjectMapper(mapperService)) {
+
+            if (parent.nested().isNested() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     @Override
     public ObjectMapper merge(Mapper mergeWith, boolean updateAllTypes) {
         if (!(mergeWith instanceof ObjectMapper)) {

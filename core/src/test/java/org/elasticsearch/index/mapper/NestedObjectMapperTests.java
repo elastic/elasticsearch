@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -388,4 +389,35 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         createIndex("test5", Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 0).build())
             .mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_RECOVERY, false);
     }
+
+    public void testParentObjectMapperAreNested() throws Exception {
+        MapperService mapperService = createIndex("index1", Settings.EMPTY, "doc", jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("comments")
+                        .field("type", "nested")
+                        .startObject("properties")
+                            .startObject("messages")
+                                .field("type", "nested").endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()).mapperService();
+        ObjectMapper objectMapper = mapperService.getObjectMapper("comments.messages");
+        assertTrue(objectMapper.parentObjectMapperAreNested(mapperService));
+
+        mapperService = createIndex("index2", Settings.EMPTY, "doc", jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("comments")
+                    .field("type", "object")
+                        .startObject("properties")
+                            .startObject("messages")
+                                .field("type", "nested").endObject()
+                            .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()).mapperService();
+        objectMapper = mapperService.getObjectMapper("comments.messages");
+        assertFalse(objectMapper.parentObjectMapperAreNested(mapperService));
+    }
+
 }

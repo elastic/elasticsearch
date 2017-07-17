@@ -312,21 +312,6 @@ public class DocumentMapper implements ToXContent {
         return nestedObjectMapper;
     }
 
-    /**
-     * Returns the parent {@link ObjectMapper} instance of the specified object mapper or <code>null</code> if there
-     * isn't any.
-     */
-    // TODO: We should add: ObjectMapper#getParentObjectMapper()
-    public ObjectMapper findParentObjectMapper(ObjectMapper objectMapper) {
-        int indexOfLastDot = objectMapper.fullPath().lastIndexOf('.');
-        if (indexOfLastDot != -1) {
-            String parentNestObjectPath = objectMapper.fullPath().substring(0, indexOfLastDot);
-            return objectMappers().get(parentNestObjectPath);
-        } else {
-            return null;
-        }
-    }
-
     public boolean isParent(String type) {
         return mapperService.getParentTypes().contains(type);
     }

@@ -353,6 +353,11 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 name, parentSearchContext, parentObjectMapper, nestedObjectMapper
             );
             setupInnerHitsContext(queryShardContext, nestedInnerHits);
+            if ((nestedInnerHits.hasFetchSourceContext() == false || nestedInnerHits.sourceRequested()) &&
+                nestedObjectMapper.parentObjectMapperAreNested(parentSearchContext.mapperService()) == false) {
+                throw new IllegalArgumentException("Cannot execute inner hits. One or more parent object fields of nested field [" +
+                    nestedObjectMapper.name() + "] are not nested. All parent fields need to be nested fields too");
+            }
             queryShardContext.nestedScope().previousLevel();
             innerHitsContext.addInnerHitDefinition(nestedInnerHits);
         }

@@ -40,6 +40,7 @@ import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -246,7 +247,7 @@ public class FetchPhase implements SearchPhase {
         ObjectMapper nestedObjectMapper = documentMapper.findNestedObjectMapper(nestedSubDocId, context, subReaderContext);
         assert nestedObjectMapper != null;
         SearchHit.NestedIdentity nestedIdentity =
-                getInternalNestedIdentity(context, nestedSubDocId, subReaderContext, documentMapper, nestedObjectMapper);
+                getInternalNestedIdentity(context, nestedSubDocId, subReaderContext, context.mapperService(), nestedObjectMapper);
 
         if (source != null) {
             Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(source, true);
@@ -311,9 +312,7 @@ public class FetchPhase implements SearchPhase {
         return searchFields;
     }
 
-    private SearchHit.NestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId,
-                                                               LeafReaderContext subReaderContext, DocumentMapper documentMapper,
-                                                               ObjectMapper nestedObjectMapper) throws IOException {
+    private SearchHit.NestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId, LeafReaderContext subReaderContext, MapperService mapperService, ObjectMapper nestedObjectMapper) throws IOException {
         int currentParent = nestedSubDocId;
         ObjectMapper nestedParentObjectMapper;
         ObjectMapper current = nestedObjectMapper;
@@ -321,7 +320,7 @@ public class FetchPhase implements SearchPhase {
         SearchHit.NestedIdentity nestedIdentity = null;
         do {
             Query parentFilter;
-            nestedParentObjectMapper = documentMapper.findParentObjectMapper(current);
+            nestedParentObjectMapper = current.getParentObjectMapper(mapperService);
             if (nestedParentObjectMapper != null) {
                 if (nestedParentObjectMapper.nested().isNested() == false) {
                     current = nestedParentObjectMapper;

@@ -411,9 +411,26 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .endObject()));
         indexRandom(true, requests);
 
+        SearchPhaseExecutionException e = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> client().prepareSearch("articles").setQuery(nestedQuery("comments.messages",
+                matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(new InnerHitBuilder())).get()
+        );
+        assertEquals("Cannot execute inner hits. One or more parent object fields of nested field [comments.messages] are " +
+            "not nested. All parent fields need to be nested fields too", e.shardFailures()[0].getCause().getMessage());
+
+        e = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> client().prepareSearch("articles").setQuery(nestedQuery("comments.messages",
+                matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(new InnerHitBuilder()
+                .setFetchSourceContext(new FetchSourceContext(true)))).get()
+        );
+        assertEquals("Cannot execute inner hits. One or more parent object fields of nested field [comments.messages] are " +
+            "not nested. All parent fields need to be nested fields too", e.shardFailures()[0].getCause().getMessage());
+
         SearchResponse response = client().prepareSearch("articles")
                 .setQuery(nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox"), ScoreMode.Avg)
-                        .innerHit(new InnerHitBuilder())).get();
+                        .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false)))).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
         SearchHit hit = response.getHits().getAt(0);
@@ -427,7 +444,7 @@ public class InnerHitsIT extends ESIntegTestCase {
 
         response = client().prepareSearch("articles")
                 .setQuery(nestedQuery("comments.messages", matchQuery("comments.messages.message", "bear"), ScoreMode.Avg)
-                        .innerHit(new InnerHitBuilder())).get();
+                        .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false)))).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
         hit = response.getHits().getAt(0);
@@ -448,7 +465,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         indexRandom(true, requests);
         response = client().prepareSearch("articles")
                 .setQuery(nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox"), ScoreMode.Avg)
-                        .innerHit(new InnerHitBuilder())).get();
+                        .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false)))).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
         hit = response.getHits().getAt(0);;

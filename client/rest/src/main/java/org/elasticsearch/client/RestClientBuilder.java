@@ -206,7 +206,14 @@ public final class RestClientBuilder {
         if (httpClientConfigCallback != null) {
             httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
         }
-        return httpClientBuilder.build();
+
+        final HttpAsyncClientBuilder finalBuilder = httpClientBuilder;
+        return AccessController.doPrivileged(new PrivilegedAction<CloseableHttpAsyncClient>() {
+            @Override
+            public CloseableHttpAsyncClient run() {
+                return finalBuilder.build();
+            }
+        });
     }
 
     /**

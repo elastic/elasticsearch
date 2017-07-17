@@ -220,8 +220,8 @@ Here is the structure of a simulate request against an existing pipeline:
 POST _ingest/pipeline/my-pipeline-id/_simulate
 {
   "docs" : [
-    { /** first document **/ },
-    { /** second document **/ },
+    { "_source": {/** first document **/} },
+    { "_source": {/** second document **/} },
     // ...
   ]
 }

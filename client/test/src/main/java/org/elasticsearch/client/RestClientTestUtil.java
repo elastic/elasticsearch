@@ -22,8 +22,8 @@ package org.elasticsearch.client;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.apache.http.Header;
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.message.BasicHeader;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -87,7 +87,7 @@ final class RestClientTestUtil {
     }
 
     /**
-     * Create a random number of {@link org.apache.http.Header}s.
+     * Create a random number of {@link org.elasticsearch.client.http.Header}s.
      * Generated header names will either be the {@code baseName} plus its index, or exactly the provided {@code baseName} so that the
      * we test also support for multiple headers with same key and different values.
      */

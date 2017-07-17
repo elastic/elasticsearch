@@ -19,6 +19,30 @@
 
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 
+/**
+ * The rest client is a shaded jar. It contains the source of the rest client, as well as all the dependencies,
+ * shaded to the `org.elasticsearch.client` package. 3 artifacts come out of this build process. The shading process only
+ * modifies the imports and class names and locations. It does not do any processing on the files. The classes used to
+ * interact with the rest client are no different from the dependencies in the shade configuration, besides in name.
+ *
+ * IDEs do not like removing artifacts and changing configurations on the fly, so the bits that make the build use the
+ * actual shaded jar (3) are only executed on the cli. Tests run in an IDE rely on the deps (1) and nodeps (2) jars.
+ *
+ * 1) A jar that contains *only* the `org.elasticsearch.client` dependencies. This is a jar that is built before the src
+ *    is compiled. This jar is only used by the rest client so its compilable. There exists a chicken-egg situation where
+ *    the src needs compilation and depends on `org.elasticsearch.client` classes, so an intermediary jar needs to exist
+ *    to satisfy the compile. The `deps` classifier is added to this jar.
+ * 2) The original src/ contents, using the `org.elasticsearch.client` packages, but without the `org.elasticsearch.client`
+ *    code also in the jar. The reason this jar was not overwritten was because gradle knows what its inputs and outputs
+ *    are for a given task and we should not alter that by overwriting the original jar. What we do is add a `nodeps`
+ *    classifier to it instead.
+ * 3) The *actual* jar that will be used by clients. This has no classifier, contains the rest client src and
+ *    `org.elasticsearch.client`. This jar is the only actual output artifact of this job.
+ */
+plugins {
+  id "com.github.johnrengelman.shadow" version "2.0.1"
+}
+
 apply plugin: 'elasticsearch.build'
 apply plugin: 'ru.vyarus.animalsniffer'
 apply plugin: 'nebula.maven-base-publish'
@@ -38,13 +62,65 @@ publishing {
   }
 }
 
+configurations {
+  shade {
+    transitive = false
+  }
+}
+
+// Useful for build time dependencies, as it is generated before compilation of the source in the rest client.
+// This cannot be used as the final shaded jar, as it will contain the compiled source and dependencies
+File shadedDir = file("${buildDir}/shaded")
+// This directory exists so that the shadeDeps task would produce an output, so we can add it (below) to the source set.
+File shadedSrcDir = file("${buildDir}/generated-dummy-shaded")
+task shadeDeps(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
+  destinationDir = shadedDir
+  configurations = [project.configurations.shade]
+  classifier = 'deps'
+  relocate 'org.apache', 'org.elasticsearch.client'
+
+  doLast {
+    shadedSrcDir.mkdir()
+  }
+}
+
+// builds the actual shaded jar that is being distributed
+shadowJar {
+  configurations = [project.configurations.shade]
+  classifier = null
+  relocate 'org.apache', 'org.elasticsearch.client'
+}
+
+jar {
+  // move the default jar to another classifier so the jar with the shaded dependencies can have the empty classifier
+  classifier = 'nodeps'
+}
+
+// Mangle this build so it outputs the correct artifacts
+// readds the shadowJar output (the actual uber jar) but only from the cli
+if (isIdea == false && isEclipse == false) {
+  // removes the -nodeps jar
+  configurations.runtime.artifacts.removeAll { it.archiveTask.is jar }
+
+  // removes the runtime configuration inheritance from compile
+  configurations.runtime.extendsFrom -= [configurations.compile]
+  artifacts {
+    runtime project.tasks.shadowJar
+  }
+}
+
+// adds a dependency to compile, so the -deps jar is built first
+sourceSets.main.output.dir(shadedSrcDir, builtBy: 'shadeDeps')
+
 dependencies {
-  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  compile "org.apache.httpcomponents:httpasyncclient:4.1.2"
-  compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile "commons-logging:commons-logging:${versions.commonslogging}"
+  shade "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  shade "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  shade "org.apache.httpcomponents:httpasyncclient:4.1.2"
+  shade "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+  shade "commons-codec:commons-codec:${versions.commonscodec}"
+  shade "commons-logging:commons-logging:${versions.commonslogging}"
+
+  compile shadeDeps.outputs.files
 
   testCompile "org.elasticsearch.client:test:${version}"
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
@@ -54,6 +130,8 @@ dependencies {
   testCompile "org.codehaus.mojo:animal-sniffer-annotations:1.15"
   signature "org.codehaus.mojo.signature:java17:1.0@signature"
 }
+
+dependencyLicenses.dependencies = project.configurations.shade
 
 forbiddenApisMain {
   //client does not depend on core, so only jdk signatures should be checked
@@ -69,7 +147,7 @@ forbiddenApisTest {
 }
 
 //JarHell is part of es core, which we don't want to pull in
-jarHell.enabled=false
+jarHell.enabled = false
 
 namingConventions {
   testClass = 'org.elasticsearch.client.RestClientTestCase'
@@ -79,13 +157,13 @@ namingConventions {
 
 thirdPartyAudit.excludes = [
   //commons-logging optional dependencies
-  'org.apache.avalon.framework.logger.Logger',
-  'org.apache.log.Hierarchy',
-  'org.apache.log.Logger',
-  'org.apache.log4j.Category',
-  'org.apache.log4j.Level',
-  'org.apache.log4j.Logger',
-  'org.apache.log4j.Priority',
+  'org.elasticsearch.client.avalon.framework.logger.Logger',
+  'org.elasticsearch.client.log.Hierarchy',
+  'org.elasticsearch.client.log.Logger',
+  'org.elasticsearch.client.log4j.Category',
+  'org.elasticsearch.client.log4j.Level',
+  'org.elasticsearch.client.log4j.Logger',
+  'org.elasticsearch.client.log4j.Priority',
   //commons-logging provided dependencies
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener'

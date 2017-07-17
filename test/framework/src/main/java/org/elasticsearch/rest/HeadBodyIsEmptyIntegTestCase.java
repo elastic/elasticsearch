@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest;
 
-import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;

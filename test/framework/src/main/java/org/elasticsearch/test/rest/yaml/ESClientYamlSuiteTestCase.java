@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.apache.http.HttpHost;
+import org.elasticsearch.client.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;

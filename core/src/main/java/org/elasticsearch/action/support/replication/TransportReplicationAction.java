@@ -1023,6 +1023,12 @@ public abstract class TransportReplicationAction<
         }
 
         public ReplicaResponse(long localCheckpoint) {
+            /*
+             * A replica should always know its own local checkpoint so this should always be a valid sequence number or the pre-6.0 local
+             * checkpoint value when simulating responses to replication actions that pre-6.0 nodes are not aware of (e.g., the global
+             * checkpoint background sync, and the primary/replica resync).
+             */
+            assert localCheckpoint != SequenceNumbersService.UNASSIGNED_SEQ_NO;
             this.localCheckpoint = localCheckpoint;
         }
 

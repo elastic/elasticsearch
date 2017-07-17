@@ -2,7 +2,7 @@
 "Shrink index ignores target template mapping":
     - skip:
         version: " - 5.99.99"
-        reason:  bug fixed in 6.0
+        reason: bug fixed in 5.6.0
 
     - do:
         cluster.state: {}
@@ -34,7 +34,7 @@
           id:    "1"
           body:  { "count": "1" }
 
-    # create template matching shrink tagret
+    # create template matching shrink target
     - do:
         indices.put_template:
           name: tpl1

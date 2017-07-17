@@ -450,6 +450,9 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         assert lcps.localCheckpoint != SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT ||
             localCheckpoint == SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT :
             "pre-6.0 shard copy " + allocationId + " unexpected to send valid local checkpoint " + localCheckpoint;
+        // a local checkpoint for a shard copy should be a valid sequence number or the pre-6.0 sequence number indicator
+        assert localCheckpoint != SequenceNumbersService.UNASSIGNED_SEQ_NO :
+                "invalid local checkpoint for shard copy [" + allocationId + "]";
         if (localCheckpoint > lcps.localCheckpoint) {
             logger.trace("updated local checkpoint of [{}] from [{}] to [{}]", allocationId, lcps.localCheckpoint, localCheckpoint);
             lcps.localCheckpoint = localCheckpoint;

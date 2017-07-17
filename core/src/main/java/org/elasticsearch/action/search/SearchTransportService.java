@@ -109,7 +109,7 @@ public class SearchTransportService extends AbstractComponent {
 
     public void sendCanMatch(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task, final
                             ActionListener<CanMatchResponse> listener) {
-        if (connection.getNode().getVersion().onOrAfter(Version.CURRENT.minimumCompatibilityVersion())) {
+        if (connection.getNode().getVersion().onOrAfter(Version.V_5_6_0)) {
             transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NAME, request, task,
                 TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, CanMatchResponse::new));
         } else {
@@ -118,8 +118,7 @@ public class SearchTransportService extends AbstractComponent {
             // instead of sending the request we shortcut it here and let the caller deal with this -- see #25704
             // also failing the request instead of returning a fake answer might trigger a retry on a replica which might be on a
             // compatible node
-            throw new IllegalArgumentException("can_match is not supported on pre "+ Version.CURRENT.minimumCompatibilityVersion() +
-                " nodes");
+            throw new IllegalArgumentException("can_match is not supported on pre 5.6 nodes");
         }
     }
 

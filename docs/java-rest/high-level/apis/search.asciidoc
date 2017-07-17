@@ -82,6 +82,26 @@ After this, the `SearchSourceBuilder` only needs to be added to the
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-setter]
 --------------------------------------------------
 
+[[java-rest-high-request-highlighting]]
+===== Requesting Highlighting
+
+Highlighting search results can be achieved by setting a `HighlightBuilder` on the
+`SearchSourceBuilder`. Different highlighting behaviour can be defined for each
+fields by adding one or more `HighlightBuilder.Field` instances to a `HighlightBuilder`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-highlighting]
+--------------------------------------------------
+<1> Creates a new `HighlightBuilder`
+<2> Create a field highlighter for the `title` field
+<3> Set the field highlighter type
+<4> Add the field highlighter to the highlight builder
+
+There are many options which are explained in detail in the Rest API documentation. The Rest
+API parameters (e.g. `pre_tags`) are usually changed by
+setters with a similar name (e.g. `#preTags(String ...)`).
+
 ===== Requesting Aggregations
 
 Aggregations can be added to the search by first creating the appropriate
@@ -110,7 +130,7 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-suggestion
 the text `kmichy`
 <2> Adds the suggestion builder and names it `suggest_user`
 
-We will later see how to <<java-rest-high-retrieve-suggestions,retrieve suggestions>> from the 
+We will later see how to <<java-rest-high-retrieve-suggestions,retrieve suggestions>> from the
 `SearchResponse`.
 
 [[java-rest-high-document-search-sync]]
@@ -209,6 +229,20 @@ cases need to be cast accordingly:
 --------------------------------------------------
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-hits-singleHit-source]
 --------------------------------------------------
+
+===== Retrieving Highlighting
+
+If <<java-rest-high-request-highlighting,requested>>, highlighted text fragments can be retrieved from each `SearchHit` in the result. The hit object offers
+access to a map of field names to `HighlightField` instances, each of which contains one
+or many highlighted text fragments:
+
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-highlighting-get]
+--------------------------------------------------
+<1> Get the highlighting for the `title` field
+<2> Get one or many fragments containing the highlighted field content
 
 [[java-rest-high-retrieve-aggs]]
 ===== Retrieving Aggregations

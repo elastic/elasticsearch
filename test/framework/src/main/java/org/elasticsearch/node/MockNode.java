@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -66,7 +67,11 @@ public class MockNode extends Node {
     }
 
     public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path configPath) {
-        super(InternalSettingsPreparer.prepareEnvironment(settings, null, Collections.emptyMap(), configPath), classpathPlugins);
+        this(InternalSettingsPreparer.prepareEnvironment(settings, null, Collections.emptyMap(), configPath), classpathPlugins);
+    }
+
+    public MockNode(Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {
+        super(environment, classpathPlugins);
         this.classpathPlugins = classpathPlugins;
     }
 
@@ -115,7 +120,7 @@ public class MockNode extends Node {
 
     @Override
     protected Node newNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path configPath) {
-        return new MockNode(settings, classpathPlugins, configPath);
+        return new MockNode(new Environment(settings, configPath), classpathPlugins);
     }
 
     @Override

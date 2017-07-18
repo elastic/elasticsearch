@@ -67,7 +67,8 @@ public class TribeUnitTests extends ESTestCase {
             .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
             .build();
 
-        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class);
+        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(MockTcpTransportPlugin.class,
+            TribeAwareTestZenDiscoveryPlugin.class, TribePlugin.class);
         tribe1 = new MockNode(
             Settings.builder()
                 .put(baseSettings)
@@ -91,6 +92,22 @@ public class TribeUnitTests extends ESTestCase {
         tribe2 = null;
     }
 
+    public static class TribeAwareTestZenDiscoveryPlugin extends TestZenDiscovery.TestPlugin {
+
+        public TribeAwareTestZenDiscoveryPlugin(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        public Settings additionalSettings() {
+            if (settings.getGroups("tribe", true).isEmpty()) {
+                return super.additionalSettings();
+            } else {
+                return Settings.EMPTY;
+            }
+        }
+    }
+
     public void testThatTribeClientsIgnoreGlobalConfig() throws Exception {
         assertTribeNodeSuccessfullyCreated(getDataPath("elasticsearch.yml").getParent());
         assertWarnings("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
@@ -99,14 +116,14 @@ public class TribeUnitTests extends ESTestCase {
     private static void assertTribeNodeSuccessfullyCreated(Path configPath) throws Exception {
         // the tribe clients do need it to make sure they can find their corresponding tribes using the proper transport
         Settings settings = Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).put("node.name", "tribe_node")
-                .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).put("discovery.type", "local")
+                .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
                 .put("tribe.t1.transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
                 .put("tribe.t2.transport.type",MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
 
         final List<Class<? extends Plugin>> classpathPlugins =
-                Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class);
+                Arrays.asList(TribeAwareTestZenDiscoveryPlugin.class, TribePlugin.class, MockTcpTransportPlugin.class);
         try (Node node = new MockNode(settings, classpathPlugins, configPath).start()) {
             try (Client client = node.client()) {
                 assertBusy(() -> {

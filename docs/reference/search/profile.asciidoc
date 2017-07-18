@@ -1,7 +1,7 @@
 [[search-profile]]
 == Profile API
 
-experimental[]
+WARNING:  The Profile API is a debugging tool and adds signficant overhead to search execution.
 
 The Profile API provides detailed timing information about the execution of individual components
 in a search request.  It gives the user insight into how search requests are executed at a low level so that

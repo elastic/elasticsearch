@@ -33,6 +33,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -49,6 +50,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.Suggest;
@@ -65,6 +68,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
@@ -327,6 +331,69 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                 assertEquals(1, termSuggestion.getEntries().get(0).getOptions().size());
                 assertEquals("kimchy", termSuggestion.getEntries().get(0).getOptions().get(0).getText().string());
             }
+        }
+    }
+
+    public void testSearchRequestHighlighting() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            BulkRequest request = new BulkRequest();
+            request.add(new IndexRequest("posts", "doc", "1")
+                    .source(XContentType.JSON, "title", "In which order are my Elasticsearch queries executed?", "user",
+                            Arrays.asList("kimchy", "luca"), "innerObject", Collections.singletonMap("key", "value")));
+            request.add(new IndexRequest("posts", "doc", "2")
+                    .source(XContentType.JSON, "title", "Current status and upcoming changes in Elasticsearch", "user",
+                            Arrays.asList("kimchy", "christoph"), "innerObject", Collections.singletonMap("key", "value")));
+            request.add(new IndexRequest("posts", "doc", "3")
+                    .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch", "user",
+                            Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
+            request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            BulkResponse bulkResponse = client.bulk(request);
+            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertFalse(bulkResponse.hasFailures());
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            // tag::search-request-highlighting
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            HighlightBuilder highlightBuilder = new HighlightBuilder(); // <1>
+            HighlightBuilder.Field highlightTitle =
+                    new HighlightBuilder.Field("title"); // <2>
+            highlightTitle.highlighterType("unified");  // <3>
+            highlightBuilder.field(highlightTitle);  // <4>
+            HighlightBuilder.Field highlightUser = new HighlightBuilder.Field("user");
+            highlightBuilder.field(highlightUser);
+            searchSourceBuilder.highlighter(highlightBuilder);
+            // end::search-request-highlighting
+            searchSourceBuilder.query(QueryBuilders.boolQuery()
+                    .should(matchQuery("title", "Elasticsearch"))
+                    .should(matchQuery("user", "kimchy")));
+            searchRequest.source(searchSourceBuilder);
+            SearchResponse searchResponse = client.search(searchRequest);
+            {
+                // tag::search-request-highlighting-get
+                SearchHits hits = searchResponse.getHits();
+                for (SearchHit hit : hits.getHits()) {
+                    Map<String, HighlightField> highlightFields = hit.getHighlightFields();
+                    HighlightField highlight = highlightFields.get("title"); // <1>
+                    Text[] fragments = highlight.fragments();  // <2>
+                    String fragmentString = fragments[0].string();
+                }
+                // end::search-request-highlighting-get
+                hits = searchResponse.getHits();
+                for (SearchHit hit : hits.getHits()) {
+                    Map<String, HighlightField> highlightFields = hit.getHighlightFields();
+                    HighlightField highlight = highlightFields.get("title");
+                    Text[] fragments = highlight.fragments();
+                    assertEquals(1, fragments.length);
+                    assertThat(fragments[0].string(), containsString("<em>Elasticsearch</em>"));
+                    highlight = highlightFields.get("user");
+                    fragments = highlight.fragments();
+                    assertEquals(1, fragments.length);
+                    assertThat(fragments[0].string(), containsString("<em>kimchy</em>"));
+                }
+            }
+
         }
     }
 

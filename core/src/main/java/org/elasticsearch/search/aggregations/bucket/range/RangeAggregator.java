@@ -90,8 +90,27 @@ public class RangeAggregator extends BucketsAggregator {
             out.writeDouble(to);
         }
 
+        public double getFrom() {
+            return this.from;
+        }
 
-        protected Range(String key, Double from, String fromAsStr, Double to, String toAsStr) {
+        public double getTo() {
+            return this.to;
+        }
+
+        public String getFromAsString() {
+            return this.fromAsStr;
+        }
+
+        public String getToAsString() {
+            return this.toAsStr;
+        }
+
+        public String getKey() {
+            return this.key;
+        }
+
+        public Range(String key, Double from, String fromAsStr, Double to, String toAsStr) {
             this.key = key;
             this.from = from == null ? Double.NEGATIVE_INFINITY : from;
             this.fromAsStr = fromAsStr;
@@ -106,19 +125,6 @@ public class RangeAggregator extends BucketsAggregator {
         @Override
         public String toString() {
             return "[" + from + " to " + to + ")";
-        }
-
-        public Range process(DocValueFormat parser, SearchContext context) {
-            assert parser != null;
-            Double from = this.from;
-            Double to = this.to;
-            if (fromAsStr != null) {
-                from = parser.parseDouble(fromAsStr, false, context.getQueryShardContext()::nowInMillis);
-            }
-            if (toAsStr != null) {
-                to = parser.parseDouble(toAsStr, false, context.getQueryShardContext()::nowInMillis);
-            }
-            return new Range(key, from, fromAsStr, to, toAsStr);
         }
 
         public static Range fromXContent(XContentParser parser) throws IOException {

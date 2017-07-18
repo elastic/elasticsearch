@@ -56,7 +56,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.engine.MockEngineSupport;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
@@ -83,7 +82,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
-@TestLogging("_root:DEBUG")
 public class TruncateTranslogIT extends ESIntegTestCase {
 
     @Override
@@ -108,6 +106,7 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
             .put("index.routing.allocation.exclude._name", (String)null)
         ));
+        ensureGreen();
 
         // Index some documents
         int numDocsToKeep = randomIntBetween(0, 100);
@@ -245,8 +244,8 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         ensureGreen();
 
         // Index some documents
-        logger.info("--> indexing more doc to be kept");
         int numDocsToKeep = randomIntBetween(0, 100);
+        logger.info("--> indexing [{}] docs to be kept", numDocsToKeep);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocsToKeep];
         for (int i = 0; i < builders.length; i++) {
             builders[i] = client().prepareIndex("test", "type").setSource("foo", "bar");
@@ -256,7 +255,7 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         disableTranslogFlush("test");
         // having no extra docs is an interesting case for seq no based recoveries - test it more often
         int numDocsToTruncate = randomBoolean() ? 0 : randomIntBetween(0, 100);
-        logger.info("--> indexing [{}] more doc to be truncated", numDocsToTruncate);
+        logger.info("--> indexing [{}] more docs to be truncated", numDocsToTruncate);
         builders = new IndexRequestBuilder[numDocsToTruncate];
         for (int i = 0; i < builders.length; i++) {
             builders[i] = client().prepareIndex("test", "type").setSource("foo", "bar");

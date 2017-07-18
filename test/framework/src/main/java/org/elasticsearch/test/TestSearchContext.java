@@ -24,8 +24,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
@@ -106,12 +108,16 @@ public class TestSearchContext extends SearchContext {
     }
 
     public TestSearchContext(QueryShardContext queryShardContext) {
+        this(queryShardContext, null);
+    }
+
+    public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard) {
         this.bigArrays = null;
         this.indexService = null;
         this.indexFieldDataService = null;
         this.threadPool = null;
         this.fixedBitSetFilterCache = null;
-        this.indexShard = null;
+        this.indexShard = indexShard;
         this.queryShardContext = queryShardContext;
     }
 

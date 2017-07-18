@@ -141,6 +141,13 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
         return executionEWMA.getAverage();
     }
 
+    /**
+     * Returns the current queue size (operations that are queued)
+     */
+    public int getCurrentQueueSize() {
+        return workQueue.size();
+    }
+
     @Override
     protected void afterExecute(Runnable r, Throwable t) {
         super.afterExecute(r, t);

@@ -199,7 +199,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
                 if (FROM_FIELD.match(currentFieldName) || TO_FIELD.match(currentFieldName)
                         || KEY_FIELD.match(currentFieldName)) {
                     // ignore null value
-                } else if (KEY_FIELD.match(currentFieldName)) {
+                } else {
                     XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
             } else {

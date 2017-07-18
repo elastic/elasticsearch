@@ -91,6 +91,7 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         return Arrays.asList(MockTransportService.TestPlugin.class, MockEngineFactoryPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25761")
     public void testCorruptTranslogTruncation() throws Exception {
         internalCluster().startNodes(2, Settings.EMPTY);
 

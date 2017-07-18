@@ -17,13 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.TypeTokenFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -43,8 +45,7 @@ public class KeepTypesFilterFactory extends AbstractTokenFilterFactory {
     private final Set<String> keepTypes;
     private static final String KEEP_TYPES_KEY = "types";
 
-    public KeepTypesFilterFactory(IndexSettings indexSettings,
-                                 Environment env, String name, Settings settings) {
+    KeepTypesFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 
         final String[] arrayKeepTypes = settings.getAsArray(KEEP_TYPES_KEY, null);

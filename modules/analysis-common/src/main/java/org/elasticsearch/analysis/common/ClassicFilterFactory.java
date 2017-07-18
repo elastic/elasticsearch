@@ -16,26 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tr.ApostropheFilter;
+import org.apache.lucene.analysis.standard.ClassicFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 
 /**
- * Factory for {@link ApostropheFilter}
+ * Factory for {@link ClassicFilter}
  */
-public class ApostropheFilterFactory extends AbstractTokenFilterFactory {
+public class ClassicFilterFactory extends AbstractTokenFilterFactory {
 
-    public ApostropheFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    ClassicFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new ApostropheFilter(tokenStream);
+        return new ClassicFilter(tokenStream);
     }
 
 }

@@ -78,12 +78,12 @@ public class Timer {
     }
 
     /** Return an approximation of the total time spent between consecutive calls of #start and #stop. */
-    public final long getTiming() {
+    public final long getApproximateTiming() {
         if (start != 0) {
             throw new IllegalStateException("#start call misses a matching #stop call");
         }
         // We don't have timings for the last `count-lastCount` method calls
-        // se we assume that they had the same timing as the lastCount first
+        // so we assume that they had the same timing as the lastCount first
         // calls. This approximation is ok since at most 1/256th of method
         // calls have not been timed.
         return timing + (count - lastCount) * timing / lastCount;

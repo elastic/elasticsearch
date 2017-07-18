@@ -26,12 +26,12 @@ import java.util.concurrent.atomic.AtomicLong;
 public class TimerTests extends ESTestCase {
 
     public void testTimingInterval() {
-        final AtomicLong counter = new AtomicLong();
+        final AtomicLong nanoTimeCallCounter = new AtomicLong();
         Timer t = new Timer() {
             long time = 50;
             @Override
             long nanoTime() {
-                counter.incrementAndGet();
+                nanoTimeCallCounter.incrementAndGet();
                 return time += 1;
             }
         };
@@ -41,11 +41,11 @@ public class TimerTests extends ESTestCase {
             if (i < 256) {
                 // for the first 256 calls, nanoTime() is called
                 // once for `start` and once for `stop`
-                assertEquals((i + 1) * 2, counter.get());
+                assertEquals((i + 1) * 2, nanoTimeCallCounter.get());
             }
         }
-        // only called 3356 times, which is significantly less than 100000
-        assertEquals(3356L, counter.get());
+        // only called nanoTime() 3356 times, which is significantly less than 100000
+        assertEquals(3356L, nanoTimeCallCounter.get());
     }
 
     public void testExtrapolate() {
@@ -61,7 +61,7 @@ public class TimerTests extends ESTestCase {
             t.stop();
             assertEquals(i, t.getCount());
             // Make sure the cumulated timing is 42 times the number of calls as expected
-            assertEquals(i * 42L, t.getTiming());
+            assertEquals(i * 42L, t.getApproximateTiming());
         }
     }
 

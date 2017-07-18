@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -17,7 +18,6 @@ import java.util.Objects;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
@@ -28,12 +28,12 @@ import org.elasticsearch.env.Environment;
  */
 public final class RestrictedTrustConfig extends TrustConfig {
 
-    public static final String RESTRICTIONS_KEY_SUBJECT_NAME = "trust.subject_name";
+    private static final String RESTRICTIONS_KEY_SUBJECT_NAME = "trust.subject_name";
     private final Settings settings;
     private final String groupConfigPath;
     private final TrustConfig delegate;
 
-    public RestrictedTrustConfig(Settings settings, String groupConfigPath, TrustConfig delegate) {
+    RestrictedTrustConfig(Settings settings, String groupConfigPath, TrustConfig delegate) {
         this.settings = settings;
         this.groupConfigPath = Objects.requireNonNull(groupConfigPath);
         this.delegate = Objects.requireNonNull(delegate);
@@ -52,7 +52,9 @@ public final class RestrictedTrustConfig extends TrustConfig {
 
     @Override
     List<Path> filesToMonitor(@Nullable Environment environment) {
-        return Collections.singletonList(resolveGroupConfigPath(environment));
+        List<Path> files = new ArrayList<>(delegate.filesToMonitor(environment));
+        files.add(resolveGroupConfigPath(environment));
+        return Collections.unmodifiableList(files);
     }
 
     @Override

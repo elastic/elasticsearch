@@ -150,7 +150,15 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
             });
         });
 
-        executeUpgradeIfClusterHasNewNode();
+        // TODO remove this again, as the upgrade API should take care of this
+        // currently the triggered watches index is not checked by the upgrade API, resulting in an existing index
+        // that has not configured the `index.format: 6`, resulting in watcher not starting
+        Map<String, String> params = new HashMap<>();
+        params.put("error_trace", "true");
+        params.put("ignore", "404");
+        client().performRequest("DELETE", ".triggered_watches", params);
+
+        executeUpgradeIfNeeded();
 
         // TODO we should be able to run this against any node, once the bwc serialization issues are fixed
         executeAgainstMasterNode(client -> {
@@ -181,7 +189,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
                 ContentType.APPLICATION_JSON);
 
         // execute upgrade if new nodes are in the cluster
-        executeUpgradeIfClusterHasNewNode();
+        executeUpgradeIfNeeded();
 
         executeAgainstAllNodes(client -> {
             Map<String, String> params = Collections.singletonMap("error_trace", "true");
@@ -193,7 +201,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         });
     }
 
-    public void executeUpgradeIfClusterHasNewNode() throws IOException {
+    public void executeUpgradeIfNeeded() throws IOException {
         // if new nodes exists, this is a mixed cluster
         boolean only6xNodes = nodes.getBWCVersion().major >= 6;
         final List<Node> nodesToQuery = only6xNodes ? nodes.getBWCNodes() : nodes.getNewNodes();
@@ -202,10 +210,13 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
             try (RestClient client = buildClient(restClientSettings(), httpHosts)) {
                 logger.info("checking that upgrade procedure on the new cluster is required, hosts [{}]", Arrays.asList(httpHosts));
                 Map<String, String> params = Collections.singletonMap("error_trace", "true");
-                Map<String, Object> response = toMap(client().performRequest("GET", "_xpack/migration/assistance", params));
-                String action = ObjectPath.evaluate(response, "indices.\\.watches.action_required");
-                logger.info("migration assistance response [{}]", action);
-                if ("upgrade".equals(action)) {
+                Response assistanceResponse = client().performRequest("GET", "_xpack/migration/assistance", params);
+                String assistanceResponseData = EntityUtils.toString(assistanceResponse.getEntity());
+                logger.info("Assistance response is: [{}]", assistanceResponseData);
+                Map<String, Object> response = toMap(assistanceResponseData);
+                String watchIndexUpgradeRequired = ObjectPath.evaluate(response, "indices.\\.watches.action_required");
+                String triggeredWatchIndexUpgradeRequired = ObjectPath.evaluate(response, "indices.\\.triggered_watches.action_required");
+                if ("upgrade".equals(watchIndexUpgradeRequired) || "upgrade".equals(triggeredWatchIndexUpgradeRequired)) {
                     client.performRequest("POST", "_xpack/migration/upgrade/.watches", params);
                 }
             }
@@ -364,7 +375,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         }
     }
 
-    static Map<String, Object> toMap(Response response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
+    static Map<String, Object> toMap(String response) throws IOException {
+        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
     }
 }

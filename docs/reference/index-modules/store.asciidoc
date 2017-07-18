@@ -73,6 +73,8 @@ compatibility.
 
 === Pre-loading data into the file system cache
 
+NOTE: This is an expert setting, the details of which may change in the future.
+
 By default, elasticsearch completely relies on the operating system file system
 cache for caching I/O operations. It is possible to set `index.store.preload`
 in order to tell the operating system to load the content of hot index

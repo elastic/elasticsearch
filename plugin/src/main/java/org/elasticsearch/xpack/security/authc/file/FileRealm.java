@@ -5,17 +5,17 @@
  */
 package org.elasticsearch.xpack.security.authc.file;
 
-import java.util.Map;
-import java.util.Set;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.security.authc.IncomingRequest;
+import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.user.User;
+
+import java.util.Map;
+import java.util.Set;
 
 public class FileRealm extends CachingUsernamePasswordRealm {
 
@@ -38,13 +38,12 @@ public class FileRealm extends CachingUsernamePasswordRealm {
     }
 
     @Override
-    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener, IncomingRequest incomingRequest) {
-        if (userPasswdStore.verifyPassword(token.principal(), token.credentials())) {
+    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+        final AuthenticationResult result = userPasswdStore.verifyPassword(token.principal(), token.credentials(), () -> {
             String[] roles = userRolesStore.roles(token.principal());
-            listener.onResponse(new User(token.principal(), roles));
-        } else {
-            listener.onResponse(null);
-        }
+            return new User(token.principal(), roles);
+        });
+        listener.onResponse(result);
     }
 
     @Override

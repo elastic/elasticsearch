@@ -29,6 +29,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.support.clock.ClockMock;
 import org.elasticsearch.xpack.watcher.WatcherIndexingListener.Configuration;
 import org.elasticsearch.xpack.watcher.WatcherIndexingListener.ShardAllocationConfiguration;
@@ -373,7 +374,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         Index index = new Index(Watch.INDEX, "foo");
         ShardId shardId = new ShardId(index, 0);
         ShardRoutingState randomState = randomFrom(STARTED, RELOCATING);
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "current", true,
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "current", randomState == RELOCATING ? "other" : null, true,
                 randomState);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
                 .addShard(shardRouting).build();
@@ -648,6 +649,20 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         listener.clusterChanged(nodeGoneEvent);
 
         // ensure no configuration replacement has happened
+        assertThat(listener.getConfiguration(), is(INACTIVE));
+    }
+
+    public void testThatIndexingListenerIsInactiveWhenWatchExecutionIsNotDistributed() throws Exception {
+        listener.setConfiguration(INACTIVE);
+        Version oldVersion = VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, Version.V_6_0_0_alpha2);
+        DiscoveryNode node = new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
+                new HashSet<>(asList(DiscoveryNode.Role.values())), oldVersion);
+
+        ClusterState state = ClusterState.builder(new ClusterName("my-cluster"))
+                .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(node))
+                .build();
+        listener.clusterChanged(new ClusterChangedEvent("something", state, state));
+
         assertThat(listener.getConfiguration(), is(INACTIVE));
     }
 

@@ -9,6 +9,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -17,7 +18,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
-import org.elasticsearch.xpack.security.authc.IncomingRequest;
+import org.elasticsearch.xpack.security.action.user.ChangePasswordRequest;
+import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
@@ -31,9 +33,6 @@ import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.security.user.User;
 
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -50,7 +49,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public static final SecureString EMPTY_PASSWORD_TEXT = new SecureString("".toCharArray());
     static final char[] EMPTY_PASSWORD_HASH = Hasher.BCRYPT.hash(EMPTY_PASSWORD_TEXT);
-    static final char[] OLD_DEFAULT_PASSWORD_HASH = Hasher.BCRYPT.hash(new SecureString("changeme".toCharArray()));
 
     private static final ReservedUserInfo DEFAULT_USER_INFO = new ReservedUserInfo(EMPTY_PASSWORD_HASH, true, true);
     private static final ReservedUserInfo DISABLED_USER_INFO = new ReservedUserInfo(EMPTY_PASSWORD_HASH, false, true);
@@ -58,6 +56,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     public static final Setting<Boolean> ACCEPT_DEFAULT_PASSWORD_SETTING = Setting.boolSetting(
             Security.setting("authc.accept_default_password"), true, Setting.Property.NodeScope, Setting.Property.Filtered,
             Setting.Property.Deprecated);
+    public static final Setting<SecureString> BOOTSTRAP_ELASTIC_PASSWORD = SecureSetting.secureString("bootstrap.password", null);
 
     private final NativeUsersStore nativeUsersStore;
     private final AnonymousUser anonymousUser;
@@ -76,71 +75,36 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     }
 
     @Override
-    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener, IncomingRequest incomingRequest) {
-        if (incomingRequest.getType() != IncomingRequest.RequestType.REST) {
-            doAuthenticate(token, listener, false);
-        } else {
-            InetAddress address = incomingRequest.getRemoteAddress().getAddress();
-
-            try {
-                // This checks if the address is the loopback address or if it is bound to one of this machine's
-                // network interfaces. This is because we want to allow requests that originate from this machine.
-                final boolean isLocalMachine = address.isLoopbackAddress() || NetworkInterface.getByInetAddress(address) != null;
-                doAuthenticate(token, listener, isLocalMachine);
-            } catch (SocketException e) {
-                listener.onFailure(Exceptions.authenticationError("failed to authenticate user [{}]", e, token.principal()));
-            }
-        }
-    }
-
-    private void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener, boolean acceptEmptyPassword) {
+    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
         if (realmEnabled == false) {
-            listener.onResponse(null);
+            listener.onResponse(AuthenticationResult.notHandled());
         } else if (isReserved(token.principal(), config.globalSettings()) == false) {
-            listener.onResponse(null);
+            listener.onResponse(AuthenticationResult.notHandled());
         } else {
             getUserInfo(token.principal(), ActionListener.wrap((userInfo) -> {
-                Runnable action;
+                AuthenticationResult result;
                 if (userInfo != null) {
                     try {
                         if (userInfo.hasEmptyPassword) {
-                            // norelease
-                            // Accepting the OLD_DEFAULT_PASSWORD_HASH is a transition step. We do not want to support
-                            // this in a release.
-                            if (isSetupMode(token.principal(), acceptEmptyPassword) == false) {
-                                action = () -> listener.onFailure(Exceptions.authenticationError("failed to authenticate user [{}]",
-                                        token.principal()));
-                            } else if (verifyPassword(userInfo, token)
-                                    || Hasher.BCRYPT.verify(token.credentials(), OLD_DEFAULT_PASSWORD_HASH)) {
-                                action = () -> listener.onResponse(getUser(token.principal(), userInfo));
-                            } else {
-                                action = () -> listener.onFailure(Exceptions.authenticationError("failed to authenticate user [{}]",
-                                        token.principal()));
-                            }
+                            result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
                         } else if (verifyPassword(userInfo, token)) {
                             final User user = getUser(token.principal(), userInfo);
-                            action = () -> listener.onResponse(user);
+                            result = AuthenticationResult.success(user);
                         } else {
-                            action = () -> listener.onFailure(Exceptions.authenticationError("failed to authenticate user [{}]",
-                                    token.principal()));
+                            result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
                         }
                     } finally {
-                        if (userInfo.passwordHash != EMPTY_PASSWORD_HASH && userInfo.passwordHash != OLD_DEFAULT_PASSWORD_HASH) {
+                        if (userInfo.passwordHash != EMPTY_PASSWORD_HASH) {
                             Arrays.fill(userInfo.passwordHash, (char) 0);
                         }
                     }
                 } else {
-                    action = () -> listener.onFailure(Exceptions.authenticationError("failed to authenticate user [{}]",
-                            token.principal()));
+                    result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
                 }
-                // we want the finally block to clear out the chars before we proceed further so we execute the action here
-                action.run();
+                // we want the finally block to clear out the chars before we proceed further so we handle the result here
+                listener.onResponse(result);
             }, listener::onFailure));
         }
-    }
-
-    private boolean isSetupMode(String userName, boolean acceptEmptyPassword) {
-        return ElasticUser.NAME.equals(userName) && acceptEmptyPassword;
     }
 
     private boolean verifyPassword(ReservedUserInfo userInfo, UsernamePasswordToken token) {
@@ -186,11 +150,36 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
+    public synchronized void bootstrapElasticUserCredentials(SecureString passwordHash, ActionListener<Boolean> listener) {
+        getUserInfo(ElasticUser.NAME, new ActionListener<ReservedUserInfo>() {
+            @Override
+            public void onResponse(ReservedUserInfo reservedUserInfo) {
+                if (reservedUserInfo == null) {
+                    listener.onFailure(new IllegalStateException("unexpected state: ReservedUserInfo was null"));
+                } else if (reservedUserInfo.hasEmptyPassword) {
+                    ChangePasswordRequest changePasswordRequest = new ChangePasswordRequest();
+                    changePasswordRequest.username(ElasticUser.NAME);
+                    changePasswordRequest.passwordHash(passwordHash.getChars());
+                    nativeUsersStore.changePassword(changePasswordRequest,
+                            ActionListener.wrap(v -> listener.onResponse(true), listener::onFailure));
+
+                } else {
+                    listener.onResponse(false);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
     private User getUser(String username, ReservedUserInfo userInfo) {
         assert username != null;
         switch (username) {
             case ElasticUser.NAME:
-                return new ElasticUser(userInfo.enabled, userInfo.hasEmptyPassword);
+                return new ElasticUser(userInfo.enabled);
             case KibanaUser.NAME:
                 return new KibanaUser(userInfo.enabled);
             case LogstashSystemUser.NAME:
@@ -214,8 +203,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 List<User> users = new ArrayList<>(4);
 
                 ReservedUserInfo userInfo = reservedUserInfos.get(ElasticUser.NAME);
-                users.add(new ElasticUser(userInfo == null || userInfo.enabled,
-                        userInfo == null || userInfo.hasEmptyPassword));
+                users.add(new ElasticUser(userInfo == null || userInfo.enabled));
 
                 userInfo = reservedUserInfos.get(KibanaUser.NAME);
                 users.add(new KibanaUser(userInfo == null || userInfo.enabled));
@@ -277,5 +265,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public static void addSettings(List<Setting<?>> settingsList) {
         settingsList.add(ACCEPT_DEFAULT_PASSWORD_SETTING);
+        settingsList.add(BOOTSTRAP_ELASTIC_PASSWORD);
     }
 }

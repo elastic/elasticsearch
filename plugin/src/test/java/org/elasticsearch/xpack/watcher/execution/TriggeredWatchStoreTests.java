@@ -125,15 +125,18 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         final Index index = metaDataBuilder.get(TriggeredWatchStore.INDEX_NAME).getIndex();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         for (int i = 0; i < numShards; i++) {
-            ShardRoutingState state;
+            final ShardRoutingState state;
+            final String currentNodeId;
             if (numStartedShards-- > 0) {
                 state = ShardRoutingState.STARTED;
+                currentNodeId = "_node_id";
             } else {
                 state = ShardRoutingState.UNASSIGNED;
+                currentNodeId = null;
             }
             ShardId shardId = new ShardId(index, 0);
             indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId)
-                    .addShard(TestShardRouting.newShardRouting(shardId, "_node_id", null, true, state,
+                    .addShard(TestShardRouting.newShardRouting(shardId, currentNodeId, null, true, state,
                             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")))
                     .build());
             indexRoutingTableBuilder.addReplica();
@@ -180,7 +183,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         BytesArray source = new BytesArray("{}");
         SearchHit hit = new SearchHit(0, "first_foo", new Text(TriggeredWatchStore.DOC_TYPE), null);
         hit.version(1L);
-        hit.shard(new SearchShardTarget("_node_id", index, 0));
+        hit.shard(new SearchShardTarget("_node_id", index, 0, null));
         hit.sourceRef(source);
         SearchHits hits = new SearchHits(new SearchHit[]{hit}, 1, 1.0f);
         when(searchResponse1.getHits()).thenReturn(hits);
@@ -192,12 +195,12 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         // First return a scroll response with a single hit and then with no hits
         hit = new SearchHit(0, "second_foo", new Text(TriggeredWatchStore.DOC_TYPE), null);
         hit.version(1L);
-        hit.shard(new SearchShardTarget("_node_id", index, 0));
+        hit.shard(new SearchShardTarget("_node_id", index, 0, null));
         hit.sourceRef(source);
         hits = new SearchHits(new SearchHit[]{hit}, 1, 1.0f);
         SearchResponse searchResponse2 = new SearchResponse(
-                new InternalSearchResponse(hits, null, null, null, false, null, 1), "_scrollId1", 1, 1, 1, null);
-        SearchResponse searchResponse3 = new SearchResponse(InternalSearchResponse.empty(), "_scrollId2", 1, 1, 1, null);
+                new InternalSearchResponse(hits, null, null, null, false, null, 1), "_scrollId1", 1, 1, 0, 1, null);
+        SearchResponse searchResponse3 = new SearchResponse(InternalSearchResponse.empty(), "_scrollId2", 1, 1, 0, 1, null);
 
         doAnswer(invocation -> {
             SearchScrollRequest request = (SearchScrollRequest) invocation.getArguments()[0];

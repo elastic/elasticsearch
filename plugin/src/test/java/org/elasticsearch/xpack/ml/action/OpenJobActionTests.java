@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.MlMetadata;
@@ -33,11 +35,13 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -339,6 +343,79 @@ public class OpenJobActionTests extends ESTestCase {
         assertEquals(indexToRemove, result.get(0));
     }
 
+    public void testMappingRequiresUpdateNoMapping() throws IOException {
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
+        ClusterState cs = csBuilder.build();
+        String[] indices = new String[] { "no_index" };
+
+        assertArrayEquals(new String[] { "no_index" }, OpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
+    }
+
+    public void testMappingRequiresUpdateNullMapping() throws IOException {
+        ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("null_mapping", null));
+        String[] indices = new String[] { "null_index" };
+        assertArrayEquals(indices, OpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
+    }
+
+    public void testMappingRequiresUpdateNoVersion() throws IOException {
+        ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("no_version_field", "NO_VERSION_FIELD"));
+        String[] indices = new String[] { "no_version_field" };
+        assertArrayEquals(indices, OpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
+    }
+
+    public void testMappingRequiresUpdateRecentMappingVersion() throws IOException {
+        ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_current", Version.CURRENT.toString()));
+        String[] indices = new String[] { "version_current" };
+        assertArrayEquals(new String[] {}, OpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
+    }
+
+    public void testMappingRequiresUpdateMaliciousMappingVersion() throws IOException {
+        ClusterState cs = getClusterStateWithMappingsWithMetaData(
+                Collections.singletonMap("version_current", Collections.singletonMap("nested", "1.0")));
+        String[] indices = new String[] { "version_nested" };
+        assertArrayEquals(indices, OpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
+    }
+
+    public void testMappingRequiresUpdateOldMappingVersion() throws IOException {
+        ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_54", Version.V_5_4_0.toString()));
+        String[] indices = new String[] { "version_54" };
+        assertArrayEquals(indices, OpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
+    }
+
+    public void testMappingRequiresUpdateBogusMappingVersion() throws IOException {
+        ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_bogus", "0.0"));
+        String[] indices = new String[] { "version_bogus" };
+        assertArrayEquals(indices, OpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
+    }
+
+    public void testMappingRequiresUpdateNewerMappingVersion() throws IOException {
+        ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_newer", Version.CURRENT));
+        String[] indices = new String[] { "version_newer" };
+        assertArrayEquals(new String[] {}, OpenJobAction.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousVersion(), logger));
+    }
+
+    public void testMappingRequiresUpdateNewerMappingVersionMinor() throws IOException {
+        ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_newer_minor", Version.CURRENT));
+        String[] indices = new String[] { "version_newer_minor" };
+        assertArrayEquals(new String[] {},
+                OpenJobAction.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousMinorVersion(), logger));
+    }
+
+    public void testMappingRequiresUpdateSomeVersionMix() throws IOException {
+        Map<String, Object> versionMix = new HashMap<String, Object>();
+        versionMix.put("version_54", Version.V_5_4_0);
+        versionMix.put("version_current", Version.CURRENT);
+        versionMix.put("version_null", null);
+        versionMix.put("version_current2", Version.CURRENT);
+        versionMix.put("version_bogus", "0.0.0");
+        versionMix.put("version_current3", Version.CURRENT);
+        versionMix.put("version_bogus2", "0.0.0");
+
+        ClusterState cs = getClusterStateWithMappingsWithMetaData(versionMix);
+        String[] indices = new String[] { "version_54", "version_null", "version_bogus", "version_bogus2" };
+        assertArrayEquals(indices, OpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
+    }
+
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder) {
         builder.addTask(MlMetadata.jobTaskId(jobId), OpenJobAction.TASK_NAME, new OpenJobAction.JobParams(jobId),
                 new Assignment(nodeId, "test assignment"));
@@ -382,6 +459,42 @@ public class OpenJobActionTests extends ESTestCase {
             mlMetadata.putJob(job, false);
         }
         metaData.putCustom(MlMetadata.TYPE, mlMetadata.build());
+    }
+
+    private ClusterState getClusterStateWithMappingsWithMetaData(Map<String, Object> namesAndVersions) throws IOException {
+        MetaData.Builder metaDataBuilder = MetaData.builder();
+
+        for (Map.Entry<String, Object> entry : namesAndVersions.entrySet()) {
+
+            String indexName = entry.getKey();
+            Object version = entry.getValue();
+
+            IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
+            indexMetaData.settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+
+            Map<String, Object> mapping = new HashMap<>();
+            Map<String, Object> properties = new HashMap<>();
+            for (int i = 0; i < 10; i++) {
+                properties.put("field" + i, Collections.singletonMap("type", "string"));
+            }
+            mapping.put("properties", properties);
+
+            Map<String, Object> meta = new HashMap<>();
+            if (version != null && version.equals("NO_VERSION_FIELD") == false) {
+                meta.put("version", version);
+            }
+            mapping.put("_meta", meta);
+
+            indexMetaData.putMapping(new MappingMetaData(ElasticsearchMappings.DOC_TYPE, mapping));
+
+            metaDataBuilder.put(indexMetaData);
+        }
+        MetaData metaData = metaDataBuilder.build();
+
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
+        csBuilder.metaData(metaData);
+        return csBuilder.build();
     }
 
 }

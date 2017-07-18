@@ -33,7 +33,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_IDS;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_IDS;
@@ -631,13 +630,13 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     private Response successfulGetWatchResponse(final String watchId) {
-        final HttpEntity goodEntity = entityForClusterAlert(EXISTS, LAST_UPDATED_VERSION);
+        final HttpEntity goodEntity = entityForClusterAlert(EXISTS, ClusterAlertsUtil.LAST_UPDATED_VERSION);
 
         return response("GET", "/_xpack/watcher/watch/" + watchId, successfulCheckStatus(), goodEntity);
     }
     private Response unsuccessfulGetWatchResponse(final String watchId) {
         if (randomBoolean()) {
-            final HttpEntity badEntity = entityForClusterAlert(DOES_NOT_EXIST, LAST_UPDATED_VERSION);
+            final HttpEntity badEntity = entityForClusterAlert(DOES_NOT_EXIST, ClusterAlertsUtil.LAST_UPDATED_VERSION);
 
             return response("GET", "/_xpack/watcher/watch/" + watchId, successfulCheckStatus(), badEntity);
         }
@@ -646,14 +645,14 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     private Response successfulGetResourceResponse(final String resourcePath, final String resourceName) {
-        final HttpEntity goodEntity = entityForResource(EXISTS, resourceName, LAST_UPDATED_VERSION);
+        final HttpEntity goodEntity = entityForResource(EXISTS, resourceName, MonitoringTemplateUtils.LAST_UPDATED_VERSION);
 
         return response("GET", resourcePath + resourceName, successfulCheckStatus(), goodEntity);
     }
 
     private Response unsuccessfulGetResourceResponse(final String resourcePath, final String resourceName) {
         if (randomBoolean()) {
-            final HttpEntity badEntity = entityForResource(DOES_NOT_EXIST, resourceName, LAST_UPDATED_VERSION);
+            final HttpEntity badEntity = entityForResource(DOES_NOT_EXIST, resourceName, MonitoringTemplateUtils.LAST_UPDATED_VERSION);
 
             return response("GET", resourcePath + resourceName, successfulCheckStatus(), badEntity);
         }

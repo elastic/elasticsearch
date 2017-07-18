@@ -12,6 +12,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.entity.NStringEntity;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -96,24 +97,6 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
     public void addSecurityIndex() throws IOException {
         client().admin().indices().prepareCreate(INTERNAL_SECURITY_INDEX).get();
         cluster2.client().admin().indices().prepareCreate(INTERNAL_SECURITY_INDEX).get();
-
-        InetSocketAddress[] inetSocketAddresses = cluster2.httpAddresses();
-        List<HttpHost> hosts = new ArrayList<>();
-        for (InetSocketAddress socketAddress : inetSocketAddresses) {
-            hosts.add(new HttpHost(socketAddress.getAddress(), socketAddress.getPort()));
-        }
-
-        RestClientBuilder builder = RestClient.builder(hosts.toArray(new HttpHost[hosts.size()]));
-        RestClient client = builder.build();
-        SecureString defaultPassword = new SecureString("".toCharArray());
-
-        String payload = "{\"password\": \"" + SecuritySettingsSource.TEST_PASSWORD + "\"}";
-        HttpEntity entity = new NStringEntity(payload, ContentType.APPLICATION_JSON);
-        BasicHeader authHeader = new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, defaultPassword));
-        String route = "/_xpack/security/user/elastic/_password";
-        Response response = getRestClient().performRequest("PUT", route, Collections.emptyMap(), entity, authHeader);
-        client.close();
     }
 
     @Override
@@ -135,6 +118,7 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
         return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), transportClientPlugins(), transportAddresses);
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1996")
     public void testThatTribeCanAuthenticateElasticUser() throws Exception {
         ClusterHealthResponse response = tribeNode.client().filterWithHeader(Collections.singletonMap("Authorization",
                 UsernamePasswordToken.basicAuthHeaderValue("elastic", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING)))
@@ -142,6 +126,7 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
         assertNoTimeout(response);
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1996")
     public void testThatTribeCanAuthenticateElasticUserWithChangedPassword() throws Exception {
         securityClient(client()).prepareChangePassword("elastic", "password".toCharArray()).get();
 
@@ -152,6 +137,7 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
         assertNoTimeout(response);
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1996")
     public void testThatTribeClustersHaveDifferentPasswords() throws Exception {
         securityClient().prepareChangePassword("elastic", "password".toCharArray()).get();
         securityClient(cluster2.client()).prepareChangePassword("elastic", "password2".toCharArray()).get();

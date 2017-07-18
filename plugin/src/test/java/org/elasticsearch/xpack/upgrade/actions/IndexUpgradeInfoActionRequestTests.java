@@ -9,8 +9,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction.Request;
 
-import java.util.Collections;
-
 public class IndexUpgradeInfoActionRequestTests extends AbstractStreamableTestCase<Request> {
     @Override
     protected Request createTestInstance() {
@@ -20,9 +18,6 @@ public class IndexUpgradeInfoActionRequestTests extends AbstractStreamableTestCa
             indices[i] = randomAlphaOfLength(10);
         }
         Request request = new Request(indices);
-        if (randomBoolean()) {
-            request.extraParams(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(20)));
-        }
         if (randomBoolean()) {
             request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         }

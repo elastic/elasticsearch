@@ -12,7 +12,9 @@ import org.elasticsearch.test.ESTestCase;
 import static org.apache.lucene.util.automaton.Operations.DEFAULT_MAX_DETERMINIZED_STATES;
 import static org.elasticsearch.xpack.security.support.Automatons.pattern;
 import static org.elasticsearch.xpack.security.support.Automatons.patterns;
+import static org.elasticsearch.xpack.security.support.Automatons.predicate;
 import static org.elasticsearch.xpack.security.support.Automatons.wildcard;
+import static org.hamcrest.Matchers.equalTo;
 
 public class AutomatonsTests extends ESTestCase {
     public void testPatternsUnionOfMultiplePatterns() throws Exception {
@@ -51,6 +53,12 @@ public class AutomatonsTests extends ESTestCase {
         assertMismatch(wildcard("*st"), "tet");
         assertMismatch(wildcard("t\\*st"), "test");
         assertMatch(wildcard("t\\*st"), "t*st");
+    }
+
+    public void testPredicateToString() throws Exception {
+        assertThat(predicate("a.*z").toString(), equalTo("a.*z"));
+        assertThat(predicate("a.*z", "A.*Z").toString(), equalTo("a.*z|A.*Z"));
+        assertThat(predicate("a.*z", "A.*Z", "Α.*Ω").toString(), equalTo("a.*z|A.*Z|Α.*Ω"));
     }
 
     private void assertMatch(Automaton automaton, String text) {

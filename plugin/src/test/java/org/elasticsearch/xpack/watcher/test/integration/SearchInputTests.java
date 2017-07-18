@@ -94,7 +94,8 @@ public class SearchInputTests extends ESTestCase {
     public void testExecute() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), "", 1, 1, 1234, ShardSearchFailure.EMPTY_ARRAY);
+        SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), "", 1, 1, 0, 1234,
+                ShardSearchFailure.EMPTY_ARRAY);
         searchFuture.onResponse(searchResponse);
         when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
 
@@ -133,7 +134,8 @@ public class SearchInputTests extends ESTestCase {
     public void testDifferentSearchType() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), "", 1, 1, 1234, ShardSearchFailure.EMPTY_ARRAY);
+        SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), "", 1, 1, 0, 1234,
+                ShardSearchFailure.EMPTY_ARRAY);
         searchFuture.onResponse(searchResponse);
         when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
 
@@ -174,7 +176,8 @@ public class SearchInputTests extends ESTestCase {
     public void testThatEmptyRequestBodyWorks() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), "", 1, 1, 1234, ShardSearchFailure.EMPTY_ARRAY);
+        SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), "", 1, 1, 0, 1234,
+                ShardSearchFailure.EMPTY_ARRAY);
         searchFuture.onResponse(searchResponse);
         when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
 

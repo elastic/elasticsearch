@@ -81,7 +81,7 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
     protected Settings externalClusterClientSettings() {
         Settings.Builder builder = Settings.builder();
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
-        builder.put(Security.USER_SETTING.getKey(), "elastic:" + SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
+        builder.put(Security.USER_SETTING.getKey(), "x_pack_rest_user:" + SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         return builder.build();
     }

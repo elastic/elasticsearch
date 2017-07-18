@@ -395,6 +395,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
             clusterStateBuilder.metaData(metaDataBuilder);
         }
 
+        clusterStateBuilder.routingTable(SecurityTestUtils.buildIndexRoutingTable(securityIndexName));
         return clusterStateBuilder;
     }
 

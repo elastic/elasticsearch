@@ -94,7 +94,7 @@ public class ScriptConditionTests extends ESTestCase {
 
     public void testExecute() throws Exception {
         ScriptCondition condition = new ScriptCondition(mockScript("ctx.payload.hits.total > 1"), scriptService);
-        SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500L, new ShardSearchFailure[0]);
+        SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         assertFalse(condition.execute(ctx).met());
     }
@@ -102,7 +102,7 @@ public class ScriptConditionTests extends ESTestCase {
     public void testExecuteMergedParams() throws Exception {
         Script script = new Script(ScriptType.INLINE, "mockscript", "ctx.payload.hits.total > threshold", singletonMap("threshold", 1));
         ScriptCondition executable = new ScriptCondition(script, scriptService);
-        SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500L, new ShardSearchFailure[0]);
+        SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         assertFalse(executable.execute(ctx).met());
     }
@@ -115,7 +115,7 @@ public class ScriptConditionTests extends ESTestCase {
         parser.nextToken();
         ScriptCondition executable = ScriptCondition.parse(scriptService, "_watch", parser);
 
-        SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500L, new ShardSearchFailure[0]);
+        SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
 
         assertFalse(executable.execute(ctx).met());
@@ -179,7 +179,7 @@ public class ScriptConditionTests extends ESTestCase {
     public void testScriptConditionThrowException() throws Exception {
         ScriptCondition condition = new ScriptCondition(
                 mockScript("null.foo"), scriptService);
-        SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500L, new ShardSearchFailure[0]);
+        SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         ScriptException exception = expectThrows(ScriptException.class, () -> condition.execute(ctx));
         assertThat(exception.getMessage(), containsString("Error evaluating null.foo"));
@@ -187,7 +187,7 @@ public class ScriptConditionTests extends ESTestCase {
 
     public void testScriptConditionReturnObjectThrowsException() throws Exception {
         ScriptCondition condition = new ScriptCondition(mockScript("return new Object()"), scriptService);
-        SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500L, new ShardSearchFailure[0]);
+        SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         Exception exception = expectThrows(IllegalStateException.class, () -> condition.execute(ctx));
         assertThat(exception.getMessage(),
@@ -197,7 +197,7 @@ public class ScriptConditionTests extends ESTestCase {
     public void testScriptConditionAccessCtx() throws Exception {
         ScriptCondition condition = new ScriptCondition(mockScript("ctx.trigger.scheduled_time.getMillis() < new Date().time"),
                 scriptService);
-        SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500L, new ShardSearchFailure[0]);
+        SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new DateTime(DateTimeZone.UTC), new Payload.XContent(response));
         Thread.sleep(10);
         assertThat(condition.execute(ctx).met(), is(true));

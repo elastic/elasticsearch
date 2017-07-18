@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
-import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactory;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -138,7 +137,7 @@ public abstract class LdapTestCase extends ESTestCase {
         Settings global = Settings.builder().put("path.home", createTempDir()).build();
         RealmConfig config = new RealmConfig("ldap1", settings, global, new ThreadContext(Settings.EMPTY));
 
-        return new DnRoleMapper(LdapRealm.LDAP_TYPE, config, resourceWatcherService);
+        return new DnRoleMapper(config, resourceWatcherService);
     }
 
     protected LdapSession session(SessionFactory factory, String username, SecureString password) {

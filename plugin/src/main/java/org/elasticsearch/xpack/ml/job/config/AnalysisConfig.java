@@ -601,8 +601,8 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             String prevTermField = null;
             for (String termField : termFields) {
                 if (prevTermField != null && termField.startsWith(prevTermField + ".")) {
-                    throw ExceptionsHelper.badRequestException("Fields " + prevTermField + " and " + termField +
-                            " cannot both be used in the same analysis_config");
+                    throw ExceptionsHelper.badRequestException("Fields [" + prevTermField + "] and [" + termField +
+                            "] cannot both be used in the same analysis_config");
                 }
                 prevTermField = termField;
             }

@@ -235,7 +235,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setContent(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject().bytes(), XContentType.JSON)
                 .get());
 
-        Script template = new Script(ScriptType.STORED, "mustache", "my-template", Collections.emptyMap());
+        Script template = new Script(ScriptType.STORED, null, "my-template", Collections.emptyMap());
         WatcherSearchTemplateRequest searchRequest = new WatcherSearchTemplateRequest(new String[]{"events"}, new String[0],
                 SearchType.DEFAULT, WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS, template);
         testConditionSearch(searchRequest);

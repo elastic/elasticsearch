@@ -28,13 +28,12 @@ dependencyLicenses {
   mapping from: /bc.*/, to: 'bouncycastle'
   mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
   mapping from: /transport-netty.*/, to: 'elasticsearch'
-  mapping from: /rest.*/, to: 'elasticsearch'
+  mapping from: /elasticsearch-rest-client.*/, to: 'elasticsearch'
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
-  mapping from: /sniffer.*/, to: 'elasticsearch'
-  ignoreSha 'rest'
+  ignoreSha 'elasticsearch-rest-client'
   ignoreSha 'transport-netty4'
-  ignoreSha 'sniffer'
+  ignoreSha 'elasticsearch-rest-client-sniffer'
 }
 
 licenseHeaders {
@@ -75,8 +74,8 @@ dependencies {
   testCompile 'com.google.code.findbugs:jsr305:3.0.1'
 
   // monitoring deps
-  compile "org.elasticsearch.client:rest:${version}"
-  compile "org.elasticsearch.client:sniffer:${version}"
+  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  compile "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}"
 
   // ml deps
   compile 'net.sf.supercsv:super-csv:2.4.0'
@@ -206,46 +205,13 @@ integTestCluster {
   setting 'xpack.monitoring.exporters._local.type', 'local'
   setting 'xpack.monitoring.exporters._local.enabled', 'false'
   setting 'xpack.monitoring.collection.interval', '-1'
+  keystoreSetting 'bootstrap.password', 'x-pack-test-password'
   distribution = 'zip' // this is important since we use the reindex module in ML
+
+  setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
 
   waitCondition = { NodeInfo node, AntBuilder ant ->
       File tmpFile = new File(node.cwd, 'wait.success')
-
-      for (int i = 0; i < 10; i++) {
-        HttpURLConnection httpURLConnection = null;
-        try {
-          httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_xpack/security/user/elastic/_password")
-                  .openConnection();
-          httpURLConnection.setRequestProperty("Authorization", "Basic " +
-                  Base64.getEncoder().encodeToString("elastic:".getBytes(StandardCharsets.UTF_8)));
-          httpURLConnection.setRequestMethod("PUT");
-          httpURLConnection.setDoOutput(true);
-          httpURLConnection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-
-          httpURLConnection.connect();
-          OutputStream out = httpURLConnection.getOutputStream();
-          out.write("{\"password\": \"x-pack-test-password\"}".getBytes(StandardCharsets.UTF_8));
-          out.close()
-
-          if (httpURLConnection.getResponseCode() == 200) {
-            break
-          }
-        } catch (Exception e) {
-          httpURLConnection.disconnect()
-          if (i == 9) {
-            logger.error("final attempt to set elastic password", e)
-          } else {
-            logger.debug("failed to set elastic password", e)
-          }
-        } finally {
-          if (httpURLConnection != null) {
-            httpURLConnection.disconnect();
-          }
-        }
-
-        // did not start, so wait a bit before trying again
-        Thread.sleep(500L);
-      }
 
       for (int i = 0; i < 10; i++) {
         // we use custom wait logic here as the elastic user is not available immediately and ant.get will fail when a 401 is returned
@@ -253,7 +219,7 @@ integTestCluster {
         try {
           httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}&wait_for_status=yellow").openConnection();
           httpURLConnection.setRequestProperty("Authorization", "Basic " +
-                  Base64.getEncoder().encodeToString("elastic:x-pack-test-password".getBytes(StandardCharsets.UTF_8)));
+                  Base64.getEncoder().encodeToString("x_pack_rest_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8)));
           httpURLConnection.setRequestMethod("GET");
           httpURLConnection.connect();
           if (httpURLConnection.getResponseCode() == 200) {
@@ -363,4 +329,5 @@ run {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.monitoring.enabled', 'true'
   setting 'xpack.watcher.enabled', 'true'
+  keystoreSetting 'bootstrap.password', 'password'
 }

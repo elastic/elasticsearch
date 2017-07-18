@@ -192,18 +192,23 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
      */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().nodes().getLocalNode().isDataNode() && event.metaDataChanged()) {
-            try {
-                IndexMetaData metaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
-                if (metaData == null) {
+        boolean isWatchExecutionDistributed = WatcherLifeCycleService.isWatchExecutionDistributed(event.state());
+        if (isWatchExecutionDistributed) {
+            if (event.state().nodes().getLocalNode().isDataNode() && event.metaDataChanged()) {
+                try {
+                    IndexMetaData metaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
+                    if (metaData == null) {
+                        configuration = INACTIVE;
+                    } else {
+                        checkWatchIndexHasChanged(metaData, event);
+                    }
+                } catch (IllegalStateException e) {
+                    logger.error("error loading watches index: [{}]", e.getMessage());
                     configuration = INACTIVE;
-                } else {
-                    checkWatchIndexHasChanged(metaData, event);
                 }
-            } catch (IllegalStateException e) {
-                logger.error("error loading watches index: [{}]", e.getMessage());
-                configuration = INACTIVE;
             }
+        } else {
+            configuration = INACTIVE;
         }
     }
 

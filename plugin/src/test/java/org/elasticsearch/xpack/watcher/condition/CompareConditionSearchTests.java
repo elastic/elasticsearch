@@ -13,7 +13,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -81,11 +80,11 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
                 Clock.systemUTC());
         SearchHit hit = new SearchHit(0, "1", new Text("type"), null);
         hit.score(1f);
-        hit.shard(new SearchShardTarget("a", new Index("a", "indexUUID"), 0));
+        hit.shard(new SearchShardTarget("a", new Index("a", "indexUUID"), 0, null));
 
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
                 new SearchHits(new SearchHit[]{hit}, 1L, 1f), null, null, null, false, false, 1);
-        SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 500L, new ShardSearchFailure[0]);
+        SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 0, 500L, new ShardSearchFailure[0]);
 
         WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response));
         assertThat(condition.execute(ctx).met(), is(true));

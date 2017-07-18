@@ -10,7 +10,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
 import org.elasticsearch.xpack.security.action.interceptor.BulkShardRequestInterceptor;
-import org.elasticsearch.xpack.security.action.interceptor.FieldStatsRequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.SearchRequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.UpdateRequestInterceptor;
@@ -33,7 +32,6 @@ public class SecurityActionModule extends AbstractSecurityModule.Node {
             multibinder.addBinding().to(SearchRequestInterceptor.class);
             multibinder.addBinding().to(UpdateRequestInterceptor.class);
             multibinder.addBinding().to(BulkShardRequestInterceptor.class);
-            multibinder.addBinding().to(FieldStatsRequestInterceptor.class);
         }
     }
 }

@@ -35,7 +35,10 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
     @Before
     public void ensureNativeStoresStarted() throws Exception {
         assertSecurityIndexActive();
-        setupReservedPasswords();
+        if (shouldSetReservedUserPasswords()) {
+            ensureElasticPasswordBootstrapped();
+            setupReservedPasswords();
+        }
     }
 
     @After
@@ -68,18 +71,14 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
     }
 
     public void setupReservedPasswords() throws IOException {
-        if (shouldSetReservedUserPasswords() == false) {
-            return;
-        }
         logger.info("setting up reserved passwords for test");
         SecureString defaultPassword = new SecureString("".toCharArray());
 
-        for (String username : Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, BeatsSystemUser.NAME, LogstashSystemUser.NAME)) {
-            SecureString authPassword = username.equals(ElasticUser.NAME) ? defaultPassword : reservedPassword;
+        for (String username : Arrays.asList(KibanaUser.NAME, BeatsSystemUser.NAME, LogstashSystemUser.NAME)) {
             String payload = "{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}";
             HttpEntity entity = new NStringEntity(payload, ContentType.APPLICATION_JSON);
             BasicHeader authHeader = new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                    UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, authPassword));
+                    UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING));
             String route = "/_xpack/security/user/" + username + "/_password";
             Response response = getRestClient().performRequest("PUT", route, Collections.emptyMap(), entity, authHeader);
         }

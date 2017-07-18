@@ -6,6 +6,7 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.AbstractOldXPackIndicesBackwardsCompatibilityTestCase;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -48,6 +50,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -184,7 +187,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             Collection<String> pluginNames =
                     nodeInfo.getPlugins().getPluginInfos().stream().map(p -> p.getClassname()).collect(Collectors.toList());
             assertThat("plugin [" + xpackPluginClass().getName() + "] not found in [" + pluginNames + "]", pluginNames,
-                hasItem(xpackPluginClass().getName()));
+                    hasItem(xpackPluginClass().getName()));
         }
     }
 
@@ -209,7 +212,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         Settings.Builder customBuilder = Settings.builder().put(customSettings);
         if (customBuilder.getSecureSettings() != null) {
             SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
-                secureSettings.merge((MockSecureSettings) customBuilder.getSecureSettings()));
+                    secureSettings.merge((MockSecureSettings) customBuilder.getSecureSettings()));
         }
         return builder.build();
     }
@@ -408,7 +411,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Function<Client,Client> getClientWrapper() {
+    protected Function<Client, Client> getClientWrapper() {
         Map<String, String> headers = Collections.singletonMap("Authorization",
                 basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword()));
         // we need to wrap node clients because we do not specify a user for nodes and all requests will use the system
@@ -445,7 +448,11 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     public void assertSecurityIndexActive() throws Exception {
-        for (ClusterService clusterService : internalCluster().getInstances(ClusterService.class)) {
+        assertSecurityIndexActive(internalCluster());
+    }
+
+    public void assertSecurityIndexActive(InternalTestCluster internalTestCluster) throws Exception {
+        for (ClusterService clusterService : internalTestCluster.getInstances(ClusterService.class)) {
             assertBusy(() -> {
                 ClusterState clusterState = clusterService.state();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
@@ -459,6 +466,29 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 }
             });
         }
+    }
+
+    public void ensureElasticPasswordBootstrapped() throws Exception {
+        ensureElasticPasswordBootstrapped(internalCluster());
+    }
+
+    public void ensureElasticPasswordBootstrapped(InternalTestCluster internalTestCluster) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        SecureString testPasswordHashed = new SecureString(SecuritySettingsSource.TEST_PASSWORD_HASHED.toCharArray());
+        ReservedRealm reservedRealm = internalTestCluster.getInstances(ReservedRealm.class).iterator().next();
+        reservedRealm.bootstrapElasticUserCredentials(testPasswordHashed, new ActionListener<Boolean>() {
+            @Override
+            public void onResponse(Boolean passwordSet) {
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Exception attempting to bootstrap password for test", e);
+                fail("Failed to bootstrap elastic password for test due to exception: " + e.getMessage());
+            }
+        });
+        latch.await();
     }
 
     public void assertSecurityIndexWriteable() throws Exception {

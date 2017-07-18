@@ -24,9 +24,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactory.AD_DOMAIN_NAME_SETTING;
+import static org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactory.buildDnFromDomain;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.OBJECT_CLASS_PRESENCE_FILTER;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.search;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.searchForEntry;
+import static org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory.IGNORE_REFERRAL_ERRORS_SETTING;
+
 
 class ActiveDirectoryGroupsResolver implements GroupsResolver {
 
@@ -35,11 +39,10 @@ class ActiveDirectoryGroupsResolver implements GroupsResolver {
     private final LdapSearchScope scope;
     private final boolean ignoreReferralErrors;
 
-    ActiveDirectoryGroupsResolver(Settings settings, String baseDnDefault,
-                                  boolean ignoreReferralErrors) {
-        this.baseDn = settings.get("base_dn", baseDnDefault);
-        this.scope = LdapSearchScope.resolve(settings.get("scope"), LdapSearchScope.SUB_TREE);
-        this.ignoreReferralErrors = ignoreReferralErrors;
+    ActiveDirectoryGroupsResolver(Settings settings) {
+        this.baseDn = settings.get("group_search.base_dn", buildDnFromDomain(settings.get(AD_DOMAIN_NAME_SETTING)));
+        this.scope = LdapSearchScope.resolve(settings.get("group_search.scope"), LdapSearchScope.SUB_TREE);
+        this.ignoreReferralErrors = IGNORE_REFERRAL_ERRORS_SETTING.get(settings);
     }
 
     @Override

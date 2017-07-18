@@ -12,8 +12,8 @@ import org.apache.lucene.search.AssertingQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.DocValuesNumbersQuery;
-import org.apache.lucene.search.FieldValueQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -103,7 +103,7 @@ public class FieldExtractorTests extends ESTestCase {
     
     public void testFieldValue() {
         Set<String> fields = new HashSet<>();
-        FieldExtractor.extractFields(new FieldValueQuery("foo"), fields);
+        FieldExtractor.extractFields(new DocValuesFieldExistsQuery("foo"), fields);
         assertEquals(asSet("foo"), fields);
     }
     
@@ -135,7 +135,7 @@ public class FieldExtractorTests extends ESTestCase {
     public void testIndexOrDocValuesQuery() {
         Set<String> fields = new HashSet<>();
         Query supported = IntPoint.newExactQuery("foo", 42);
-        Query unsupported = NumericDocValuesField.newExactQuery("bar", 3);
+        Query unsupported = NumericDocValuesField.newSlowExactQuery("bar", 3);
 
         IndexOrDocValuesQuery query = new IndexOrDocValuesQuery(supported, supported);
         FieldExtractor.extractFields(query, fields);

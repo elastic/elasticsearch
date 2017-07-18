@@ -9,8 +9,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.Preference;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,16 +41,17 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
     @Inject
     public TransportGetWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver, XPackLicenseState licenseState,
-                                   Watch.Parser parser, Clock clock, InternalClient client) {
+                                   Watch.Parser parser, Clock clock, InternalClient client, ClusterService clusterService) {
         super(settings, GetWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
-                licenseState, GetWatchRequest::new);
+                licenseState, clusterService, GetWatchRequest::new, GetWatchResponse::new);
         this.parser = parser;
         this.clock = clock;
         this.client = client;
     }
 
     @Override
-    protected void doExecute(GetWatchRequest request, ActionListener<GetWatchResponse> listener) {
+    protected void masterOperation(GetWatchRequest request, ClusterState state,
+                                   ActionListener<GetWatchResponse> listener) throws Exception {
         GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId())
                 .preference(Preference.LOCAL.type()).realtime(true);
 

@@ -5,15 +5,16 @@
  */
 package org.elasticsearch.xpack.security.support;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -34,6 +35,7 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -81,6 +83,8 @@ public class IndexLifecycleManager extends AbstractComponent {
 
     private final AtomicReference<UpgradeState> migrateDataState = new AtomicReference<>(UpgradeState.NOT_STARTED);
     private final AtomicInteger migrateDataAttempts = new AtomicInteger(0);
+
+    private final List<BiConsumer<ClusterIndexHealth, ClusterIndexHealth>> indexHealthChangeListeners = new CopyOnWriteArrayList<>();
 
     private volatile boolean templateIsUpToDate;
     private volatile boolean indexExists;
@@ -155,9 +159,18 @@ public class IndexLifecycleManager extends AbstractComponent {
         return this.migrateDataState.get();
     }
 
+    /**
+     * Adds a listener which will be notified when the security index health changes. The previous and
+     * current health will be provided to the listener so that the listener can determine if any action
+     * needs to be taken.
+     */
+    public void addIndexHealthChangeListener(BiConsumer<ClusterIndexHealth, ClusterIndexHealth> listener) {
+        indexHealthChangeListeners.add(listener);
+    }
+
     public void clusterChanged(ClusterChangedEvent event) {
-        final ClusterState state = event.state();
-        processClusterState(state);
+        processClusterState(event.state());
+        checkIndexHealthChange(event);
     }
 
     private void processClusterState(ClusterState state) {
@@ -179,6 +192,37 @@ public class IndexLifecycleManager extends AbstractComponent {
             }
             if (indexAvailable && mappingIsUpToDate == false) {
                 migrateData(state, this::updateMapping);
+            }
+        }
+    }
+
+    private void checkIndexHealthChange(ClusterChangedEvent event) {
+        final ClusterState state = event.state();
+        final ClusterState previousState = event.previousState();
+        final IndexMetaData indexMetaData = resolveConcreteIndex(indexName, state.metaData());
+        final IndexMetaData previousIndexMetaData = resolveConcreteIndex(indexName, previousState.metaData());
+        if (indexMetaData != null) {
+            final ClusterIndexHealth currentHealth =
+                    new ClusterIndexHealth(indexMetaData, state.getRoutingTable().index(indexMetaData.getIndex()));
+            final ClusterIndexHealth previousHealth = previousIndexMetaData != null ? new ClusterIndexHealth(previousIndexMetaData,
+                            previousState.getRoutingTable().index(previousIndexMetaData.getIndex())) : null;
+
+            if (previousHealth == null || previousHealth.getStatus() != currentHealth.getStatus()) {
+                notifyIndexHealthChangeListeners(previousHealth, currentHealth);
+            }
+        } else if (previousIndexMetaData != null) {
+            final ClusterIndexHealth previousHealth =
+                    new ClusterIndexHealth(previousIndexMetaData, previousState.getRoutingTable().index(previousIndexMetaData.getIndex()));
+            notifyIndexHealthChangeListeners(previousHealth, null);
+        }
+    }
+
+    private void notifyIndexHealthChangeListeners(ClusterIndexHealth previousHealth, ClusterIndexHealth currentHealth) {
+        for (BiConsumer<ClusterIndexHealth, ClusterIndexHealth> consumer : indexHealthChangeListeners) {
+            try {
+                consumer.accept(previousHealth, currentHealth);
+            } catch (Exception e) {
+                logger.warn(new ParameterizedMessage("failed to notify listener [{}] of index health change", consumer), e);
             }
         }
     }

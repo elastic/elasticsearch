@@ -1,6 +1,6 @@
 {
   "index_patterns": ".monitoring-kibana-${monitoring.template.version}-*",
-  "version": 6000002,
+  "version": 6000026,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 1,
@@ -77,18 +77,40 @@
                 }
               }
             },
+            "cloud": {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                },
+                "id": {
+                  "type": "keyword"
+                },
+                "vm_type": {
+                  "type": "keyword"
+                },
+                "region": {
+                  "type": "keyword"
+                },
+                "zone": {
+                  "type": "keyword"
+                },
+                "metadata": {
+                  "type": "object"
+                }
+              }
+            },
             "os": {
               "properties": {
                 "load": {
                   "properties": {
                     "1m": {
-                      "type": "float"
+                      "type": "half_float"
                     },
                     "5m": {
-                      "type": "float"
+                      "type": "half_float"
                     },
                     "15m": {
-                      "type": "float"
+                      "type": "half_float"
                     }
                   }
                 },

@@ -16,9 +16,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Map;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.upgrade.IndexUpgradeCheckTests.newTestIndexMeta;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -26,7 +25,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class IndexUpgradeServiceTests extends ESTestCase {
 
     private IndexUpgradeCheck upgradeBarCheck = new IndexUpgradeCheck("upgrade_bar", Settings.EMPTY,
-            (BiFunction<IndexMetaData, Map<String, String>, UpgradeActionRequired>) (indexMetaData, stringStringMap) -> {
+            (Function<IndexMetaData, UpgradeActionRequired>) indexMetaData -> {
                 if ("bar".equals(indexMetaData.getSettings().get("test.setting"))) {
                     return UpgradeActionRequired.UPGRADE;
                 } else {
@@ -35,7 +34,7 @@ public class IndexUpgradeServiceTests extends ESTestCase {
             }, null, null, null, null);
 
     private IndexUpgradeCheck reindexFooCheck = new IndexUpgradeCheck("reindex_foo", Settings.EMPTY,
-            (BiFunction<IndexMetaData, Map<String, String>, UpgradeActionRequired>) (indexMetaData, stringStringMap) -> {
+            (Function<IndexMetaData, UpgradeActionRequired>) indexMetaData -> {
                 if ("foo".equals(indexMetaData.getSettings().get("test.setting"))) {
                     return UpgradeActionRequired.REINDEX;
                 } else {
@@ -44,10 +43,10 @@ public class IndexUpgradeServiceTests extends ESTestCase {
             }, null, null, null, null);
 
     private IndexUpgradeCheck everythingIsFineCheck = new IndexUpgradeCheck("everything_is_fine", Settings.EMPTY,
-            (indexMetaData, stringStringMap) -> UpgradeActionRequired.UP_TO_DATE, null, null, null, null);
+            indexMetaData -> UpgradeActionRequired.UP_TO_DATE, null, null, null, null);
 
     private IndexUpgradeCheck unreachableCheck = new IndexUpgradeCheck("unreachable", Settings.EMPTY,
-            (BiFunction<IndexMetaData, Map<String, String>, UpgradeActionRequired>) (indexMetaData, stringStringMap) -> {
+            (Function<IndexMetaData, UpgradeActionRequired>) indexMetaData -> {
                 fail("Unreachable check is called");
                 return null;
             }, null, null, null, null);
@@ -77,13 +76,13 @@ public class IndexUpgradeServiceTests extends ESTestCase {
         ClusterState clusterState = mockClusterState(fooIndex, barIndex, bazIndex);
 
         Map<String, UpgradeActionRequired> result = service.upgradeInfo(new String[]{"bar", "foo", "baz"},
-                IndicesOptions.lenientExpandOpen(), Collections.emptyMap(), clusterState);
+                IndicesOptions.lenientExpandOpen(), clusterState);
 
         assertThat(result.size(), equalTo(2));
         assertThat(result.get("bar"), equalTo(UpgradeActionRequired.UPGRADE));
         assertThat(result.get("foo"), equalTo(UpgradeActionRequired.REINDEX));
 
-        result = service.upgradeInfo(new String[]{"b*"}, IndicesOptions.lenientExpandOpen(), Collections.emptyMap(), clusterState);
+        result = service.upgradeInfo(new String[]{"b*"}, IndicesOptions.lenientExpandOpen(), clusterState);
 
         assertThat(result.size(), equalTo(1));
         assertThat(result.get("bar"), equalTo(UpgradeActionRequired.UPGRADE));
@@ -103,7 +102,7 @@ public class IndexUpgradeServiceTests extends ESTestCase {
         ClusterState clusterState = mockClusterState(fooIndex, barIndex, bazIndex);
 
         Map<String, UpgradeActionRequired> result = service.upgradeInfo(new String[]{"bar", "foo", "baz"},
-                IndicesOptions.lenientExpandOpen(), Collections.emptyMap(), clusterState);
+                IndicesOptions.lenientExpandOpen(), clusterState);
 
         assertThat(result.size(), equalTo(2));
         assertThat(result.get("bar"), equalTo(UpgradeActionRequired.UPGRADE));
@@ -124,7 +123,7 @@ public class IndexUpgradeServiceTests extends ESTestCase {
         ClusterState clusterState = mockClusterState(fooIndex, barIndex, bazIndex);
 
         Map<String, UpgradeActionRequired> result = service.upgradeInfo(new String[]{"bar", "foo", "baz"},
-                IndicesOptions.lenientExpandOpen(), Collections.emptyMap(), clusterState);
+                IndicesOptions.lenientExpandOpen(), clusterState);
 
         assertThat(result.size(), equalTo(0)); // everything as the first checker should indicate that everything is fine
     }
@@ -142,7 +141,7 @@ public class IndexUpgradeServiceTests extends ESTestCase {
         ClusterState clusterState = mockClusterState(goodIndex, badIndex);
 
         Map<String, UpgradeActionRequired> result = service.upgradeInfo(new String[]{"good", "bad"},
-                IndicesOptions.lenientExpandOpen(), Collections.emptyMap(), clusterState);
+                IndicesOptions.lenientExpandOpen(), clusterState);
 
         assertThat(result.size(), equalTo(1));
         assertThat(result.get("bad"), equalTo(UpgradeActionRequired.REINDEX));

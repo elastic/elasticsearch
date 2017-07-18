@@ -74,7 +74,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.joda.time.DateTimeZone.UTC;
 
-@ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, supportsDedicatedMasters = false,
+@ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, supportsDedicatedMasters = false,
         numDataNodes = 1)
 public class SearchTransformTests extends ESIntegTestCase {
 

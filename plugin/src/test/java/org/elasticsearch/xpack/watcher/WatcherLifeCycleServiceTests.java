@@ -27,6 +27,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.watch.Watch;
@@ -40,6 +41,7 @@ import java.util.concurrent.ExecutorService;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
@@ -53,7 +55,6 @@ import static org.mockito.Mockito.when;
 
 public class WatcherLifeCycleServiceTests extends ESTestCase {
 
-    private ClusterService clusterService;
     private WatcherService watcherService;
     private WatcherLifeCycleService lifeCycleService;
 
@@ -62,7 +63,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         final ExecutorService executorService = EsExecutors.newDirectExecutorService();
         when(threadPool.executor(anyString())).thenReturn(executorService);
-        clusterService = mock(ClusterService.class);
+        ClusterService clusterService = mock(ClusterService.class);
         Answer<Object> answer = invocationOnMock -> {
             AckedClusterStateUpdateTask updateTask = (AckedClusterStateUpdateTask) invocationOnMock.getArguments()[1];
             updateTask.onAllNodesAcked(null);
@@ -116,11 +117,10 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
                 .routingTable(RoutingTable.builder().add(watchRoutingTable).build())
                 .build();
 
-        when(clusterService.state()).thenReturn(clusterState);
         when(watcherService.validate(clusterState)).thenReturn(true);
 
         when(watcherService.state()).thenReturn(WatcherState.STOPPED);
-        lifeCycleService.start();
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", clusterState, clusterState));
         verify(watcherService, times(1)).start(any(ClusterState.class));
         verify(watcherService, never()).stop(anyString());
 
@@ -159,11 +159,11 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().masterNodeId("id1").localNodeId("id1");
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(nodes).build();
-        when(clusterService.state()).thenReturn(clusterState);
         when(watcherService.state()).thenReturn(WatcherState.STOPPED);
         when(watcherService.validate(clusterState)).thenReturn(false);
 
-        lifeCycleService.start();
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", clusterState, clusterState));
+
         verify(watcherService, never()).start(any(ClusterState.class));
         verify(watcherService, never()).stop(anyString());
     }
@@ -172,10 +172,9 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().masterNodeId("id1").localNodeId("id1");
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(nodes).build();
-        when(clusterService.state()).thenReturn(clusterState);
         when(watcherService.state()).thenReturn(WatcherState.STOPPING);
 
-        lifeCycleService.start();
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", clusterState, clusterState));
         verify(watcherService, never()).validate(any(ClusterState.class));
         verify(watcherService, never()).start(any(ClusterState.class));
         verify(watcherService, never()).stop(anyString());
@@ -195,7 +194,9 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
                 ).build();
 
         IndexRoutingTable watchRoutingTable = IndexRoutingTable.builder(watchIndex)
-                .addShard(TestShardRouting.newShardRouting(shardId, "node_1", true, randomFrom(STARTED, RELOCATING)))
+                .addShard(randomBoolean() ?
+                        TestShardRouting.newShardRouting(shardId, "node_1", true, STARTED) :
+                        TestShardRouting.newShardRouting(shardId, "node_1", "node_2", true, RELOCATING))
                 .build();
         ClusterState clusterStateWithLocalShards = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(nodes)
@@ -205,7 +206,9 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         // shard moved over to node 2
         IndexRoutingTable watchRoutingTableNode2 = IndexRoutingTable.builder(watchIndex)
-                .addShard(TestShardRouting.newShardRouting(shardId, "node_2", true, randomFrom(STARTED, RELOCATING)))
+                .addShard(randomBoolean() ?
+                        TestShardRouting.newShardRouting(shardId, "node_2", true, STARTED) :
+                        TestShardRouting.newShardRouting(shardId, "node_2", "node_1", true, RELOCATING))
                 .build();
         ClusterState clusterStateWithoutLocalShards = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(nodes)
@@ -238,8 +241,8 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
                 .build();
 
         IndexRoutingTable previousWatchRoutingTable = IndexRoutingTable.builder(watchIndex)
-                .addShard(TestShardRouting.newShardRouting(secondShardId, "node_1", true, randomFrom(STARTED, RELOCATING)))
-                .addShard(TestShardRouting.newShardRouting(shardId, "node_2", true, randomFrom(STARTED, RELOCATING)))
+                .addShard(TestShardRouting.newShardRouting(secondShardId, "node_1", true, STARTED))
+                .addShard(TestShardRouting.newShardRouting(shardId, "node_2", true, STARTED))
                 .build();
 
         IndexMetaData indexMetaData = IndexMetaData.builder(Watch.INDEX)
@@ -256,8 +259,8 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
                 .build();
 
         IndexRoutingTable currentWatchRoutingTable = IndexRoutingTable.builder(watchIndex)
-                .addShard(TestShardRouting.newShardRouting(shardId, "node_1", false, randomFrom(STARTED, RELOCATING)))
-                .addShard(TestShardRouting.newShardRouting(secondShardId, "node_1", true, randomFrom(STARTED, RELOCATING)))
+                .addShard(TestShardRouting.newShardRouting(shardId, "node_1", false, STARTED))
+                .addShard(TestShardRouting.newShardRouting(secondShardId, "node_1", true, STARTED))
                 .addShard(TestShardRouting.newShardRouting(shardId, "node_2", true, STARTED))
                 .build();
 
@@ -403,8 +406,88 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         verify(watcherService, never()).start(any(ClusterState.class));
     }
 
+    public void testWatcherPausesOnNonMasterWhenOldNodesHoldWatcherIndex() {
+        DiscoveryNodes nodes = new DiscoveryNodes.Builder()
+                .masterNodeId("node_1").localNodeId("node_2")
+                .add(newNode("node_1"))
+                .add(newNode("node_2"))
+                .add(newNode("oldNode", VersionUtils.randomVersionBetween(random(), Version.V_5_5_0, Version.V_6_0_0_alpha2)))
+                .build();
+
+        Index index = new Index(Watch.INDEX, "foo");
+        ShardId shardId = new ShardId(index, 0);
+        IndexRoutingTable routingTable = IndexRoutingTable.builder(index)
+                .addShard(TestShardRouting.newShardRouting(shardId, "node_2", true, STARTED))
+                .addShard(TestShardRouting.newShardRouting(shardId, "oldNode", false, STARTED)).build();
+
+        Settings.Builder indexSettings = Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), 6);
+
+        IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(Watch.INDEX).settings(indexSettings);
+
+        ClusterState state = ClusterState.builder(new ClusterName("my-cluster"))
+                .nodes(nodes)
+                .routingTable(RoutingTable.builder().add(routingTable).build())
+                .metaData(MetaData.builder().put(indexMetaDataBuilder))
+                .build();
+
+        WatcherState watcherState = randomFrom(WatcherState.values());
+        when(watcherService.state()).thenReturn(watcherState);
+
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", state, state));
+        if (watcherState == WatcherState.STARTED || watcherState == WatcherState.STARTING) {
+            verify(watcherService).pauseExecution(any(String.class));
+        }
+    }
+
+    public void testWatcherStartsOnlyOnMasterWhenOldNodesAreInCluster() throws Exception {
+        DiscoveryNodes nodes = new DiscoveryNodes.Builder()
+                .masterNodeId("node_1").localNodeId("node_1")
+                .add(newNode("node_1"))
+                .add(newNode("node_2"))
+                .add(newNode("oldNode", VersionUtils.randomVersionBetween(random(), Version.V_5_5_0, Version.V_6_0_0_alpha2)))
+                .build();
+
+        ClusterState state = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).build();
+        when(watcherService.validate(eq(state))).thenReturn(true);
+        when(watcherService.state()).thenReturn(WatcherState.STOPPED);
+
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", state, state));
+        verify(watcherService).start(any(ClusterState.class));
+    }
+
+    public void testDistributedWatchExecutionDisabledWith5xNodesInCluster() throws Exception {
+        DiscoveryNodes nodes = new DiscoveryNodes.Builder()
+                .masterNodeId("node_1").localNodeId("node_1")
+                .add(newNode("node_1"))
+                .add(newNode("node_2", VersionUtils.randomVersionBetween(random(), Version.V_5_5_0, Version.V_6_0_0_alpha2)))
+                .build();
+
+        ClusterState state = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).build();
+
+        assertThat(WatcherLifeCycleService.isWatchExecutionDistributed(state), is(false));
+    }
+
+    public void testDistributedWatchExecutionEnabled() throws Exception {
+        DiscoveryNodes nodes = new DiscoveryNodes.Builder()
+                .masterNodeId("master_node").localNodeId("master_node")
+                .add(newNode("master_node", VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_beta1, Version.CURRENT)))
+                .add(newNode("data_node_6x", VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_beta1, Version.CURRENT)))
+                .build();
+        ClusterState state = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).build();
+
+        assertThat(WatcherLifeCycleService.isWatchExecutionDistributed(state), is(true));
+    }
+
     private static DiscoveryNode newNode(String nodeName) {
+        return newNode(nodeName, Version.CURRENT);
+    }
+
+    private static DiscoveryNode newNode(String nodeName, Version version) {
         return new DiscoveryNode(nodeName, ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(asList(DiscoveryNode.Role.values())), Version.CURRENT);
+                new HashSet<>(asList(DiscoveryNode.Role.values())), version);
     }
 }

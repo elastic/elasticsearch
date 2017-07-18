@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -18,11 +16,12 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
-import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -35,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -102,6 +100,8 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         });
 
         nodes = buildNodeAndVersions();
+        logger.info("Nodes in cluster before test: bwc [{}], new [{}], master [{}]", nodes.getBWCNodes(), nodes.getNewNodes(),
+                nodes.getMaster());
     }
 
     @Override
@@ -112,7 +112,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = "Basic " + Base64.getEncoder()
-                .encodeToString(("elastic:changeme").getBytes(StandardCharsets.UTF_8));
+                .encodeToString(("test_user:x-pack-test-password").getBytes(StandardCharsets.UTF_8));
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", token)
                 .build();
@@ -131,9 +131,6 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         });
     }
 
-    // we have to have finish the upgrade API first to make this test work, so we can call it instead of
-    // https://github.com/elastic/x-pack-elasticsearch/issues/1303
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/pull/1603")
     public void testWatchCrudApis() throws IOException {
         assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
 
@@ -146,23 +143,40 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         StringEntity entity = new StringEntity(bytesReference.utf8ToString(),
                 ContentType.APPLICATION_JSON);
 
-        executeAgainstAllNodes(client -> {
-            fakeUpgradeFrom5x(client);
+        // execute upgrade if new nodes are in the cluster
+        executeUpgradeIfClusterHasNewNode();
 
-            assertOK(client.performRequest("PUT", "/_xpack/watcher/watch/my-watch", Collections.emptyMap(), entity));
-            assertOK(client.performRequest("GET", "/_xpack/watcher/watch/my-watch"));
-            assertOK(client.performRequest("POST", "/_xpack/watcher/watch/my-watch/_execute"));
-            assertOK(client.performRequest("PUT", "/_xpack/watcher/watch/my-watch/_deactivate"));
-            assertOK(client.performRequest("PUT", "/_xpack/watcher/watch/my-watch/_activate"));
+        executeAgainstAllNodes(client -> {
+            Map<String, String> params = Collections.singletonMap("error_trace", "true");
+            assertOK(client.performRequest("PUT", "/_xpack/watcher/watch/my-watch", params, entity));
+            assertOK(client.performRequest("GET", "/_xpack/watcher/watch/my-watch", params));
+            assertOK(client.performRequest("POST", "/_xpack/watcher/watch/my-watch/_execute", params));
+            assertOK(client.performRequest("PUT", "/_xpack/watcher/watch/my-watch/_deactivate", params));
+            assertOK(client.performRequest("PUT", "/_xpack/watcher/watch/my-watch/_activate", params));
         });
+    }
+
+    public void executeUpgradeIfClusterHasNewNode()
+            throws IOException {
+        HttpHost[] newHosts = nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new);
+        if (newHosts.length > 0) {
+            try (RestClient client = buildClient(restClientSettings(), newHosts)) {
+                logger.info("checking that upgrade procedure on the new cluster is required, hosts [{}]", Arrays.asList(newHosts));
+                Map<String, String> params = Collections.singletonMap("error_trace", "true");
+                Map<String, Object> response = toMap(client().performRequest("GET", "_xpack/migration/assistance", params));
+                String action = ObjectPath.evaluate(response, "indices.\\.watches.action_required");
+                logger.info("migration assistance response [{}]", action);
+                if ("upgrade".equals(action)) {
+                    client.performRequest("POST", "_xpack/migration/upgrade/.watches", params);
+                }
+            }
+        }
     }
 
     public void executeAgainstAllNodes(CheckedConsumer<RestClient, IOException> consumer)
             throws IOException {
         HttpHost[] newHosts = nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new);
         HttpHost[] bwcHosts = nodes.getBWCNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new);
-
-        logger.info("# of bwc nodes [{}], number of new nodes [{}]", Arrays.asList(bwcHosts), Arrays.asList(newHosts));
         assertTrue("No nodes in cluster, cannot run any tests", newHosts.length > 0 || bwcHosts.length > 0);
 
         if (newHosts.length > 0) {
@@ -180,22 +194,6 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
 
     private void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
-    }
-
-    // This is needed for fake the upgrade from 5.x to 6.0, where a new watches template is created, that contains mapping for the status
-    // field, as _status will be moved to status
-    // This can be removed once the upgrade API supports everything
-    private void fakeUpgradeFrom5x(RestClient client) throws IOException {
-        BytesReference mappingJson = jsonBuilder().startObject().startObject("properties").startObject("status")
-                .field("type", "object")
-                .field("enabled", false)
-                .field("dynamic", true)
-                .endObject().endObject().endObject()
-                .bytes();
-        HttpEntity data = new ByteArrayEntity(mappingJson.toBytesRef().bytes, ContentType.APPLICATION_JSON);
-
-        Response response = client.performRequest("PUT", "/" + Watch.INDEX + "/_mapping/" + Watch.DOC_TYPE, Collections.emptyMap(), data);
-        assertOK(response);
     }
 
     private Nodes buildNodeAndVersions() throws IOException {
@@ -306,7 +304,12 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
                     "id='" + id + '\'' +
                     ", nodeName='" + nodeName + '\'' +
                     ", version=" + version +
+                    ", address=" + publishAddress +
                     '}';
         }
+    }
+
+    static Map<String, Object> toMap(Response response) throws IOException {
+        return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
     }
 }

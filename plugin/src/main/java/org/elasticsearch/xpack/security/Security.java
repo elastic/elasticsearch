@@ -5,6 +5,25 @@
  */
 package org.elasticsearch.xpack.security;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.time.Clock;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
@@ -35,6 +54,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
@@ -128,8 +148,8 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.security.bootstrap.BootstrapElasticPassword;
 import org.elasticsearch.xpack.security.bootstrap.ContainerPasswordBootstrapCheck;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
@@ -159,28 +179,8 @@ import org.elasticsearch.xpack.ssl.SSLService;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.io.IOException;
-import java.security.GeneralSecurityException;
-import java.time.Clock;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
-
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.common.settings.Setting.groupSetting;
 import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
 
 public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
@@ -323,8 +323,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore,
                 anonymousUser, securityLifecycleService, threadPool.getThreadContext());
         Map<String, Realm.Factory> realmFactories = new HashMap<>();
-        realmFactories.putAll(InternalRealms.getFactories(threadPool, resourceWatcherService,
-                sslService, nativeUsersStore, nativeRoleMappingStore));
+        realmFactories.putAll(InternalRealms.getFactories(threadPool, resourceWatcherService, sslService, nativeUsersStore,
+                nativeRoleMappingStore, securityLifecycleService));
         for (XPackExtension extension : extensions) {
             Map<String, Realm.Factory> newRealms = extension.getRealms(resourceWatcherService);
             for (Map.Entry<String, Realm.Factory> entry : newRealms.entrySet()) {
@@ -369,6 +369,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         }
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
             reservedRolesStore, rolesProviders, threadPool.getThreadContext(), licenseState);
+        securityLifecycleService.addSecurityIndexHealthChangeListener(allRolesStore::onSecurityIndexHealthChange);
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
         licenseState.addListener(allRolesStore::invalidateAll);
@@ -386,6 +387,11 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(), authzService, licenseState,
                 sslService, securityContext.get(), destructiveOperations));
+
+        BootstrapElasticPassword bootstrapElasticPassword = new BootstrapElasticPassword(settings, logger, clusterService, reservedRealm,
+                securityLifecycleService);
+        bootstrapElasticPassword.initiatePasswordBootstrap();
+
         return components;
     }
 
@@ -492,13 +498,15 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
 
     public List<BootstrapCheck> getBootstrapChecks() {
         if (enabled) {
-            return Arrays.asList(
-                new SSLBootstrapCheck(sslService, settings, env),
-                new TokenPassphraseBootstrapCheck(settings),
-                new TokenSSLBootstrapCheck(settings),
-                new PkiRealmBootstrapCheck(settings, sslService),
-                new ContainerPasswordBootstrapCheck()
+            final ArrayList<BootstrapCheck> checks = CollectionUtils.arrayAsArrayList(
+                    new SSLBootstrapCheck(sslService, settings, env),
+                    new TokenPassphraseBootstrapCheck(settings),
+                    new TokenSSLBootstrapCheck(settings),
+                    new PkiRealmBootstrapCheck(settings, sslService),
+                    new ContainerPasswordBootstrapCheck()
             );
+            checks.addAll(InternalRealms.getBootstrapChecks(settings));
+            return checks;
         } else {
             return Collections.emptyList();
         }

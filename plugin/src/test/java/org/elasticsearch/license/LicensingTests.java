@@ -32,6 +32,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
@@ -159,6 +160,9 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         refresh();
+        // wait for all replicas to be started (to make sure that there are no more cluster state updates when we disable licensing)
+        assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get().getState().routingTable()
+                .shardsWithState(ShardRoutingState.INITIALIZING).isEmpty()));
 
         Client client = internalCluster().transportClient();
 

@@ -7,7 +7,7 @@
       "link": "elasticsearch/nodes",
       "severity": 1000,
       "type": "monitoring",
-      "version_created": 6000002,
+      "version_created": 6000026,
       "watch": "${monitoring.watch.id}"
     }
   },
@@ -36,7 +36,7 @@
                       "filter": [
                         {
                           "term": {
-                            "_id": "${monitoring.watch.cluster_uuid}"
+                            "_id": "{{ctx.metadata.xpack.cluster_uuid}}"
                           }
                         },
                         {
@@ -71,8 +71,7 @@
             "search": {
               "request": {
                 "indices": [
-                  ".monitoring-alerts-6",
-                  ".monitoring-alerts-2"
+                  ".monitoring-alerts-6"
                 ],
                 "body": {
                   "size": 1,
@@ -81,7 +80,7 @@
                     "bool": {
                       "filter": {
                         "term": {
-                          "_id": "${monitoring.watch.unique_id}"
+                          "_id": "{{ctx.watch_id}}"
                         }
                       }
                     }

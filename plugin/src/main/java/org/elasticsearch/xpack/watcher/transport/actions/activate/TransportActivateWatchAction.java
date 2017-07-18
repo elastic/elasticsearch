@@ -12,8 +12,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.Preference;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -23,6 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
+import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
@@ -42,21 +45,25 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
     private final Clock clock;
     private final Watch.Parser parser;
     private final Client client;
+    private final TriggerService triggerService;
 
     @Inject
     public TransportActivateWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Clock clock,
-                                        XPackLicenseState licenseState, Watch.Parser parser,
-                                        InternalClient client) {
+                                        XPackLicenseState licenseState, Watch.Parser parser, ClusterService clusterService,
+                                        InternalClient client, TriggerService triggerService) {
         super(settings, ActivateWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
-                licenseState, ActivateWatchRequest::new);
+                licenseState, clusterService, ActivateWatchRequest::new, ActivateWatchResponse::new);
         this.clock = clock;
         this.parser = parser;
         this.client = client;
+        this.triggerService = triggerService;
     }
 
     @Override
-    protected void doExecute(ActivateWatchRequest request, ActionListener<ActivateWatchResponse> listener) {
+    protected void masterOperation(ActivateWatchRequest request, ClusterState state, ActionListener<ActivateWatchResponse> listener)
+            throws Exception {
+
         try {
             DateTime now = new DateTime(clock.millis(), UTC);
             UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId());
@@ -77,6 +84,13 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
                                 XContentType.JSON);
                         watch.version(getResponse.getVersion());
                         watch.status().version(getResponse.getVersion());
+                        if (localExecute(request)) {
+                            if (watch.status().state().isActive()) {
+                                triggerService.add(watch);
+                            } else {
+                                triggerService.remove(watch.id());
+                            }
+                        }
                         listener.onResponse(new ActivateWatchResponse(watch.status()));
                     } else {
                         listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist", request.getWatchId()));
@@ -100,4 +114,5 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
             return builder;
         }
     }
+
 }

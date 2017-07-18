@@ -70,9 +70,7 @@ When a user's role enables document level security for an index:
 Calling certain Elasticsearch APIs on an alias can potentially leak information
 about indices that the user isn't authorized to access. For example, when you get
 the mappings for an alias with the `_mapping` API, the response includes the
-index name and mappings for each index that the alias applies to. Similarly, the
-response to a `_field_stats` request includes the name of the underlying index,
-rather than the alias name.
+index name and mappings for each index that the alias applies to.
 
 Until this limitation is addressed, avoid index and field names that contain
 confidential or sensitive information.

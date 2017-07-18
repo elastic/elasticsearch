@@ -14,6 +14,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -37,22 +38,32 @@ import java.util.function.Function;
  */
 public class SetupPasswordTool extends MultiCommand {
 
-    private static final char[] CHARS =  ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" +
+    private static final char[] CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" +
             "~!@#$%^&*-_=+?").toCharArray();
     private static final String[] USERS = new String[]{ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME};
 
     private final Function<Environment, CommandLineHttpClient> clientFunction;
+    private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
     private CommandLineHttpClient client;
 
     SetupPasswordTool() {
-        this((environment) -> new CommandLineHttpClient(environment.settings(), environment));
+        this((environment) -> new CommandLineHttpClient(environment.settings(), environment),
+                (environment) -> {
+                    KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(environment.configFile());
+                    if (keyStoreWrapper == null) {
+                        throw new UserException(ExitCodes.CONFIG, "Keystore does not exist");
+                    }
+                    return keyStoreWrapper;
+                });
     }
 
-    SetupPasswordTool(Function<Environment, CommandLineHttpClient> clientFunction) {
+    SetupPasswordTool(Function<Environment, CommandLineHttpClient> clientFunction,
+                      CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
         super("Sets the passwords for reserved users");
         subcommands.put("auto", new AutoSetup());
         subcommands.put("interactive", new InteractiveSetup());
         this.clientFunction = clientFunction;
+        this.keyStoreFunction = keyStoreFunction;
     }
 
     public static void main(String[] args) throws Exception {
@@ -135,7 +146,7 @@ public class SetupPasswordTool extends MultiCommand {
             try (SecureString password2 = new SecureString(terminal.readSecret("Reenter password for [" + user + "]: "))) {
                 if (password1.equals(password2) == false) {
                     password1.close();
-                    throw new UserException(ExitCodes.USAGE, "Passwords for user [" + user+ "] do not match");
+                    throw new UserException(ExitCodes.USAGE, "Passwords for user [" + user + "] do not match");
                 }
             }
             return password1;
@@ -157,7 +168,7 @@ public class SetupPasswordTool extends MultiCommand {
         private OptionSpec<String> noPromptOption;
 
         private String elasticUser = ElasticUser.NAME;
-        private SecureString elasticUserPassword = ReservedRealm.EMPTY_PASSWORD_TEXT;
+        private SecureString elasticUserPassword;
         private String url;
 
         SetupCommand(String description) {
@@ -165,11 +176,17 @@ public class SetupPasswordTool extends MultiCommand {
             setParser();
         }
 
-        void setupOptions(OptionSet options, Environment env) {
+        void setupOptions(OptionSet options, Environment env) throws Exception {
             client = clientFunction.apply(env);
+            KeyStoreWrapper keyStore = keyStoreFunction.apply(env);
             String providedUrl = urlOption.value(options);
             url = providedUrl == null ? "http://localhost:9200" : providedUrl;
             setShouldPrompt(options);
+
+            // TODO: We currently do  not support keystore passwords
+            keyStore.decrypt(new char[0]);
+
+            elasticUserPassword = keyStore.getString(ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.getKey());
         }
 
         private void setParser() {
@@ -199,6 +216,7 @@ public class SetupPasswordTool extends MultiCommand {
                                     BiConsumer<String, SecureString> callback) throws Exception {
             boolean isSuperUser = user.equals(elasticUser);
             SecureString password = passwordFn.apply(user);
+
             try {
                 String route = url + "/_xpack/security/user/" + user + "/_password";
                 String response = client.postURL("PUT", route, elasticUser, elasticUserPassword, buildPayload(password));

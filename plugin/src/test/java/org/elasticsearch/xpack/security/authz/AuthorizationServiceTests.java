@@ -349,25 +349,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1217")
-    public void testElasticUserOnlyAuthorizedForChangePasswordRequestsInSetupMode() {
-        final User user = new ElasticUser(true, true);
-        final ChangePasswordRequest changePasswordrequest = new ChangePasswordRequestBuilder(mock(Client.class))
-                .username(user.principal()).request();
-
-        authorize(createAuthentication(user), ChangePasswordAction.NAME, changePasswordrequest);
-
-        verify(auditTrail).accessGranted(user, ChangePasswordAction.NAME, changePasswordrequest);
-
-        Tuple<String, TransportRequest> request = randomCompositeRequest();
-        assertThrowsAuthorizationException(() -> authorize(createAuthentication(user), request.v1(), request.v2()),
-                request.v1(), "elastic");
-
-        verify(auditTrail).accessDenied(user, request.v1(), request.v2());
-    }
-
     public void testElasticUserAuthorizedForNonChangePasswordRequestsWhenNotInSetupMode() {
-        final User user = new ElasticUser(true, false);
+        final User user = new ElasticUser(true);
         Tuple<String, TransportRequest> request = randomCompositeRequest();
         authorize(createAuthentication(user), request.v1(), request.v2());
 

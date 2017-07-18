@@ -33,6 +33,12 @@ NOTE: When you use Active Directory for authentication, the username entered by
       the user is expected to match the `sAMAccountName` or `userPrincipalName`,
       not the common name.
 
+The Active Directory realm authenticates users using an LDAP bind request. After
+authenticating the user, the realm then searches to find the user's entry in
+Active Directory. Once the user has been found, the Active Directory realm then
+retrieves the user's group memberships from the `tokenGroups` attribute on the
+user's entry in Active Directory.
+
 To configure an `active_directory` realm:
 
 . Add a realm configuration of type `active_directory` to `elasticsearch.yml`
@@ -63,19 +69,52 @@ xpack:
           order: 0 <1>
           domain_name: ad.example.com
           url: ldaps://ad.example.com:636 <2>
-          unmapped_groups_as_roles: true <3>
 ------------------------------------------------------------
 <1> The realm order controls the order in which the configured realms are checked
     when authenticating a user.
 <2> If you don't specify the URL, it defaults to `ldap:<domain_name>:389`.
-<3> When this option is enabled, Active Directory groups are automatically mapped
-    to roles of the same name.
 +
 IMPORTANT: When you configure realms in `elasticsearch.yml`, only the
 realms you specify are used for authentication. If you also want to use the
 `native` or `file` realms, you must include them in the realm chain.
 
 . Restart Elasticsearch.
+
+===== Configuring a Bind User
+By default, all of the LDAP operations are run by the user that {security} is
+authenticating. In some cases, regular users may not be able to access all of the
+necessary items within Active Directory and a _bind user_ is needed. A bind user
+can be configured and will be used to perform all operations other than the LDAP
+bind request, which is required to authenticate the credentials provided by the user.
+
+The use of a bind user enables the <<run-as-privilege,run as feature>> to be
+used with the Active Directory realm and the ability to maintain a set of pooled
+connections to Active Directory. These pooled connection reduce the number of
+resources that must be created and destroyed with every user authentication.
+
+The following example shows the configuration of a bind user through the user of the
+`bind_dn` and `bind_password` settings.
+
+[source, yaml]
+------------------------------------------------------------
+xpack:
+  security:
+    authc:
+      realms:
+        active_directory:
+          type: active_directory
+          order: 0
+          domain_name: ad.example.com
+          url: ldaps://ad.example.com:636
+          bind_dn: es_svc_user@ad.example.com <1>
+          bind_password: es_svc_user_password
+------------------------------------------------------------
+<1> This is the user that all Active Directory search requests are executed as.
+    Without a bind user configured, all requests run as the user that is authenticating
+    with Elasticsearch.
+
+When a bind user is configured, connection pooling is enabled by default.
+Connection pooling can be disabled using the `user_search.pool.enabled` setting.
 
 ===== Multiple Domain Support
 When authenticating users across multiple domains in a forest, there are a few minor
@@ -176,6 +215,14 @@ operation are supported: failover and load balancing
                                           assuming an unencrypted connection to port 389. For example,
                                           `ldap://<domain_name>:389`. This settings is required when
                                           connecting using SSL/TLS or via a custom port.
+| `bind_dn`                  | no       | The DN of the user that is used to bind to Active Directory
+                                          and perform searches. Due to its potential security
+                                          impact, `bind_dn` is not exposed via the
+                                          {ref}/cluster-nodes-info.html#cluster-nodes-info[nodes info API].
+| `bind_password`            | no       | The password for the user that is used to bind to
+                                          Active Directory. Due to its potential security impact,
+                                          `bind_password` is not exposed via the
+                                          {ref}/cluster-nodes-info.html#cluster-nodes-info[nodes info API].
 | `load_balance.type`        | no       | The behavior to use when there are multiple LDAP URLs defined.
                                           For supported values see <<ad-load-balancing>>.
 | `load_balance.cache_ttl`   | no       | When using `dns_failover` or `dns_round_robin` as the load
@@ -195,12 +242,10 @@ operation are supported: failover and load balancing
                                           `(&(objectClass=user)(sAMAccountName={0}))`. For more
                                           information, see https://msdn.microsoft.com/en-us/library/aa746475(v=vs.85).aspx[Search Filter Syntax].
 | `user_search.upn_filter`   | no       | Specifies a filter to use to lookup a user given a user principal name.
-                                          The default filter looks up `user` objects with either
-                                          a matching `userPrincipalName` or a `sAMAccountName` matching the account
-                                          portion of the user principal name. If specified, this
+                                          The default filter looks up `user` objects with
+                                          a matching `userPrincipalName`. If specified, this
                                           must be a valid LDAP user search filter, for example
-                                          `(&(objectClass=user)(sAMAccountName={0}))`. `{0}` is the value
-                                          preceding the `@` sign in the user principal name and `{1}` is
+                                          `(&(objectClass=user)(userPrincipalName={1}))`. `{1}` is
                                           the full user principal name provided by the user. For more
                                           information, see https://msdn.microsoft.com/en-us/library/aa746475(v=vs.85).aspx[Search Filter Syntax].
 | `user_search.down_level_filter` | no  | Specifies a filter to use to lookup a user given a down level logon name (DOMAIN\user).
@@ -209,6 +254,22 @@ operation are supported: failover and load balancing
                                           must be a valid LDAP user search filter, for example
                                           `(&(objectClass=user)(sAMAccountName={0}))`. For more
                                           information, see https://msdn.microsoft.com/en-us/library/aa746475(v=vs.85).aspx[Search Filter Syntax].
+| `user_search.pool.enabled`      | no  | Enables or disables connection pooling for user search. When
+                                          disabled a new connection is created for every search. The
+                                          default is `true` when `bind_dn` is provided.
+| `user_search.pool.size`         | no  | Specifies the maximum number of connections to Active Directory
+                                          server to allow in the connection pool. Defaults to `20`.
+| `user_search.pool.initial_size` | no  | The initial number of connections to create to Active Directory
+                                          server on startup. Defaults to `0`. Values greater than `0`
+                                          could cause startup failures if the LDAP server is down.
+| `user_search.pool.health_check.enabled` | no | Enables or disables a health check on Active Directory connections in
+                                                 the connection pool. Connections are checked in the
+                                                 background at the specified interval. Defaults to `true`.
+| `user_search.pool.health_check.dn`      | no | Specifies the distinguished name to retrieve as part of
+                                                 the health check. Defaults to the value of `bind_dn` if present, and if
+                                                 not falls back to `user_search.base_dn`.
+| `user_search.pool.health_check.interval` | no | How often to perform background checks of connections in
+                                                  the pool. Defaults to `60s`.
 | `group_search.base_dn`     | no       | Specifies the context to search for groups in which the user
                                           has membership. Defaults to the root of the Active Directory
                                           domain.

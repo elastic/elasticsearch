@@ -5,11 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import org.elasticsearch.common.settings.AbstractScopedSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.extensions.XPackExtension;
-
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -17,7 +12,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import org.elasticsearch.common.settings.AbstractScopedSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.extensions.XPackExtension;
 
 import static org.elasticsearch.common.Strings.isNullOrEmpty;
 import static org.elasticsearch.xpack.security.Security.setting;
@@ -69,6 +70,16 @@ public class RealmSettings {
      */
     public static Settings get(Settings settings) {
         return settings.getByPrefix(RealmSettings.PREFIX);
+    }
+
+    /**
+     * Extracts the realm settings from a global settings object.
+     * Returns a Map of realm-name to realm-settings.
+     */
+    public static Map<String, Settings> getRealmSettings(Settings globalSettings) {
+        Settings realmsSettings = RealmSettings.get(globalSettings);
+        return realmsSettings.names().stream()
+                .collect(Collectors.toMap(Function.identity(), realmsSettings::getAsSettings));
     }
 
     /**

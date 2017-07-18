@@ -13,8 +13,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.fieldstats.FieldStats;
-import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -22,9 +20,9 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.test.SecurityIntegTestCase;
 
 import java.util.Locale;
 import java.util.Map;
@@ -134,26 +132,6 @@ public class KibanaUserRoleIntegTests extends SecurityIntegTestCase {
                 .prepareMultiSearch()
                 .add(client().prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())).get();
         assertEquals(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits(), multiHits);
-    }
-
-    public void testFieldStats() throws Exception {
-        final String index = "logstash-20-12-2015";
-        final String type = "event";
-        final String field = "foo";
-        indexRandom(true, client().prepareIndex().setIndex(index).setType(type).setSource(field, "bar"));
-
-        FieldStatsResponse response = client().prepareFieldStats().setIndices(index).setFields(field).get();
-        FieldStats fieldStats = response.getAllFieldStats().get(field);
-        assertThat(fieldStats, notNullValue());
-        final String fieldStatsMax = fieldStats.getMaxValueAsString();
-
-        response = client()
-                .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
-                .prepareFieldStats()
-                .setIndices(index).setFields(field).get();
-        FieldStats fieldStats1 = response.getAllFieldStats().get(field);
-        assertThat(fieldStats1, notNullValue());
-        assertThat(fieldStats1.getMaxValueAsString(), equalTo(fieldStatsMax));
     }
 
     public void testGetIndex() throws Exception {

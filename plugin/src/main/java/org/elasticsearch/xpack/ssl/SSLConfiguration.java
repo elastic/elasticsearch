@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.ssl;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -39,6 +41,7 @@ public final class SSLConfiguration {
     /**
      * Creates a new SSLConfiguration from the given settings. There is no fallback configuration when invoking this constructor so
      * un-configured aspects will take on their default values.
+     *
      * @param settings the SSL specific settings; only the settings under a *.ssl. prefix
      */
     SSLConfiguration(Settings settings) {
@@ -53,7 +56,8 @@ public final class SSLConfiguration {
     /**
      * Creates a new SSLConfiguration from the given settings and global/default SSLConfiguration. If the settings do not contain a value
      * for a given aspect, the value from the global configuration will be used.
-     * @param settings the SSL specific settings; only the settings under a *.ssl. prefix
+     *
+     * @param settings               the SSL specific settings; only the settings under a *.ssl. prefix
      * @param globalSSLConfiguration the default configuration that is used as a fallback
      */
     SSLConfiguration(Settings settings, SSLConfiguration globalSSLConfiguration) {
@@ -213,7 +217,15 @@ public final class SSLConfiguration {
     }
 
     private static TrustConfig createTrustConfig(Settings settings, KeyConfig keyConfig, SSLConfiguration global) {
+        final TrustConfig trustConfig = createCertChainTrustConfig(settings, keyConfig, global);
+        return SETTINGS_PARSER.trustRestrictionsPath.get(settings)
+                .map(path -> (TrustConfig) new RestrictedTrustConfig(settings, path, trustConfig))
+                .orElse(trustConfig);
+    }
+
+    private static TrustConfig createCertChainTrustConfig(Settings settings, KeyConfig keyConfig, SSLConfiguration global) {
         String trustStorePath = SETTINGS_PARSER.truststorePath.get(settings).orElse(null);
+
         List<String> caPaths = getListOrNull(SETTINGS_PARSER.caPaths, settings);
         if (trustStorePath != null && caPaths != null) {
             throw new IllegalArgumentException("you cannot specify a truststore and ca files");

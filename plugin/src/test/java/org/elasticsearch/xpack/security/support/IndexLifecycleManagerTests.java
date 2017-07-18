@@ -10,7 +10,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
@@ -28,15 +31,25 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.InternalClient;
@@ -46,11 +59,11 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import static org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE;
 import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.NULL_MIGRATOR;
 import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.TEMPLATE_VERSION_PATTERN;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.notNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -108,6 +121,17 @@ public class IndexLifecycleManagerTests extends ESTestCase {
         assertInitialState();
 
         final ClusterState.Builder clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME);
+        Index index = new Index(INDEX_NAME, UUID.randomUUID().toString());
+        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, 0), true, EXISTING_STORE_INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
+        String nodeId = ESTestCase.randomAlphaOfLength(8);
+        IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0))
+                .addShard(shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize())
+                        .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "")))
+                .build();
+        clusterStateBuilder.routingTable(RoutingTable.builder()
+                .add(IndexRoutingTable.builder(index).addIndexShard(table).build())
+                .build());
         manager.clusterChanged(event(clusterStateBuilder));
 
         assertIndexUpToDateButNotAvailable();
@@ -218,6 +242,87 @@ public class IndexLifecycleManagerTests extends ESTestCase {
         manager.clusterChanged(event(clusterStateBuilder));
 
         assertCompleteState(true);
+    }
+
+    public void testIndexHealthChangeListeners() throws Exception {
+        final AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        final AtomicReference<ClusterIndexHealth> previousHealth = new AtomicReference<>();
+        final AtomicReference<ClusterIndexHealth> currentHealth = new AtomicReference<>();
+        final BiConsumer<ClusterIndexHealth, ClusterIndexHealth> listener = (prevState, state) -> {
+            previousHealth.set(prevState);
+            currentHealth.set(state);
+            listenerCalled.set(true);
+        };
+
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                manager.addIndexHealthChangeListener(listener);
+                manager.addIndexHealthChangeListener((prevState, state) -> {
+                    throw new RuntimeException("throw after listener");
+                });
+            } else {
+                manager.addIndexHealthChangeListener((prevState, state) -> {
+                    throw new RuntimeException("throw before listener");
+                });
+                manager.addIndexHealthChangeListener(listener);
+            }
+        } else {
+            manager.addIndexHealthChangeListener(listener);
+        }
+
+        // index doesn't exist and now exists
+        final ClusterState.Builder clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME);
+        markShardsAvailable(clusterStateBuilder);
+        manager.clusterChanged(event(clusterStateBuilder));
+
+        assertTrue(listenerCalled.get());
+        assertNull(previousHealth.get());
+        assertEquals(ClusterHealthStatus.GREEN, currentHealth.get().getStatus());
+
+        // reset and call with no change to the index
+        listenerCalled.set(false);
+        previousHealth.set(null);
+        currentHealth.set(null);
+        ClusterChangedEvent event = new ClusterChangedEvent("same index health", clusterStateBuilder.build(), clusterStateBuilder.build());
+        manager.clusterChanged(event);
+
+        assertFalse(listenerCalled.get());
+        assertNull(previousHealth.get());
+        assertNull(currentHealth.get());
+
+        // index with different health
+        listenerCalled.set(false);
+        previousHealth.set(null);
+        currentHealth.set(null);
+        ClusterState previousState = clusterStateBuilder.build();
+        Index prevIndex = previousState.getRoutingTable().index(INDEX_NAME).getIndex();
+        clusterStateBuilder.routingTable(RoutingTable.builder()
+                .add(IndexRoutingTable.builder(prevIndex)
+                        .addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(prevIndex, 0))
+                                .addShard(ShardRouting.newUnassigned(new ShardId(prevIndex, 0), true, EXISTING_STORE_INSTANCE,
+                                        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""))
+                                        .initialize(UUIDs.randomBase64UUID(random()), null, 0L)
+                                        .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "")))
+                                .build()))
+                .build());
+
+
+
+        event = new ClusterChangedEvent("different index health", clusterStateBuilder.build(), previousState);
+        manager.clusterChanged(event);
+        assertTrue(listenerCalled.get());
+        assertEquals(ClusterHealthStatus.GREEN, previousHealth.get().getStatus());
+        assertEquals(ClusterHealthStatus.RED, currentHealth.get().getStatus());
+
+        // swap prev and current
+        listenerCalled.set(false);
+        previousHealth.set(null);
+        currentHealth.set(null);
+        event = new ClusterChangedEvent("different index health swapped", previousState, clusterStateBuilder.build());
+        manager.clusterChanged(event);
+        assertTrue(listenerCalled.get());
+        assertEquals(ClusterHealthStatus.RED, previousHealth.get().getStatus());
+        assertEquals(ClusterHealthStatus.GREEN, currentHealth.get().getStatus());
     }
 
     private void assertInitialState() {
@@ -368,5 +473,4 @@ public class IndexLifecycleManagerTests extends ESTestCase {
         final String resource = "/" + templateName + ".json";
         return TemplateUtils.loadTemplate(resource, Version.CURRENT.toString(), TEMPLATE_VERSION_PATTERN);
     }
-
 }

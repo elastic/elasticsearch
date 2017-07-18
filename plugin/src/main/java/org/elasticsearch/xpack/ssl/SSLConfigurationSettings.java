@@ -36,6 +36,7 @@ public class SSLConfigurationSettings {
     public final Setting<Optional<String>> truststorePath;
     public final Setting<SecureString> truststorePassword;
     public final Setting<String> truststoreAlgorithm;
+    public final Setting<Optional<String>> trustRestrictionsPath;
     public final Setting<Optional<String>> keyPath;
     public final Setting<SecureString> keyPassword;
     public final Setting<Optional<String>> cert;
@@ -120,6 +121,11 @@ public class SSLConfigurationSettings {
     public static final Setting<String> TRUST_STORE_ALGORITHM_PROFILES = Setting.affixKeySetting("transport.profiles.",
             "xpack.security.ssl.truststore.algorithm", TRUST_STORE_ALGORITHM_TEMPLATE);
 
+    private static final Function<String, Setting<Optional<String>>> TRUST_RESTRICTIONS_TEMPLATE = key -> new Setting<>(key, s -> null,
+            Optional::ofNullable, Property.NodeScope, Property.Filtered);
+    public static final Setting<Optional<String>> TRUST_RESTRICTIONS_PROFILES = Setting.affixKeySetting("transport.profiles.",
+            "xpack.security.ssl.trust_restrictions", TRUST_RESTRICTIONS_TEMPLATE);
+
     private static final Function<String, Setting<SecureString>> LEGACY_KEY_PASSWORD_TEMPLATE = key -> new Setting<>(key, "",
             SecureString::new, Property.Deprecated, Property.Filtered, Property.NodeScope);
     public static final Setting<SecureString> LEGACY_KEY_PASSWORD_PROFILES = Setting.affixKeySetting("transport.profiles.",
@@ -173,6 +179,7 @@ public class SSLConfigurationSettings {
         truststorePassword = TRUSTSTORE_PASSWORD_TEMPLATE.apply(prefix + "truststore.secure_password");
         keystoreAlgorithm = KEY_STORE_ALGORITHM_TEMPLATE.apply(prefix + "keystore.algorithm");
         truststoreAlgorithm = TRUST_STORE_ALGORITHM_TEMPLATE.apply(prefix + "truststore.algorithm");
+        trustRestrictionsPath = TRUST_RESTRICTIONS_TEMPLATE.apply(prefix + "trust_restrictions.path");
         keyPath = KEY_PATH_TEMPLATE.apply(prefix + "key");
         legacyKeyPassword = LEGACY_KEY_PASSWORD_TEMPLATE.apply(prefix + "key_passphrase");
         keyPassword = KEY_PASSWORD_TEMPLATE.apply(prefix + "secure_key_passphrase");
@@ -181,9 +188,11 @@ public class SSLConfigurationSettings {
         clientAuth = CLIENT_AUTH_SETTING_TEMPLATE.apply(prefix + "client_authentication");
         verificationMode = VERIFICATION_MODE_SETTING_TEMPLATE.apply(prefix + "verification_mode");
 
-        this.allSettings = Arrays.asList(ciphers, supportedProtocols, keystorePath, keystorePassword, keystoreAlgorithm,
-            keystoreKeyPassword, truststorePath, truststorePassword, truststoreAlgorithm, keyPath, keyPassword, cert, caPaths,
-            clientAuth, verificationMode, legacyKeystorePassword, legacyKeystoreKeyPassword, legacyKeyPassword, legacyTruststorePassword);
+        this.allSettings = Arrays.asList(ciphers, supportedProtocols,
+                keystorePath, keystorePassword, keystoreAlgorithm, keystoreKeyPassword,
+                truststorePath, truststorePassword, truststoreAlgorithm, trustRestrictionsPath,
+                keyPath, keyPassword, cert, caPaths, clientAuth, verificationMode,
+                legacyKeystorePassword, legacyKeystoreKeyPassword, legacyKeyPassword, legacyTruststorePassword);
     }
 
     public List<Setting<?>> getAllSettings() {
@@ -213,8 +222,8 @@ public class SSLConfigurationSettings {
         return Arrays.asList(CIPHERS_SETTING_PROFILES, SUPPORTED_PROTOCOLS_PROFILES, KEYSTORE_PATH_PROFILES,
                 LEGACY_KEYSTORE_PASSWORD_PROFILES, KEYSTORE_PASSWORD_PROFILES, LEGACY_KEYSTORE_KEY_PASSWORD_PROFILES,
                 KEYSTORE_KEY_PASSWORD_PROFILES, TRUST_STORE_PATH_PROFILES, LEGACY_TRUSTSTORE_PASSWORD_PROFILES,
-                TRUSTSTORE_PASSWORD_PROFILES, KEY_STORE_ALGORITHM_PROFILES, TRUST_STORE_ALGORITHM_PROFILES,KEY_PATH_PROFILES,
-                LEGACY_KEY_PASSWORD_PROFILES, KEY_PASSWORD_PROFILES,CERT_PROFILES,CAPATH_SETTING_PROFILES,
+                TRUSTSTORE_PASSWORD_PROFILES, KEY_STORE_ALGORITHM_PROFILES, TRUST_STORE_ALGORITHM_PROFILES, TRUST_RESTRICTIONS_PROFILES,
+                KEY_PATH_PROFILES, LEGACY_KEY_PASSWORD_PROFILES, KEY_PASSWORD_PROFILES,CERT_PROFILES,CAPATH_SETTING_PROFILES,
                 CLIENT_AUTH_SETTING_PROFILES, VERIFICATION_MODE_SETTING_PROFILES);
     }
 }

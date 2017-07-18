@@ -23,8 +23,7 @@ The following properties can be updated after the job is created:
 |Name |Description |Requires Restart
 
 |`analysis_limits`: `model_memory_limit` |The approximate maximum amount of
-memory resources required for analytical processing, in MiB.
-See <<ml-apilimits>>. | Yes
+memory resources required for analytical processing. See <<ml-apilimits>>. | Yes
 
 |`background_persist_interval` |Advanced configuration option. The time between
 each periodic persistence of the model. See <<ml-job-resource>>. | Yes

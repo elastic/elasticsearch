@@ -183,7 +183,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
             sslUsage = in.readMap();
             auditUsage = in.readMap();
             ipFilterUsage = in.readMap();
-            if (in.getVersion().before(Version.V_6_0_0_alpha3)) {
+            if (in.getVersion().before(Version.V_6_0_0_beta1)) {
                 // system key has been removed but older send its usage, so read the map and ignore
                 in.readMap();
             }
@@ -213,7 +213,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
             out.writeMap(sslUsage);
             out.writeMap(auditUsage);
             out.writeMap(ipFilterUsage);
-            if (out.getVersion().before(Version.V_6_0_0_alpha3)) {
+            if (out.getVersion().before(Version.V_6_0_0_beta1)) {
                 // system key has been removed but older versions still expected it so send a empty map
                 out.writeMap(Collections.emptyMap());
             }

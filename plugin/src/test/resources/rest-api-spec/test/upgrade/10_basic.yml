@@ -22,16 +22,6 @@ setup:
           index: test1
 
   - do:
-      indices.create:
-          index: test2
-
-  - do:
-      index:
-        index:  test2
-        type:   my_type
-        id:     1
-        body:   { "field1": "foo", "field2": "bar" }
-  - do:
       indices.refresh: {}
 
 ---
@@ -42,36 +32,8 @@ setup:
   - length: { indices: 0 }
 
 ---
-"Upgrade info - all, but treat test2 as kibana":
-  - do:
-      xpack.migration.get_assistance: { index: _all, kibana_indices: test2 }
-
-  - length: { indices: 1 }
-  - match: { indices.test2.action_required: "upgrade" }
-
----
-"Upgrade test2 as kibana index":
+"Upgrade test - should fail as index is already up to date":
 
   - do:
-      xpack.migration.upgrade: { index: test2, kibana_indices: test2 }
-
-  - match: { total: 1 }
-  - match: { created: 1 }
-  - length: { failures: 0 }
-
-  - do:
-      search:
-        index: test2_v6
-        body: { "query" : { "match_all" : {} } }
-  - match: { hits.total: 1}
-  - match: { hits.hits.0._type: "doc"}
-  - match: { hits.hits.0._id: "my_type-1"}
-  - match: { hits.hits.0._source.my_type.field1: "foo"}
-  - match: { hits.hits.0._source.my_type.field2: "bar"}
-
-  - do:
-      indices.get_alias:
-        index: test2_v6
-
-  - match: {test2_v6.aliases.test2: {}}
-
+      catch: /illegal_state_exception/
+      xpack.migration.upgrade: { index: test1 }

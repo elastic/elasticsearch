@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -24,7 +25,6 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -33,7 +33,10 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 public class JobStorageDeletionTask extends Task {
@@ -176,26 +179,31 @@ public class JobStorageDeletionTask extends Task {
     private void deleteAliases(String jobId, Client client, ActionListener<Boolean> finishedHandler) {
         final String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         final String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
-        final String indexPattern = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*";
 
-        IndicesAliasesRequest request = new IndicesAliasesRequest().addAliasAction(
-                IndicesAliasesRequest.AliasActions.remove().aliases(readAliasName, writeAliasName).indices(indexPattern));
-        client.admin().indices().aliases(request, ActionListener.wrap(
-                response -> finishedHandler.onResponse(true),
-                e -> {
-                    if (e instanceof AliasesNotFoundException) {
-                        logger.warn("[{}] Aliases {} not found. Continuing to delete job.", jobId,
-                                ((AliasesNotFoundException) e).getResourceId());
+        // first find the concrete indices associated with the aliases
+        GetAliasesRequest aliasesRequest = new GetAliasesRequest().aliases(readAliasName, writeAliasName)
+                .indicesOptions(IndicesOptions.lenientExpandOpen());
+        client.admin().indices().getAliases(aliasesRequest, ActionListener.wrap(
+                getAliasesResponse -> {
+                    Set<String> aliases = new HashSet<>();
+                    getAliasesResponse.getAliases().valuesIt().forEachRemaining(
+                            metaDataList -> metaDataList.forEach(metadata -> aliases.add(metadata.getAlias())));
+                    if (aliases.isEmpty()) {
+                        // don't error if the job's aliases have already been deleted - carry on and delete the rest of the job's data
                         finishedHandler.onResponse(true);
-                    } else if (e instanceof IndexNotFoundException) {
-                        logger.warn("[{}] Index [{}] referenced by alias not found. Continuing to delete job.", jobId,
-                                ((IndexNotFoundException) e).getIndex().getName());
-                        finishedHandler.onResponse(true);
-                    } else {
-                        // all other exceptions should die
-                        logger.error("[" + jobId + "] Failed to delete aliases [" + readAliasName + ", " + writeAliasName + "].", e);
-                        finishedHandler.onFailure(e);
+                        return;
                     }
-                }));
+                    List<String> indices = new ArrayList<>();
+                    getAliasesResponse.getAliases().keysIt().forEachRemaining(indices::add);
+                    // remove the aliases from the concrete indices found in the first step
+                    IndicesAliasesRequest removeRequest = new IndicesAliasesRequest().addAliasAction(
+                            IndicesAliasesRequest.AliasActions.remove()
+                                    .aliases(aliases.toArray(new String[aliases.size()]))
+                                    .indices(indices.toArray(new String[indices.size()])));
+                    client.admin().indices().aliases(removeRequest, ActionListener.wrap(
+                            removeResponse -> finishedHandler.onResponse(true),
+                            finishedHandler::onFailure));
+                },
+                finishedHandler::onFailure));
     }
 }

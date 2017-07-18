@@ -32,15 +32,14 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DatafeedJobsRestIT extends ESRestTestCase {
 
-    private static final String BASIC_AUTH_VALUE_ELASTIC =
-            basicAuthHeaderValue("elastic", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
+    private static final String BASIC_AUTH_VALUE_SUPER_USER =
+            basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
     private static final String BASIC_AUTH_VALUE_ML_ADMIN =
             basicAuthHeaderValue("ml_admin", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
 
     @Override
     protected Settings restClientSettings() {
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization",
-                BASIC_AUTH_VALUE_ELASTIC).build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE_SUPER_USER).build();
     }
 
     @Override
@@ -51,10 +50,6 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     @Before
     public void setUpData() throws Exception {
         String password = new String(SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING.getChars());
-        String elasticUserPayload = "{\"password\" : \"" + password + "\"}";
-
-        client().performRequest("put", "_xpack/security/user/elastic/_password", Collections.emptyMap(),
-                new StringEntity(elasticUserPayload, ContentType.APPLICATION_JSON));
 
         // This user has admin rights on machine learning, but (importantly for the tests) no
         // rights on any of the data indexes
@@ -310,7 +305,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs", "response").build();
 
         // This should be disallowed, because ml_admin is trying to preview a datafeed created by
-        // by another user (elastic in this case) that will reveal the content of an index they
+        // by another user (x_pack_rest_user in this case) that will reveal the content of an index they
         // don't have permission to search directly
         ResponseException e = expectThrows(ResponseException.class, () ->
                 client().performRequest("get",
@@ -581,7 +576,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         boolean source;
         String scriptedFields;
         String aggregations;
-        String authHeader = BASIC_AUTH_VALUE_ELASTIC;
+        String authHeader = BASIC_AUTH_VALUE_SUPER_USER;
 
         DatafeedBuilder(String datafeedId, String jobId, String index, String type) {
             this.datafeedId = datafeedId;

@@ -5,16 +5,9 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.entity.ContentType;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -29,7 +22,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -40,14 +32,11 @@ import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
-
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -58,7 +47,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
@@ -102,11 +90,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
             cluster2.beforeTest(random(), 0.1);
             cluster2.ensureAtLeastNumDataNodes(2);
         }
-    }
-
-    @Override
-    public boolean shouldSetReservedUserPasswords() {
-        return false;
+        assertSecurityIndexActive(cluster2);
     }
 
     @Override
@@ -132,7 +116,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
     public void tearDownTribeNodeAndWipeCluster() throws Exception {
         if (cluster2 != null) {
             try {
-                cluster2.wipe(Collections.<String>emptySet());
+                cluster2.wipe(Collections.emptySet());
                 try {
                     // this is a hack to clean up the .security index since only the XPack user or superusers can delete it
                     cluster2.getInstance(InternalClient.class)
@@ -160,7 +144,12 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         return true;
     }
 
-    private void setupTribeNode(Settings settings) throws NodeValidationException, InterruptedException {
+    @Override
+    protected boolean shouldSetReservedUserPasswords() {
+        return false;
+    }
+
+    private void setupTribeNode(Settings settings) throws Exception {
         SecuritySettingsSource cluster2SettingsSource =
                 new SecuritySettingsSource(1, useGeneratedSSL, createTempDir(), Scope.TEST) {
                     @Override
@@ -171,8 +160,9 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
                                 .build();
                     }
                 };
+        final Settings settingsTemplate = cluster2SettingsSource.nodeSettings(0);
 
-        Map<String, String> asMap = new HashMap<>(cluster2SettingsSource.nodeSettings(0).getAsMap());
+        Map<String, String> asMap = new HashMap<>(settingsTemplate.getAsMap());
         asMap.remove(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey());
         Settings.Builder tribe1Defaults = Settings.builder();
         Settings.Builder tribe2Defaults = Settings.builder();
@@ -187,7 +177,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         }
         // TODO: rethink how these settings are generated for tribes once we support more than just string settings...
         MockSecureSettings secureSettingsTemplate =
-            (MockSecureSettings) Settings.builder().put(cluster2SettingsSource.nodeSettings(0)).getSecureSettings();
+            (MockSecureSettings) Settings.builder().put(settingsTemplate).getSecureSettings();
         MockSecureSettings secureSettings = new MockSecureSettings();
         if (secureSettingsTemplate != null) {
             for (String settingName : secureSettingsTemplate.getSettingNames()) {
@@ -246,26 +236,14 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
             }, nodeCountPredicate);
             latch.await();
         }
+
+        assertTribeNodeHasAllIndices();
     }
 
     public void testThatTribeCanAuthenticateElasticUser() throws Exception {
-        InetSocketAddress[] inetSocketAddresses = cluster2.httpAddresses();
-        List<HttpHost> hosts = new ArrayList<>();
-        for (InetSocketAddress address : inetSocketAddresses) {
-            hosts.add(new HttpHost(address.getAddress(), address.getPort()));
-        }
-        RestClientBuilder builder = RestClient.builder(hosts.toArray(new HttpHost[hosts.size()]));
-        RestClient client = builder.build();
-
-        String payload = "{\"password\": \"" + SecuritySettingsSource.TEST_PASSWORD + "\"}";
-        HttpEntity entity = new NStringEntity(payload, ContentType.APPLICATION_JSON);
-        BasicHeader authHeader = new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, new SecureString("".toCharArray())));
-        String route = "/_xpack/security/user/" + ElasticUser.NAME + "/_password";
-        client.performRequest("PUT", route, Collections.emptyMap(), entity, authHeader);
-        client.close();
-
         setupTribeNode(Settings.EMPTY);
+        ensureElasticPasswordBootstrapped(internalCluster());
+        assertTribeNodeHasAllIndices();
         ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
                 UsernamePasswordToken.basicAuthHeaderValue("elastic", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING)))
                 .admin().cluster().prepareHealth().get();
@@ -274,8 +252,9 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
 
     public void testThatTribeCanAuthenticateElasticUserWithChangedPassword() throws Exception {
         setupTribeNode(Settings.EMPTY);
-        Client clusterClient = randomBoolean() ? client() : cluster2.client();
-        securityClient(clusterClient).prepareChangePassword("elastic", "password".toCharArray()).get();
+        InternalTestCluster cluster = randomBoolean() ? internalCluster() : cluster2;
+        ensureElasticPasswordBootstrapped(cluster);
+        securityClient(cluster.client()).prepareChangePassword("elastic", "password".toCharArray()).get();
 
         assertTribeNodeHasAllIndices();
         ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
@@ -286,6 +265,8 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
 
     public void testThatTribeClustersHaveDifferentPasswords() throws Exception {
         setupTribeNode(Settings.EMPTY);
+        ensureElasticPasswordBootstrapped(internalCluster());
+        ensureElasticPasswordBootstrapped(cluster2);
         securityClient().prepareChangePassword("elastic", "password".toCharArray()).get();
         securityClient(cluster2.client()).prepareChangePassword("elastic", "password2".toCharArray()).get();
 
@@ -297,6 +278,9 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
     }
 
     public void testUsersInBothTribes() throws Exception {
+        ensureElasticPasswordBootstrapped(internalCluster());
+        ensureElasticPasswordBootstrapped(cluster2);
+
         final String preferredTribe = randomBoolean() ? "t1" : "t2";
         setupTribeNode(Settings.builder().put("tribe.on_conflict", "prefer_" + preferredTribe).build());
         final int randomUsers = scaledRandomIntBetween(3, 8);
@@ -305,10 +289,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         List<String> shouldBeSuccessfulUsers = new ArrayList<>();
         List<String> shouldFailUsers = new ArrayList<>();
         final Client preferredClient = "t1".equals(preferredTribe) ? cluster1Client : cluster2Client;
-        // always ensure the index exists on all of the clusters in this test
-        assertAcked(internalClient().admin().indices().prepareCreate(IndexLifecycleManager.INTERNAL_SECURITY_INDEX).get());
-        assertAcked(cluster2.getInstance(InternalClient.class).admin().indices()
-                .prepareCreate(IndexLifecycleManager.INTERNAL_SECURITY_INDEX).get());
+
         for (int i = 0; i < randomUsers; i++) {
             final String username = "user" + i;
             Client clusterClient = randomBoolean() ? cluster1Client : cluster2Client;
@@ -346,16 +327,16 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         final String preferredTribe = randomBoolean() ? "t1" : "t2";
         setupTribeNode(Settings.builder().put("tribe.on_conflict", "prefer_" + preferredTribe).build());
         final int randomUsers = scaledRandomIntBetween(3, 8);
-        final Client cluster1Client = client();
-        final Client cluster2Client = cluster2.client();
+
         List<String> shouldBeSuccessfulUsers = new ArrayList<>();
 
         // only create users in the non preferred client
-        final Client nonPreferredClient = "t1".equals(preferredTribe) ? cluster2Client : cluster1Client;
+        final InternalTestCluster nonPreferredCluster = "t1".equals(preferredTribe) ? cluster2 : internalCluster();
+        ensureElasticPasswordBootstrapped(nonPreferredCluster);
         for (int i = 0; i < randomUsers; i++) {
             final String username = "user" + i;
             PutUserResponse response =
-                    securityClient(nonPreferredClient).preparePutUser(username, "password".toCharArray(), "superuser").get();
+                    securityClient(nonPreferredCluster.client()).preparePutUser(username, "password".toCharArray(), "superuser").get();
             assertTrue(response.created());
             shouldBeSuccessfulUsers.add(username);
         }
@@ -370,6 +351,8 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
     }
 
     public void testUserModificationUsingTribeNodeAreDisabled() throws Exception {
+        ensureElasticPasswordBootstrapped(internalCluster());
+
         setupTribeNode(Settings.EMPTY);
         SecurityClient securityClient = securityClient(tribeClient);
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
@@ -385,6 +368,9 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
     }
 
     public void testRetrieveRolesOnTribeNode() throws Exception {
+        ensureElasticPasswordBootstrapped(internalCluster());
+        ensureElasticPasswordBootstrapped(cluster2);
+
         final String preferredTribe = randomBoolean() ? "t1" : "t2";
         setupTribeNode(Settings.builder().put("tribe.on_conflict", "prefer_" + preferredTribe).build());
         final int randomRoles = scaledRandomIntBetween(3, 8);
@@ -393,10 +379,6 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         List<String> shouldBeSuccessfulRoles = new ArrayList<>();
         List<String> shouldFailRoles = new ArrayList<>();
         final Client preferredClient = "t1".equals(preferredTribe) ? cluster1Client : cluster2Client;
-        // always ensure the index exists on all of the clusters in this test
-        assertAcked(internalClient().admin().indices().prepareCreate(IndexLifecycleManager.INTERNAL_SECURITY_INDEX).get());
-        assertAcked(cluster2.getInstance(InternalClient.class).admin().indices()
-                .prepareCreate(IndexLifecycleManager.INTERNAL_SECURITY_INDEX).get());
 
         for (int i = 0; i < randomRoles; i++) {
             final String rolename = "role" + i;
@@ -432,10 +414,10 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         final String preferredTribe = randomBoolean() ? "t1" : "t2";
         setupTribeNode(Settings.builder().put("tribe.on_conflict", "prefer_" + preferredTribe).build());
         final int randomRoles = scaledRandomIntBetween(3, 8);
-        final Client cluster1Client = client();
-        final Client cluster2Client = cluster2.client();
         List<String> shouldBeSuccessfulRoles = new ArrayList<>();
-        final Client nonPreferredClient = "t1".equals(preferredTribe) ? cluster2Client : cluster1Client;
+        final InternalTestCluster nonPreferredCluster = "t1".equals(preferredTribe) ? cluster2 : internalCluster();
+        ensureElasticPasswordBootstrapped(nonPreferredCluster);
+        Client nonPreferredClient = nonPreferredCluster.client();
 
         for (int i = 0; i < randomRoles; i++) {
             final String rolename = "role" + i;

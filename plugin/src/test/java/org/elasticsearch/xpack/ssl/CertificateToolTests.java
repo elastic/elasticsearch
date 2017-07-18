@@ -5,35 +5,6 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import com.google.common.jimfs.Configuration;
-import com.google.common.jimfs.Jimfs;
-import org.apache.lucene.util.IOUtils;
-import org.bouncycastle.asn1.ASN1String;
-import org.bouncycastle.asn1.DEROctetString;
-import org.bouncycastle.asn1.pkcs.Attribute;
-import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
-import org.bouncycastle.asn1.x509.Extension;
-import org.bouncycastle.asn1.x509.Extensions;
-import org.bouncycastle.asn1.x509.GeneralName;
-import org.bouncycastle.asn1.x509.GeneralNames;
-import org.bouncycastle.cert.X509CertificateHolder;
-import org.bouncycastle.openssl.PEMEncryptedKeyPair;
-import org.bouncycastle.openssl.PEMParser;
-import org.bouncycastle.pkcs.PKCS10CertificationRequest;
-import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.xpack.ssl.CertificateTool.CAInfo;
-import org.elasticsearch.xpack.ssl.CertificateTool.CertificateInformation;
-import org.elasticsearch.xpack.ssl.CertificateTool.Name;
-import org.junit.After;
-
 import javax.security.auth.x500.X500Principal;
 import java.io.IOException;
 import java.io.Reader;
@@ -64,8 +35,44 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.google.common.jimfs.Configuration;
+import com.google.common.jimfs.Jimfs;
+import org.apache.lucene.util.IOUtils;
+import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.ASN1Sequence;
+import org.bouncycastle.asn1.ASN1String;
+import org.bouncycastle.asn1.BERTags;
+import org.bouncycastle.asn1.DEROctetString;
+import org.bouncycastle.asn1.DERSequence;
+import org.bouncycastle.asn1.pkcs.Attribute;
+import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
+import org.bouncycastle.asn1.x509.Extension;
+import org.bouncycastle.asn1.x509.Extensions;
+import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.cert.X509CertificateHolder;
+import org.bouncycastle.openssl.PEMEncryptedKeyPair;
+import org.bouncycastle.openssl.PEMParser;
+import org.bouncycastle.pkcs.PKCS10CertificationRequest;
+import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.xpack.ssl.CertificateTool.CAInfo;
+import org.elasticsearch.xpack.ssl.CertificateTool.CertificateInformation;
+import org.elasticsearch.xpack.ssl.CertificateTool.Name;
+import org.hamcrest.Matchers;
+import org.junit.After;
+
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Unit tests for the tool used to simplify SSL certificate generation
@@ -179,21 +186,25 @@ public class CertificateToolTests extends ESTestCase {
         CertificateInformation certInfo = certInfosMap.get("node1");
         assertEquals(Collections.singletonList("127.0.0.1"), certInfo.ipAddresses);
         assertEquals(Collections.singletonList("localhost"), certInfo.dnsNames);
+        assertEquals(Collections.emptyList(), certInfo.commonNames);
         assertEquals("node1", certInfo.name.filename);
 
         certInfo = certInfosMap.get("node2");
         assertEquals(Collections.singletonList("::1"), certInfo.ipAddresses);
         assertEquals(Collections.emptyList(), certInfo.dnsNames);
+        assertEquals(Collections.singletonList("node2.elasticsearch"), certInfo.commonNames);
         assertEquals("node2", certInfo.name.filename);
 
         certInfo = certInfosMap.get("node3");
         assertEquals(Collections.emptyList(), certInfo.ipAddresses);
         assertEquals(Collections.emptyList(), certInfo.dnsNames);
+        assertEquals(Collections.emptyList(), certInfo.commonNames);
         assertEquals("node3", certInfo.name.filename);
 
         certInfo = certInfosMap.get("CN=different value");
         assertEquals(Collections.emptyList(), certInfo.ipAddresses);
         assertEquals(Collections.singletonList("node4.mydomain.com"), certInfo.dnsNames);
+        assertEquals(Collections.emptyList(), certInfo.commonNames);
         assertEquals("different file", certInfo.name.filename);
     }
 
@@ -307,7 +318,7 @@ public class CertificateToolTests extends ESTestCase {
             try (Reader reader = Files.newBufferedReader(cert)) {
                 X509Certificate certificate = readX509Certificate(reader);
                 assertEquals(certInfo.name.x500Principal.toString(), certificate.getSubjectX500Principal().getName());
-                final int sanCount = certInfo.ipAddresses.size() + certInfo.dnsNames.size();
+                final int sanCount = certInfo.ipAddresses.size() + certInfo.dnsNames.size() + certInfo.commonNames.size();
                 if (sanCount == 0) {
                     assertNull(certificate.getSubjectAlternativeNames());
                 } else {
@@ -434,17 +445,25 @@ public class CertificateToolTests extends ESTestCase {
     }
 
     private void assertSubjAltNames(GeneralNames subjAltNames, CertificateInformation certInfo) throws Exception {
-        assertEquals(certInfo.ipAddresses.size() + certInfo.dnsNames.size(), subjAltNames.getNames().length);
+        final int expectedCount = certInfo.ipAddresses.size() + certInfo.dnsNames.size() + certInfo.commonNames.size();
+        assertEquals(expectedCount, subjAltNames.getNames().length);
         Collections.sort(certInfo.dnsNames);
         Collections.sort(certInfo.ipAddresses);
         for (GeneralName generalName : subjAltNames.getNames()) {
             if (generalName.getTagNo() == GeneralName.dNSName) {
-                String dns = ((ASN1String)generalName.getName()).getString();
+                String dns = ((ASN1String) generalName.getName()).getString();
                 assertTrue(certInfo.dnsNames.stream().anyMatch(dns::equals));
             } else if (generalName.getTagNo() == GeneralName.iPAddress) {
                 byte[] ipBytes = DEROctetString.getInstance(generalName.getName()).getOctets();
                 String ip = NetworkAddress.format(InetAddress.getByAddress(ipBytes));
                 assertTrue(certInfo.ipAddresses.stream().anyMatch(ip::equals));
+            } else if (generalName.getTagNo() == GeneralName.otherName) {
+                ASN1Sequence seq = ASN1Sequence.getInstance(generalName.getName());
+                assertThat(seq.size(), equalTo(2));
+                assertThat(seq.getObjectAt(0), instanceOf(ASN1ObjectIdentifier.class));
+                assertThat(seq.getObjectAt(0).toString(), equalTo(CertUtils.CN_OID));
+                assertThat(seq.getObjectAt(1), instanceOf(ASN1String.class));
+                assertThat(seq.getObjectAt(1).toString(), Matchers.isIn(certInfo.commonNames));
             } else {
                 fail("unknown general name with tag " + generalName.getTagNo());
             }
@@ -478,6 +497,8 @@ public class CertificateToolTests extends ESTestCase {
                 "  - name: \"node2\"",
                 "    filename: \"node2\"",
                 "    ip: \"::1\"",
+                "    cn:",
+                "      - \"node2.elasticsearch\"",
                 "  - name: \"node3\"",
                 "    filename: \"node3\"",
                 "  - name: \"CN=different value\"",

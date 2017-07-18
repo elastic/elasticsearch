@@ -43,6 +43,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -191,13 +193,17 @@ public class JobManager extends AbstractComponent {
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof IllegalArgumentException
-                        && e.getMessage().matches("mapper \\[.*\\] of different type, current_type \\[.*\\], merged_type \\[.*\\]")) {
-                    actionListener.onFailure(ExceptionsHelper.badRequestException(Messages.JOB_CONFIG_MAPPING_TYPE_CLASH, e));
-                } else {
-                    actionListener.onFailure(e);
+                if (e instanceof IllegalArgumentException) {
+                    // the underlying error differs depending on which way around the clashing fields are seen
+                    Matcher matcher = Pattern.compile("(?:mapper|Can't merge a non object mapping) \\[(.*)\\] (?:of different type, " +
+                            "current_type \\[.*\\], merged_type|with an object mapping) \\[.*\\]").matcher(e.getMessage());
+                    if (matcher.matches()) {
+                        String msg = Messages.getMessage(Messages.JOB_CONFIG_MAPPING_TYPE_CLASH, matcher.group(1));
+                        actionListener.onFailure(ExceptionsHelper.badRequestException(msg, e));
+                        return;
+                    }
                 }
-
+                actionListener.onFailure(e);
             }
         };
 

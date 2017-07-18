@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.security.action.user.PutUserRequest;
+import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.ContainerSettings;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.client.SecurityClient;
@@ -512,14 +513,14 @@ public class NativeUsersStore extends AbstractComponent {
      * @param username username to lookup the user by
      * @param password the plaintext password to verify
      */
-    void verifyPassword(String username, final SecureString password, ActionListener<User> listener) {
+    void verifyPassword(String username, final SecureString password, ActionListener<AuthenticationResult> listener) {
         getUserAndPassword(username, ActionListener.wrap((userAndPassword) -> {
             if (userAndPassword == null || userAndPassword.passwordHash() == null) {
                 listener.onResponse(null);
             } else if (hasher.verify(password, userAndPassword.passwordHash())) {
-                listener.onResponse(userAndPassword.user());
+                listener.onResponse(AuthenticationResult.success(userAndPassword.user()));
             } else {
-                listener.onResponse(null);
+                listener.onResponse(AuthenticationResult.unsuccessful("Password authentication failed for " + username, null));
             }
         }, listener::onFailure));
     }

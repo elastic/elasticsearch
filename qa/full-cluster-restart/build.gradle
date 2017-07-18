@@ -28,7 +28,7 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
         try {
             httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health?wait_for_nodes=${node.config.numNodes}&wait_for_status=yellow").openConnection();
             httpURLConnection.setRequestProperty("Authorization", "Basic " +
-                    Base64.getEncoder().encodeToString("elastic:changeme".getBytes(StandardCharsets.UTF_8)));
+                    Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8)));
             httpURLConnection.setRequestMethod("GET");
             httpURLConnection.setConnectTimeout(1000);
             httpURLConnection.setReadTimeout(30000); // read needs to wait for nodes!
@@ -116,12 +116,11 @@ subprojects {
       numBwcNodes = 2
       numNodes = 2
       clusterName = 'full-cluster-restart'
+      setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       waitCondition = waitWithAuth
       setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       setting 'xpack.ssl.keystore.password', 'testnode'
-      setting 'xpack.security.authc.realms.native.type', 'native'
-      setting 'xpack.security.authc.realms.native.order', '0'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
       if (withSystemKey) {
@@ -152,11 +151,10 @@ subprojects {
       numNodes = 2
       clusterName = 'full-cluster-restart'
       dataDir = { nodeNum -> oldClusterTest.nodes[nodeNum].dataDir }
+      setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       waitCondition = waitWithAuth
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
-      setting 'xpack.security.authc.realms.native.type', 'native'
-      setting 'xpack.security.authc.realms.native.order', '0'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
       if (withSystemKey) {

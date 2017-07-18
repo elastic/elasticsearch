@@ -51,7 +51,8 @@ public class TextTemplateEngine extends AbstractComponent {
 
             options.put(Script.CONTENT_TYPE_OPTION, mediaType);
         }
-        Script script = new Script(textTemplate.getType(), "mustache", template, options, mergedModel);
+        Script script = new Script(textTemplate.getType(),
+                textTemplate.getType() == ScriptType.STORED ? null : "mustache", template, options, mergedModel);
         TemplateScript.Factory compiledTemplate = service.compile(script, Watcher.SCRIPT_TEMPLATE_CONTEXT);
         return compiledTemplate.newInstance(model).execute();
     }

@@ -85,7 +85,7 @@ users, you can use User DN templates to configure the realm. The advantage of
 this method is that a search does not have to be performed to find the user DN.
 However, multiple bind operations might be needed to find the correct user DN.
 
-To configure an `ldap` Realm with User Search:
+To configure an `ldap` Realm with User DN templates:
 
 . Add a realm configuration of type `ldap` to `elasticsearch.yml` in the
 `xpack.security.authc.realms` namespace. At a minimum, you must set the realm `type` to
@@ -118,6 +118,9 @@ xpack:
 ------------------------------------------------------------
 
 . Restart Elasticsearch
+
+IMPORTANT: The `bind_dn` setting is not used in template mode.
+All LDAP operations will execute as the authenticating user.
 
 
 [[ldap-load-balancing]]
@@ -288,7 +291,11 @@ failover and load balancing modes of operation.
                                                         all objects contained under `base_dn`. `base` specifies
                                                         that the `base_dn` is the user object, and that it is the
                                                         only user considered. Defaults to `sub_tree`.
-| `user_search.attribute`                  | no       | Specifies the attribute to match with the username presented
+| `user_search.filter`                     | no       | Specifies the filter used to search the directory in attempt to match
+                                                        an entry with the username provided by the user. Defaults to `(uid={0})`.
+                                                        `{0}` is substituted with the username provided when searching.
+| `user_search.attribute`                  | no       | This setting is deprecated; use `user_search.filter` instead.
+                                                        Specifies the attribute to match with the username presented
                                                         to. Defaults to `uid`.
 | `user_search.pool.enabled`               | no       | Enables or disables connection pooling for user search. When
                                                         disabled a new connection is created for every search. The

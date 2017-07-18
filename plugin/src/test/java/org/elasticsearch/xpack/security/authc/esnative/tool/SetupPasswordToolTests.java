@@ -9,10 +9,12 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
@@ -23,24 +25,33 @@ import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.security.GeneralSecurityException;
 
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.contains;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
 
 public class SetupPasswordToolTests extends CommandTestCase {
 
     private final String pathHomeParameter = "-Epath.home=" + createTempDir();
+    private SecureString bootstrapPassword = new SecureString("bootstrap-password".toCharArray());
     private final String ep = "elastic-password";
     private final String kp = "kibana-password";
     private final String lp = "logstash-password";
     private final String bp = "beats-password";
     private CommandLineHttpClient httpClient;
+    private KeyStoreWrapper keyStore;
 
     @Before
-    public void setSecrets() {
+    public void setSecretsAndKeyStore() throws GeneralSecurityException {
+        this.keyStore = mock(KeyStoreWrapper.class);
+        this.httpClient = mock(CommandLineHttpClient.class);
+        when(keyStore.getString(ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.getKey())).thenReturn(bootstrapPassword);
+
         terminal.addSecretInput(ep);
         terminal.addSecretInput(ep);
         terminal.addSecretInput(kp);
@@ -53,19 +64,20 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
     @Override
     protected Command newCommand() {
-        this.httpClient = mock(CommandLineHttpClient.class);
-        return new SetupPasswordTool((e) -> httpClient);
+        return new SetupPasswordTool((e) -> httpClient, (e) -> keyStore);
     }
 
     public void testAutoSetup() throws Exception {
         execute("auto", pathHomeParameter, "-b", "true");
 
+        verify(keyStore).decrypt(new char[0]);
+
         ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
-        SecureString defaultPassword = new SecureString("".toCharArray());
 
         InOrder inOrder = Mockito.inOrder(httpClient);
         String elasticUrl = "http://localhost:9200/_xpack/security/user/elastic/_password";
-        inOrder.verify(httpClient).postURL(eq("PUT"), eq(elasticUrl), eq(ElasticUser.NAME), eq(defaultPassword), passwordCaptor.capture());
+        inOrder.verify(httpClient).postURL(eq("PUT"), eq(elasticUrl), eq(ElasticUser.NAME), eq(bootstrapPassword),
+                passwordCaptor.capture());
 
         String[] users = {KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME};
         SecureString newPassword = new SecureString(parsePassword(passwordCaptor.getValue()).toCharArray());
@@ -80,11 +92,11 @@ public class SetupPasswordToolTests extends CommandTestCase {
         execute("auto", pathHomeParameter, "-u", url, "-b");
 
         ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
-        SecureString defaultPassword = new SecureString("".toCharArray());
 
         InOrder inOrder = Mockito.inOrder(httpClient);
         String elasticUrl = url + "/_xpack/security/user/elastic/_password";
-        inOrder.verify(httpClient).postURL(eq("PUT"), eq(elasticUrl), eq(ElasticUser.NAME), eq(defaultPassword), passwordCaptor.capture());
+        inOrder.verify(httpClient).postURL(eq("PUT"), eq(elasticUrl), eq(ElasticUser.NAME), eq(bootstrapPassword),
+                passwordCaptor.capture());
 
         String[] users = {KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME};
         SecureString newPassword = new SecureString(parsePassword(passwordCaptor.getValue()).toCharArray());
@@ -99,12 +111,10 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         execute("interactive", pathHomeParameter);
 
-        SecureString defaultPassword = new SecureString("".toCharArray());
-
         InOrder inOrder = Mockito.inOrder(httpClient);
         String elasticUrl = "http://localhost:9200/_xpack/security/user/elastic/_password";
         SecureString newPassword = new SecureString(ep.toCharArray());
-        inOrder.verify(httpClient).postURL(eq("PUT"), eq(elasticUrl), eq(ElasticUser.NAME), eq(defaultPassword), contains(ep));
+        inOrder.verify(httpClient).postURL(eq("PUT"), eq(elasticUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), contains(ep));
 
         String kibanaUrl = "http://localhost:9200/_xpack/security/user/" + KibanaUser.NAME + "/_password";
         inOrder.verify(httpClient).postURL(eq("PUT"), eq(kibanaUrl), eq(ElasticUser.NAME), eq(newPassword), contains(kp));

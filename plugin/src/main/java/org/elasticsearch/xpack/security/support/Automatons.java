@@ -21,6 +21,7 @@ import static org.apache.lucene.util.automaton.Operations.DEFAULT_MAX_DETERMINIZ
 import static org.apache.lucene.util.automaton.Operations.concatenate;
 import static org.apache.lucene.util.automaton.Operations.minus;
 import static org.apache.lucene.util.automaton.Operations.union;
+import static org.elasticsearch.common.Strings.collectionToDelimitedString;
 
 public final class Automatons {
 
@@ -122,11 +123,25 @@ public final class Automatons {
     }
 
     public static Predicate<String> predicate(Collection<String> patterns) {
-        return predicate(patterns(patterns));
+        return predicate(patterns(patterns), collectionToDelimitedString(patterns, "|"));
     }
 
     public static Predicate<String> predicate(Automaton automaton) {
+        return predicate(automaton, "Predicate for " + automaton);
+    }
+
+    private static Predicate<String> predicate(Automaton automaton, final String toString) {
         CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_MAX_DETERMINIZED_STATES);
-        return runAutomaton::run;
+        return new Predicate<String>() {
+            @Override
+            public boolean test(String s) {
+                return runAutomaton.run(s);
+            }
+
+            @Override
+            public String toString() {
+                return toString;
+            }
+        };
     }
 }

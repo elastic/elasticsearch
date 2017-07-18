@@ -18,11 +18,13 @@ import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.support.NoOpLogger;
 import org.elasticsearch.xpack.security.support.Validation;
 import org.elasticsearch.xpack.security.support.Validation.Users;
+import org.elasticsearch.xpack.security.user.User;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -78,16 +80,15 @@ public class FileUserPasswdStore {
         return users.size();
     }
 
-    public boolean verifyPassword(String username, SecureString password) {
+    public AuthenticationResult verifyPassword(String username, SecureString password, java.util.function.Supplier<User> user) {
         char[] hash = users.get(username);
         if (hash == null) {
-            return false;
+            return AuthenticationResult.notHandled();
         }
         if (hasher.verify(password, hash) == false) {
-            logger.debug("User [{}] exists in file but authentication failed", username);
-            return false;
+            return AuthenticationResult.unsuccessful("Password authentication failed for " + username, null);
         }
-        return true;
+        return AuthenticationResult.success(user.get());
     }
 
     public boolean userExists(String username) {

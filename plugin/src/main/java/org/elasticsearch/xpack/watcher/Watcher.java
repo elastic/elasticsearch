@@ -514,9 +514,7 @@ public class Watcher implements ActionPlugin {
     // These are all old templates from pre 6.0 era, that need to be deleted
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return map -> {
-            map.keySet().removeIf(name -> "watches".equals(name) || "triggered_watches".equals(name)
-                        || name.startsWith("watch_history_"));
-
+            map.keySet().removeIf(name -> name.startsWith("watch_history_"));
             return map;
         };
     }

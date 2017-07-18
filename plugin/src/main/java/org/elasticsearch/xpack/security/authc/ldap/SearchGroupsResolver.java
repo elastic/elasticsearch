@@ -110,7 +110,7 @@ class SearchGroupsResolver implements GroupsResolver {
 
     private void getUserId(String dn, Collection<Attribute> attributes, LDAPInterface connection,
                            TimeValue timeout, ActionListener<String> listener) {
-        if (isNullOrEmpty(userAttribute)) {
+        if (isNullOrEmpty(userAttribute) || userAttribute.equals("dn")) {
             listener.onResponse(dn);
         } else if (attributes != null) {
             final String value = attributes.stream()

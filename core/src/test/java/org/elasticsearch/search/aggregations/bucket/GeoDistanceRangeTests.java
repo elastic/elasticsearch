@@ -82,4 +82,23 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
         assertThat(ex.getDetailedMessage(), containsString("badField"));
     }
 
+    /**
+     * We never render "null" values to xContent, but we should test that we can parse them (and they return correct defaults)
+     */
+    public void testParsingNull() throws IOException {
+        final String rangeAggregation = "{\n" +
+                "\"field\" : \"location\",\n" +
+                "\"origin\" : \"52.3760, 4.894\",\n" +
+                "\"unit\" : \"m\",\n" +
+                "\"ranges\" : [\n" +
+                "    { \"from\" : null, \"to\" : null }\n" +
+                "]\n" +
+            "}";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
+        GeoDistanceAggregationBuilder aggregationBuilder = (GeoDistanceAggregationBuilder) GeoDistanceAggregationBuilder
+                .parse("aggregationName", parser);
+        assertEquals(1, aggregationBuilder.range().size());
+        assertEquals(0.0, aggregationBuilder.range().get(0).getFrom(), 0.0);
+        assertEquals(Double.POSITIVE_INFINITY, aggregationBuilder.range().get(0).getTo(), 0.0);
+    }
 }

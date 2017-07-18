@@ -88,7 +88,7 @@ import static org.hamcrest.core.Is.is;
  * does it by default.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
-public class TribeIT extends ESIntegTestCase {
+public class TribeIntegrationTests extends ESIntegTestCase {
 
     private static final String TRIBE_NODE = "tribe_node";
 

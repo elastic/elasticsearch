@@ -223,7 +223,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("test").setSize(0).get(), docs);
     }
 
-    public void testWorkers() throws Exception {
+    public void testSlices() throws Exception {
         indexRandom(true,
                 client().prepareIndex("test", "test", "1").setSource("foo", "a"),
                 client().prepareIndex("test", "test", "2").setSource("foo", "a"),
@@ -244,6 +244,32 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         DeleteByQueryRequestBuilder request = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true)
                 .setSlices(SlicesCount.of(5));
         assertThat(request.get(), matcher().deleted(5).slices(hasSize(5)));
+        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 0);
+    }
+
+    public void testSlicesAuto() throws Exception {
+        indexRandom(true,
+            client().prepareIndex("test", "test", "1").setSource("foo", "a"),
+            client().prepareIndex("test", "test", "2").setSource("foo", "a"),
+            client().prepareIndex("test", "test", "3").setSource("foo", "b"),
+            client().prepareIndex("test", "test", "4").setSource("foo", "c"),
+            client().prepareIndex("test", "test", "5").setSource("foo", "d"),
+            client().prepareIndex("test", "test", "6").setSource("foo", "e"),
+            client().prepareIndex("test", "test", "7").setSource("foo", "f")
+        );
+        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 7);
+
+        NumShards numShards = getNumShards("test");
+
+        // Deletes the two docs that matches "foo:a"
+        assertThat(deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).setSlices(SlicesCount.AUTO).get(),
+            matcher().deleted(2).slices(hasSize(numShards.numPrimaries)));
+        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 5);
+
+        // Delete remaining docs
+        DeleteByQueryRequestBuilder request = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true)
+            .setSlices(SlicesCount.AUTO);
+        assertThat(request.get(), matcher().deleted(5).slices(hasSize(numShards.numPrimaries)));
         assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 0);
     }
 

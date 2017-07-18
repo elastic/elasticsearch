@@ -116,4 +116,31 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertThat(response, matcher().created(lessThanOrEqualTo((long) half)).slices(hasSize(workers)));
         assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), response.getCreated());
     }
+
+    public void testCopyManyWithSlicesAuto() throws Exception {
+        int max = between(150, 500);
+        List<IndexRequestBuilder> docs = new ArrayList<>();
+        for (int i = 0; i < max; i++) {
+            docs.add(client().prepareIndex("source", "test", Integer.toString(i)).setSource("foo", "a"));
+        }
+
+        indexRandom(true, docs);
+        assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
+
+        NumShards numShards = getNumShards("source");
+
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "type").refresh(true).setSlices(SlicesCount.AUTO);
+        copy.source().setSize(5);
+        assertThat(copy.get(), matcher().created(max).batches(greaterThanOrEqualTo(max / 5)).slices(hasSize(numShards.numPrimaries)));
+        assertHitCount(client().prepareSearch("dest").setTypes("type").setSize(0).get(), max);
+
+        int half = max / 2;
+        copy = reindex().source("source").destination("dest_half", "type").refresh(true).setSlices(SlicesCount.AUTO);
+        copy.source().setSize(5);
+        copy.size(half);
+        BulkByScrollResponse response = copy.get();
+        assertThat(response, matcher().created(lessThanOrEqualTo((long) half)).slices(hasSize(numShards.numPrimaries)));
+        assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), response.getCreated());
+    }
+
 }

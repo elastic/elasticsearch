@@ -33,12 +33,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.inject.ProvisionException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.Node;
@@ -47,6 +49,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCustomMetaData;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.tribe.TribeServiceTests.MergableCustomMetaData1;
 import org.elasticsearch.tribe.TribeServiceTests.MergableCustomMetaData2;
@@ -76,6 +79,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
 
@@ -149,8 +153,31 @@ public class TribeIT extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>();
         plugins.addAll(getMockPlugins());
+        plugins.add(TribePlugin.class);
+        plugins.add(TribeAwareTestZenDiscoveryPlugin.class);
         plugins.add(TestCustomMetaDataPlugin.class);
         return plugins;
+    }
+
+    @Override
+    protected boolean addTestZenDiscovery() {
+        return false;
+    }
+
+    public static class TribeAwareTestZenDiscoveryPlugin extends TestZenDiscovery.TestPlugin {
+
+        public TribeAwareTestZenDiscoveryPlugin(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        public Settings additionalSettings() {
+            if (settings.getGroups("tribe", true).isEmpty()) {
+                return super.additionalSettings();
+            } else {
+                return Settings.EMPTY;
+            }
+        }
     }
 
     @Before
@@ -249,9 +276,12 @@ public class TribeIT extends ESIntegTestCase {
         final Settings.Builder settings = Settings.builder();
         settings.put(Node.NODE_NAME_SETTING.getKey(), TRIBE_NODE);
         settings.put(Node.NODE_DATA_SETTING.getKey(), false);
-        settings.put(Node.NODE_MASTER_SETTING.getKey(), true);
+        settings.put(Node.NODE_MASTER_SETTING.getKey(), false);
+        settings.put(Node.NODE_INGEST_SETTING.getKey(), false);
         settings.put(NetworkModule.HTTP_ENABLED.getKey(), false);
         settings.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
+        // add dummy tribe setting so that node is always identifiable as tribe in this test even if the set of connecting cluster is empty
+        settings.put(TribeService.BLOCKS_WRITE_SETTING.getKey(), TribeService.BLOCKS_WRITE_SETTING.getDefault(Settings.EMPTY));
 
         doWithAllClusters(filter, c -> {
             String tribeSetting = "tribe." + c.getClusterName() + ".";
@@ -261,6 +291,16 @@ public class TribeIT extends ESIntegTestCase {
         });
 
         return settings;
+    }
+
+    public void testTribeNodeWithBadSettings() throws Exception {
+        Settings brokenSettings = Settings.builder()
+            .put("tribe.some.setting.that.does.not.exist", true)
+            .build();
+
+        ProvisionException e = expectThrows(ProvisionException.class, () -> startTribeNode(ALL, brokenSettings)); // <3 Guice
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getCause().getMessage(), containsString("unknown setting [setting.that.does.not.exist]"));
     }
 
     public void testGlobalReadWriteBlocks() throws Exception {

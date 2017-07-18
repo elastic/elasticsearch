@@ -114,7 +114,7 @@ public class MockNode extends Node {
     }
 
     @Override
-    protected Node newTribeClientNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path configPath) {
+    protected Node newNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path configPath) {
         return new MockNode(settings, classpathPlugins, configPath);
     }
 

@@ -12,13 +12,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.junit.After;
 
 import java.util.Collections;
 
@@ -92,17 +89,6 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
             assertThat(hits, equalTo(docs.length));
         } finally {
             clearScroll(response.getScrollId());
-        }
-    }
-
-    @After
-    public void wipeSecurityIndex() {
-        try {
-            // this is a hack to clean up the .security index since only superusers can delete it and the default test user is not a
-            // superuser since the role used there is a file based role since we cannot guarantee the superuser role is always available
-            internalClient().admin().indices().prepareDelete(SecurityLifecycleService.SECURITY_INDEX_NAME).get();
-        } catch (IndexNotFoundException e) {
-            logger.warn("security index does not exist", e);
         }
     }
 

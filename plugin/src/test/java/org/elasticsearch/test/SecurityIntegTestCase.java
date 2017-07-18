@@ -10,9 +10,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -509,14 +510,14 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     protected void deleteSecurityIndex() {
-        try {
+        GetIndexRequest getIndexRequest = new GetIndexRequest();
+        getIndexRequest.indices(SECURITY_INDEX_NAME);
+        getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        GetIndexResponse getIndexResponse = internalClient().admin().indices().getIndex(getIndexRequest).actionGet();
+        if (getIndexResponse.getIndices().length > 0) {
             // this is a hack to clean up the .security index since only the XPack user can delete it
-            final IndicesAliasesRequest request = new IndicesAliasesRequest();
-            final AliasActions aliasActions = AliasActions.removeIndex().index(SECURITY_INDEX_NAME);
-            request.addAliasAction(aliasActions);
-            internalClient().admin().indices().aliases(request).actionGet();
-        } catch (IndexNotFoundException e) {
-            // ignore it since not all tests create this index...
+            DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(getIndexResponse.getIndices());
+            internalClient().admin().indices().delete(deleteIndexRequest).actionGet();
         }
     }
 

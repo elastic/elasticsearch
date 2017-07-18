@@ -12,7 +12,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -119,14 +118,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         for (TokenService tokenService : internalCluster().getInstances(TokenService.class)) {
             final boolean done = awaitBusy(() -> tokenService.isExpirationInProgress() == false);
             assertTrue(done);
-        }
-
-        try {
-            // this is a hack to clean up the .security index since only superusers can delete it and the default test user is not a
-            // superuser since the role used there is a file based role since we cannot guarantee the superuser role is always available
-            internalClient().admin().indices().prepareDelete(SecurityLifecycleService.SECURITY_INDEX_NAME).get();
-        } catch (IndexNotFoundException e) {
-            logger.warn("security index does not exist", e);
         }
     }
 }

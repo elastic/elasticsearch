@@ -56,6 +56,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /**
@@ -77,10 +78,13 @@ public class SearchTransportService extends AbstractComponent {
     public static final String QUERY_CAN_MATCH_NAME = "indices:data/read/search[can_match]";
 
     private final TransportService transportService;
+    private final BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper;
 
-    public SearchTransportService(Settings settings, TransportService transportService) {
+    public SearchTransportService(Settings settings, TransportService transportService,
+                                  BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper) {
         super(settings);
         this.transportService = transportService;
+        this.responseWrapper = responseWrapper;
     }
 
     public void sendFreeContext(Transport.Connection connection, final long contextId, OriginalIndices originalIndices) {
@@ -105,7 +109,7 @@ public class SearchTransportService extends AbstractComponent {
 
     public void sendCanMatch(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task, final
                             ActionListener<CanMatchResponse> listener) {
-        if (connection.getNode().getVersion().onOrAfter(Version.CURRENT.minimumCompatibilityVersion())) {
+        if (connection.getNode().getVersion().onOrAfter(Version.V_5_6_0)) {
             transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NAME, request, task,
                 TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, CanMatchResponse::new));
         } else {
@@ -114,8 +118,7 @@ public class SearchTransportService extends AbstractComponent {
             // instead of sending the request we shortcut it here and let the caller deal with this -- see #25704
             // also failing the request instead of returning a fake answer might trigger a retry on a replica which might be on a
             // compatible node
-            throw new IllegalArgumentException("can_match is not supported on pre "+ Version.CURRENT.minimumCompatibilityVersion() +
-                " nodes");
+            throw new IllegalArgumentException("can_match is not supported on pre 5.6 nodes");
         }
     }
 
@@ -136,8 +139,10 @@ public class SearchTransportService extends AbstractComponent {
         // this used to be the QUERY_AND_FETCH which doesn't exist anymore.
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Supplier<SearchPhaseResult> supplier = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
+
+        final ActionListener handler = responseWrapper.apply(connection, listener);
         transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,
-            new ActionListenerResponseHandler<>(listener, supplier));
+            new ActionListenerResponseHandler<>(handler, supplier));
     }
 
     public void sendExecuteQuery(Transport.Connection connection, final QuerySearchRequest request, SearchTask task,

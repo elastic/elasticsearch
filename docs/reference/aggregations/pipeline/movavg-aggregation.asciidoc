@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-movavg-aggregation]]
 === Moving Average Aggregation
 
-experimental[]
-
 Given an ordered series of data, the Moving Average aggregation will slide a window across the data and emit the average
 value of that window.  For example, given the data `[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]`, we can calculate a simple moving
 average with windows size of `5` as follows:
@@ -512,6 +510,8 @@ POST /_search
 // TEST[setup:sales]
 
 ==== Prediction
+
+experimental[]
 
 All the moving average model support a "prediction" mode, which will attempt to extrapolate into the future given the
 current smoothed, moving average.  Depending on the model and parameter, these predictions may or may not be accurate.

@@ -32,7 +32,7 @@ PUT /my_index
 }
 ---------------------------------
 
-experimental[This is an expert-only setting and may be removed in the future]
+WARNING: This is an expert-only setting and may be removed in the future.
 
 The following sections lists all the different storage types supported.
 
@@ -73,7 +73,7 @@ compatibility.
 
 === Pre-loading data into the file system cache
 
-experimental[This is an expert-only setting and may be removed in the future]
+NOTE: This is an expert setting, the details of which may change in the future.
 
 By default, elasticsearch completely relies on the operating system file system
 cache for caching I/O operations. It is possible to set `index.store.preload`

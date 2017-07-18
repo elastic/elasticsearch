@@ -13,16 +13,10 @@ import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.JDBCType;
 
-/**
- * Abstract base class for a page of results. The canonical implementation in {@link Page}
- * and implementation must write usings the same format as {@linkplain Page}.
- */
-public abstract class ResultPage {
-    public abstract void write(DataOutput out) throws IOException;
-
+public class ProtoUtils {
     // See Jdbc spec, appendix B
     @SuppressWarnings("unchecked")
-    protected static <T> T readValue(DataInput in, JDBCType type) throws IOException {
+    public static <T> T readValue(DataInput in, JDBCType type) throws IOException {
         // NOCOMMIT <T> feels slippery here
         Object result;
         byte hasNext = in.readByte();
@@ -82,7 +76,7 @@ public abstract class ResultPage {
         return (T) result;
     }
 
-    protected static void writeValue(DataOutput out, Object o, JDBCType type) throws IOException {
+    public static void writeValue(DataOutput out, Object o, JDBCType type) throws IOException {
         if (o == null) {
             out.writeByte(0);
             return;
@@ -145,7 +139,7 @@ public abstract class ResultPage {
     /**
      * The type of the array used to store columns of this type.
      */
-    protected static Class<?> classOf(JDBCType jdbcType) {
+    public static Class<?> classOf(JDBCType jdbcType) {
         switch (jdbcType) {
             case NUMERIC:
             case DECIMAL:
@@ -163,7 +157,7 @@ public abstract class ResultPage {
             case BIGINT:
                 return Long.class;
             case REAL:
-                return Float.class; 
+                return Float.class;
             case FLOAT:
             case DOUBLE:
                 return Double.class;

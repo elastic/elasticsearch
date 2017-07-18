@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.server.cli;
+package org.elasticsearch.xpack.sql.plugin.cli;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
@@ -17,10 +17,10 @@ import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.execution.search.SearchHitRowSetCursor;
+import org.elasticsearch.xpack.sql.plugin.AbstractSqlServer;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto.SqlExceptionType;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
-import org.elasticsearch.xpack.sql.server.AbstractSqlServer;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.TimeZone;

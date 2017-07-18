@@ -23,10 +23,9 @@ public class QueryInitResponse extends Response {
     public final long serverTimeQueryReceived, serverTimeResponseSent;
     public final String requestId;
     public final List<ColumnInfo> columns;
-    public final ResultPage data;
+    public final Payload data;
 
-    public QueryInitResponse(long serverTimeQueryReceived, long serverTimeResponseSent, String requestId, List<ColumnInfo> columns,
-            ResultPage data) {
+    public QueryInitResponse(long serverTimeQueryReceived, long serverTimeResponseSent, String requestId, List<ColumnInfo> columns, Payload data) {
         this.serverTimeQueryReceived = serverTimeQueryReceived;
         this.serverTimeResponseSent = serverTimeResponseSent;
         this.requestId = requestId;
@@ -44,6 +43,7 @@ public class QueryInitResponse extends Response {
             columns.add(new ColumnInfo(in));
         }
         this.columns = unmodifiableList(columns);
+        //NOCOMMIT - Page is a client class, it shouldn't leak here
         Page data = new Page(columns);
         data.read(in);
         this.data = data;

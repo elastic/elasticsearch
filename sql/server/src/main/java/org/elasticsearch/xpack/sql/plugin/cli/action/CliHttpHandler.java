@@ -3,9 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.server.jdbc;
+package org.elasticsearch.xpack.sql.plugin.cli.action;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -13,66 +14,54 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto;
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto;
+import org.elasticsearch.xpack.sql.plugin.AbstractSqlServer;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto;
-import org.elasticsearch.xpack.sql.server.AbstractSqlServer;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.io.DataInputStream;
 import java.io.IOException;
 
-import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class JdbcHttpHandler extends BaseRestHandler { // NOCOMMIT these are call RestJdbcAction even if it isn't REST.
+public class CliHttpHandler extends BaseRestHandler {
 
-    public JdbcHttpHandler(Settings settings, RestController controller) {
+    public CliHttpHandler(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(POST, "/_jdbc", this);
+        controller.registerHandler(POST, "/_cli", this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         if (!request.hasContent()) {
-            return badProto(StringUtils.EMPTY);
+            throw new IllegalArgumentException("expected a request body");
         }
 
         try (DataInputStream in = new DataInputStream(request.content().streamInput())) {
-            try {
-                return c -> client.executeLocally(JdbcAction.INSTANCE, new JdbcRequest(Proto.INSTANCE.readRequest(in)),
-                                                    wrap(response -> jdbcResponse(c, response), ex -> error(c, ex)));
-
-            } catch (Exception ex) {
-                return badProto("Unknown message");
-            }
+            CliRequest cliRequest = new CliRequest(Proto.INSTANCE.readRequest(in));
+            return c -> client.executeLocally(CliAction.INSTANCE, cliRequest,
+                                                ActionListener.wrap(response -> cliResponse(c, response), ex -> error(c, ex)));
         }
     }
     
-    private static RestChannelConsumer badProto(String message) {
-        return c -> c.sendResponse(new BytesRestResponse(BAD_REQUEST, TEXT_CONTENT_TYPE, message));
-    }
-
-    private void jdbcResponse(RestChannel channel, JdbcResponse response) {
+    private static void cliResponse(RestChannel channel, CliResponse response) {
         BytesRestResponse restResponse = null;
         
         try {
-            // NOCOMMIT use the real version
+            // NOCOMMIT use a real version
             restResponse = new BytesRestResponse(OK, TEXT_CONTENT_TYPE,
                     AbstractSqlServer.write(AbstractProto.CURRENT_VERSION, response.response()));
         } catch (IOException ex) {
-            logger.error("error building jdbc response", ex);
             restResponse = new BytesRestResponse(INTERNAL_SERVER_ERROR, TEXT_CONTENT_TYPE, StringUtils.EMPTY);
         }
 
         channel.sendResponse(restResponse);
     }
 
-    private void error(RestChannel channel, Exception ex) {
-        logger.debug("failed to parse sql request", ex);
+    private static void error(RestChannel channel, Exception ex) {
         BytesRestResponse response = null;
         try {
             response = new BytesRestResponse(channel, ex);
@@ -84,6 +73,6 @@ public class JdbcHttpHandler extends BaseRestHandler { // NOCOMMIT these are cal
 
     @Override
     public String getName() {
-        return "sql_jdbc_action";
+        return "sql_cli_action";
     }
 }

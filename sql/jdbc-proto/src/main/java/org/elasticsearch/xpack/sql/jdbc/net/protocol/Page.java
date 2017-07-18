@@ -13,10 +13,13 @@ import java.sql.JDBCType;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.sql.jdbc.net.protocol.ProtoUtils.classOf;
+import static org.elasticsearch.xpack.sql.jdbc.net.protocol.ProtoUtils.readValue;
+import static org.elasticsearch.xpack.sql.jdbc.net.protocol.ProtoUtils.writeValue;
 /**
  * Stores a page of data in a columnar format.
  */
-public class Page extends ResultPage {
+public class Page implements Payload {
     private final List<ColumnInfo> columnInfo;
 
     /**
@@ -88,7 +91,7 @@ public class Page extends ResultPage {
     /**
      * Read a value from the stream
      */
-    void read(DataInput in) throws IOException {
+    public void read(DataInput in) throws IOException {
         int rows = in.readInt();
         // this.rows may be less than the number of rows we have space for
         if (rows > maxRows) {
@@ -103,7 +106,6 @@ public class Page extends ResultPage {
         }
     }
 
-    @Override
     public void write(DataOutput out) throws IOException {
         int rows = rows();
         out.writeInt(rows);
@@ -132,7 +134,7 @@ public class Page extends ResultPage {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || obj instanceof ResultPage == false) {
+        if (obj == null || obj instanceof Page == false) {
             return false;
         }
         Page other = (Page) obj;

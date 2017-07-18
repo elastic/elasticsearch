@@ -10,15 +10,12 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.sql.jdbc.SqlSpecIT;
 import org.junit.ClassRule;
 import org.relique.io.TableReader;
 import org.relique.jdbc.csv.CsvConnection;
@@ -26,18 +23,14 @@ import org.relique.jdbc.csv.CsvConnection;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
-import java.net.URL;
-import java.nio.file.Files;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.sql.jdbc.framework.JdbcAssert.assertResultSets;
 
@@ -117,57 +110,6 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     }
 
     protected static void loadDatasetIntoEs() throws Exception {
-        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
-        createIndex.startObject("settings"); {
-            createIndex.field("number_of_shards", 1);
-        }
-        createIndex.endObject();
-        createIndex.startObject("mappings"); {
-            createIndex.startObject("emp");
-            {
-                createIndex.startObject("properties"); {
-                    createIndex.startObject("emp_no").field("type", "integer").endObject();
-                    createIndex.startObject("birth_date").field("type", "date").endObject();
-                    createIndex.startObject("first_name").field("type", "text").endObject();
-                    createIndex.startObject("last_name").field("type", "text").endObject();
-                    createIndex.startObject("gender").field("type", "keyword").endObject();
-                    createIndex.startObject("hire_date").field("type", "date").endObject();
-                }
-                createIndex.endObject();
-            }
-            createIndex.endObject();
-        }
-        createIndex.endObject().endObject();
-        client().performRequest("PUT", "/test_emp", emptyMap(), new StringEntity(createIndex.string(), ContentType.APPLICATION_JSON));
-
-        StringBuilder bulk = new StringBuilder();
-        csvToLines("employees", (titles, fields) -> {
-            bulk.append("{\"index\":{}}\n");
-            bulk.append('{');
-            for (int f = 0; f < fields.size(); f++) {
-                if (f != 0) {
-                    bulk.append(',');
-                }
-                bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
-            }
-            bulk.append("}\n");
-        });
-        client().performRequest("POST", "/test_emp/emp/_bulk", singletonMap("refresh", "true"), new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
-    }
-    
-    private static void csvToLines(String name, CheckedBiConsumer<List<String>, List<String>, Exception> consumeLine) throws Exception {
-        String location = "/" + name + ".csv";
-        URL dataSet = SqlSpecIT.class.getResource(location);
-        if (dataSet == null) {
-            throw new IllegalArgumentException("Can't find [" + location + "]");
-        }
-        List<String> lines = Files.readAllLines(PathUtils.get(dataSet.toURI()));
-        if (lines.isEmpty()) {
-            throw new IllegalArgumentException("[" + location + "] must contain at least a title row");
-        }
-        List<String> titles = Arrays.asList(lines.get(0).split(","));
-        for (int l = 1; l < lines.size(); l++) {
-            consumeLine.accept(titles, Arrays.asList(lines.get(l).split(",")));
-        }
+        DataLoader.loadDatasetIntoEs(client());
     }
 }

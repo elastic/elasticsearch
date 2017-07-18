@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.server.cli;
+package org.elasticsearch.xpack.sql.plugin.cli.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
@@ -18,6 +18,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsCatalog;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
+import org.elasticsearch.xpack.sql.plugin.cli.CliServer;
 
 import static org.elasticsearch.xpack.sql.util.ActionUtils.chain;
 

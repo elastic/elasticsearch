@@ -17,9 +17,9 @@ import java.util.Objects;
 public class QueryPageRequest extends Request {
     public final String requestId;
     public final TimeoutInfo timeout;
-    private final transient Page data;
+    private final transient Payload data;
 
-    public QueryPageRequest(String requestId, TimeoutInfo timeout, @Nullable Page data) {
+    public QueryPageRequest(String requestId, TimeoutInfo timeout, @Nullable Payload data) {
         if (requestId == null) {
             throw new IllegalArgumentException("[requestId] must not be null");
         }
@@ -43,7 +43,7 @@ public class QueryPageRequest extends Request {
         timeout.write(out);
     }
 
-    public Page data() {
+    public Payload data() {
         return data;
     }
 

@@ -3,23 +3,23 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.server.jdbc;
+package org.elasticsearch.xpack.sql.plugin.cli.action;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 
-public class JdbcRequestBuilder extends ActionRequestBuilder<JdbcRequest, JdbcResponse, JdbcRequestBuilder> {
+public class CliRequestBuilder extends ActionRequestBuilder<CliRequest, CliResponse, CliRequestBuilder> {
 
-    public JdbcRequestBuilder(ElasticsearchClient client, JdbcAction action) {
+    public CliRequestBuilder(ElasticsearchClient client, CliAction action) {
         this(client, action, null);
     }
 
-    public JdbcRequestBuilder(ElasticsearchClient client, JdbcAction action, Request req) {
-        super(client, action, new JdbcRequest(req));
+    public CliRequestBuilder(ElasticsearchClient client, CliAction action, Request req) {
+        super(client, action, new CliRequest(req));
     }
 
-    public JdbcRequestBuilder request(Request req) {
+    public CliRequestBuilder request(Request req) {
         request.request(req);
         return this;
     }

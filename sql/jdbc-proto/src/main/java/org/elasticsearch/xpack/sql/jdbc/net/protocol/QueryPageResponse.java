@@ -17,9 +17,9 @@ import java.util.Objects;
 
 public class QueryPageResponse extends Response {
     public final String requestId;
-    private final ResultPage data;
+    private final Payload data;
 
-    public QueryPageResponse(String requestId, ResultPage data) {
+    public QueryPageResponse(String requestId, Page data) {
         if (requestId == null) {
             throw new IllegalArgumentException("[requestId] must not be null");
         }

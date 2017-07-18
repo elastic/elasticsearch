@@ -10,11 +10,11 @@ import com.sun.net.httpserver.HttpExchange;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto;
+import org.elasticsearch.xpack.sql.plugin.AbstractSqlServer;
+import org.elasticsearch.xpack.sql.plugin.jdbc.JdbcServer;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
-import org.elasticsearch.xpack.sql.server.AbstractSqlServer;
-import org.elasticsearch.xpack.sql.server.jdbc.JdbcServer;
 import org.elasticsearch.xpack.sql.test.server.ProtoHandler;
 
 import java.io.DataInput;

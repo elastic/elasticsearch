@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.server.jdbc;
+package org.elasticsearch.xpack.sql.plugin.jdbc;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
@@ -26,10 +26,10 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageRequest;
+import org.elasticsearch.xpack.sql.plugin.AbstractSqlServer;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto.SqlExceptionType;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
-import org.elasticsearch.xpack.sql.server.AbstractSqlServer;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -46,6 +46,7 @@ import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.common.Strings.coalesceToEmpty;
 import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.common.Strings.tokenizeToStringArray;
+import static org.elasticsearch.xpack.sql.util.StringUtils.EMPTY;
 
 public class JdbcServer extends AbstractSqlServer {
     private final PlanExecutor executor;
@@ -74,7 +75,8 @@ public class JdbcServer extends AbstractSqlServer {
             queryInit((QueryInitRequest) req, listener);
             break;
         case QUERY_PAGE:
-            // TODO implement me
+            queryPage((QueryPageRequest) req, listener);
+            break;
         default:
             throw new IllegalArgumentException("Unsupported action [" + requestType + "]");
         }
@@ -141,16 +143,16 @@ public class JdbcServer extends AbstractSqlServer {
 
         executor.sql(req.query, req.timeZone, wrap(c -> {
             long stop = System.currentTimeMillis();
-            String requestId = "";
+            String requestId = EMPTY;
             if (c.hasNextSet() && c instanceof SearchHitRowSetCursor) {
                 requestId = StringUtils.nullAsEmpty(((SearchHitRowSetCursor) c).scrollId());
             }
 
             List<ColumnInfo> columnInfo = c.schema().stream()
-                    .map(e -> new ColumnInfo(e.name(), e.type().sqlType(), "", "", "", ""))
+                    .map(e -> new ColumnInfo(e.name(), e.type().sqlType(), EMPTY, EMPTY, EMPTY, EMPTY))
                     .collect(toList());
 
-            listener.onResponse(new QueryInitResponse(start, stop, requestId, columnInfo, new RowSetCursorResultPage(c)));
+            listener.onResponse(new QueryInitResponse(start, stop, requestId, columnInfo, new RowSetPayload(c)));
         }, ex -> listener.onResponse(exceptionResponse(req, ex))));
     }
 

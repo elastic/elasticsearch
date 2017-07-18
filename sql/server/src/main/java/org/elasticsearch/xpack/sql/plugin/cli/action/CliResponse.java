@@ -3,33 +3,26 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.server.jdbc;
+package org.elasticsearch.xpack.sql.plugin.cli.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
 
-public class JdbcResponse extends ActionResponse {
-
+public class CliResponse extends ActionResponse {
     private Response response;
-    private RowSetCursor cursor;
 
-    public JdbcResponse() {}
+    public CliResponse() {}
 
-    public JdbcResponse(Response response) {
+    public CliResponse(Response response) {
         this(response, null);
     }
 
-    public JdbcResponse(Response response, RowSetCursor cursor) {
+    public CliResponse(Response response, RowSetCursor cursor) {
         this.response = response;
-        this.cursor = cursor;
     }
 
     public Response response() {
         return response;
-    }
-
-    public RowSetCursor cursor() {
-        return cursor;
     }
 }

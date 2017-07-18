@@ -40,13 +40,30 @@ public class ParentBulkByScrollTask extends BulkByScrollTask {
      * Holds the responses as they come back. This uses {@link Tuple} as an "Either" style holder where only the response or the exception
      * is set.
      */
-    private final AtomicArray<Result> results;
-    private final AtomicInteger counter;
+    private AtomicArray<Result> results;
+    private AtomicInteger counter;
 
-    public ParentBulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId, int slices) {
+    // todo it may still make sense to store the original slices value in here even if it's not used
+    // todo either enforce slices being set before calling task methods or separate that out into another class
+    // todo probably want to look at the tests for this class and make sure the slices set behavior is enforced
+
+    public ParentBulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId) {
         super(id, type, action, description, parentTaskId);
-        this.results = new AtomicArray<>(slices);
-        this.counter  = new AtomicInteger(slices);
+    }
+
+    public void setSlices(int slices) {
+        if (slices < 1) {
+            throw new IllegalArgumentException("Slices must be at least one");
+        }
+        if (isSlicesSet()) {
+            throw new IllegalStateException("Slices are already set");
+        }
+        results = new AtomicArray<>(slices);
+        counter = new AtomicInteger(slices);
+    }
+
+    public boolean isSlicesSet() {
+        return results != null && counter != null;
     }
 
     @Override

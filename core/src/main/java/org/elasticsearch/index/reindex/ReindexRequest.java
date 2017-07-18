@@ -94,7 +94,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             if (getSearchRequest().source().query() != null) {
                 e = addValidationError("reindex from remote sources should use RemoteInfo's query instead of source's query", e);
             }
-            if (getSlices() != 1) {
+            if (getSlices().isAuto() || getSlices().number() > 1) {
                 e = addValidationError("reindex from remote sources doesn't support workers > 1 but was [" + getSlices() + "]", e);
             }
         }
@@ -127,8 +127,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     @Override
-    public ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice) {
-        ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask);
+    public ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
+        ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask, totalSlices);
         sliced.setRemoteInfo(remoteInfo);
         return sliced;
     }

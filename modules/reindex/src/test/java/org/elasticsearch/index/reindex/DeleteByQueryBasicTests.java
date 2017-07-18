@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -237,13 +236,13 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 7);
 
         // Deletes the two docs that matches "foo:a"
-        assertThat(deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).setSlices(5).get(),
+        assertThat(deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).setSlices(SlicesCount.of(5)).get(),
                 matcher().deleted(2).slices(hasSize(5)));
         assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 5);
 
         // Delete remaining docs
         DeleteByQueryRequestBuilder request = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true)
-                .setSlices(5);
+                .setSlices(SlicesCount.of(5));
         assertThat(request.get(), matcher().deleted(5).slices(hasSize(5)));
         assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 0);
     }

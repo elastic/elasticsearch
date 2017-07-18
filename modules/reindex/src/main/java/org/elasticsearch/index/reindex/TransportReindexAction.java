@@ -35,6 +35,7 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
@@ -109,9 +110,24 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
-        if (request.getSlices() > 1) {
+        if (request.getSlices().isAuto()) {
+            // we need to look at shard details to decide on a slice count
+            client.admin().cluster().prepareSearchShards(request.getSearchRequest().indices()).execute(ActionListener.wrap(
+                r -> doReindex(task, request, listener, r.getGroups().length),
+                e -> listener.onFailure(e)
+            ));
+        } else {
+            // we already know an explicit slice count
+            doReindex(task, request, listener, request.getSlices().number());
+        }
+    }
+
+    private void doReindex(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener, int slices) {
+        if (slices > 1) {
+            ParentBulkByScrollTask parentTask = (ParentBulkByScrollTask) task;
+            parentTask.setSlices(slices);
             BulkByScrollParallelizationHelper.startSlices(client, taskManager, ReindexAction.INSTANCE, clusterService.localNode().getId(),
-                    (ParentBulkByScrollTask) task, request, listener);
+                    parentTask, request, slices, listener);
         } else {
             checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
             ClusterState state = clusterService.state();

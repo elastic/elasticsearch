@@ -355,24 +355,24 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * Build a new request for a slice of the parent request.
      */
-    public abstract Self forSlice(TaskId slicingTask, SearchRequest slice);
+    public abstract Self forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices);
 
     /**
      * Setup a clone of this request with the information needed to process a slice of it.
      */
-    protected Self doForSlice(Self request, TaskId slicingTask) {
+    protected Self doForSlice(Self request, TaskId slicingTask, int totalSlices) {
         request.setAbortOnVersionConflict(abortOnVersionConflict).setRefresh(refresh).setTimeout(timeout)
                 .setWaitForActiveShards(activeShardCount).setRetryBackoffInitialTime(retryBackoffInitialTime).setMaxRetries(maxRetries)
                 // Parent task will store result
                 .setShouldStoreResult(false)
                 // Split requests per second between all slices
-                .setRequestsPerSecond(requestsPerSecond / slices) //todo need to have computed the actual thing here
+                .setRequestsPerSecond(requestsPerSecond / totalSlices) //todo need to have computed the actual thing here
                 // Sub requests don't have workers
                 .setSlices(SlicesCount.ONE);
         if (size != -1) {
             // Size is split between workers. This means the size might round
             // down!
-            request.setSize(size == SIZE_ALL_MATCHES ? SIZE_ALL_MATCHES : size / slices);
+            request.setSize(size == SIZE_ALL_MATCHES ? SIZE_ALL_MATCHES : size / totalSlices);
         }
         // Set the parent task so this task is cancelled if we cancel the parent
         request.setParentTask(slicingTask);
@@ -382,9 +382,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-        // todo need to know the actual number here
-        if (slices > 1) {
-            return new ParentBulkByScrollTask(id, type, action, getDescription(), parentTaskId, slices);
+        if (slices.isAuto() || slices.number() > 1) {
+            return new ParentBulkByScrollTask(id, type, action, getDescription(), parentTaskId);
         }
         /* Extract the slice from the search request so it'll be available in the status. This is potentially useful for users that manually
          * slice their search requests so they can keep track of it and **absolutely** useful for automatically sliced reindex requests so

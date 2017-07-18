@@ -36,7 +36,7 @@ public final class SlicesCount implements ToXContent, Writeable {
     public static final String AUTO_VALUE = "auto";
 
     public static final SlicesCount AUTO = new SlicesCount(AUTO_COUNT);
-    public static final SlicesCount ONE = fromNumber(1);
+    public static final SlicesCount ONE = of(1);
     public static final SlicesCount DEFAULT = ONE;
 
     private final int count;
@@ -49,7 +49,7 @@ public final class SlicesCount implements ToXContent, Writeable {
         count = stream.readVInt();
     }
 
-    public static SlicesCount fromNumber(int count) {
+    public static SlicesCount of(int count) {
         if (count < 1) {
             throw new IllegalArgumentException("Slice count must be at least 1");
         }
@@ -65,7 +65,7 @@ public final class SlicesCount implements ToXContent, Writeable {
 
         try {
             int slicesNumber = Integer.parseInt(slicesString);
-            return fromNumber(slicesNumber);
+            return of(slicesNumber);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Slices must be a positive integer or the string \"auto\"");
         }

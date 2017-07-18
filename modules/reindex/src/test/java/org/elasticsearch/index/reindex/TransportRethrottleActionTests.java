@@ -53,7 +53,8 @@ public class TransportRethrottleActionTests extends ESTestCase {
     @Before
     public void createTask() {
         slices = between(2, 50);
-        task = new ParentBulkByScrollTask(1, "test_type", "test_action", "test", null, slices);
+        task = new ParentBulkByScrollTask(1, "test_type", "test_action", "test", null);
+        task.setSlices(slices);
     }
 
     /**

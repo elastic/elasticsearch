@@ -694,7 +694,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
 
         @Override
-        public DummyAbstractBulkByScrollRequest forSlice(TaskId slicingTask, SearchRequest slice) {
+        public DummyAbstractBulkByScrollRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
             throw new UnsupportedOperationException();
         }
 

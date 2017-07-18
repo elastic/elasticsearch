@@ -73,18 +73,18 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
         assertEquals(1, client().prepareGet("test", "test", "4").get().getVersion());
 
         // Reindex all the docs
-        assertThat(updateByQuery().source("test").refresh(true).setSlices(5).get(), matcher().updated(4).slices(hasSize(5)));
+        assertThat(updateByQuery().source("test").refresh(true).setSlices(SlicesCount.of(5)).get(), matcher().updated(4).slices(hasSize(5)));
         assertEquals(2, client().prepareGet("test", "test", "1").get().getVersion());
         assertEquals(2, client().prepareGet("test", "test", "4").get().getVersion());
 
         // Now none of them
-        assertThat(updateByQuery().source("test").filter(termQuery("foo", "no_match")).setSlices(5).refresh(true).get(),
+        assertThat(updateByQuery().source("test").filter(termQuery("foo", "no_match")).setSlices(SlicesCount.of(5)).refresh(true).get(),
                 matcher().updated(0).slices(hasSize(5)));
         assertEquals(2, client().prepareGet("test", "test", "1").get().getVersion());
         assertEquals(2, client().prepareGet("test", "test", "4").get().getVersion());
 
         // Now half of them
-        assertThat(updateByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).setSlices(5).get(),
+        assertThat(updateByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).setSlices(SlicesCount.of(5)).get(),
                 matcher().updated(2).slices(hasSize(5)));
         assertEquals(3, client().prepareGet("test", "test", "1").get().getVersion());
         assertEquals(3, client().prepareGet("test", "test", "2").get().getVersion());

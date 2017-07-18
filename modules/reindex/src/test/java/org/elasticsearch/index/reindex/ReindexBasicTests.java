@@ -100,7 +100,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
 
         // Copy all the docs
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "type").refresh(true).setSlices(workers);
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "type").refresh(true).setSlices(SlicesCount.of(workers));
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         assertThat(copy.get(), matcher().created(max).batches(greaterThanOrEqualTo(max / 5)).slices(hasSize(workers)));
@@ -108,7 +108,7 @@ public class ReindexBasicTests extends ReindexTestCase {
 
         // Copy some of the docs
         int half = max / 2;
-        copy = reindex().source("source").destination("dest_half", "type").refresh(true).setSlices(workers);
+        copy = reindex().source("source").destination("dest_half", "type").refresh(true).setSlices(SlicesCount.of(workers));
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         copy.size(half); // The real "size" of the request.

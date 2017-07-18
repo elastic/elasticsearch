@@ -148,6 +148,8 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
             });
         });
 
+        executeUpgradeIfClusterHasNewNode();
+
         // TODO we should be able to run this against any node, once the bwc serialization issues are fixed
         executeAgainstMasterNode(client -> {
             assertOK(client.performRequest("POST", "/_xpack/watcher/_start"));
@@ -189,12 +191,14 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         });
     }
 
-    public void executeUpgradeIfClusterHasNewNode()
-            throws IOException {
-        HttpHost[] newHosts = nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new);
-        if (newHosts.length > 0) {
-            try (RestClient client = buildClient(restClientSettings(), newHosts)) {
-                logger.info("checking that upgrade procedure on the new cluster is required, hosts [{}]", Arrays.asList(newHosts));
+    public void executeUpgradeIfClusterHasNewNode() throws IOException {
+        // if new nodes exists, this is a mixed cluster
+        boolean only6xNodes = nodes.getBWCVersion().major >= 6;
+        final List<Node> nodesToQuery = only6xNodes ? nodes.getBWCNodes() : nodes.getNewNodes();
+        final HttpHost[] httpHosts = nodesToQuery.stream().map(Node::getPublishAddress).toArray(HttpHost[]::new);
+        if (httpHosts.length > 0) {
+            try (RestClient client = buildClient(restClientSettings(), httpHosts)) {
+                logger.info("checking that upgrade procedure on the new cluster is required, hosts [{}]", Arrays.asList(httpHosts));
                 Map<String, String> params = Collections.singletonMap("error_trace", "true");
                 Map<String, Object> response = toMap(client().performRequest("GET", "_xpack/migration/assistance", params));
                 String action = ObjectPath.evaluate(response, "indices.\\.watches.action_required");

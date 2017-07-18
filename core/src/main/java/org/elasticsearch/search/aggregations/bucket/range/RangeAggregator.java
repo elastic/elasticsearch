@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -143,6 +144,8 @@ public class RangeAggregator extends BucketsAggregator {
                         from = parser.doubleValue();
                     } else if (TO_FIELD.match(currentFieldName)) {
                         to = parser.doubleValue();
+                    } else {
+                        XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if (FROM_FIELD.match(currentFieldName)) {
@@ -151,7 +154,18 @@ public class RangeAggregator extends BucketsAggregator {
                         toAsStr = parser.text();
                     } else if (KEY_FIELD.match(currentFieldName)) {
                         key = parser.text();
+                    } else {
+                        XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
                     }
+                } else if (token == XContentParser.Token.VALUE_NULL) {
+                    if (FROM_FIELD.match(currentFieldName) || TO_FIELD.match(currentFieldName)
+                            || KEY_FIELD.match(currentFieldName)) {
+                        // ignore null value
+                    } else if (KEY_FIELD.match(currentFieldName)) {
+                        XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    }
+                } else {
+                    XContentParserUtils.throwUnknownToken(token, parser.getTokenLocation());
                 }
             }
             return new Range(key, from, fromAsStr, to, toAsStr);

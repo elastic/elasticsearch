@@ -19,13 +19,20 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder.Range;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
+
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAggregationBuilder> {
 
@@ -59,6 +66,20 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
             factory.distanceType(randomFrom(GeoDistance.values()));
         }
         return factory;
+    }
+
+    public void testParsingRangeStrict() throws IOException {
+        final String rangeAggregation = "{\n" +
+                "\"field\" : \"location\",\n" +
+                "\"origin\" : \"52.3760, 4.894\",\n" +
+                "\"unit\" : \"m\",\n" +
+                "\"ranges\" : [\n" +
+                "    { \"from\" : 10000, \"to\" : 20000, \"badField\" : \"abcd\" }\n" +
+                "]\n" +
+            "}";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
+        ParsingException ex = expectThrows(ParsingException.class, () -> GeoDistanceAggregationBuilder.parse("aggregationName", parser));
+        assertThat(ex.getDetailedMessage(), containsString("badField"));
     }
 
 }

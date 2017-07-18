@@ -19,9 +19,16 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
+
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class RangeTests extends BaseAggregationTestCase<RangeAggregationBuilder> {
 
@@ -57,6 +64,18 @@ public class RangeTests extends BaseAggregationTestCase<RangeAggregationBuilder>
             factory.missing(randomIntBetween(0, 10));
         }
         return factory;
+    }
+
+    public void testParsingRangeStrict() throws IOException {
+        final String rangeAggregation = "{\n" +
+                "\"field\" : \"price\",\n" +
+                "\"ranges\" : [\n" +
+                "    { \"from\" : 50, \"to\" : 100, \"badField\" : \"abcd\" }\n" +
+                "]\n" +
+            "}";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
+        ParsingException ex = expectThrows(ParsingException.class, () -> RangeAggregationBuilder.parse("aggregationName", parser));
+        assertThat(ex.getDetailedMessage(), containsString("badField"));
     }
 
 }

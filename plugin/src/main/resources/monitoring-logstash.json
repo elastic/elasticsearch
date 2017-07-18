@@ -265,6 +265,9 @@
                     },
                     "duration_in_millis":{
                       "type": "long"
+                    },
+                    "queue_push_duration_in_millis": {
+                      "type": "long"
                     }
                   }
                 },
@@ -278,13 +281,18 @@
                     }
                   }
                 },
-                "components": {
+                "vertices": {
                   "type": "nested",
                   "properties": {
                     "id": {
                       "type": "keyword"
                     },
-                    "long_stat": {
+                    "pipeline_ephemeral_id": { "type": "keyword" },
+                    "events_in": { "type": "long" },
+                    "events_out": { "type": "long" },
+                    "duration_in_millis": { "type": "long" },
+                    "queue_push_duration_in_millis": { "type": "long" },
+                    "counters": {
                       "type": "nested",
                       "properties": {
                         "name": {
@@ -292,13 +300,10 @@
                         },
                         "value": {
                           "type": "long"
-                        },
-                        "metric_type": {
-                          "type": "keyword"
                         }
                       }
                     },
-                    "double_stat": {
+                    "double_gauges": {
                       "type": "nested",
                       "properties": {
                         "name": {
@@ -306,13 +311,10 @@
                         },
                         "value": {
                           "type": "double"
-                        },
-                        "metric_type": {
-                          "type": "keyword"
                         }
                       }
                     },
-                    "string_stat": {
+                    "text_gauges": {
                       "type": "nested",
                       "properties": {
                         "name": {
@@ -320,9 +322,17 @@
                         },
                         "value": {
                           "type": "keyword"
-                        },
-                        "metric_type": {
+                        }
+                      }
+                    },
+                    "boolean_gauges": {
+                      "type": "nested",
+                      "properties": {
+                        "name": {
                           "type": "keyword"
+                        },
+                        "value": {
+                          "type": "boolean"
                         }
                       }
                     }

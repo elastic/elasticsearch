@@ -33,10 +33,10 @@ import java.util.function.Consumer;
  * A component that performs the following upgrade procedure:
  * <p>
  * - Check that all data and master nodes are running running the same version
- * - Create a new index .{name}-v6
+ * - Create a new index .{name}-6
  * - Make index .{name} read only
- * - Reindex from .{name} to .{name}-v6 with transform
- * - Delete index .{name} and add alias .{name} to .{name}-v6
+ * - Reindex from .{name} to .{name}-6 with transform
+ * - Delete index .{name} and add alias .{name} to .{name}-6
  */
 public class InternalIndexReindexer<T> {
 
@@ -75,7 +75,7 @@ public class InternalIndexReindexer<T> {
 
     private void innerUpgrade(ParentTaskAssigningClient parentAwareClient, String index, ClusterState clusterState,
                               ActionListener<BulkByScrollResponse> listener) {
-        String newIndex = index + "_v" + version;
+        String newIndex = index + "-" + version;
         try {
             checkMasterAndDataNodeVersion(clusterState);
             parentAwareClient.admin().indices().prepareCreate(newIndex).execute(ActionListener.wrap(createIndexResponse ->

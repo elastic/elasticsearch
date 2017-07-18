@@ -100,7 +100,9 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
                 for (String key : mappings.keySet()) {
                     String templateVersion = objectPath.evaluate(mappingsPath + "." + key + "" +
                             "._meta.security-version");
-                    assertEquals(masterTemplateVersion, templateVersion);
+                    final Version mVersion = Version.fromString(masterTemplateVersion);
+                    final Version tVersion = Version.fromString(templateVersion);
+                    assertTrue(mVersion.onOrBefore(tVersion));
                 }
             } catch (Exception e) {
                 throw new AssertionError("failed to get cluster state", e);

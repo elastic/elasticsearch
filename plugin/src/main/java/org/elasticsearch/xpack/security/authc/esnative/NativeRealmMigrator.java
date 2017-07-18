@@ -199,7 +199,7 @@ public class NativeRealmMigrator implements IndexLifecycleManager.IndexDataMigra
     /**
      * Determines whether the supplied source as a {@link Map} has its password explicitly set to be the default password
      */
-    private boolean hasOldStyleDefaultPassword(Map<String, Object> userSource) {
+    public static boolean hasOldStyleDefaultPassword(Map<String, Object> userSource) {
         // TODO we should store the hash as something other than a string... bytes?
         final String passwordHash = (String) userSource.get(User.Fields.PASSWORD.getPreferredName());
         if (passwordHash == null) {

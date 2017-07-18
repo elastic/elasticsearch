@@ -36,6 +36,14 @@ public class IndexUpgradeCheckTests extends ESTestCase {
         assertThat(check.actionRequired(watcherIndexWithAliasUpgraded), equalTo(UpgradeActionRequired.UP_TO_DATE));
     }
 
+    public void testSecurityIndexUpgradeCheck() throws Exception{
+        IndexUpgradeCheck check = Upgrade.getSecurityUpgradeCheckFactory(Settings.EMPTY).apply(null, null);
+        assertThat(check.getName(), equalTo("security"));
+
+        IndexMetaData securityIndex = newTestIndexMeta(".security", Settings.EMPTY);
+        assertThat(check.actionRequired(securityIndex), equalTo(UpgradeActionRequired.UPGRADE));
+    }
+
     public static IndexMetaData newTestIndexMeta(String name, String alias, Settings indexSettings) throws IOException {
         Settings build = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)

@@ -509,7 +509,11 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
-        return watcher.getIndexTemplateMetaDataUpgrader();
+        return templates -> {
+            templates = watcher.getIndexTemplateMetaDataUpgrader().apply(templates);
+            templates = security.getIndexTemplateMetaDataUpgrader().apply(templates);
+            return templates;
+        };
     }
 
     public void onIndexModule(IndexModule module) {

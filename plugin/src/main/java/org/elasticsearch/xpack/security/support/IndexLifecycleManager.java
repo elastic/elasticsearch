@@ -27,6 +27,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -54,9 +55,11 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.template.TemplateUtils;
+import org.elasticsearch.xpack.upgrade.IndexUpgradeCheck;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 
 /**
  * Manages the lifecycle of a single index, its template, mapping and and data upgrades/migrations.
@@ -68,6 +71,7 @@ public class IndexLifecycleManager extends AbstractComponent {
     private static final String SECURITY_VERSION_STRING = "security-version";
     public static final String TEMPLATE_VERSION_PATTERN =
             Pattern.quote("${security.template.version}");
+    public static int NEW_INDEX_VERSION = IndexUpgradeCheck.UPRADE_VERSION;
 
     private static final int MAX_MIGRATE_ATTEMPTS = 10;
 
@@ -102,7 +106,7 @@ public class IndexLifecycleManager extends AbstractComponent {
         void performUpgrade(@Nullable Version previousVersion, ActionListener<Boolean> listener);
     }
 
-    public static final IndexDataMigrator NULL_MIGRATOR =  (version, listener) -> listener.onResponse(false);
+    public static final IndexDataMigrator NULL_MIGRATOR = (version, listener) -> listener.onResponse(false);
 
     public IndexLifecycleManager(Settings settings, InternalClient client, ClusterService clusterService, ThreadPool threadPool,
                                  String indexName, String templateName, IndexDataMigrator migrator) {
@@ -185,15 +189,6 @@ public class IndexLifecycleManager extends AbstractComponent {
         this.mappingIsUpToDate = checkIndexMappingUpToDate(state);
         this.canWriteToIndex = templateIsUpToDate && mappingIsUpToDate;
         this.mappingVersion = oldestIndexMappingVersion(state);
-
-        if (state.nodes().isLocalNodeElectedMaster()) {
-            if (templateIsUpToDate == false) {
-                updateTemplate();
-            }
-            if (indexAvailable && mappingIsUpToDate == false) {
-                migrateData(state, this::updateMapping);
-            }
-        }
     }
 
     private void checkIndexHealthChange(ClusterChangedEvent event) {
@@ -514,7 +509,7 @@ public class IndexLifecycleManager extends AbstractComponent {
                 @Override
                 public void onResponse(CreateIndexResponse createIndexResponse) {
                     if (createIndexResponse.isAcknowledged()) {
-                        andThen.run();
+                        setSecurityIndexAlias(listener, andThen);
                     } else {
                         listener.onFailure(new ElasticsearchException("Failed to create security index"));
                     }
@@ -532,5 +527,32 @@ public class IndexLifecycleManager extends AbstractComponent {
                 }
             });
         }
+    }
+
+    /**
+     * Sets the security index alias to .security after it has been created.  This is required
+     * because we cannot add the alias as part of the security index template, as the security
+     * template is also used when the new security index is created during the upgrade API, at
+     * which point the old .security index already exists and is being reindexed from, so the
+     * alias cannot be added as part of the template, hence the alias creation has to happen
+     * manually here after index creation.
+     */
+    private <T> void setSecurityIndexAlias(final ActionListener<T> listener, final Runnable andThen) {
+        client.admin().indices().prepareAliases().addAlias(INTERNAL_SECURITY_INDEX, SECURITY_INDEX_NAME)
+              .execute(new ActionListener<IndicesAliasesResponse>() {
+                  @Override
+                  public void onResponse(IndicesAliasesResponse response) {
+                      if (response.isAcknowledged()) {
+                          andThen.run();
+                      } else {
+                          listener.onFailure(new ElasticsearchException("Failed to set security index alias"));
+                      }
+                  }
+
+                  @Override
+                  public void onFailure(Exception e) {
+                      listener.onFailure(e);
+                  }
+              });
     }
 }

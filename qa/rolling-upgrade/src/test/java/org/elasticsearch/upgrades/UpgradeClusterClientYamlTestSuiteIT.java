@@ -8,7 +8,6 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -22,8 +21,6 @@ import org.junit.Before;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
-// This will only work, when the upgrade API is in place!
-@AwaitsFix(bugUrl = "https://github.com/elastic/dev/issues/741")
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class UpgradeClusterClientYamlTestSuiteIT extends SecurityClusterClientYamlTestCase {
 

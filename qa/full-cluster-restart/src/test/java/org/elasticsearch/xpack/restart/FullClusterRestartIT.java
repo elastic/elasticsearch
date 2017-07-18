@@ -13,11 +13,9 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.common.text.TextTemplate;
@@ -45,14 +43,12 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -110,35 +106,24 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assertThat(toStr(client().performRequest("GET", docLocation)), containsString(doc));
     }
 
-    // This will only work when the upgrade API is in place!
-    @AwaitsFix(bugUrl = "https://github.com/elastic/dev/issues/741")
-    public void testSecurityNativeRealm() throws IOException {
-        XContentBuilder userBuilder = JsonXContent.contentBuilder().startObject();
-        userBuilder.field("password", "j@rV1s");
-        userBuilder.array("roles", "admin", "other_role1");
-        userBuilder.field("full_name", "Jack Nicholson");
-        userBuilder.field("email", "jacknich@example.com");
-        userBuilder.startObject("metadata"); {
-            userBuilder.field("intelligence", 7);
-        }
-        userBuilder.endObject();
-        userBuilder.field("enabled", true);
-        String user = userBuilder.endObject().string();
-
+    public void testSecurityNativeRealm() throws Exception {
         if (runningAgainstOldCluster) {
-            client().performRequest("PUT", "/_xpack/security/user/jacknich", emptyMap(),
-                    new StringEntity(user, ContentType.APPLICATION_JSON));
+            createUser("preupgrade_user");
+            createRole("preupgrade_role");
+        } else {
+            // run upgrade API first
+            waitForYellow(".security");
+            client().performRequest("POST", "_xpack/migration/upgrade/.security");
+            // create additional user and role
+            createUser("postupgrade_user");
+            createRole("postupgrade_role");
         }
 
-        Map<String, Object> response = toMap(client().performRequest("GET", "/_xpack/security/user/jacknich"));
-        Map<String, Object> expected = toMap(user);
-        expected.put("username", "jacknich");
-        expected.remove("password");
-        expected = singletonMap("jacknich", expected);
-        if (false == response.equals(expected)) {
-            NotEqualMessageBuilder message = new NotEqualMessageBuilder();
-            message.compareMaps(response, expected);
-            fail("User doesn't match.\n" + message.toString());
+        assertUserInfo("preupgrade_user");
+        assertRoleInfo("preupgrade_role");
+        if (!runningAgainstOldCluster) {
+            assertUserInfo("postupgrade_user");
+            assertRoleInfo("postupgrade_role");
         }
     }
 
@@ -170,7 +155,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             logger.info(response);
 
             @SuppressWarnings("unchecked") Map<String, Object> indices = (Map<String, Object>) response.get("indices");
-            assertThat(indices.entrySet(), hasSize(1));
+            assertThat(indices.entrySet().size(), greaterThanOrEqualTo(1));
             assertThat(indices.get(".watches"), notNullValue());
             @SuppressWarnings("unchecked") Map<String, Object> index = (Map<String, Object>) indices.get(".watches");
             assertThat(index.get("action_required"), equalTo("upgrade"));
@@ -183,10 +168,10 @@ public class FullClusterRestartIT extends ESRestTestCase {
             // we posted 3 watches, but monitoring can post a few more
             assertThat((int)upgradeResponse.get("total"), greaterThanOrEqualTo(3));
 
-            logger.info("checking that upgrade procedure on the new cluster is required again");
+            logger.info("checking that upgrade procedure on the new cluster is no longer required");
             Map<String, Object> responseAfter = toMap(client().performRequest("GET", "/_xpack/migration/assistance"));
             @SuppressWarnings("unchecked") Map<String, Object> indicesAfter = (Map<String, Object>) responseAfter.get("indices");
-            assertThat(indicesAfter.entrySet(), empty());
+            assertNull(indicesAfter.get(".watches"));
 
             // Wait for watcher to actually start....
             Map<String, Object> startWatchResponse = toMap(client().performRequest("POST", "_xpack/watcher/_start"));
@@ -336,5 +321,56 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     static String toStr(Response response) throws IOException {
         return EntityUtils.toString(response.getEntity());
+    }
+
+    private void createUser(final String id) throws Exception {
+        final String userJson =
+            "{\n" +
+            "   \"password\" : \"j@rV1s\",\n" +
+            "   \"roles\" : [ \"admin\", \"other_role1\" ],\n" +
+            "   \"full_name\" : \"" + randomAlphaOfLength(5) + "\",\n" +
+            "   \"email\" : \"" + id + "@example.com\",\n" +
+            "   \"enabled\": true\n" +
+            "}";
+
+        client().performRequest("PUT", "/_xpack/security/user/" + id, emptyMap(),
+            new StringEntity(userJson, ContentType.APPLICATION_JSON));
+    }
+
+    private void createRole(final String id) throws Exception {
+        final String roleJson =
+            "{\n" +
+            "  \"run_as\": [ \"abc\" ],\n" +
+            "  \"cluster\": [ \"monitor\" ],\n" +
+            "  \"indices\": [\n" +
+            "    {\n" +
+            "      \"names\": [ \"events-*\" ],\n" +
+            "      \"privileges\": [ \"read\" ],\n" +
+            "      \"field_security\" : {\n" +
+            "        \"grant\" : [ \"category\", \"@timestamp\", \"message\" ]\n" +
+            "      },\n" +
+            "      \"query\": \"{\\\"match\\\": {\\\"category\\\": \\\"click\\\"}}\"\n" +
+            "    }\n" +
+            "  ]\n" +
+            "}";
+
+        client().performRequest("PUT", "/_xpack/security/role/" + id, emptyMap(),
+            new StringEntity(roleJson, ContentType.APPLICATION_JSON));
+    }
+
+    private void assertUserInfo(final String user) throws Exception {
+        Map<String, Object> response = toMap(client().performRequest("GET", "/_xpack/security/user/" + user));
+        @SuppressWarnings("unchecked") Map<String, Object> userInfo = (Map<String, Object>) response.get(user);
+        assertEquals(user + "@example.com", userInfo.get("email"));
+        assertNotNull(userInfo.get("full_name"));
+        assertNotNull(userInfo.get("roles"));
+    }
+
+    private void assertRoleInfo(final String role) throws Exception {
+        @SuppressWarnings("unchecked") Map<String, Object> response = (Map<String, Object>)
+                toMap(client().performRequest("GET", "/_xpack/security/role/" + role)).get(role);
+        assertNotNull(response.get("run_as"));
+        assertNotNull(response.get("cluster"));
+        assertNotNull(response.get("indices"));
     }
 }

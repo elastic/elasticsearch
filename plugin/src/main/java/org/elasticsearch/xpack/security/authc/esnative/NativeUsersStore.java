@@ -69,9 +69,9 @@ import java.util.function.Consumer;
  */
 public class NativeUsersStore extends AbstractComponent {
 
-    static final String INDEX_TYPE = "doc";
+    public static final String INDEX_TYPE = "doc";
     private static final String USER_DOC_TYPE = "user";
-    static final String RESERVED_USER_TYPE = "reserved-user";
+    public static final String RESERVED_USER_TYPE = "reserved-user";
 
     private final Hasher hasher = Hasher.BCRYPT;
     private final InternalClient client;

@@ -84,7 +84,11 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
          * @param id The user-specified id to use for the look up.
          */
         public Builder deleteScript(String id) {
-            scripts.remove(id);
+            StoredScriptSource deleted = scripts.remove(id);
+
+            if (deleted == null) {
+                throw new ResourceNotFoundException("stored script [" + id + "] does not exist and cannot be deleted");
+            }
 
             return this;
         }
@@ -211,14 +215,12 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
 
                     exists = scripts.get(id);
 
-                    if (exists.getLang().equals(lang) == false) {
+                    if (exists == null) {
+                        scripts.put(id, source);
+                    } else if (exists.getLang().equals(lang) == false) {
                         throw new IllegalArgumentException("illegal stored script, id [" + id + "] used for multiple scripts with" +
                             "different languages [" + exists.getLang() + "] and [" + lang + "]; scripts using the old namespace" +
                             "of [lang#id] as a stored script id will have to be updated to use only the new namespace of [id]");
-                    }
-
-                    if (exists == null) {
-                        scripts.put(id, source);
                     }
 
                     id = null;
@@ -233,15 +235,12 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
                     exists = scripts.get(id);
                     source = StoredScriptSource.fromXContent(parser);
 
-
-                    if (exists.getLang().equals(source.getLang()) == false) {
+                    if (exists == null) {
+                        scripts.put(id, source);
+                    } else if (exists.getLang().equals(source.getLang()) == false) {
                         throw new IllegalArgumentException("illegal stored script, id [" + id + "] used for multiple scripts with" +
                             "different languages [" + exists.getLang() + "] and [" + source.getLang() + "]; scripts using the old " +
                             "namespace of [lang#id] as a stored script id will have to be updated to use only the new namespace of [id]");
-                    }
-
-                    if (exists == null) {
-                        scripts.put(id, source);
                     }
 
                     id = null;

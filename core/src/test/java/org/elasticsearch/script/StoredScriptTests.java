@@ -32,161 +32,32 @@ import java.io.UncheckedIOException;
 import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptSource> {
 
-    /*public void testBasicAddDelete() {
+    public void testBasicAddDelete() {
         StoredScriptSource source = new StoredScriptSource("lang", "code", emptyMap());
         ScriptMetaData smd = ScriptMetaData.putStoredScript(null, "test", source);
+        assertThat(smd.getStoredScript("test"), equalTo(source));
 
-        assertThat(smd.getStoredScript("test",), equalTo(source));
-        assertThat(smd.getStoredScript("test", "lang"), equalTo(source));
-
-        smd = ScriptMetaData.deleteStoredScript(smd, "test", null);
-
-        assertThat(smd.getStoredScript("test", null), nullValue());
-        assertThat(smd.getStoredScript("test", "lang"), nullValue());
-    }
-
-    public void testDifferentMultiAddDelete() {
-        StoredScriptSource source0 = new StoredScriptSource("lang0", "code0", emptyMap());
-        StoredScriptSource source1 = new StoredScriptSource("lang0", "code1", emptyMap());
-        StoredScriptSource source2 = new StoredScriptSource("lang1", "code2",
-            singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
-
-        ScriptMetaData smd = ScriptMetaData.putStoredScript(null, "test0", source0);
-        smd = ScriptMetaData.putStoredScript(smd, "test1", source1);
-        smd = ScriptMetaData.putStoredScript(smd, "test2", source2);
-
-        assertThat(smd.getStoredScript("test0", null), equalTo(source0));
-        assertThat(smd.getStoredScript("test0", "lang0"), equalTo(source0));
-        assertThat(smd.getStoredScript("test1", null), equalTo(source1));
-        assertThat(smd.getStoredScript("test1", "lang0"), equalTo(source1));
-        assertThat(smd.getStoredScript("test2", null), equalTo(source2));
-        assertThat(smd.getStoredScript("test2", "lang1"), equalTo(source2));
-
-        assertThat(smd.getStoredScript("test3", null), nullValue());
-        assertThat(smd.getStoredScript("test0", "lang1"), nullValue());
-        assertThat(smd.getStoredScript("test2", "lang0"), nullValue());
-
-        smd = ScriptMetaData.deleteStoredScript(smd, "test0", null);
-
-        assertThat(smd.getStoredScript("test0", null), nullValue());
-        assertThat(smd.getStoredScript("test0", "lang0"), nullValue());
-        assertThat(smd.getStoredScript("test1", null), equalTo(source1));
-        assertThat(smd.getStoredScript("test1", "lang0"), equalTo(source1));
-        assertThat(smd.getStoredScript("test2", null), equalTo(source2));
-        assertThat(smd.getStoredScript("test2", "lang1"), equalTo(source2));
-
-        assertThat(smd.getStoredScript("test3", null), nullValue());
-        assertThat(smd.getStoredScript("test0", "lang1"), nullValue());
-        assertThat(smd.getStoredScript("test2", "lang0"), nullValue());
-
-        smd = ScriptMetaData.deleteStoredScript(smd, "test2", "lang1");
-
-        assertThat(smd.getStoredScript("test0", null), nullValue());
-        assertThat(smd.getStoredScript("test0", "lang0"), nullValue());
-        assertThat(smd.getStoredScript("test1", null), equalTo(source1));
-        assertThat(smd.getStoredScript("test1", "lang0"), equalTo(source1));
-        assertThat(smd.getStoredScript("test2", null), nullValue());
-        assertThat(smd.getStoredScript("test2", "lang1"), nullValue());
-
-        assertThat(smd.getStoredScript("test3", null), nullValue());
-        assertThat(smd.getStoredScript("test0", "lang1"), nullValue());
-        assertThat(smd.getStoredScript("test2", "lang0"), nullValue());
-
-        smd = ScriptMetaData.deleteStoredScript(smd, "test1", "lang0");
-
-        assertThat(smd.getStoredScript("test0", null), nullValue());
-        assertThat(smd.getStoredScript("test0", "lang0"), nullValue());
-        assertThat(smd.getStoredScript("test1", null), nullValue());
-        assertThat(smd.getStoredScript("test1", "lang0"), nullValue());
-        assertThat(smd.getStoredScript("test2", null), nullValue());
-        assertThat(smd.getStoredScript("test2", "lang1"), nullValue());
-
-        assertThat(smd.getStoredScript("test3", null), nullValue());
-        assertThat(smd.getStoredScript("test0", "lang1"), nullValue());
-        assertThat(smd.getStoredScript("test2", "lang0"), nullValue());
-    }
-
-    public void testSameMultiAddDelete() {
-        StoredScriptSource source0 = new StoredScriptSource("lang0", "code0", emptyMap());
-        StoredScriptSource source1 = new StoredScriptSource("lang1", "code1", emptyMap());
-        StoredScriptSource source2 = new StoredScriptSource("lang2", "code1", emptyMap());
-        StoredScriptSource source3 = new StoredScriptSource("lang1", "code2",
-            singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
-
-        ScriptMetaData smd = ScriptMetaData.putStoredScript(null, "test0", source0);
-        smd = ScriptMetaData.putStoredScript(smd, "test0", source1);
-        assertWarnings("stored script [test0] already exists using a different lang [lang0]," +
-            " the new namespace for stored scripts will only use (id) instead of (lang, id)");
-        smd = ScriptMetaData.putStoredScript(smd, "test3", source3);
-        smd = ScriptMetaData.putStoredScript(smd, "test0", source2);
-        assertWarnings("stored script [test0] already exists using a different lang [lang1]," +
-            " the new namespace for stored scripts will only use (id) instead of (lang, id)");
-
-        assertThat(smd.getStoredScript("test0", null), equalTo(source2));
-        assertThat(smd.getStoredScript("test0", "lang0"), equalTo(source0));
-        assertThat(smd.getStoredScript("test0", "lang1"), equalTo(source1));
-        assertThat(smd.getStoredScript("test0", "lang2"), equalTo(source2));
-        assertThat(smd.getStoredScript("test3", null), equalTo(source3));
-        assertThat(smd.getStoredScript("test3", "lang1"), equalTo(source3));
-
-        smd = ScriptMetaData.deleteStoredScript(smd, "test0", "lang1");
-
-        assertThat(smd.getStoredScript("test0", null), equalTo(source2));
-        assertThat(smd.getStoredScript("test0", "lang0"), equalTo(source0));
-        assertThat(smd.getStoredScript("test0", "lang1"), nullValue());
-        assertThat(smd.getStoredScript("test0", "lang2"), equalTo(source2));
-        assertThat(smd.getStoredScript("test3", null), equalTo(source3));
-        assertThat(smd.getStoredScript("test3", "lang1"), equalTo(source3));
-
-        smd = ScriptMetaData.deleteStoredScript(smd, "test0", null);
-
-        assertThat(smd.getStoredScript("test0", null), nullValue());
-        assertThat(smd.getStoredScript("test0", "lang0"), equalTo(source0));
-        assertThat(smd.getStoredScript("test0", "lang1"), nullValue());
-        assertThat(smd.getStoredScript("test0", "lang2"), nullValue());
-        assertThat(smd.getStoredScript("test3", null), equalTo(source3));
-        assertThat(smd.getStoredScript("test3", "lang1"), equalTo(source3));
-
-        smd = ScriptMetaData.deleteStoredScript(smd, "test3", "lang1");
-
-        assertThat(smd.getStoredScript("test0", null), nullValue());
-        assertThat(smd.getStoredScript("test0", "lang0"), equalTo(source0));
-        assertThat(smd.getStoredScript("test0", "lang1"), nullValue());
-        assertThat(smd.getStoredScript("test0", "lang2"), nullValue());
-        assertThat(smd.getStoredScript("test3", null), nullValue());
-        assertThat(smd.getStoredScript("test3", "lang1"), nullValue());
-
-        smd = ScriptMetaData.deleteStoredScript(smd, "test0", "lang0");
-
-        assertThat(smd.getStoredScript("test0", null), nullValue());
-        assertThat(smd.getStoredScript("test0", "lang0"), nullValue());
-        assertThat(smd.getStoredScript("test0", "lang1"), nullValue());
-        assertThat(smd.getStoredScript("test0", "lang2"), nullValue());
-        assertThat(smd.getStoredScript("test3", null), nullValue());
-        assertThat(smd.getStoredScript("test3", "lang1"), nullValue());
+        smd = ScriptMetaData.deleteStoredScript(smd, "test");
+        assertThat(smd.getStoredScript("test"), nullValue());
     }
 
     public void testInvalidDelete() {
         ResourceNotFoundException rnfe =
-            expectThrows(ResourceNotFoundException.class, () -> ScriptMetaData.deleteStoredScript(null, "test", "lang"));
-        assertThat(rnfe.getMessage(), equalTo("stored script [test] using lang [lang] does not exist and cannot be deleted"));
-
-        rnfe = expectThrows(ResourceNotFoundException.class, () -> ScriptMetaData.deleteStoredScript(null, "test", null));
+            expectThrows(ResourceNotFoundException.class, () -> ScriptMetaData.deleteStoredScript(null, "test"));
         assertThat(rnfe.getMessage(), equalTo("stored script [test] does not exist and cannot be deleted"));
     }
 
     public void testSourceParsing() throws Exception {
         // simple script value string
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().field("script", "code").endObject();
+            builder.startObject().startObject("script").field("lang", "lang").field("source", "code").endObject().endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(builder.bytes(), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
@@ -196,8 +67,8 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("template", "code").endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
+            StoredScriptSource parsed = StoredScriptSource.parse(builder.bytes(), XContentType.JSON);
+            StoredScriptSource source = new StoredScriptSource("mustache", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
         }
@@ -211,8 +82,8 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
                 code = cb.startObject().field("query", "code").endObject().string();
             }
 
-            StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource("lang", code, Collections.emptyMap());
+            StoredScriptSource parsed = StoredScriptSource.parse(builder.bytes(), XContentType.JSON);
+            StoredScriptSource source = new StoredScriptSource("mustache", code, Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
         }
@@ -226,23 +97,26 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
                 code = cb.startObject().field("query", "code").endObject().string();
             }
 
-            StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource("lang", code, Collections.emptyMap());
+            StoredScriptSource parsed = StoredScriptSource.parse(builder.bytes(), XContentType.JSON);
+            StoredScriptSource source = new StoredScriptSource("mustache", code, Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
         }
 
         // complex template using script as the field name
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().field("script").startObject().field("query", "code").endObject().endObject();
+            builder.startObject().startObject("script").field("lang", "mustache")
+                .startObject("source").field("query", "code").endObject()
+                .endObject().endObject();
             String code;
 
             try (XContentBuilder cb = XContentFactory.contentBuilder(builder.contentType())) {
                 code = cb.startObject().field("query", "code").endObject().string();
             }
 
-            StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource("lang", code, Collections.emptyMap());
+            StoredScriptSource parsed = StoredScriptSource.parse(builder.bytes(), XContentType.JSON);
+            StoredScriptSource source = new StoredScriptSource("mustache", code,
+                Collections.singletonMap("content_type", "application/json; charset=UTF-8"));
 
             assertThat(parsed, equalTo(source));
         }
@@ -251,7 +125,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "lang").field("source", "code").endObject().endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(builder.bytes(), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
@@ -261,7 +135,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "lang").field("code", "code").endObject().endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(builder.bytes(), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
@@ -273,7 +147,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             builder.startObject().field("script").startObject().field("lang", "lang").field("source", "code")
                 .field("options").startObject().endObject().endObject().endObject();
 
-            StoredScriptSource parsed = StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(builder.bytes(), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
@@ -289,7 +163,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
                 code = cb.startObject().field("query", "code").endObject().string();
             }
 
-            StoredScriptSource parsed = StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON);
+            StoredScriptSource parsed = StoredScriptSource.parse(builder.bytes(), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("lang", code,
                 Collections.singletonMap(Script.CONTENT_TYPE_OPTION, builder.contentType().mediaType()));
 
@@ -298,21 +172,12 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
     }
 
     public void testSourceParsingErrors() throws Exception {
-        // check for missing lang parameter when parsing a template
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().field("template", "code").endObject();
-
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
-                StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON));
-            assertThat(iae.getMessage(), equalTo("unexpected stored script format"));
-        }
-
         // check for missing lang parameter when parsing a script
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("source", "code").endObject().endObject();
 
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
-                StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON));
+                StoredScriptSource.parse(builder.bytes(), XContentType.JSON));
             assertThat(iae.getMessage(), equalTo("must specify lang for stored script"));
         }
 
@@ -321,7 +186,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             builder.startObject().field("script").startObject().field("lang", "lang").endObject().endObject();
 
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
-                StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON));
+                StoredScriptSource.parse(builder.bytes(), XContentType.JSON));
             assertThat(iae.getMessage(), equalTo("must specify source for stored script"));
         }
 
@@ -331,10 +196,10 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
                 .startObject("options").field("option", "option").endObject().endObject().endObject();
 
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
-                StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON));
+                StoredScriptSource.parse(builder.bytes(), XContentType.JSON));
             assertThat(iae.getMessage(), equalTo("illegal compiler options [{option=option}] specified"));
         }
-    }*/
+    }
 
     @Override
     protected StoredScriptSource createTestInstance() {

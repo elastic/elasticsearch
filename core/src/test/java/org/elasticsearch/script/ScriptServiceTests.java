@@ -230,7 +230,14 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     public void testStoreScript() throws Exception {
-        BytesReference script = XContentFactory.jsonBuilder().startObject().field("script", "abc").endObject().bytes();
+        BytesReference script = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("script")
+            .startObject()
+            .field("lang", "_lang")
+            .field("source", "abc")
+            .endObject()
+            .endObject().bytes();
         ScriptMetaData scriptMetaData = ScriptMetaData.putStoredScript(null, "_id", StoredScriptSource.parse(script, XContentType.JSON));
         assertNotNull(scriptMetaData);
         assertEquals("abc", scriptMetaData.getStoredScript("_id").getSource());
@@ -238,7 +245,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testDeleteScript() throws Exception {
         ScriptMetaData scriptMetaData = ScriptMetaData.putStoredScript(null, "_id",
-            StoredScriptSource.parse(new BytesArray("{\"script\":\"abc\"}"), XContentType.JSON));
+            StoredScriptSource.parse(new BytesArray("{\"script\": {\"lang\": \"_lang\", \"source\": \"abc\"} }"), XContentType.JSON));
         scriptMetaData = ScriptMetaData.deleteStoredScript(scriptMetaData, "_id");
         assertNotNull(scriptMetaData);
         assertNull(scriptMetaData.getStoredScript("_id"));
@@ -247,7 +254,7 @@ public class ScriptServiceTests extends ESTestCase {
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> {
             ScriptMetaData.deleteStoredScript(errorMetaData, "_id");
         });
-        assertEquals("stored script [_id] using lang [_lang] does not exist and cannot be deleted", e.getMessage());
+        assertEquals("stored script [_id] does not exist and cannot be deleted", e.getMessage());
     }
 
     public void testGetStoredScript() throws Exception {
@@ -256,14 +263,14 @@ public class ScriptServiceTests extends ESTestCase {
             .metaData(MetaData.builder()
                 .putCustom(ScriptMetaData.TYPE,
                     new ScriptMetaData.Builder(null).storeScript("_id",
-                        StoredScriptSource.parse(new BytesArray("{\"script\":\"abc\"}"), XContentType.JSON)).build()))
+                        StoredScriptSource.parse(new BytesArray("{\"script\": {\"lang\": \"_lang\", \"source\": \"abc\"} }"),
+                            XContentType.JSON)).build()))
             .build();
 
-        assertEquals("abc", scriptService.getStoredScript(cs, new GetStoredScriptRequest("_lang")).getSource());
-        assertNull(scriptService.getStoredScript(cs, new GetStoredScriptRequest("_lang")));
+        assertEquals("abc", scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id")).getSource());
 
         cs = ClusterState.builder(new ClusterName("_name")).build();
-        assertNull(scriptService.getStoredScript(cs, new GetStoredScriptRequest("_lang")));
+        assertNull(scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id")));
     }
 
     private void assertCompileRejected(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {

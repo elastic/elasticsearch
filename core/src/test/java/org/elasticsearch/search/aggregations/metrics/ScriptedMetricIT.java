@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -231,19 +232,23 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         // must match a predefined script from CustomScriptPlugin.pluginScripts() method
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("initScript_stored")
-                .setContent(new BytesArray("{\"script\":\"vars.multiplier = 3\"}"), XContentType.JSON));
+                .setContent(new BytesArray("{\"script\": {\"lang\": \"" + MockScriptPlugin.NAME + "\"," +
+                    " \"source\": \"vars.multiplier = 3\"} }"), XContentType.JSON));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("mapScript_stored")
-                .setContent(new BytesArray("{\"script\":\"_agg.add(vars.multiplier)\"}"), XContentType.JSON));
+                .setContent(new BytesArray("{\"script\": {\"lang\": \"" + MockScriptPlugin.NAME + "\"," +
+                    " \"source\": \"_agg.add(vars.multiplier)\"} }"), XContentType.JSON));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("combineScript_stored")
-                .setContent(new BytesArray("{\"script\":\"sum agg values as a new aggregation\"}"), XContentType.JSON));
+                .setContent(new BytesArray("{\"script\": {\"lang\": \"" + MockScriptPlugin.NAME + "\"," +
+                    " \"source\": \"sum agg values as a new aggregation\"} }"), XContentType.JSON));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("reduceScript_stored")
-                .setContent(new BytesArray("{\"script\":\"sum aggs of agg values as a new aggregation\"}"), XContentType.JSON));
+                .setContent(new BytesArray("{\"script\": {\"lang\": \"" + MockScriptPlugin.NAME + "\"," +
+                    " \"source\": \"sum aggs of agg values as a new aggregation\"} }"), XContentType.JSON));
 
         indexRandom(true, builders);
         ensureSearchable();

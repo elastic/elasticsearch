@@ -542,7 +542,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             logger.info("-->  creating test script");
             assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("foobar")
-                .setContent(new BytesArray("{\"script\":\"1\"}"), XContentType.JSON));
+                .setContent(new BytesArray(
+                    "{\"script\": { \"lang\": \"" + MockScriptEngine.NAME + "\", \"source\": \"1\"} }"), XContentType.JSON));
         }
 
         logger.info("--> snapshot without global state");

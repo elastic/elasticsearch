@@ -24,7 +24,7 @@ The queries in this group are:
 
 <<query-dsl-geo-distance-range-query,`geo_distance_range`>> query::
 
-    Like the `geo_point` query, but the range starts at a specified distance
+    Like the `geo_distance` query, but the range starts at a specified distance
     from the central point.
 
 <<query-dsl-geo-polygon-query,`geo_polygon`>> query::

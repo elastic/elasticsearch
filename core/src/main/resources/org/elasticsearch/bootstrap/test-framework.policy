@@ -74,8 +74,6 @@ grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT.jar}" 
 grant codeBase "${codebase.httpcore-nio-4.4.5.jar}" {
   // httpcore makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";
-  // rest client uses system properties which gets the default proxy
-  permission java.net.NetPermission "getProxySelector";
 };
 
 grant codeBase "${codebase.httpasyncclient-4.1.2.jar}" {

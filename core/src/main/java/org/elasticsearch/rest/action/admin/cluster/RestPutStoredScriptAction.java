@@ -41,6 +41,7 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
 
         controller.registerHandler(POST, "/_scripts/{id}", this);
         controller.registerHandler(PUT, "/_scripts/{id}", this);
+        controller.registerHandler(PUT, "/_scripts/{id}/{context}", this);
     }
 
     @Override
@@ -51,11 +52,12 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String id = request.param("id");
+        String context = request.param("context");
         BytesReference content = request.requiredContent();
         XContentType xContentType = request.getXContentType();
         StoredScriptSource source = StoredScriptSource.parse(content, xContentType);
 
-        PutStoredScriptRequest putRequest = new PutStoredScriptRequest(id, null, content, request.getXContentType(), source);
+        PutStoredScriptRequest putRequest = new PutStoredScriptRequest(id, context, content, request.getXContentType(), source);
         return channel -> client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));
     }
 }

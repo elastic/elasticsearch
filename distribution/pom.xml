@@ -382,6 +382,19 @@
                 <deb.sign>false</deb.sign>
             </properties>
         </profile>
+        <profile>
+            <id>debian9</id>
+            <activation>
+                <property>
+                    <name>env.OSDISTRO</name>
+                        <value>Debian 9</value>
+                </property>
+            </activation>
+            <properties>
+                <gpg.key></gpg.key>
+                <deb.sign>false</deb.sign>
+            </properties>
+        </profile>
 
         <profile>
             <!-- Activate me to skip signing the rpm. Signing the rpm requires a few dependencies and might not work

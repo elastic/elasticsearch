@@ -82,6 +82,34 @@ After this, the `SearchSourceBuilder` only needs to be added to the
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-setter]
 --------------------------------------------------
 
+===== Specifying Sorting
+
+
+The `SearchSourceBuilder` allows to add one or more `SortBuilder` instances. There are four special implementations (Field-, Score-, GeoDistance- and ScriptSortBuilder).
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-sorting]
+--------------------------------------------------
+<1> Sort descending by `_score` (the default)
+<2> Also sort ascending by `_id` field 
+
+===== Source filtering
+
+By default, search requests return the contents of the document `_source` but like in the Rest API you can overwrite this behaviour. For example, you can turn off `_source` retrieval completely:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-filtering-off]
+--------------------------------------------------
+
+The method also accepts and array of one or more wildcard patterns to control which fields get included or excluded in a more fine grained way:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-filtering-includes]
+--------------------------------------------------
+
 [[java-rest-high-request-highlighting]]
 ===== Requesting Highlighting
 

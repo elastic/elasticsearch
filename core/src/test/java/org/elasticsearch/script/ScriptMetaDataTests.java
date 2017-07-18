@@ -21,6 +21,7 @@ package org.elasticsearch.script;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,6 +32,36 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaData> {
+
+    public void testFromXContentLoading() throws Exception {
+        // failure to load to old namespace scripts with the same id but different langs
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject().field("lang0#id0", "script0").field("lang1#id0", "script1").endObject();
+        XContentParser parser0 = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, builder.bytes());
+        expectThrows(IllegalArgumentException.class, () -> ScriptMetaData.fromXContent(parser0));
+
+        // failure to load a new namespace script and old namespace script with the same id but different langs
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject().field("lang0#id0", "script0")
+            .startObject("id0").field("lang", "lang1").field("source", "script1").endObject().endObject();
+        XContentParser parser1 = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, builder.bytes());
+        expectThrows(IllegalArgumentException.class, () -> ScriptMetaData.fromXContent(parser1));
+
+        // failure to load a new namespace script and old namespace script with the same id but different langs with additional scripts
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject().field("lang0#id0", "script0").field("lang0#id1", "script1")
+            .startObject("id1").field("lang", "lang0").field("source", "script0").endObject()
+            .startObject("id0").field("lang", "lang1").field("source", "script1").endObject().endObject();
+        XContentParser parser2 = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, builder.bytes());
+        expectThrows(IllegalArgumentException.class, () -> ScriptMetaData.fromXContent(parser2));
+
+        // okay to load the same script from the new and old namespace if the lang is the same
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject().field("lang0#id0", "script0")
+            .startObject("id0").field("lang", "lang0").field("source", "script1").endObject().endObject();
+        XContentParser parser3 = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, builder.bytes());
+        ScriptMetaData.fromXContent(parser3);
+    }
 
     public void testGetScript() throws Exception {
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);

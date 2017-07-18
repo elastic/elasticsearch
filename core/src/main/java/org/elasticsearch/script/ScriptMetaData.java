@@ -210,6 +210,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
                         throw new IllegalArgumentException("illegal stored script id [" + id + "], does not contain lang");
                     } else {
                         lang = id.substring(0, split);
+                        id = id.substring(split + 1);
                         source = new StoredScriptSource(lang, parser.text(), Collections.emptyMap());
                     }
 
@@ -218,8 +219,8 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
                     if (exists == null) {
                         scripts.put(id, source);
                     } else if (exists.getLang().equals(lang) == false) {
-                        throw new IllegalArgumentException("illegal stored script, id [" + id + "] used for multiple scripts with" +
-                            "different languages [" + exists.getLang() + "] and [" + lang + "]; scripts using the old namespace" +
+                        throw new IllegalArgumentException("illegal stored script, id [" + id + "] used for multiple scripts with " +
+                            "different languages [" + exists.getLang() + "] and [" + lang + "]; scripts using the old namespace " +
                             "of [lang#id] as a stored script id will have to be updated to use only the new namespace of [id]");
                     }
 
@@ -238,7 +239,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
                     if (exists == null) {
                         scripts.put(id, source);
                     } else if (exists.getLang().equals(source.getLang()) == false) {
-                        throw new IllegalArgumentException("illegal stored script, id [" + id + "] used for multiple scripts with" +
+                        throw new IllegalArgumentException("illegal stored script, id [" + id + "] used for multiple scripts with " +
                             "different languages [" + exists.getLang() + "] and [" + source.getLang() + "]; scripts using the old " +
                             "namespace of [lang#id] as a stored script id will have to be updated to use only the new namespace of [id]");
                     }

@@ -15,6 +15,8 @@ import org.junit.ClassRule;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 import java.util.Locale;
 
@@ -59,8 +61,9 @@ public class SqlSpecIT extends SpecBaseIntegrationTestCase {
              Connection es = esJdbc()) {
             ResultSet expected, actual;
             try {
-                expected = h2.createStatement().executeQuery(query);
-                actual = es.createStatement().executeQuery(query);
+                expected = executeQuery(h2);
+                actual = executeQuery(es);
+
                 assertResultSets(expected, actual);
             } catch (AssertionError ae) {
                 throw reworkException(new AssertionError(errorMessage(ae), ae.getCause()));
@@ -68,6 +71,12 @@ public class SqlSpecIT extends SpecBaseIntegrationTestCase {
         } catch (Throwable th) {
             throw reworkException(th);
         }
+    }
+
+    private ResultSet executeQuery(Connection con) throws SQLException {
+        Statement statement = con.createStatement();
+        statement.setFetchSize(randomInt(10));
+        return statement.executeQuery(query);
     }
 
     String errorMessage(Throwable th) {

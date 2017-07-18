@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.sql.jdbc.framework;
 
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ import static java.lang.String.format;
 public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCase {
     protected static final String PARAM_FORMATTNG = "%0$s.test%2$s";
 
-    private static boolean haveSetupTestData;
+    private static final boolean SETUP_DATA = Booleans.parseBoolean(System.getProperty("tests.sql.setup.data", "false"));
 
     protected final String groupName;
     protected final String testName;
@@ -38,18 +38,12 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     protected final Path source;
 
     @BeforeClass
-    public static void clearSetupTestData() {
-        haveSetupTestData = false;
-    }
-
-    @Before
-    public void setupTestData() throws Exception {
-        if (haveSetupTestData) {
+    public static void setupTestData() throws Exception {
+        if (!SETUP_DATA) {
             // We only need to load the test data once
             return;
         }
         loadDatasetIntoEs();
-        haveSetupTestData = true;
     }
 
     @AfterClass

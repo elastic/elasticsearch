@@ -69,8 +69,6 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
                     return;
                 }
 
-                // NOCOMMIT move session information somewhere - like into scroll or something. We should be able to reuse something. 
-                // generate the plan and once it's done, generate the session id, store it and send back the response
                 planExecutor.sql(query, timeZone, chain(listener, c -> {
                             String id = generateId();
                             SESSIONS.put(id, c);

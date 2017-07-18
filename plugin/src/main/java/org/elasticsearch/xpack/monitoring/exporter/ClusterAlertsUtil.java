@@ -58,7 +58,8 @@ public class ClusterAlertsUtil {
         "elasticsearch_cluster_status",
         "elasticsearch_version_mismatch",
         "kibana_version_mismatch",
-        "logstash_version_mismatch"
+        "logstash_version_mismatch",
+        "xpack_license_expiration"
     };
 
     /**

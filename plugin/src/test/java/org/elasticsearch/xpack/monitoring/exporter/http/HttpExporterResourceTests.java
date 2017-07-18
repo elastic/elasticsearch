@@ -67,7 +67,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
      */
     private final int EXPECTED_TEMPLATES = 5 + (createOldTemplates ? OLD_TEMPLATE_IDS.length : 0);
     private final int EXPECTED_PIPELINES = PIPELINE_IDS.length;
-    private final int EXPECTED_WATCHES = 4;
+    private final int EXPECTED_WATCHES = ClusterAlertsUtil.WATCH_IDS.length;
 
     private final RestClient client = mock(RestClient.class);
     private final Response versionResponse = mock(Response.class);

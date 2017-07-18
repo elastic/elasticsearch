@@ -96,6 +96,20 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     }
 
     @Override
+    public Object getProperty(List<String> path) {
+        if (path.size() == 2 && "std_deviation_bounds".equals(path.get(0))) {
+            String bound = path.get(1);
+            if ("lower".equals(bound)) {
+                return getStdDeviationBound(Bounds.LOWER);
+            }
+            if ("upper".equals(bound)) {
+                return getStdDeviationBound(Bounds.UPPER);
+            }
+        }
+        return super.getProperty(path);
+    }
+
+    @Override
     public double getSumOfSquares() {
         return sumOfSqrs;
     }

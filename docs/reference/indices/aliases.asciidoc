@@ -107,7 +107,8 @@ In this case, the alias is a point-in-time alias that will group all
 current indices that match, it will not automatically update as new
 indices that match this pattern are added/removed.
 
-It is an error to index to an alias which points to more than one index.
+Keep in mind that indexing is a single index operation.  Therefore, you will receive an IllegalArgumentException
+when indexing to an alias which points to more than one index.
 
 It is also possible to swap an index with an alias in one operation:
 

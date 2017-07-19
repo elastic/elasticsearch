@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledge
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.noop.NoOpRenormalizer;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
@@ -76,8 +75,6 @@ import static org.mockito.Mockito.when;
 public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
     private static final String JOB_ID = "autodetect-result-processor-it-job";
 
-    private Renormalizer renormalizer;
-    private JobResultsPersister jobResultsPersister;
     private JobProvider jobProvider;
     private List<ModelSnapshot> capturedUpdateModelSnapshotOnJobRequests;
     private AutoDetectResultProcessor resultProcessor;
@@ -100,14 +97,12 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
 
     @Before
     public void createComponents() throws Exception {
-        renormalizer = new NoOpRenormalizer();
-        jobResultsPersister = new JobResultsPersister(nodeSettings(), client());
         Settings.Builder builder = Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
         jobProvider = new JobProvider(client(), builder.build());
         capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();
-        resultProcessor = new AutoDetectResultProcessor(client(), JOB_ID, renormalizer, jobResultsPersister,
-                new ModelSizeStats.Builder(JOB_ID).build()) {
+        resultProcessor = new AutoDetectResultProcessor(client(), JOB_ID, new NoOpRenormalizer(),
+                new JobResultsPersister(nodeSettings(), client()), new ModelSizeStats.Builder(JOB_ID).build()) {
             @Override
             protected void updateModelSnapshotIdOnJob(ModelSnapshot modelSnapshot) {
                 capturedUpdateModelSnapshotOnJobRequests.add(modelSnapshot);
@@ -144,7 +139,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         builder.addQuantiles(quantiles);
 
         resultProcessor.process(builder.buildTestProcess());
-        jobResultsPersister.commitResultWrites(JOB_ID);
+        resultProcessor.awaitCompletion();
 
         BucketsQueryBuilder.BucketsQuery bucketsQuery = new BucketsQueryBuilder().includeInterim(true).build();
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(bucketsQuery);
@@ -193,7 +188,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
                 .addBucket(nonInterimBucket); // and this will delete the interim results
 
         resultProcessor.process(resultBuilder.buildTestProcess());
-        jobResultsPersister.commitResultWrites(JOB_ID);
+        resultProcessor.awaitCompletion();
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());
         assertEquals(1, persistedBucket.count());
@@ -225,7 +220,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
                 .addBucket(finalBucket); // this deletes the previous interim and persists final bucket & records
 
         resultProcessor.process(resultBuilder.buildTestProcess());
-        jobResultsPersister.commitResultWrites(JOB_ID);
+        resultProcessor.awaitCompletion();
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());
         assertEquals(1, persistedBucket.count());
@@ -249,7 +244,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
                 .addRecords(secondSetOfRecords);
 
         resultProcessor.process(resultBuilder.buildTestProcess());
-        jobResultsPersister.commitResultWrites(JOB_ID);
+        resultProcessor.awaitCompletion();
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());
         assertEquals(1, persistedBucket.count());

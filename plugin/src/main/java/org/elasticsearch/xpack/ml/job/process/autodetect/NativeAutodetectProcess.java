@@ -229,7 +229,7 @@ class NativeAutodetectProcess implements AutodetectProcess {
         }
     }
 
-    private void deleteAssociatedFiles() throws IOException {
+    private synchronized void deleteAssociatedFiles() throws IOException {
         if (filesToDelete == null) {
             return;
         }
@@ -241,6 +241,8 @@ class NativeAutodetectProcess implements AutodetectProcess {
                 LOGGER.warn("[{}] Failed to delete file {}", jobId, fileToDelete.toString());
             }
         }
+
+        filesToDelete.clear();
     }
 
     @Override

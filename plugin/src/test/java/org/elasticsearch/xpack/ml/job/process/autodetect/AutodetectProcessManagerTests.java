@@ -56,8 +56,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -272,6 +274,47 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertEquals(1, manager.numberOfOpenJobs());
         manager.closeJob(jobTask, false, null);
         assertEquals(0, manager.numberOfOpenJobs());
+    }
+
+    public void testCanKillClosingJob() throws Exception {
+        CountDownLatch closeStartedLatch = new CountDownLatch(1);
+        CountDownLatch killLatch = new CountDownLatch(1);
+        CountDownLatch closeInterruptedLatch = new CountDownLatch(1);
+        AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
+        doAnswer(invocationOnMock -> {
+            closeStartedLatch.countDown();
+            if (killLatch.await(3, TimeUnit.SECONDS)) {
+                closeInterruptedLatch.countDown();
+            }
+            return null;
+        }).when(communicator).close(anyBoolean(), anyString());
+        doAnswer(invocationOnMock -> {
+            killLatch.countDown();
+            return null;
+        }).when(communicator).killProcess(anyBoolean(), anyBoolean());
+        AutodetectProcessManager manager = createManager(communicator);
+        assertEquals(0, manager.numberOfOpenJobs());
+
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        manager.openJob(jobTask, e -> {});
+        manager.processData(jobTask, createInputStream(""), randomFrom(XContentType.values()),
+                mock(DataLoadParams.class), (dataCounts1, e) -> {});
+
+        // Close the job in a separate thread so that it can simulate taking a long time to close
+        Thread closeThread = new Thread(() -> manager.closeJob(jobTask, false, null));
+        closeThread.start();
+        assertTrue(closeStartedLatch.await(3, TimeUnit.SECONDS));
+
+        // Kill the job in the current thread, which will be while the job is "closing"
+        manager.killProcess(jobTask, false, null);
+        assertEquals(0, killLatch.getCount());
+
+        // Assert close method was awoken by the kill
+        assertTrue(closeInterruptedLatch.await(3, TimeUnit.SECONDS));
+
+        closeThread.join(500);
+        assertFalse(closeThread.isAlive());
     }
 
     public void testBucketResetMessageIsSent() throws IOException {
@@ -538,7 +581,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private AutodetectProcessManager createManagerAndCallProcessData(AutodetectCommunicator communicator, String jobId) {
         AutodetectProcessManager manager = createManager(communicator);
         JobTask jobTask = mock(JobTask.class);
-        when(jobTask.getJobId()).thenReturn("foo");
+        when(jobTask.getJobId()).thenReturn(jobId);
         manager.openJob(jobTask, e -> {});
         manager.processData(jobTask, createInputStream(""), randomFrom(XContentType.values()),
                 mock(DataLoadParams.class), (dataCounts, e) -> {});

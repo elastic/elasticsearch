@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -130,9 +131,7 @@ public class KillProcessAction extends Action<KillProcessAction.Request, KillPro
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutodetectProcessManager processManager, Auditor auditor) {
             super(settings, NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                    Request::new, Response::new, ThreadPool.Names.SAME, processManager);
-            // ThreadPool.Names.SAME
-
+                    Request::new, Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME, processManager);
             this.auditor = auditor;
         }
 

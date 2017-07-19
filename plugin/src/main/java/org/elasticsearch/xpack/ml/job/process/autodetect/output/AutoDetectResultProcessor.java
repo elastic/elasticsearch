@@ -139,18 +139,8 @@ public class AutoDetectResultProcessor {
                 LOGGER.error(new ParameterizedMessage("[{}] error parsing autodetect output", jobId), e);
             }
         } finally {
-            try {
-                if (processKilled == false) {
-                    waitUntilRenormalizerIsIdle();
-                    persister.commitResultWrites(jobId);
-                    persister.commitStateWrites(jobId);
-                }
-            } catch (IndexNotFoundException e) {
-                LOGGER.error("[{}] Error while closing: no such index [{}]", jobId, e.getIndex().getName());
-            } finally {
-                flushListener.clear();
-                completionLatch.countDown();
-            }
+            flushListener.clear();
+            completionLatch.countDown();
         }
     }
 
@@ -281,6 +271,12 @@ public class AutoDetectResultProcessor {
             // Wait for any updateModelSnapshotIdOnJob calls to complete.
             updateModelSnapshotIdSemaphore.acquire();
             updateModelSnapshotIdSemaphore.release();
+
+            // These lines ensure that the "completion" we're awaiting includes making the results searchable
+            waitUntilRenormalizerIsIdle();
+            persister.commitResultWrites(jobId);
+            persister.commitStateWrites(jobId);
+
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             LOGGER.info("[{}] Interrupted waiting for results processor to complete", jobId);

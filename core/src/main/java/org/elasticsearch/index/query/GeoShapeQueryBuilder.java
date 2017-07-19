@@ -381,9 +381,6 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
      *            Name or path of the field in the Shape Document where the
      *            Shape itself is located
      * @return Shape with the given ID
-     * @throws IOException
-     *             Can be thrown while parsing the Shape Document and extracting
-     *             the Shape
      */
     private void fetch(Client client, GetRequest getRequest, String path, ActionListener<ShapeBuilder> listener) {
         if (ShapesAvailability.JTS_AVAILABLE == false) {

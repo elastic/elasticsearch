@@ -24,7 +24,6 @@ import org.apache.lucene.queries.MinDocQuery;
 import org.apache.lucene.queries.SearchAfterSortedDocQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.EarlyTerminatingSortingCollector;
@@ -34,7 +33,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
@@ -209,8 +207,7 @@ public class QueryPhase implements SearchPhase {
                 timeoutRunnable = () -> {
                     final long time = counter.get();
                     if (time > maxTime) {
-                        queryResult.searchTimedOut(true);
-                        throw new CollectionTerminatedException();
+                        throw new TimeExceededException();
                     }
                 };
             } else {
@@ -274,7 +271,7 @@ public class QueryPhase implements SearchPhase {
                 if (shouldCollect) {
                     searcher.search(query, queryCollector);
                 }
-            } catch (TimeLimitingCollector.TimeExceededException e) {
+            } catch (TimeExceededException e) {
                 assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
                 queryResult.searchTimedOut(true);
             } finally {
@@ -328,4 +325,6 @@ public class QueryPhase implements SearchPhase {
         final Sort sort = context.sort() == null ? Sort.RELEVANCE : context.sort().sort;
         return indexSort != null && EarlyTerminatingSortingCollector.canEarlyTerminate(sort, indexSort);
     }
+
+    private static class TimeExceededException extends RuntimeException {}
 }

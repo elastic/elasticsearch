@@ -151,9 +151,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        final Weight cancellablWeight;
+        final Weight cancellableWeight;
         if (checkCancelled != null) {
-            cancellablWeight = new Weight(weight.getQuery()) {
+            cancellableWeight = new Weight(weight.getQuery()) {
 
                 @Override
                 public void extractTerms(Set<Term> terms) {
@@ -181,9 +181,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 }
             };
         } else {
-            cancellablWeight = weight;
+            cancellableWeight = weight;
         }
-        super.search(leaves, cancellablWeight, collector);
+        super.search(leaves, cancellableWeight, collector);
     }
 
     @Override

@@ -33,12 +33,12 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.discovery.DiscoverySettings;
 
 import java.util.ArrayList;
@@ -433,31 +433,28 @@ public class NodeJoinController extends AbstractComponent {
 
             assert nodesBuilder.isLocalNodeElectedMaster();
 
-            Version minClusterNodeVersion = newState.nodes().getMinNodeVersion();
-            Version maxClusterNodeVersion = newState.nodes().getMaxNodeVersion();
+            Version minNodeVersion = Version.CURRENT;
             // processing any joins
             for (final DiscoveryNode node : joiningNodes) {
+                minNodeVersion = Version.min(minNodeVersion, node.getVersion());
                 if (node.equals(BECOME_MASTER_TASK) || node.equals(FINISH_ELECTION_TASK)) {
                     // noop
                 } else if (currentNodes.nodeExists(node)) {
                     logger.debug("received a join request for an existing node [{}]", node);
                 } else {
                     try {
-                        MembershipAction.ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
-                        // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
-                        // we have to reject nodes that don't support all indices we have in this cluster
-                        MembershipAction.ensureIndexCompatibility(node.getVersion(), currentState.getMetaData());
                         nodesBuilder.add(node);
                         nodesChanged = true;
-                        minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
-                        maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
-                    } catch (IllegalArgumentException | IllegalStateException e) {
+                    } catch (IllegalArgumentException e) {
                         results.failure(node, e);
                         continue;
                     }
                 }
                 results.success(node);
             }
+            // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
+            // we have to reject nodes that don't support all indices we have in this cluster
+            MembershipAction.ensureIndexCompatibility(minNodeVersion, currentState.getMetaData());
             if (nodesChanged) {
                 newState.nodes(nodesBuilder);
                 return results.build(allocationService.reroute(newState.build(), "node_join"));

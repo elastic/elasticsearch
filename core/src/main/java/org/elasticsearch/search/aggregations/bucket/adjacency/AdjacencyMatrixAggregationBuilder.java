@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -195,7 +196,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
 
         List<KeyedFilter> rewrittenFilters = new ArrayList<>(filters.size());
         for (KeyedFilter kf : filters) {
-            rewrittenFilters.add(new KeyedFilter(kf.key(), QueryBuilder.rewriteQuery(kf.filter(), context.getQueryShardContext())));
+            rewrittenFilters.add(new KeyedFilter(kf.key(), Rewriteable.rewrite(kf.filter(), context.getQueryShardContext())));
         }
 
         return new AdjacencyMatrixAggregatorFactory(name, rewrittenFilters, separator, context, parent,

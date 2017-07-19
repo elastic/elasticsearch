@@ -29,7 +29,9 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -236,15 +238,9 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     @Override
-    public void rewrite(QueryShardContext context) throws IOException {
-        SearchSourceBuilder source = this.source;
-        SearchSourceBuilder rewritten = null;
-        aliasFilter = aliasFilter.rewrite(context);
-        while (rewritten != source) {
-            rewritten = source.rewrite(context);
-            source = rewritten;
-        }
-        this.source = source;
+    public void rewrite(QueryRewriteContext context) throws IOException {
+        aliasFilter = Rewriteable.rewrite(aliasFilter, context);
+        source = Rewriteable.rewrite(source, context);
     }
 
     @Override

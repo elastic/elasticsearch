@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -40,7 +41,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
 /**
  * Represents a {@link QueryBuilder} and a list of alias names that filters the builder is composed of.
  */
-public final class AliasFilter implements Writeable {
+public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
 
     private final String[] aliases;
     private final QueryBuilder filter;
@@ -81,12 +82,16 @@ public final class AliasFilter implements Writeable {
         return filter;
     }
 
-    AliasFilter rewrite(QueryRewriteContext context) throws IOException {
+    @Override
+    public AliasFilter rewrite(QueryRewriteContext context) throws IOException {
         QueryBuilder queryBuilder = reparseFilter(context);
         if (queryBuilder != null) {
-            return new AliasFilter(QueryBuilder.rewriteQuery(queryBuilder, context), aliases);
+            QueryBuilder rewrite = Rewriteable.rewrite(queryBuilder, context);
+            if (rewrite != queryBuilder) {
+                return new AliasFilter(rewrite, aliases);
+            }
         }
-        return new AliasFilter(filter, aliases);
+        return this;
     }
 
     @Override

@@ -55,7 +55,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
  *
  * @see org.elasticsearch.search.builder.SearchSourceBuilder#highlight()
  */
-public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder> implements Rewriteable<HighlightBuilder> {
+public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder>  {
     /** default for whether to highlight fields based on the source even if stored separately */
     public static final boolean DEFAULT_FORCE_SOURCE = false;
     /** default for whether a field should be highlighted only if a query matches that field */
@@ -110,11 +110,11 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         fields = new ArrayList<>();
     }
 
-    private HighlightBuilder(HighlightBuilder template, QueryBuilder highlightQuery) {
+    private HighlightBuilder(HighlightBuilder template, QueryBuilder highlightQuery, List<Field> fields) {
         super(template, highlightQuery);
         this.encoder = template.encoder;
         this.useExplicitFieldOrder = template.useExplicitFieldOrder;
-        fields = template.fields;
+        this.fields = fields;
     }
 
     /**
@@ -125,6 +125,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         encoder(in.readOptionalString());
         useExplicitFieldOrder(in.readBoolean());
         this.fields = in.readList(Field::new);
+        assert this.equals(new HighlightBuilder(this, highlightQuery, fields)) : "copy constructor is broken";
     }
 
     @Override
@@ -421,14 +422,27 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
 
     @Override
     public HighlightBuilder rewrite(QueryRewriteContext ctx) throws IOException {
-        if (highlightQuery == null) {
+        QueryBuilder highlightQuery = this.highlightQuery;
+        if (highlightQuery != null) {
+            highlightQuery = this.highlightQuery.rewrite(ctx);
+        }
+        List<Field> fields = this.fields;
+        boolean fieldChanged = false;
+        if (this.fields != null && this.fields.isEmpty() == false) {
+            fields = new ArrayList<>(this.fields.size());
+            for (Field field : this.fields) {
+                Field rewrite = field.rewrite(ctx);
+                if (field != rewrite) {
+                    fieldChanged = true;
+                }
+                fields.add(rewrite);
+            }
+        }
+
+        if (highlightQuery == this.highlightQuery && fieldChanged == false) {
             return this;
         }
-        QueryBuilder rewrite = highlightQuery.rewrite(ctx);
-        if (rewrite == highlightQuery) {
-            return this;
-        }
-        return new HighlightBuilder(this, rewrite);
+        return new HighlightBuilder(this, highlightQuery, fields);
 
     }
 
@@ -452,6 +466,13 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             this.name = name;
         }
 
+        private Field(Field template, QueryBuilder builder) {
+            super(template, builder);
+            name = template.name;
+            fragmentOffset = template.fragmentOffset;
+            matchedFields = template.matchedFields;
+        }
+
         /**
          * Read from a stream.
          */
@@ -460,6 +481,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             name = in.readString();
             fragmentOffset(in.readVInt());
             matchedFields(in.readOptionalStringArray());
+            assert this.equals(new Field(this, highlightQuery)) : "copy constructor is broken";
         }
 
         @Override
@@ -513,6 +535,17 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             return Objects.equals(name, other.name) &&
                     Objects.equals(fragmentOffset, other.fragmentOffset) &&
                     Arrays.equals(matchedFields, other.matchedFields);
+        }
+
+        @Override
+        public Field rewrite(QueryRewriteContext ctx) throws IOException {
+            if (highlightQuery != null) {
+                QueryBuilder rewrite = highlightQuery.rewrite(ctx);
+                if (rewrite != highlightQuery) {
+                    return new Field(this, rewrite);
+                }
+            }
+            return this;
         }
     }
 

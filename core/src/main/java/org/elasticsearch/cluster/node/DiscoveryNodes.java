@@ -667,10 +667,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             ImmutableOpenMap.Builder<String, DiscoveryNode> dataNodesBuilder = ImmutableOpenMap.builder();
             ImmutableOpenMap.Builder<String, DiscoveryNode> masterNodesBuilder = ImmutableOpenMap.builder();
             ImmutableOpenMap.Builder<String, DiscoveryNode> ingestNodesBuilder = ImmutableOpenMap.builder();
-            Version minNodeVersion = Version.CURRENT;
+            Version minNodeVersion = null;
             Version maxNodeVersion = null;
-            // The node where we are building this on might not be a master or a data node, so we cannot assume
-            // that there is a node with the current version as a part of the cluster.
             Version minNonClientNodeVersion = null;
             Version maxNonClientNodeVersion = null;
             for (ObjectObjectCursor<String, DiscoveryNode> nodeEntry : nodes) {
@@ -693,7 +691,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 if (nodeEntry.value.isIngestNode()) {
                     ingestNodesBuilder.put(nodeEntry.key, nodeEntry.value);
                 }
-                minNodeVersion = Version.min(minNodeVersion, version);
+                minNodeVersion = minNodeVersion == null ? version : Version.min(minNodeVersion, version);
                 maxNodeVersion = maxNodeVersion == null ? version : Version.max(maxNodeVersion, version);
             }
 
@@ -701,7 +699,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 nodes.build(), dataNodesBuilder.build(), masterNodesBuilder.build(), ingestNodesBuilder.build(),
                 masterNodeId, localNodeId, minNonClientNodeVersion == null ? Version.CURRENT : minNonClientNodeVersion,
                 maxNonClientNodeVersion == null ? Version.CURRENT : maxNonClientNodeVersion,
-                maxNodeVersion == null ? Version.CURRENT : maxNodeVersion, minNodeVersion
+                maxNodeVersion == null ? Version.CURRENT : maxNodeVersion,
+                minNodeVersion == null ? Version.CURRENT : minNodeVersion
             );
         }
 

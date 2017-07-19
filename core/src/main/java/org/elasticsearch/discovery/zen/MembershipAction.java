@@ -209,14 +209,14 @@ public class MembershipAction extends AbstractComponent {
         }
     }
 
-    /** ensures that the joining node has a version that's compatible all nodes in the cluster */
+    /** ensures that the joining node has a version that's compatible with all current nodes*/
     static void ensureNodesCompatibility(final Version joiningNodeVersion, DiscoveryNodes currentNodes) {
         final Version minNodeVersion = currentNodes.getMinNodeVersion();
         final Version maxNodeVersion = currentNodes.getMaxNodeVersion();
         ensureNodesCompatibility(joiningNodeVersion, minNodeVersion, maxNodeVersion);
     }
 
-    /** ensures that the joining node has a version that's compatible all nodes in the cluster */
+    /** ensures that the joining node has a version that's compatible with a given version range */
     static void ensureNodesCompatibility(Version joiningNodeVersion, Version minClusterNodeVersion, Version maxClusterNodeVersion) {
         assert minClusterNodeVersion.onOrBefore(maxClusterNodeVersion) : minClusterNodeVersion + " > " + maxClusterNodeVersion;
         final byte clusterMajor = minClusterNodeVersion.major;

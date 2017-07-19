@@ -84,6 +84,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_C
 import static org.elasticsearch.cluster.routing.RoutingTableTests.updateActiveAllocations;
 import static org.elasticsearch.cluster.service.MasterServiceTests.discoveryState;
 import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -587,7 +588,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
     public void testRejectingJoinWithIncompatibleVersion() throws InterruptedException, ExecutionException {
         addNodes(randomInt(5));
-        ClusterState state = discoveryState(masterService);
+        discoveryState(masterService);
         final DiscoveryNode badNode = new DiscoveryNode("badNode", buildNewFakeTransportAddress(), emptyMap(),
             new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
             getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()));
@@ -625,6 +626,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         goodJoin.get();
         ExecutionException e = expectThrows(ExecutionException.class, badJoin::get);
         assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(e.getCause().getMessage(), allOf(containsString("node version"), containsString("not supported")));
     }
 
     /**

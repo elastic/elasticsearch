@@ -355,12 +355,12 @@ public class VersionTests extends ESTestCase {
 
     /* tests that if a new version's minCompatVersion is always equal or higher to any older version */
     public void testMinCompatVersionOrderRespectsVersionOrder() {
-        List<Version> versionsByMinCompact = new ArrayList<>(allVersions());
-        versionsByMinCompact.sort(Comparator.comparing(Version::minimumCompatibilityVersion));
-        assertThat(versionsByMinCompact, equalTo(allVersions()));
+        List<Version> versionsByMinCompat = new ArrayList<>(allVersions());
+        versionsByMinCompat.sort(Comparator.comparing(Version::minimumCompatibilityVersion));
+        assertThat(versionsByMinCompat, equalTo(allVersions()));
 
-        versionsByMinCompact.sort(Comparator.comparing(Version::minimumIndexCompatibilityVersion));
-        assertThat(versionsByMinCompact, equalTo(allVersions()));
+        versionsByMinCompat.sort(Comparator.comparing(Version::minimumIndexCompatibilityVersion));
+        assertThat(versionsByMinCompat, equalTo(allVersions()));
     }
 
 

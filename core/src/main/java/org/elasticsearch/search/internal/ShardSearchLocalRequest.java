@@ -130,7 +130,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     @Override
-    public void setAliasFilter(AliasFilter filter) {
+    public void setAliasFilter(AliasFilter aliasFilter) {
         this.aliasFilter = aliasFilter;
     }
 

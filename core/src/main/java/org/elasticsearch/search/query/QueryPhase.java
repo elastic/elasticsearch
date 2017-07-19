@@ -34,7 +34,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
@@ -42,6 +41,8 @@ import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
+import org.apache.lucene.util.Counter;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
@@ -52,6 +53,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.ProfileShardResult;
@@ -62,12 +64,15 @@ import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.function.Consumer;
+
 
 /**
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
@@ -105,7 +110,8 @@ public class QueryPhase implements SearchPhase {
         // here to make sure it happens during the QUERY phase
         aggregationPhase.preProcess(searchContext);
 
-        boolean rescore = execute(searchContext, searchContext.searcher());
+        final ContextIndexSearcher searcher = searchContext.searcher();
+        boolean rescore = execute(searchContext, searcher, searcher::setCheckCancelled);
 
         if (rescore) { // only if we do a regular search
             rescorePhase.execute(searchContext);
@@ -137,7 +143,8 @@ public class QueryPhase implements SearchPhase {
      * wire everything (mapperService, etc.)
      * @return whether the rescoring phase should be executed
      */
-    static boolean execute(SearchContext searchContext, final IndexSearcher searcher) throws QueryPhaseExecutionException {
+    static boolean execute(SearchContext searchContext, final IndexSearcher searcher,
+            Consumer<Runnable> checkCancellationSetter) throws QueryPhaseExecutionException {
         QuerySearchResult queryResult = searchContext.queryResult();
         queryResult.searchTimedOut(false);
 
@@ -360,20 +367,46 @@ public class QueryPhase implements SearchPhase {
             }
 
             final boolean timeoutSet = searchContext.timeout() != null && !searchContext.timeout().equals(SearchService.NO_TIMEOUT);
-            if (timeoutSet && collector != null) { // collector might be null if no collection is actually needed
-                final Collector child = collector;
-                // TODO: change to use our own counter that uses the scheduler in ThreadPool
-                // throws TimeLimitingCollector.TimeExceededException when timeout has reached
-                collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeEstimateCounter(), searchContext.timeout().millis());
-                if (doProfile) {
-                    collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_TIMEOUT,
-                            Collections.singletonList((InternalProfileCollector) child));
+            if (collector != null) { // collector might be null if no collection is actually needed
+                final Runnable timeoutRunnable;
+                if (timeoutSet) {
+                    final Counter counter = searchContext.timeEstimateCounter();
+                    final long startTime = counter.get();
+                    final long timeout = searchContext.timeout().millis();
+                    final long maxTime = startTime + timeout;
+                    timeoutRunnable = () -> {
+                        final long time = counter.get();
+                        if (time > maxTime) {
+                            throw new TimeExceededException();
+                        }
+                    };
+                } else {
+                    timeoutRunnable = null;
                 }
-            }
 
-            if (collector != null) {
+                final Runnable cancellationRunnable;
+                if (searchContext.lowLevelCancellation()) {
+                    SearchTask task = searchContext.getTask();
+                    cancellationRunnable = () -> { if (task.isCancelled()) throw new TaskCancelledException("cancelled"); };
+                } else {
+                    cancellationRunnable = null;
+                }
+
+                final Runnable checkCancelled;
+                if (timeoutRunnable != null && cancellationRunnable != null) {
+                    checkCancelled = () -> { timeoutRunnable.run(); cancellationRunnable.run(); };
+                } else if (timeoutRunnable != null) {
+                    checkCancelled = timeoutRunnable;
+                } else if (cancellationRunnable != null) {
+                    checkCancelled = cancellationRunnable;
+                } else {
+                    checkCancelled = null;
+                }
+
+                checkCancellationSetter.accept(checkCancelled);
+
                 final Collector child = collector;
-                collector = new CancellableCollector(searchContext.getTask()::isCancelled, searchContext.lowLevelCancellation(), collector);
+                collector = new CancellableCollector(searchContext.getTask()::isCancelled, collector);
                 if (doProfile) {
                     collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_CANCELLED,
                         Collections.singletonList((InternalProfileCollector) child));
@@ -387,7 +420,7 @@ public class QueryPhase implements SearchPhase {
                     }
                     searcher.search(query, collector);
                 }
-            } catch (TimeLimitingCollector.TimeExceededException e) {
+            } catch (TimeExceededException e) {
                 assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
                 queryResult.searchTimedOut(true);
             } catch (Lucene.EarlyTerminationException e) {
@@ -414,4 +447,6 @@ public class QueryPhase implements SearchPhase {
             throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
         }
     }
+
+    private static class TimeExceededException extends RuntimeException {}
 }

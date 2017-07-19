@@ -22,7 +22,6 @@ import java.io.IOException;
 
 /**
  * A basic interface for rewriteable classes.
- * @param <T>
  */
 public interface Rewriteable<T> {
 

@@ -27,7 +27,7 @@ import java.io.IOException;
  */
 public interface Rewriteable<T> {
 
-    int MAX_REVIEW_ROUNDS = 16;
+    int MAX_REWRITE_ROUNDS = 16;
 
     /**
      * Rewrites this instance based on the provided context. The returned
@@ -67,7 +67,7 @@ public interface Rewriteable<T> {
                 throw new IllegalStateException("async actions are left after rewrite");
             }
             builder = rewrittenBuilder;
-            if (iteration++ > MAX_REVIEW_ROUNDS) {
+            if (iteration++ > MAX_REWRITE_ROUNDS) {
                 // this is some protection against user provided queries if they don't obey the contract of rewrite we allow 16 rounds
                 // and then we fail to prevent infinite loops
                 throw new IllegalStateException("too many rewrite rounds, rewriteable might return new objects even if they are not " +
@@ -93,7 +93,7 @@ public interface Rewriteable<T> {
             for (T rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder;
                  rewrittenBuilder = builder.rewrite(context)) {
                 builder = rewrittenBuilder;
-                if (iteration++ > MAX_REVIEW_ROUNDS) {
+                if (iteration++ > MAX_REWRITE_ROUNDS) {
                     // this is some protection against user provided queries if they don't obey the contract of rewrite we allow 16 rounds
                     // and then we fail to prevent infinite loops
                     throw new IllegalStateException("too many rewrite rounds, rewriteable might return new objects even if they are not " +

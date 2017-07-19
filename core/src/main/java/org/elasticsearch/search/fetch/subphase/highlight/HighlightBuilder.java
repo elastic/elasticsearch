@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.FieldOptions;
 
 import java.io.IOException;
@@ -357,7 +358,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             targetOptionsBuilder.options(highlighterBuilder.options);
         }
         if (highlighterBuilder.highlightQuery != null) {
-            targetOptionsBuilder.highlightQuery(QueryBuilder.rewriteQuery(highlighterBuilder.highlightQuery, context).toQuery(context));
+            targetOptionsBuilder.highlightQuery(Rewriteable.rewrite(highlighterBuilder.highlightQuery, context).toQuery(context));
         }
     }
 

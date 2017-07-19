@@ -60,6 +60,7 @@ import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 
 import java.io.IOException;
@@ -282,7 +283,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         );
         verifyQuery(queryBuilder);
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
-        queryBuilder = QueryBuilder.rewriteQuery(queryBuilder, queryShardContext);
+        queryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
 
         try (XContentBuilder builder = XContentFactory.contentBuilder(QUERY_BUILDER_CONTENT_TYPE)) {
             queryBuilder.toXContent(builder, new MapParams(Collections.emptyMap()));

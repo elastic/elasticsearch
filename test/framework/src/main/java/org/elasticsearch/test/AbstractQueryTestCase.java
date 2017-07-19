@@ -74,6 +74,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -618,7 +619,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     private QueryBuilder rewriteQuery(QB queryBuilder, QueryRewriteContext rewriteContext) throws IOException {
-        QueryBuilder rewritten = QueryBuilder.rewriteQuery(queryBuilder, rewriteContext);
+        QueryBuilder rewritten = Rewriteable.rewrite(queryBuilder, rewriteContext);
         // extra safety to fail fast - serialize the rewritten version to ensure it's serializable.
         assertSerialization(rewritten);
         return rewritten;

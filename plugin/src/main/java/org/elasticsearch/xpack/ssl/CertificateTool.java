@@ -17,6 +17,7 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.security.KeyPair;
+import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
@@ -34,6 +35,7 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import joptsimple.ArgumentAcceptingOptionSpec;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.bouncycastle.asn1.DERIA5String;
@@ -110,6 +112,7 @@ public class CertificateTool extends EnvironmentAwareCommand {
     private final OptionSpec<Integer> keysizeSpec;
     private final OptionSpec<String> inputFileSpec;
     private final OptionSpec<Integer> daysSpec;
+    private final ArgumentAcceptingOptionSpec<String> p12Spec;
 
     CertificateTool() {
         super(DESCRIPTION);
@@ -126,11 +129,17 @@ public class CertificateTool extends EnvironmentAwareCommand {
                 .withOptionalArg();
         caDnSpec = parser.accepts("dn", "distinguished name to use for the generated ca. defaults to " + AUTO_GEN_CA_DN)
                 .availableUnless(caCertPathSpec)
+                .availableUnless(csrSpec)
                 .withRequiredArg();
         keysizeSpec = parser.accepts("keysize", "size in bits of RSA keys").withRequiredArg().ofType(Integer.class);
         inputFileSpec = parser.accepts("in", "file containing details of the instances in yaml format").withRequiredArg();
-        daysSpec =
-                parser.accepts("days", "number of days that the generated certificates are valid").withRequiredArg().ofType(Integer.class);
+        daysSpec = parser.accepts("days", "number of days that the generated certificates are valid")
+                .availableUnless(csrSpec)
+                .withRequiredArg()
+                .ofType(Integer.class);
+        p12Spec = parser.accepts("p12", "output a p12 (PKCS#12) version for each certificate/key pair, with optional password")
+                .availableUnless(csrSpec)
+                .withOptionalArg();
     }
 
     public static void main(String[] args) throws Exception {
@@ -152,10 +161,18 @@ public class CertificateTool extends EnvironmentAwareCommand {
             final boolean prompt = options.has(caPasswordSpec);
             final char[] keyPass = options.hasArgument(caPasswordSpec) ? caPasswordSpec.value(options).toCharArray() : null;
             final int days = options.hasArgument(daysSpec) ? daysSpec.value(options) : DEFAULT_DAYS;
+            final char[] p12Password;
+            if (options.hasArgument(p12Spec)) {
+                p12Password = p12Spec.value(options).toCharArray();
+            } else if (options.has(p12Spec)) {
+                p12Password = new char[0];
+            } else {
+                p12Password = null;
+            }
             CAInfo caInfo = getCAInfo(terminal, dn, caCertPathSpec.value(options), caKeyPathSpec.value(options), keyPass, prompt, env,
                     keysize, days);
             Collection<CertificateInformation> certificateInformations = getCertificateInformationList(terminal, inputFile);
-            generateAndWriteSignedCertificates(outputFile, certificateInformations, caInfo, keysize, days);
+            generateAndWriteSignedCertificates(outputFile, certificateInformations, caInfo, keysize, days, p12Password);
         }
         printConclusion(terminal, csrOnly, outputFile);
     }
@@ -348,7 +365,7 @@ public class CertificateTool extends EnvironmentAwareCommand {
      * @param days the number of days that the certificate should be valid for
      */
     static void generateAndWriteSignedCertificates(Path outputFile, Collection<CertificateInformation> certificateInformations,
-                                                   CAInfo caInfo, int keysize, int days) throws Exception {
+                                                   CAInfo caInfo, int keysize, int days, char[] pkcs12Password) throws Exception {
         fullyWriteFile(outputFile, (outputStream, pemWriter) -> {
             // write out the CA info first if it was generated
             writeCAInfoIfGenerated(outputStream, pemWriter, caInfo);
@@ -366,16 +383,28 @@ public class CertificateTool extends EnvironmentAwareCommand {
                 outputStream.putNextEntry(zipEntry);
 
                 // write cert
-                outputStream.putNextEntry(new ZipEntry(dirName + certificateInformation.name.filename + ".crt"));
+                final String entryBase = dirName + certificateInformation.name.filename;
+                outputStream.putNextEntry(new ZipEntry(entryBase + ".crt"));
                 pemWriter.writeObject(certificate);
                 pemWriter.flush();
                 outputStream.closeEntry();
 
                 // write private key
-                outputStream.putNextEntry(new ZipEntry(dirName + certificateInformation.name.filename + ".key"));
+                outputStream.putNextEntry(new ZipEntry(entryBase + ".key"));
                 pemWriter.writeObject(keyPair.getPrivate());
                 pemWriter.flush();
                 outputStream.closeEntry();
+
+                if (pkcs12Password != null) {
+                    final KeyStore pkcs12 = KeyStore.getInstance("PKCS12");
+                    pkcs12.load(null);
+                    pkcs12.setKeyEntry(certificateInformation.name.originalName, keyPair.getPrivate(), pkcs12Password,
+                            new Certificate[]{certificate});
+
+                    outputStream.putNextEntry(new ZipEntry(entryBase + ".p12"));
+                    pkcs12.store(outputStream, pkcs12Password);
+                    outputStream.closeEntry();
+                }
             }
         });
     }
@@ -631,6 +660,13 @@ public class CertificateTool extends EnvironmentAwareCommand {
             return ALLOWED_FILENAME_CHAR_PATTERN.matcher(name).matches()
                     && ALLOWED_FILENAME_CHAR_PATTERN.matcher(resolvePath(name).toString()).matches()
                     && name.startsWith(".") == false;
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName()
+                    + "{original=[" + originalName + "] principal=[" + x500Principal
+                    + "] file=[" + filename + "] err=[" + error + "]}";
         }
     }
 

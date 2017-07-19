@@ -4,7 +4,7 @@
 To secure a cluster, you must install {xpack} on every node in the
 cluster. Basic authentication is enabled by default--to communicate
 with the cluster, you must specify a username and password.
-Unless you <<anonymous-access, enable anonymous access>>, all
+Unless you {xpack-ref}/anonymous-access.html[enable anonymous access], all
 requests that don't include a user name and password are rejected.
 
 {security} provides a built-in `elastic` superuser you can use
@@ -95,19 +95,19 @@ xpack.security.audit.enabled: true
 By default, events are logged to a dedicated `elasticsearch-access.log` file in
 `ES_HOME/logs`. You can also store the events in an Elasticsearch index for
 easier analysis and control what events are logged. For more information, see
-<<auditing, Configuring Auditing>>.
+{xpack-ref}/auditing.html[Configuring Auditing].
 --
 
 [[moving-on]]
 IMPORTANT:  Once you get these basic security measures in place, we strongly
             recommend that you secure communications to and from nodes by
-            configuring your cluster to use <<ssl-tls, SSL/TLS encryption>>.
+            configuring your cluster to use {xpack-ref}/ssl-tls.html[SSL/TLS encryption].
             Nodes that do not have encryption enabled send passwords in plain
             text!
 
 Depending on your security requirements, you might also want to:
 
-* Integrate with <<ldap-realm, LDAP>> or <<active-directory-realm, Active Directory>>,
-or <<pki-realm, require certificates>> for authentication.
-* Use <<ip-filtering, IP Filtering>> to allow or deny requests from particular
+* Integrate with {xpack-ref}/ldap-realm.html[LDAP] or {xpack-ref}/active-directory-realm.html[Active Directory],
+or {xpack-ref}/pki-realm.html[require certificates] for authentication.
+* Use {xpack-ref}/ip-filtering.html[IP Filtering] to allow or deny requests from particular
 IP addresses or address ranges.

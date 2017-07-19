@@ -318,7 +318,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         this.auditTrailService.set(auditTrailService);
 
         final SecurityLifecycleService securityLifecycleService =
-                new SecurityLifecycleService(settings, clusterService, threadPool, client, licenseState, indexAuditTrail);
+                new SecurityLifecycleService(settings, clusterService, threadPool, client, indexAuditTrail);
         final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, securityLifecycleService);
         components.add(tokenService);
 

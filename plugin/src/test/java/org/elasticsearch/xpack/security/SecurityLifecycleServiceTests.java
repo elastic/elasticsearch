@@ -34,20 +34,16 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
-import org.elasticsearch.xpack.security.authc.esnative.NativeRealmMigrator;
 import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.securityIndexMappingAndTemplateUpToDate;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -83,16 +79,9 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
             }
         }
 
-        NativeRealmMigrator nativeRealmMigrator = mock(NativeRealmMigrator.class);
-        Mockito.doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener) invocation.getArguments()[1];
-            listener.onResponse(false);
-            return null;
-        }).when(nativeRealmMigrator).performUpgrade(any(Version.class), any(ActionListener.class));
-
         InternalClient client = new IClient(transportClient);
         securityLifecycleService = new SecurityLifecycleService(Settings.EMPTY, clusterService,
-                threadPool, client, nativeRealmMigrator, mock(IndexAuditTrail.class));
+                threadPool, client, mock(IndexAuditTrail.class));
         listeners = new CopyOnWriteArrayList<>();
     }
 
@@ -110,7 +99,6 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
         );
         securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event",
                 clusterStateBuilder.build(), EMPTY_CLUSTER_STATE));
-        assertThat(securityLifecycleService.securityIndex().isTemplateUpToDate(), equalTo(true));
         // No upgrade actions run
         assertThat(listeners.size(), equalTo(0));
     }
@@ -133,7 +121,6 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(securityTemplateString);
         securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event",
                 clusterStateBuilder.build(), EMPTY_CLUSTER_STATE));
-        assertTrue(securityLifecycleService.securityIndex().isMappingUpToDate());
         assertThat(listeners.size(), equalTo(0));
     }
 
@@ -167,8 +154,6 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
         clusterStateBuilder.metaData(builder);
         securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
                 , EMPTY_CLUSTER_STATE));
-        assertTrue(securityLifecycleService.securityIndex().isMappingUpToDate());
-        assertThat(securityLifecycleService.securityIndex().getMappingVersion(), nullValue());
         assertThat(listeners.size(), equalTo(0));
     }
 

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -39,7 +40,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.security.authc.esnative.NativeRealmMigrator;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction;
@@ -161,7 +163,7 @@ public class Upgrade implements ActionPlugin {
                   Set<String> toConvert = new HashSet<>();
                   for (SearchHit searchHit : searchResponse.getHits()) {
                       Map<String, Object> sourceMap = searchHit.getSourceAsMap();
-                      if (NativeRealmMigrator.hasOldStyleDefaultPassword(sourceMap)) {
+                      if (hasOldStyleDefaultPassword(sourceMap)) {
                           toConvert.add(searchHit.getId());
                       }
                   }
@@ -197,6 +199,24 @@ public class Upgrade implements ActionPlugin {
                       });
                   }
               }, listener::onFailure));
+    }
+
+    /**
+     * Determines whether the supplied source as a {@link Map} has its password explicitly set to be the default password
+     */
+    private static boolean hasOldStyleDefaultPassword(Map<String, Object> userSource) {
+        // TODO we should store the hash as something other than a string... bytes?
+        final String passwordHash = (String) userSource.get(User.Fields.PASSWORD.getPreferredName());
+        if (passwordHash == null) {
+            throw new IllegalStateException("passwordHash should never be null");
+        } else if (passwordHash.isEmpty()) {
+            // we know empty is the new style
+            return false;
+        }
+
+        try (SecureString secureString = new SecureString(passwordHash.toCharArray())) {
+            return Hasher.BCRYPT.verify(ReservedRealm.EMPTY_PASSWORD_TEXT, secureString.getChars());
+        }
     }
 
     static BiFunction<InternalClient, ClusterService, IndexUpgradeCheck> getWatcherUpgradeCheckFactory(Settings settings) {

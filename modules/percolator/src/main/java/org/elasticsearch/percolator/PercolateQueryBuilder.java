@@ -440,7 +440,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 }
                 if(getResponse.isSourceEmpty()) {
                     throw new IllegalArgumentException(
-                        "indexed document [" + indexedDocumentIndex + "/" + indexedDocumentType + "/" + indexedDocumentId + "] source disabled"
+                        "indexed document [" + indexedDocumentIndex + "/" + indexedDocumentType + "/" + indexedDocumentId
+                            + "] source disabled"
                     );
                 }
                 documentSupplier.set(getResponse.getSourceAsBytesRef());

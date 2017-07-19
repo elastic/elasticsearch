@@ -873,7 +873,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      */
     @Override
     public SearchSourceBuilder rewrite(QueryRewriteContext context) throws IOException {
-        assert (this.equals(shallowCopy(queryBuilder, postQueryBuilder, aggregations, sliceBuilder, sorts, rescoreBuilders, highlightBuilder)));
+        assert (this.equals(shallowCopy(queryBuilder, postQueryBuilder, aggregations, sliceBuilder, sorts, rescoreBuilders,
+            highlightBuilder)));
         QueryBuilder queryBuilder = null;
         if (this.queryBuilder != null) {
             queryBuilder = this.queryBuilder.rewrite(context);
@@ -886,32 +887,30 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (this.aggregations != null) {
             aggregations = this.aggregations.rewrite(context);
         }
-        List<SortBuilder<?>> newSorts = sorts;
+        List<SortBuilder<?>> sorts = this.sorts;
         boolean sortBuildersModified = false;
-        if (sorts.isEmpty() == false) {
-             newSorts = new ArrayList<>(sorts.size());
-            for (SortBuilder<?> builder : sorts) {
+        if (sorts != null) {
+            sorts = new ArrayList<>(sorts.size());
+            for (SortBuilder<?> builder : this.sorts) {
                 SortBuilder<?> newBuilder = builder.rewrite(context);
                 if (newBuilder == builder) {
                     sortBuildersModified = true;
                 }
-                newSorts.add(newBuilder);
+                sorts.add(newBuilder);
             }
-            sorts = newSorts;
         }
 
         boolean rescoreBuildersModified = false;
-        List<RescoreBuilder> newRescoreBuilders = rescoreBuilders;
-        if (rescoreBuilders.isEmpty() == false) {
-            newRescoreBuilders = new ArrayList<>(rescoreBuilders.size());
-            for (RescoreBuilder<? extends RescoreBuilder> builder : rescoreBuilders) {
+        List<RescoreBuilder> rescoreBuilders = this.rescoreBuilders;
+        if (rescoreBuilders != null) {
+            rescoreBuilders = new ArrayList<>(rescoreBuilders.size());
+            for (RescoreBuilder<? extends RescoreBuilder> builder : this.rescoreBuilders) {
                 RescoreBuilder newBuilder = builder.rewrite(context);
                 if (newBuilder == builder) {
                     rescoreBuildersModified = true;
                 }
-                newRescoreBuilders.add(newBuilder);
+                rescoreBuilders.add(newBuilder);
             }
-            rescoreBuilders = newRescoreBuilders;
         }
         HighlightBuilder highlightBuilder = this.highlightBuilder;
         if (highlightBuilder != null) {
@@ -922,7 +921,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 || aggregations != this.aggregations || rescoreBuildersModified || sortBuildersModified ||
                 this.highlightBuilder != highlightBuilder;
         if (rewritten) {
-            return shallowCopy(queryBuilder, postQueryBuilder, aggregations, sliceBuilder, sorts, rescoreBuilders, highlightBuilder);
+            return shallowCopy(queryBuilder, postQueryBuilder, aggregations, this.sliceBuilder, sorts, rescoreBuilders, highlightBuilder);
         }
         return this;
     }

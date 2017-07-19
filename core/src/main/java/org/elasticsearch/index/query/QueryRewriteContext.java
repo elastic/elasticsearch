@@ -36,7 +36,7 @@ public class QueryRewriteContext {
     private final NamedXContentRegistry xContentRegistry;
     protected final Client client;
     protected final LongSupplier nowInMillis;
-    private final List<BiConsumer<Client, ActionListener>> asyncActions = new ArrayList<>();
+    private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
 
 
     public QueryRewriteContext(NamedXContentRegistry xContentRegistry, Client client, LongSupplier nowInMillis) {
@@ -63,7 +63,7 @@ public class QueryRewriteContext {
         return null;
     }
 
-    public void registerAsyncAction(BiConsumer<Client, ActionListener> asyncAction) {
+    public void registerAsyncAction(BiConsumer<Client, ActionListener<?>> asyncAction) {
         asyncActions.add(asyncAction);
     }
 
@@ -91,9 +91,9 @@ public class QueryRewriteContext {
                     }
                 }
             };
-            ArrayList<BiConsumer<Client, ActionListener>> biConsumers = new ArrayList<>(asyncActions);
+            ArrayList<BiConsumer<Client, ActionListener<?>>> biConsumers = new ArrayList<>(asyncActions);
             asyncActions.clear();
-            for (BiConsumer<Client, ActionListener> action : biConsumers) {
+            for (BiConsumer<Client, ActionListener<?>> action : biConsumers) {
                 action.accept(client, internalListener);
             }
         }

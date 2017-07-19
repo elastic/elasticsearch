@@ -5,26 +5,6 @@
  */
 package org.elasticsearch.xpack.security;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
-import java.time.Clock;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
@@ -131,7 +111,6 @@ import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.ContainerSettings;
 import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.elasticsearch.xpack.security.authc.Realm;
@@ -156,7 +135,6 @@ import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.bootstrap.BootstrapElasticPassword;
-import org.elasticsearch.xpack.security.bootstrap.ContainerPasswordBootstrapCheck;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
@@ -187,6 +165,26 @@ import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
+import java.time.Clock;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -324,10 +322,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, securityLifecycleService);
         components.add(tokenService);
 
-        final ContainerSettings containerSettings = ContainerSettings.parseAndCreate();
-
         // realms construction
-        final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityLifecycleService, containerSettings);
+        final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityLifecycleService);
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityLifecycleService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore,
@@ -512,8 +508,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
                     new SSLBootstrapCheck(sslService, settings, env),
                     new TokenPassphraseBootstrapCheck(settings),
                     new TokenSSLBootstrapCheck(settings),
-                    new PkiRealmBootstrapCheck(settings, sslService),
-                    new ContainerPasswordBootstrapCheck()
+                    new PkiRealmBootstrapCheck(settings, sslService)
             );
             checks.addAll(InternalRealms.getBootstrapChecks(settings));
             return checks;

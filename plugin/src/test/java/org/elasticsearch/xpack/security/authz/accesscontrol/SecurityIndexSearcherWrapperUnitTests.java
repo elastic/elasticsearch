@@ -679,7 +679,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
-        QueryRewriteContext context = new QueryRewriteContext(null, null, scriptService, xContentRegistry(), client, null,
+        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), client,
                 () -> nowInMillis);
         QueryBuilder queryBuilder1 = new TermsQueryBuilder("field", "val1", "val2");
         SecurityIndexSearcherWrapper.failIfQueryUsesClient(scriptService, queryBuilder1, context);

@@ -358,8 +358,8 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                 throw new IllegalStateException("role queries are not allowed to execute additional requests");
             }
         };
-        QueryRewriteContext copy = new QueryRewriteContext(original.getIndexSettings(), original.getMapperService(), scriptService,
-                original.getXContentRegistry(), client, original.getIndexReader(), original::nowInMillis);
+        QueryRewriteContext copy = new QueryRewriteContext(
+                original.getXContentRegistry(), client, original::nowInMillis);
         queryBuilder.rewrite(copy);
     }
 }

@@ -112,6 +112,27 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public AbstractHighlighterBuilder() {
     }
 
+    protected AbstractHighlighterBuilder(AbstractHighlighterBuilder template, QueryBuilder queryBuilder) {
+        preTags = template.preTags;
+        postTags = template.postTags;
+        fragmentSize = template.fragmentSize;
+        numOfFragments = template.numOfFragments;
+        highlighterType = template.highlighterType;
+        fragmenter = template.fragmenter;
+        highlightQuery = queryBuilder;
+        order = template.order;
+        highlightFilter = template.highlightFilter;
+        forceSource = template.forceSource;
+        boundaryScannerType = template.boundaryScannerType;
+        boundaryMaxScan = template.boundaryMaxScan;
+        boundaryChars = template.boundaryChars;
+        boundaryScannerLocale = template.boundaryScannerLocale;
+        noMatchSize = template.noMatchSize;
+        phraseLimit = template.phraseLimit;
+        options = template.options;
+        requireFieldMatch = template.requireFieldMatch;
+    }
+
     /**
      * Read from a stream.
      */

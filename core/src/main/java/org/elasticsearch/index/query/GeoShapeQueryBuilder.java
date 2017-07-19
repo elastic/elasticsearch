@@ -380,7 +380,6 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
      * @param path
      *            Name or path of the field in the Shape Document where the
      *            Shape itself is located
-     * @return Shape with the given ID
      */
     private void fetch(Client client, GetRequest getRequest, String path, ActionListener<ShapeBuilder> listener) {
         if (ShapesAvailability.JTS_AVAILABLE == false) {

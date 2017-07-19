@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
@@ -48,7 +49,7 @@ import java.util.Optional;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
-public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentToBytes implements NamedWriteable {
+public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentToBytes implements NamedWriteable, Rewriteable<SortBuilder>{
 
     protected SortOrder order = SortOrder.ASC;
 
@@ -190,7 +191,8 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
             Query innerDocumentsQuery;
             if (nestedFilter != null) {
                 context.nestedScope().nextLevel(nestedObjectMapper);
-                innerDocumentsQuery = Rewriteable.rewrite(nestedFilter, context).toFilter(context);
+                assert nestedFilter == Rewriteable.rewrite(nestedFilter, context) : "nested filter is not rewritten";
+                innerDocumentsQuery = nestedFilter.toFilter(context);
                 context.nestedScope().previousLevel();
             } else {
                 innerDocumentsQuery = nestedObjectMapper.nestedTypeFilter();
@@ -211,5 +213,10 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
     @FunctionalInterface
     private interface Parser<T extends SortBuilder<?>> {
         T fromXContent(XContentParser parser, String elementName) throws IOException;
+    }
+
+    @Override
+    public SortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        return this;
     }
 }

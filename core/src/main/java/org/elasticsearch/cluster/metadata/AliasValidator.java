@@ -145,6 +145,9 @@ public class AliasValidator extends AbstractComponent {
     private static void validateAliasFilter(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
         QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
         QueryBuilder queryBuilder = Rewriteable.rewrite(parseInnerQueryBuilder, queryShardContext);
+        if (queryShardContext.hasAsyncActions()) {
+            throw new IllegalStateException("alias filter must be stateless and must not depend on document fetching");
+        }
         queryBuilder.toFilter(queryShardContext);
     }
 }

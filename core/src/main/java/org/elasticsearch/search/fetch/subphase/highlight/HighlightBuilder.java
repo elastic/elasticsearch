@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.FieldOptions;
@@ -54,7 +55,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
  *
  * @see org.elasticsearch.search.builder.SearchSourceBuilder#highlight()
  */
-public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder> {
+public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder> implements Rewriteable<HighlightBuilder> {
     /** default for whether to highlight fields based on the source even if stored separately */
     public static final boolean DEFAULT_FORCE_SOURCE = false;
     /** default for whether a field should be highlighted only if a query matches that field */
@@ -99,13 +100,21 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             .boundaryMaxScan(SimpleBoundaryScanner.DEFAULT_MAX_SCAN).boundaryChars(SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS)
             .boundaryScannerLocale(Locale.ROOT).noMatchSize(DEFAULT_NO_MATCH_SIZE).phraseLimit(DEFAULT_PHRASE_LIMIT).build();
 
-    private final List<Field> fields = new ArrayList<>();
+    private final List<Field> fields;
 
     private String encoder;
 
     private boolean useExplicitFieldOrder = false;
 
     public HighlightBuilder() {
+        fields = new ArrayList<>();
+    }
+
+    private HighlightBuilder(HighlightBuilder template, QueryBuilder highlightQuery) {
+        super(template, highlightQuery);
+        this.encoder = template.encoder;
+        this.useExplicitFieldOrder = template.useExplicitFieldOrder;
+        fields = template.fields;
     }
 
     /**
@@ -115,20 +124,14 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         super(in);
         encoder(in.readOptionalString());
         useExplicitFieldOrder(in.readBoolean());
-        int fields = in.readVInt();
-        for (int i = 0; i < fields; i++) {
-            field(new Field(in));
-        }
+        this.fields = in.readList(Field::new);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalString(encoder);
         out.writeBoolean(useExplicitFieldOrder);
-        out.writeVInt(fields.size());
-        for (int i = 0; i < fields.size(); i++) {
-            fields.get(i).writeTo(out);
-        }
+        out.writeList(fields);
     }
 
     /**
@@ -358,7 +361,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             targetOptionsBuilder.options(highlighterBuilder.options);
         }
         if (highlighterBuilder.highlightQuery != null) {
-            targetOptionsBuilder.highlightQuery(Rewriteable.rewrite(highlighterBuilder.highlightQuery, context).toQuery(context));
+            targetOptionsBuilder.highlightQuery(highlighterBuilder.highlightQuery.toQuery(context));
         }
     }
 
@@ -414,6 +417,19 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         return Objects.equals(encoder, other.encoder) &&
                 Objects.equals(useExplicitFieldOrder, other.useExplicitFieldOrder) &&
                 Objects.equals(fields, other.fields);
+    }
+
+    @Override
+    public HighlightBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        if (highlightQuery == null) {
+            return this;
+        }
+        QueryBuilder rewrite = highlightQuery.rewrite(ctx);
+        if (rewrite == highlightQuery) {
+            return this;
+        }
+        return new HighlightBuilder(this, rewrite);
+
     }
 
     public static class Field extends AbstractHighlighterBuilder<Field> {

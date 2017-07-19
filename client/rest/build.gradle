@@ -19,6 +19,19 @@
 
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 
+/**
+ * The rest client is a shaded jar. It contains the source of the rest client, as well as all the dependencies,
+ * shaded to the `internal.` package. 3 artifacts come out of this build process.
+ *
+ * 1) The original jar contents, using the `internal.` packages, but without the `internal.` code also in the jar.
+ *    The reason this jar was not overwritten was because gradle knows what its inputs and outputs are for a given task
+ *    and we should not alter that by overwriting the original jar. What we do is add a `nodeps` classifier to it instead.
+ * 2) A jar that contains *only* the `internal.` dependencies. This is a jar that is built before the src is compiled.
+ *    This jar is only used by the rest client so its compilable. There exists a chicken-egg situation where the src
+ *    needs compilation and depends on `internal.` classes, so an intermediary jar needs to exist to satisfy the compile.
+ *    The `deps` classifier is added to this jar.
+ * 3) The *actual* jar that will be used by clients. This has no classifier, contains the rest client src and `internal.`.
+ */
 plugins {
   id "com.github.johnrengelman.shadow" version "2.0.1"
 }
@@ -63,7 +76,7 @@ task shadeDeps(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar)
   }
 }
 
-// Actual task for
+// builds the actual shaded jar that is being distributed
 shadowJar {
   configurations = [project.configurations.shade]
   classifier = null

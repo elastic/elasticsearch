@@ -30,6 +30,6 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         LicensesMetaData licenseMetaData = stateWithLicense.metaData().custom(LicensesMetaData.TYPE);
         assertNotNull(licenseMetaData);
         assertNotNull(licenseMetaData.getLicense());
-        assertEquals(clock.millis() + LicenseService.TRIAL_LICENSE_DURATION.millis(), licenseMetaData.getLicense().expiryDate());
+        assertEquals(clock.millis() + LicenseService.SELF_GENERATED_LICENSE_DURATION.millis(), licenseMetaData.getLicense().expiryDate());
     }
 }

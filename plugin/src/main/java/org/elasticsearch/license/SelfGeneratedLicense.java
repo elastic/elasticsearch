@@ -21,11 +21,10 @@ import java.util.Collections;
 import static org.elasticsearch.license.CryptUtils.decrypt;
 import static org.elasticsearch.license.CryptUtils.encrypt;
 
-class TrialLicense {
+class SelfGeneratedLicense {
 
     public static License create(License.Builder specBuilder) {
         License spec = specBuilder
-                .type("trial")
                 .issuer("elasticsearch")
                 .version(License.VERSION_CURRENT)
                 .build();

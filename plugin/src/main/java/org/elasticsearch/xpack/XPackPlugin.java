@@ -377,6 +377,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         settings.addAll(licensing.getSettings());
         settings.addAll(XPackSettings.getAllSettings());
 
+        settings.add(LicenseService.SELF_GENERATED_LICENSE_TYPE);
+
         // we add the `xpack.version` setting to all internal indices
         settings.add(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
 

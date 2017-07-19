@@ -23,17 +23,19 @@ import static org.elasticsearch.license.CryptUtils.encrypt;
 import static org.hamcrest.Matchers.equalTo;
 
 
-public class TrialLicenseTests extends ESTestCase {
+public class SelfGeneratedLicenseTests extends ESTestCase {
+
     public void testBasic() throws Exception {
         long issueDate = System.currentTimeMillis();
         License.Builder specBuilder = License.builder()
                 .uid(UUID.randomUUID().toString())
                 .issuedTo("customer")
                 .maxNodes(5)
+                .type(randomBoolean() ? "trial" : "basic")
                 .issueDate(issueDate)
                 .expiryDate(issueDate + TimeValue.timeValueHours(2).getMillis());
-        License trialLicense = TrialLicense.create(specBuilder);
-        assertThat(TrialLicense.verify(trialLicense), equalTo(true));
+        License trialLicense = SelfGeneratedLicense.create(specBuilder);
+        assertThat(SelfGeneratedLicense.verify(trialLicense), equalTo(true));
     }
 
     public void testTampered() throws Exception {
@@ -41,16 +43,17 @@ public class TrialLicenseTests extends ESTestCase {
         License.Builder specBuilder = License.builder()
                 .uid(UUID.randomUUID().toString())
                 .issuedTo("customer")
+                .type(randomBoolean() ? "trial" : "basic")
                 .maxNodes(5)
                 .issueDate(issueDate)
                 .expiryDate(issueDate + TimeValue.timeValueHours(2).getMillis());
-        License trialLicense = TrialLicense.create(specBuilder);
+        License trialLicense = SelfGeneratedLicense.create(specBuilder);
         final String originalSignature = trialLicense.signature();
         License tamperedLicense = License.builder().fromLicenseSpec(trialLicense, originalSignature)
                 .expiryDate(System.currentTimeMillis() + TimeValue.timeValueHours(5).getMillis())
                 .build();
-        assertThat(TrialLicense.verify(trialLicense), equalTo(true));
-        assertThat(TrialLicense.verify(tamperedLicense), equalTo(false));
+        assertThat(SelfGeneratedLicense.verify(trialLicense), equalTo(true));
+        assertThat(SelfGeneratedLicense.verify(tamperedLicense), equalTo(false));
     }
 
     public void testFrom1x() throws Exception {
@@ -67,8 +70,8 @@ public class TrialLicenseTests extends ESTestCase {
                 .issueDate(issueDate)
                 .expiryDate(issueDate + TimeValue.timeValueHours(2).getMillis());
         License pre20TrialLicense = specBuilder.build();
-        License license = TrialLicense.create(License.builder().fromPre20LicenseSpec(pre20TrialLicense));
-        assertThat(TrialLicense.verify(license), equalTo(true));
+        License license = SelfGeneratedLicense.create(License.builder().fromPre20LicenseSpec(pre20TrialLicense).type("trial"));
+        assertThat(SelfGeneratedLicense.verify(license), equalTo(true));
     }
 
     public void testTrialLicenseVerifyWithOlderVersion() throws Exception {
@@ -82,12 +85,12 @@ public class TrialLicenseTests extends ESTestCase {
                 .subscriptionType("trial")
                 .version(1);
         License trialLicenseV1 = createTrialLicense(specBuilder);
-        assertThat(TrialLicense.verify(trialLicenseV1), equalTo(true));
+        assertThat(SelfGeneratedLicense.verify(trialLicenseV1), equalTo(true));
     }
 
-    static License createTrialLicense(License.Builder specBuilder) {
+    private static License createTrialLicense(License.Builder specBuilder) {
         License spec = specBuilder
-                .type("trial")
+                .type(randomBoolean() ? "trial" : "basic")
                 .issuer("elasticsearch")
                 .uid(UUID.randomUUID().toString())
                 .build();

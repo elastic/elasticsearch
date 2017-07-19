@@ -283,7 +283,7 @@ public class FunctionScoreTests extends ESTestCase {
     public void testExplainFunctionScoreQuery() throws IOException {
 
         Explanation functionExplanation = getFunctionScoreExplanation(searcher, RANDOM_SCORE_FUNCTION);
-        checkFunctionScoreExplanation(functionExplanation, "random score function (seed: 0)");
+        checkFunctionScoreExplanation(functionExplanation, "random score function (seed: 0, field: test)");
         assertThat(functionExplanation.getDetails()[0].getDetails().length, equalTo(0));
 
         functionExplanation = getFunctionScoreExplanation(searcher, FIELD_VALUE_FACTOR_FUNCTION);
@@ -331,7 +331,7 @@ public class FunctionScoreTests extends ESTestCase {
 
     public void testExplainFiltersFunctionScoreQuery() throws IOException {
         Explanation functionExplanation = getFiltersFunctionScoreExplanation(searcher, RANDOM_SCORE_FUNCTION);
-        checkFiltersFunctionScoreExplanation(functionExplanation, "random score function (seed: 0)", 0);
+        checkFiltersFunctionScoreExplanation(functionExplanation, "random score function (seed: 0, field: test)", 0);
         assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails()[1].getDetails().length, equalTo(0));
 
         functionExplanation = getFiltersFunctionScoreExplanation(searcher, FIELD_VALUE_FACTOR_FUNCTION);
@@ -366,7 +366,7 @@ public class FunctionScoreTests extends ESTestCase {
             , LIN_DECAY_FUNCTION
         );
 
-        checkFiltersFunctionScoreExplanation(functionExplanation, "random score function (seed: 0)", 0);
+        checkFiltersFunctionScoreExplanation(functionExplanation, "random score function (seed: 0, field: test)", 0);
         assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails()[1].getDetails().length, equalTo(0));
 
         checkFiltersFunctionScoreExplanation(functionExplanation, "field value function: ln(doc['test'].value?:1.0 * factor=1.0)", 1);

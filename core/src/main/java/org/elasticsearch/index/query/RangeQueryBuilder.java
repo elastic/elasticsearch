@@ -442,7 +442,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
         // If the context is null we are not on the shard and cannot
         // rewrite so just pretend there is an intersection so that the rewrite is a noop
-        if (shardContext == null) {
+        if (shardContext == null || shardContext.getIndexReader() == null) {
             return MappedFieldType.Relation.INTERSECTS;
         }
         final MapperService mapperService = shardContext.getMapperService();

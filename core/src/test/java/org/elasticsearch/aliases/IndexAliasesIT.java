@@ -33,11 +33,9 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.StopWatch;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
@@ -442,8 +440,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertTrue(admin().indices().prepareAliasesExist("foo").get().exists());
         assertFalse(admin().indices().prepareAliasesExist("foo").setIndices("foo_foo").get().exists());
         assertTrue(admin().indices().prepareAliasesExist("foo").setIndices("bar_bar").get().exists());
-        expectThrows(IndexNotFoundException.class, () -> admin().indices().prepareAliases()
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> admin().indices().prepareAliases()
                 .addAliasAction(AliasActions.remove().index("foo").alias("foo")).execute().actionGet());
+        assertEquals("The provided expression [foo] matches an alias, specify the corresponding concrete indices instead.",
+                iae.getMessage());
     }
 
     public void testWaitForAliasCreationMultipleShards() throws Exception {
@@ -824,10 +824,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> adding [week_20] alias to [2017-05-20]");
         assertAcked(admin().indices().prepareAliases().addAlias("2017-05-20", "week_20"));
 
-        IndexNotFoundException infe = expectThrows(IndexNotFoundException.class, () -> admin().indices().prepareAliases()
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> admin().indices().prepareAliases()
                 .addAliasAction(AliasActions.add().index("week_20").alias("tmp")).execute().actionGet());
-        assertEquals("week_20", infe.getIndex().getName());
-
+        assertEquals("The provided expression [week_20] matches an alias, specify the corresponding concrete indices instead.",
+                iae.getMessage());
         assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.add().index("2017-05-20").alias("tmp")).execute().get());
     }
 
@@ -916,8 +916,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked(admin().indices().prepareAliases().addAlias("foo_foo", "foo"));
         assertAcked(admin().indices().prepareAliases().addAlias("bar_bar", "foo"));
 
-        expectThrows(IndexNotFoundException.class,
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
                 () -> client().admin().indices().prepareAliases().removeIndex("foo").execute().actionGet());
+        assertEquals("The provided expression [foo] matches an alias, specify the corresponding concrete indices instead.",
+                iae.getMessage());
 
         assertAcked(client().admin().indices().prepareAliases().removeIndex("foo*").execute().get());
         assertFalse(client().admin().indices().prepareExists("foo_foo").execute().actionGet().isExists());

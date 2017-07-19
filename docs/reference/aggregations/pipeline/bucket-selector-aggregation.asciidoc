@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-bucket-selector-aggregation]]
 === Bucket Selector Aggregation
 
-experimental[]
-
 A parent pipeline aggregation which executes a script which determines whether the current bucket will be retained
 in the parent multi-bucket aggregation. The specified metric must be numeric and the script must return a boolean value.
 If the script language is `expression` then a numeric return value is permitted. In this case 0.0 will be evaluated as `false`

@@ -30,6 +30,23 @@ only. Related, this means that the environment variables `DATA_DIR` and
 `LOG_DIR` no longer have any effect as these were used to set
 `default.path.data` and `default.path.logs` in the packaging scripts.
 
+Additionally, this means that if you were using the package distributions (i.e.,
+you have installed Elasticsearch from the RPM or the DEB distributions), you had
+not previously explicitly configured `path.data` or `path.logs`, and you carry
+over your `elasticsearch.yml` file from 5.x, then you will need to add settings
+for `path.data` and `path.logs`. To use the defaults that you were implicitly
+using previously, you should add these lines to your `elasticsearch.yml`:
+
+[source,yaml]
+--------------------------------------------------
+path.data: /var/lib/elasticsearch
+path.logs: /var/log/elasticsearch
+--------------------------------------------------
+
+(If you already had explicit values for either of these settings, you should of
+course preserve those). If you do not do this, Elasticsearch will refuse to
+start.
+
 ==== 32-bit is no longer maintained
 
 We previously attempted to ensure that Elasticsearch could be started on 32-bit

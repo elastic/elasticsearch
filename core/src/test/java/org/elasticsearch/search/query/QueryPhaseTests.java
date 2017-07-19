@@ -499,6 +499,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
             doc.add(new NumericDocValuesField("tiebreaker", i));
             w.addDocument(doc);
         }
+        // Make sure that we can early terminate queries on this index
+        w.forceMerge(3);
         w.close();
 
         TestSearchContext context = new TestSearchContext(null, indexShard);

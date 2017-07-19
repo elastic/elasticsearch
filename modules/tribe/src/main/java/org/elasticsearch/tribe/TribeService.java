@@ -23,6 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -165,7 +166,20 @@ public class TribeService extends AbstractLifecycleComponent {
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
             Settings clientSettings = buildClientSettings(entry.getKey(), nodeEnvironment.nodeId(), settings, entry.getValue());
-            nodes.add(clientNodeBuilder.newNode(clientSettings, environment.configFile()));
+            try {
+                nodes.add(clientNodeBuilder.newNode(clientSettings, environment.configFile()));
+            } catch (Exception e) {
+                // calling close is safe for non started nodes, we can just iterate over all
+                for (Node otherNode : nodes) {
+                    try {
+                        otherNode.close();
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to close node {} on failed start", otherNode), inner);
+                    }
+                }
+                throw ExceptionsHelper.convertToRuntime(e);
+            }
         }
 
         this.blockIndicesMetadata = BLOCKS_METADATA_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
@@ -237,10 +251,7 @@ public class TribeService extends AbstractLifecycleComponent {
                         logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to close node {} on failed start", otherNode), inner);
                     }
                 }
-                if (e instanceof RuntimeException) {
-                    throw (RuntimeException) e;
-                }
-                throw new ElasticsearchException(e);
+                throw ExceptionsHelper.convertToRuntime(e);
             }
         }
     }

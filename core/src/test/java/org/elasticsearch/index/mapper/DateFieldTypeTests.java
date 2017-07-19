@@ -74,8 +74,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testIsFieldWithinQueryEmptyReader() throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(null, null, null, xContentRegistry(), null, null,
-                () -> nowInMillis);
+        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), null,
+            () -> nowInMillis);
         IndexReader reader = new MultiReader();
         DateFieldType ft = new DateFieldType();
         ft.setName("my_date");
@@ -85,8 +85,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private void doTestIsFieldWithinQuery(DateFieldType ft, DirectoryReader reader,
             DateTimeZone zone, DateMathParser alternateFormat) throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(null, null, null, xContentRegistry(), null, null,
-                () -> nowInMillis);
+        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), null,
+            () -> nowInMillis);
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02",
                 randomBoolean(), randomBoolean(), null, null, context));
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2016-01-02", "2016-06-20",
@@ -133,8 +133,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         DateFieldType ft2 = new DateFieldType();
         ft2.setName("my_date2");
 
-        QueryRewriteContext context = new QueryRewriteContext(null, null, null, xContentRegistry(), null, null,
-                () -> nowInMillis);
+        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), null,
+            () -> nowInMillis);
         assertEquals(Relation.DISJOINT, ft2.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", false, false, null, null, context));
         IOUtils.close(reader, w, dir);
     }

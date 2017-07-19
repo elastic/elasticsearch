@@ -38,17 +38,39 @@ public interface Rewriteable<T> {
      * Rewrites the given {@link Rewriteable} into its primitive form. Rewriteables that for instance fetch resources from remote hosts or
      * can simplify / optimize itself should do their heavy lifting during {@link #rewrite(QueryRewriteContext)}. This method
      * rewrites the rewriteable until it doesn't change anymore.
+     * @param original the original rewriteable to rewrite
+     * @param context the rewrite context to use
      * @throws IOException if an {@link IOException} occurs
      */
     static <T extends Rewriteable<T>> T rewrite(T original, QueryRewriteContext context) throws IOException {
+        return rewrite(original, context, false);
+    }
+
+    /**
+     * Rewrites the given {@link Rewriteable} into its primitive form. Rewriteables that for instance fetch resources from remote hosts or
+     * can simplify / optimize itself should do their heavy lifting during {@link #rewrite(QueryRewriteContext)}. This method
+     * rewrites the rewriteable until it doesn't change anymore.
+     * @param original the original rewriteable to rewrite
+     * @param context the rewrite context to use
+     * @param assertNoAsyncTasks if <code>true</code> the rewrite will fail if there are any pending async tasks on the context after the
+     *                          rewrite. See {@link QueryRewriteContext#executeAsyncActions(ActionListener)} for detals
+     * @throws IOException if an {@link IOException} occurs
+     */
+    static <T extends Rewriteable<T>> T rewrite(T original, QueryRewriteContext context, boolean assertNoAsyncTasks) throws IOException {
         T builder = original;
         for (T rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder;
              rewrittenBuilder = builder.rewrite(context)) {
+            if (assertNoAsyncTasks && context.hasAsyncActions()) {
+                throw new IllegalStateException("async actions are left after rewrite");
+            }
             builder = rewrittenBuilder;
         }
         return builder;
     }
 
+    /**
+     * Rewrites the given rewriteable and fetches pending async tasks for each round before rewriting again.
+     */
     static <T extends Rewriteable<T>> void rewriteAndFetch(T original, QueryRewriteContext context, ActionListener<T> rewriteResponse) {
         T builder = original;
         try {

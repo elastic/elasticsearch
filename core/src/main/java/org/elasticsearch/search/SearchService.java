@@ -559,10 +559,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout, @Nullable Engine.Searcher searcher)
         throws IOException {
-        return createSearchContext(request, timeout, searcher, false);
+        return createSearchContext(request, timeout, searcher, true);
     }
     private DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout, @Nullable Engine.Searcher searcher,
-                                                     boolean ignoreAsyncActions)
+                                                     boolean assertAsyncActions)
             throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().getId());
@@ -579,10 +579,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // might end up with incorrect state since we are using now() or script services
             // during rewrite and normalized / evaluate templates etc.
             QueryShardContext context = new QueryShardContext(searchContext.getQueryShardContext());
-            Rewriteable.rewrite(request.getRewriteable(), context);
-            if (ignoreAsyncActions == false && context.hasAsyncActions()) {
-                throw new IllegalStateException("async actions are left after rewrite");
-            }
+            Rewriteable.rewrite(request.getRewriteable(), context, assertAsyncActions);
             assert searchContext.getQueryShardContext().isCachable();
             success = true;
         } finally {
@@ -904,7 +901,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public boolean canMatch(ShardSearchRequest request) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
-        try (DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, null, true)) {
+        try (DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, null, false)) {
             SearchSourceBuilder source = context.request().source();
             if (canRewriteToMatchNone(source)) {
                 QueryBuilder queryBuilder = source.query();

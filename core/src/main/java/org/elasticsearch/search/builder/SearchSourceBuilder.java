@@ -893,7 +893,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             sorts = new ArrayList<>(sorts.size());
             for (SortBuilder<?> builder : this.sorts) {
                 SortBuilder<?> newBuilder = builder.rewrite(context);
-                if (newBuilder == builder) {
+                if (newBuilder != builder) {
                     sortBuildersModified = true;
                 }
                 sorts.add(newBuilder);
@@ -906,7 +906,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             rescoreBuilders = new ArrayList<>(rescoreBuilders.size());
             for (RescoreBuilder<? extends RescoreBuilder> builder : this.rescoreBuilders) {
                 RescoreBuilder newBuilder = builder.rewrite(context);
-                if (newBuilder == builder) {
+                if (newBuilder != builder) {
                     rescoreBuildersModified = true;
                 }
                 rescoreBuilders.add(newBuilder);

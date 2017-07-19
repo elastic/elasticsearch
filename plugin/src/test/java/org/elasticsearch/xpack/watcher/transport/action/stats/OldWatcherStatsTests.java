@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.transport.action.stats;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.OldWatcherStatsAction;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.OldWatcherStatsRequest;
@@ -17,7 +18,8 @@ public class OldWatcherStatsTests extends AbstractWatcherIntegrationTestCase {
 
     // these stats are not exposed in the watcherclient as they are only needed for the rolling upgrade
     public void testPre6xWatcherStats() throws Exception {
-        OldWatcherStatsResponse response = client().execute(OldWatcherStatsAction.INSTANCE, new OldWatcherStatsRequest()).actionGet();
+        Client client = securityEnabled() ? internalCluster().transportClient() : client();
+        OldWatcherStatsResponse response = client.execute(OldWatcherStatsAction.INSTANCE, new OldWatcherStatsRequest()).actionGet();
         assertThat(response.getThreadPoolMaxSize(), is(greaterThanOrEqualTo(0L)));
         assertThat(response.getThreadPoolQueueSize(), is(greaterThanOrEqualTo(0L)));
         assertThat(response.getWatchesCount(), is(greaterThanOrEqualTo(0L)));

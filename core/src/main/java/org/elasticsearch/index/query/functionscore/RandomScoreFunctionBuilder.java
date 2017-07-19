@@ -58,7 +58,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         if (in.readBoolean()) {
             seed = in.readInt();
         }
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             field = in.readOptionalString();
         }
     }
@@ -71,7 +71,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             out.writeOptionalString(field);
         }
     }

@@ -214,9 +214,4 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
     private interface Parser<T extends SortBuilder<?>> {
         T fromXContent(XContentParser parser, String elementName) throws IOException;
     }
-
-    @Override
-    public SortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
-        return this;
-    }
 }

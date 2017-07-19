@@ -377,10 +377,9 @@ public class QueryShardContext extends QueryRewriteContext {
         return super.nowInMillis();
     }
 
-    @Override
     public Client getClient() {
         failIfFrozen(); // we somebody uses a terms filter with lookup for instance can't be cached...
-        return super.getClient();
+        return client;
     }
 
     public QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {

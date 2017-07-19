@@ -239,7 +239,7 @@ final class DefaultSearchContext extends SearchContext {
 
         // initialize the filtering alias based on the provided filters
         try {
-            final QueryBuilder queryBuilder = request.filteringAliases();
+            final QueryBuilder queryBuilder = request.getAliasFilter().getQueryBuilder();
             aliasFilter = queryBuilder == null ? null : queryBuilder.toFilter(queryShardContext);
         } catch (IOException e) {
             throw new UncheckedIOException(e);

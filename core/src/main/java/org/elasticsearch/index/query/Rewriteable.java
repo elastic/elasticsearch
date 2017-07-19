@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.action.ActionListener;
+
 import java.io.IOException;
 
 /**
@@ -45,5 +47,24 @@ public interface Rewriteable<T> {
             builder = rewrittenBuilder;
         }
         return builder;
+    }
+
+    static <T extends Rewriteable<T>> void rewriteAndFetch(T original, QueryRewriteContext context, ActionListener<T> rewriteResponse) {
+        T builder = original;
+        try {
+            for (T rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder;
+                 rewrittenBuilder = builder.rewrite(context)) {
+                builder = rewrittenBuilder;
+                if (context.hasAsyncActions()) {
+                    T finalBuilder = builder;
+                    context.executeAsyncActions(ActionListener.wrap(n -> rewriteAndFetch(finalBuilder, context, rewriteResponse),
+                        rewriteResponse::onFailure));
+                    return;
+                }
+            }
+            rewriteResponse.onResponse(builder);
+        } catch (IOException ex) {
+            rewriteResponse.onFailure(ex);
+        }
     }
 }

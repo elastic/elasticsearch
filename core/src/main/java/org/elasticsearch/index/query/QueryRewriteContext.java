@@ -18,32 +18,31 @@
  */
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
  */
 public class QueryRewriteContext {
-
     private final NamedXContentRegistry xContentRegistry;
     protected final Client client;
     protected final LongSupplier nowInMillis;
+    private final List<BiConsumer<Client, ActionListener>> asyncActions = new ArrayList<>();
+
 
     public QueryRewriteContext(NamedXContentRegistry xContentRegistry, Client client, LongSupplier nowInMillis) {
         this.xContentRegistry = xContentRegistry;
         this.client = client;
         this.nowInMillis = nowInMillis;
-    }
-
-    /**
-     * Returns a clients to fetch resources from local or remove nodes.
-     */
-    public Client getClient() {
-        return client;
     }
 
     /**
@@ -63,4 +62,41 @@ public class QueryRewriteContext {
     public QueryShardContext convertToShardContext() {
         return null;
     }
+
+    public void registerAsyncAction(BiConsumer<Client, ActionListener> asyncAction) {
+        asyncActions.add(asyncAction);
+    }
+
+    public boolean hasAsyncActions() {
+        return asyncActions.isEmpty() == false;
+    }
+
+    public void executeAsyncActions(ActionListener listener) {
+        if (asyncActions.isEmpty()) {
+            listener.onResponse(null);
+        } else {
+            CountDown done = new CountDown(asyncActions.size());
+            ActionListener internalListener = new ActionListener() {
+                @Override
+                public void onResponse(Object o) {
+                    if (done.countDown()) {
+                        listener.onResponse(null);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (done.fastForward()) {
+                        listener.onFailure(e);
+                    }
+                }
+            };
+            ArrayList<BiConsumer<Client, ActionListener>> biConsumers = new ArrayList<>(asyncActions);
+            asyncActions.clear();
+            for (BiConsumer<Client, ActionListener> action : biConsumers) {
+                action.accept(client, internalListener);
+            }
+        }
+    }
+
 }

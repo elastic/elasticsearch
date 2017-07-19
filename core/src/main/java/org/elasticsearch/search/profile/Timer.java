@@ -86,6 +86,11 @@ public class Timer {
         // so we assume that they had the same timing as the lastCount first
         // calls. This approximation is ok since at most 1/256th of method
         // calls have not been timed.
-        return timing + (count - lastCount) * timing / lastCount;
+        long timing = this.timing;
+        if (count > lastCount) {
+            assert lastCount > 0;
+            timing += (count - lastCount) * timing / lastCount;
+        }
+        return timing;
     }
 }

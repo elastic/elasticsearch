@@ -240,7 +240,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     @Override
     public void rewrite(QueryRewriteContext context) throws IOException {
         aliasFilter = Rewriteable.rewrite(aliasFilter, context);
-        source = Rewriteable.rewrite(source, context);
+        source = source == null ? null : Rewriteable.rewrite(source, context);
     }
 
     @Override

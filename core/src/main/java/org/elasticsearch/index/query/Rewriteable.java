@@ -27,6 +27,8 @@ import java.io.IOException;
  */
 public interface Rewriteable<T> {
 
+    int MAX_REVIEW_ROUNDS = 16;
+
     /**
      * Rewrites this instance based on the provided context. The returned
      * objects will be the same instance as this if no changes during the
@@ -58,29 +60,50 @@ public interface Rewriteable<T> {
      */
     static <T extends Rewriteable<T>> T rewrite(T original, QueryRewriteContext context, boolean assertNoAsyncTasks) throws IOException {
         T builder = original;
+        int iteration = 0;
         for (T rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder;
              rewrittenBuilder = builder.rewrite(context)) {
             if (assertNoAsyncTasks && context.hasAsyncActions()) {
                 throw new IllegalStateException("async actions are left after rewrite");
             }
             builder = rewrittenBuilder;
+            if (iteration++ > MAX_REVIEW_ROUNDS) {
+                // this is some protection against user provided queries if they don't obey the contract of rewrite we allow 16 rounds
+                // and then we fail to prevent infinite loops
+                throw new IllegalStateException("too many rewrite rounds, rewriteable might return new objects even if they are not " +
+                    "rewritten");
+            }
         }
         return builder;
+    }
+    /**
+     * Rewrites the given rewriteable and fetches pending async tasks for each round before rewriting again.
+     */
+    static <T extends Rewriteable<T>> void rewriteAndFetch(T original, QueryRewriteContext context, ActionListener<T> rewriteResponse) {
+        rewriteAndFetch(original, context, rewriteResponse, 0);
     }
 
     /**
      * Rewrites the given rewriteable and fetches pending async tasks for each round before rewriting again.
      */
-    static <T extends Rewriteable<T>> void rewriteAndFetch(T original, QueryRewriteContext context, ActionListener<T> rewriteResponse) {
+    static <T extends Rewriteable<T>> void rewriteAndFetch(T original, QueryRewriteContext context, ActionListener<T>
+        rewriteResponse, int iteration) {
         T builder = original;
         try {
             for (T rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder;
                  rewrittenBuilder = builder.rewrite(context)) {
                 builder = rewrittenBuilder;
+                if (iteration++ > MAX_REVIEW_ROUNDS) {
+                    // this is some protection against user provided queries if they don't obey the contract of rewrite we allow 16 rounds
+                    // and then we fail to prevent infinite loops
+                    throw new IllegalStateException("too many rewrite rounds, rewriteable might return new objects even if they are not " +
+                        "rewritten");
+                }
                 if (context.hasAsyncActions()) {
                     T finalBuilder = builder;
-                    context.executeAsyncActions(ActionListener.wrap(n -> rewriteAndFetch(finalBuilder, context, rewriteResponse),
-                        rewriteResponse::onFailure));
+                    final int currentIterationNumber = iteration;
+                    context.executeAsyncActions(ActionListener.wrap(n -> rewriteAndFetch(finalBuilder, context, rewriteResponse,
+                        currentIterationNumber), rewriteResponse::onFailure));
                     return;
                 }
             }

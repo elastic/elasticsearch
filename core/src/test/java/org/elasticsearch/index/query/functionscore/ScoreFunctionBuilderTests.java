@@ -22,7 +22,6 @@ package org.elasticsearch.index.query.functionscore;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -51,7 +50,7 @@ public class ScoreFunctionBuilderTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> new ExponentialDecayFunctionBuilder("", "", null, "", randomDouble()));
     }
 
-    public void testRandomScoreFunctionWithoutSeed() throws Exception {
+    public void testRandomScoreFunctionWithSeed() throws Exception {
         RandomScoreFunctionBuilder builder = new RandomScoreFunctionBuilder();
         builder.seed(42);
         QueryShardContext context = Mockito.mock(QueryShardContext.class);

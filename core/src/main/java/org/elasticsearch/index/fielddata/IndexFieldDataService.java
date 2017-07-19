@@ -106,7 +106,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     }
 
     @SuppressWarnings("unchecked")
-    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
+    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, int shardId) {
         final String fieldName = fieldType.name();
         IndexFieldData.Builder builder = fieldType.fielddataBuilder();
 
@@ -126,7 +126,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
             }
         }
 
-        return (IFD) builder.build(indexSettings, fieldType, cache, circuitBreakerService, mapperService);
+        return (IFD) builder.build(indexSettings, fieldType, cache, circuitBreakerService, mapperService, shardId);
     }
 
     /**

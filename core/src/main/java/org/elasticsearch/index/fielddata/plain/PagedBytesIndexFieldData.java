@@ -20,7 +20,6 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.codecs.blocktree.FieldReader;
 import org.apache.lucene.codecs.blocktree.Stats;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
@@ -66,7 +65,8 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
         @Override
         public IndexOrdinalsFieldData build(IndexSettings indexSettings, MappedFieldType fieldType,
-                                                               IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+                                            IndexFieldDataCache cache, CircuitBreakerService breakerService,
+                                            MapperService mapperService, int shardId) {
             return new PagedBytesIndexFieldData(indexSettings, fieldType.name(), cache, breakerService,
                     minFrequency, maxFrequency, minSegmentSize);
         }

@@ -116,10 +116,10 @@ public class UidFieldMapper extends MetadataFieldMapper {
                 return new IndexFieldData.Builder() {
                     @Override
                     public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                            CircuitBreakerService breakerService, MapperService mapperService) {
+                            CircuitBreakerService breakerService, MapperService mapperService, int shardId) {
                         MappedFieldType idFieldType = mapperService.fullName(IdFieldMapper.NAME);
                         IndexFieldData<?> idFieldData = idFieldType.fielddataBuilder()
-                                .build(indexSettings, idFieldType, cache, breakerService, mapperService);
+                                .build(indexSettings, idFieldType, cache, breakerService, mapperService, shardId);
                         final String type = mapperService.types().iterator().next();
                         return new UidIndexFieldData(indexSettings.getIndex(), type, idFieldData);
                     }

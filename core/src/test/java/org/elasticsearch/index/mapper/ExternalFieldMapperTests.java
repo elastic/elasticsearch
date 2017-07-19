@@ -83,7 +83,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                     .field("field", "1234")
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         assertThat(doc.rootDoc().getField("field.bool"), notNullValue());
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
@@ -145,7 +145,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                     .field("field", "1234")
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         assertThat(doc.rootDoc().getField("field.bool"), notNullValue());
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
@@ -215,7 +215,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "1234")
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         assertThat(doc.rootDoc().getField("field.bool"), notNullValue());
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));

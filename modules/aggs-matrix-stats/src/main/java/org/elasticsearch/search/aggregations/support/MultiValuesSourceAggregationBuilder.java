@@ -270,7 +270,7 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
             return config.unmapped(true);
         }
 
-        IndexFieldData<?> indexFieldData = context.fieldData().getForField(fieldType);
+        IndexFieldData<?> indexFieldData = context.fieldData().getForField(fieldType, context.indexShard().shardId().getId());
 
         ValuesSourceConfig<VS> config;
         if (valuesSourceType == ValuesSourceType.ANY) {

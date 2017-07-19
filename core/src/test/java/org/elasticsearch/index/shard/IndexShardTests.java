@@ -1433,7 +1433,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard otherShard = newStartedShard(false);
         updateMappings(otherShard, shard.indexSettings().getIndexMetaData());
         SourceToParse sourceToParse = SourceToParse.source(shard.shardId().getIndexName(), "test", "1",
-            new BytesArray("{}"), XContentType.JSON);
+            new BytesArray("{}"), XContentType.JSON, 0);
         otherShard.applyIndexOperationOnReplica(1, 1, 1,
             VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse, update -> {});
 
@@ -1678,7 +1678,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // test global ordinals are evicted
         MappedFieldType foo = shard.mapperService().fullName("foo");
-        IndexFieldData.Global ifd = shard.indexFieldDataService().getForField(foo);
+        IndexFieldData.Global ifd = shard.indexFieldDataService().getForField(foo, 0);
         FieldDataStats before = shard.fieldData().stats("foo");
         assertThat(before.getMemorySizeInBytes(), equalTo(0L));
         FieldDataStats after = null;
@@ -2130,7 +2130,7 @@ public class IndexShardTests extends IndexShardTestCase {
             if (!rarely()) {
                 final String id = Integer.toString(i);
                 SourceToParse sourceToParse = SourceToParse.source(indexShard.shardId().getIndexName(), "test", id,
-                        new BytesArray("{}"), XContentType.JSON);
+                        new BytesArray("{}"), XContentType.JSON, 0);
                 indexShard.applyIndexOperationOnReplica(i, indexShard.getPrimaryTerm(),
                         1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse,
                         getMappingUpdater(indexShard, sourceToParse.type()));

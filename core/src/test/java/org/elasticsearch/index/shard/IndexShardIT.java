@@ -346,7 +346,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             .setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldFlush());
         shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-            SourceToParse.source("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
+            SourceToParse.source("test", "test", "1", new BytesArray("{}"), XContentType.JSON, 0),
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, update -> {});
         assertTrue(shard.shouldFlush());
         final Translog translog = shard.getEngine().getTranslog();
@@ -396,7 +396,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         for (int i = 0; i < numberOfDocuments; i++) {
             assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
             final Engine.IndexResult result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                SourceToParse.source("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
+                SourceToParse.source("test", "test", "1", new BytesArray("{}"), XContentType.JSON, 0),
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, update -> {});
             final Translog.Location location = result.getTranslogLocation();
             shard.afterWriteOperation();

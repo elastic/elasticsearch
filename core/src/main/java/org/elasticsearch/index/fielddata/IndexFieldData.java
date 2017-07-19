@@ -223,7 +223,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     interface Builder {
 
         IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                             CircuitBreakerService breakerService, MapperService mapperService);
+                             CircuitBreakerService breakerService, MapperService mapperService, int shardId);
     }
 
     interface Global<FD extends AtomicFieldData> extends IndexFieldData<FD> {

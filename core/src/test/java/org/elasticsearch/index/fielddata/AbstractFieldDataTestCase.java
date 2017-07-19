@@ -129,7 +129,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         } else {
             throw new UnsupportedOperationException(type);
         }
-        return ifdService.getForField(fieldType);
+        return ifdService.getForField(fieldType, 0);
     }
 
     @Before

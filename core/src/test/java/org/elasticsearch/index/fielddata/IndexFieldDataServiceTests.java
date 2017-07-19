@@ -71,7 +71,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string").build(ctx).fieldType();
         ifdService.clear();
-        IndexFieldData<?> fd = ifdService.getForField(stringMapper);
+        IndexFieldData<?> fd = ifdService.getForField(stringMapper, 0);
         assertTrue(fd instanceof SortedSetDVOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
@@ -81,20 +81,20 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 new NumberFieldMapper.Builder("long", NumberFieldMapper.NumberType.LONG).build(ctx).fieldType()
                 )) {
             ifdService.clear();
-            fd = ifdService.getForField(mapper);
+            fd = ifdService.getForField(mapper, 0);
             assertTrue(fd instanceof SortedNumericDVIndexFieldData);
         }
 
         final MappedFieldType floatMapper = new NumberFieldMapper.Builder("float", NumberFieldMapper.NumberType.FLOAT)
                 .build(ctx).fieldType();
         ifdService.clear();
-        fd = ifdService.getForField(floatMapper);
+        fd = ifdService.getForField(floatMapper, 0);
         assertTrue(fd instanceof SortedNumericDVIndexFieldData);
 
         final MappedFieldType doubleMapper = new NumberFieldMapper.Builder("double", NumberFieldMapper.NumberType.DOUBLE)
                 .build(ctx).fieldType();
         ifdService.clear();
-        fd = ifdService.getForField(doubleMapper);
+        fd = ifdService.getForField(doubleMapper, 0);
         assertTrue(fd instanceof SortedNumericDVIndexFieldData);
     }
 
@@ -137,7 +137,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 onRemovalCalled.incrementAndGet();
             }
         });
-        IndexFieldData<?> ifd = ifdService.getForField(mapper1);
+        IndexFieldData<?> ifd = ifdService.getForField(mapper1, 0);
         LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
         AtomicFieldData load = ifd.load(leafReaderContext);
         assertEquals(1, onCacheCalled.get());
@@ -178,10 +178,10 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null, null);
             ft.setName("some_long");
             ft.setHasDocValues(true);
-            ifds.getForField(ft); // no exception
+            ifds.getForField(ft, 0); // no exception
             ft.setHasDocValues(false);
             try {
-                ifds.getForField(ft);
+                ifds.getForField(ft, 0);
                 fail();
             } catch (IllegalArgumentException e) {
                 assertThat(e.getMessage(), containsString("doc values"));

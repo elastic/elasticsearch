@@ -60,7 +60,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .field("point", stringEncode(1.3, 1.2))
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
     }
@@ -76,7 +76,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("point").field("lat", 1.2).field("lon", 1.3).endObject()
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
     }
@@ -95,7 +95,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         // doc values are enabled by default, but in this test we disable them; we should only have 2 points
         assertThat(doc.rootDoc().getFields("point"), notNullValue());
@@ -114,7 +114,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .field("point", "1.2,1.3")
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
     }
@@ -131,7 +131,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .field("point", "1.2,1.3")
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
         assertThat(doc.rootDoc().getField("point"), notNullValue());
     }
 
@@ -150,7 +150,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         // doc values are enabled by default, but in this test we disable them; we should only have 2 points
         assertThat(doc.rootDoc().getFields("point"), notNullValue());
@@ -168,7 +168,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .startArray("point").value(1.3).value(1.2).endArray()
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
     }
@@ -185,7 +185,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .startArray("point").value(1.3).value(1.2).endArray()
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
     }
@@ -201,7 +201,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .startArray("point").value(1.3).value(1.2).endArray()
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
         assertThat(doc.rootDoc().getFields("point").length, equalTo(3));
@@ -222,7 +222,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         assertThat(doc.rootDoc().getFields("point"), notNullValue());
         assertThat(doc.rootDoc().getFields("point").length, CoreMatchers.equalTo(4));

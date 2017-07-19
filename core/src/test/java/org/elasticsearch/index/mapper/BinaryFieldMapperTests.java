@@ -95,7 +95,7 @@ public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
         for (byte[] value : Arrays.asList(binaryValue1, binaryValue2)) {
             ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "id", 
                     XContentFactory.jsonBuilder().startObject().field("field", value).endObject().bytes(),
-                    XContentType.JSON));
+                    XContentType.JSON, 0));
             BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");
             assertEquals(new BytesRef(value), indexedValue);
             FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper("field");

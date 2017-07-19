@@ -165,7 +165,7 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
                                 "test",
                                 fieldName,
                                 new BytesArray("{ \"" + fieldName + "\" : \"test\" }"),
-                                XContentType.JSON));
+                                XContentType.JSON, 0));
                         Mapping update = doc.dynamicMappingsUpdate();
                         assert update != null;
                         lastIntroducedFieldName.set(fieldName);
@@ -188,7 +188,7 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
                         "test",
                         "random",
                         source,
-                        XContentType.JSON));
+                        XContentType.JSON, 0));
                 if (parsedDoc.dynamicMappingsUpdate() != null) {
                     // not in the mapping yet, try again
                     continue;

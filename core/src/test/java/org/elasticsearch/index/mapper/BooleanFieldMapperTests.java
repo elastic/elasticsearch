@@ -86,7 +86,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", true)
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         try (Directory dir = new RAMDirectory();
              IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new MockAnalyzer(random())))) {
@@ -158,7 +158,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field2", truthy)
             .endObject()
             .bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
         Document doc = parsedDoc.rootDoc();
         assertEquals("F", doc.getField("field1").stringValue());
         assertEquals("T", doc.getField("field2").stringValue());
@@ -194,7 +194,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                     .field("field", randomFrom("off", "no", "0", "on", "yes", "1"))
                 .endObject().bytes();
         MapperParsingException ex = expectThrows(MapperParsingException.class, 
-                () -> defaultMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON)));
+                () -> defaultMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON, 0)));
         assertEquals("failed to parse [field]", ex.getMessage());
     }
 
@@ -217,7 +217,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject()
                     .field("field", false)
                 .endObject().bytes();
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON));
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON, 0));
         assertNotNull(doc.rootDoc().getField("field.as_string"));
     }
 
@@ -247,7 +247,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .field("bool3", true)
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
         Document doc = parsedDoc.rootDoc();
         IndexableField[] fields = doc.getFields("bool1");
         assertEquals(2, fields.length);

@@ -68,7 +68,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                     .fielddata(true)
                     .fielddataFrequencyFilter(0, random.nextBoolean() ? 100 : 0.5d, 0)
                     .build(builderCtx).fieldType();
-            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
+            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft, 0);
             for (LeafReaderContext context : contexts) {
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
@@ -83,7 +83,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                     .fielddata(true)
                     .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, 201, 100)
                     .build(builderCtx).fieldType();
-            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
+            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft, 0);
             for (LeafReaderContext context : contexts) {
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
@@ -98,7 +98,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                     .fielddata(true)
                     .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, Integer.MAX_VALUE, 101)
                     .build(builderCtx).fieldType();
-            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
+            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft, 0);
             for (LeafReaderContext context : contexts) {
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
@@ -114,7 +114,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                     .fielddata(true)
                     .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, Integer.MAX_VALUE, 101)
                     .build(builderCtx).fieldType();
-            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
+            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft, 0);
             for (LeafReaderContext context : contexts) {
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();

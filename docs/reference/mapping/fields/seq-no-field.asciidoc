@@ -1,0 +1,12 @@
+[[mapping-seq-no-field]]
+=== `_seq_no` field
+
+A sequence number is assigned with each operation to the index. This is mostly
+an internal field, which is especially useful to speed up recovery.
+
+An interesting property of this field is that each document in a given shard
+has a unique value for the `_seq_no` field, so it can be used as a tie breaker
+combined with <<mapping-shard-field,`_shard`>>.
+
+NOTE: This field was introduced in 6.0. As a consequence, 5.x indices do not
+have values for this field.

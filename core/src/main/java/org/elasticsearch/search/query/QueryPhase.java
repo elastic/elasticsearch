@@ -105,7 +105,7 @@ public class QueryPhase implements SearchPhase {
         // here to make sure it happens during the QUERY phase
         aggregationPhase.preProcess(searchContext);
         Sort indexSort = searchContext.mapperService().getIndexSettings().getIndexSortConfig()
-            .buildIndexSort(searchContext.mapperService()::fullName, searchContext.fieldData()::getForField);
+            .buildIndexSort(searchContext.mapperService()::fullName, field -> searchContext.fieldData().getForField(field, -1));
         final ContextIndexSearcher searcher = searchContext.searcher();
         boolean rescore = execute(searchContext, searchContext.searcher(), searcher::setCheckCancelled, indexSort);
 

@@ -44,22 +44,22 @@ import org.elasticsearch.search.MultiValueMode;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
 
-        private final Function<MapperService, String> valueFunction;
+        private final BiFunction<MapperService, Integer, String> valueFunction;
 
-        public Builder(Function<MapperService, String> valueFunction) {
+        public Builder(BiFunction<MapperService, Integer, String> valueFunction) {
             this.valueFunction = valueFunction;
         }
 
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                CircuitBreakerService breakerService, MapperService mapperService) {
-            return new ConstantIndexFieldData(indexSettings, fieldType.name(), valueFunction.apply(mapperService));
+                CircuitBreakerService breakerService, MapperService mapperService, int shardId) {
+            return new ConstantIndexFieldData(indexSettings, fieldType.name(), valueFunction.apply(mapperService, shardId));
         }
 
     }

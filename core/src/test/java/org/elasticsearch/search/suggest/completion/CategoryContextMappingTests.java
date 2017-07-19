@@ -84,7 +84,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 7);
     }
@@ -118,7 +118,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
@@ -152,7 +152,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject()
                 .bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
@@ -186,7 +186,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject()
                 .bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
@@ -219,7 +219,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject();
 
         Exception e = expectThrows(MapperParsingException.class,
-            () -> defaultMapper.parse(SourceToParse.source("test", "type1", "1", builder.bytes(), XContentType.JSON)));
+            () -> defaultMapper.parse(SourceToParse.source("test", "type1", "1", builder.bytes(), XContentType.JSON, 0)));
         assertEquals("contexts must be a string, number or boolean or a list of string, number or boolean, but was [VALUE_NULL]", e.getCause().getMessage());
     }
 
@@ -250,7 +250,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
@@ -282,7 +282,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
                 .bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
@@ -313,7 +313,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject();
 
         Exception e = expectThrows(MapperParsingException.class,
-            () -> defaultMapper.parse(SourceToParse.source("test", "type1", "1", builder.bytes(), XContentType.JSON)));
+            () -> defaultMapper.parse(SourceToParse.source("test", "type1", "1", builder.bytes(), XContentType.JSON, 0)));
         assertEquals("context array must have string, number or boolean values, but was [VALUE_NULL]", e.getCause().getMessage());
     }
 
@@ -351,7 +351,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endArray()
                 .endObject();
         ParsedDocument parsedDocument = defaultMapper.parse(SourceToParse.source("test", "type1", "1", builder.bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }

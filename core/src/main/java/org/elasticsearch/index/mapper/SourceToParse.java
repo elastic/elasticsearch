@@ -27,9 +27,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 public class SourceToParse {
 
-    public static SourceToParse source(String index, String type, String id, BytesReference source,
-                                       XContentType contentType) {
-        return new SourceToParse(index, type, id, source, contentType);
+    public static SourceToParse source(String index, String type, String id,BytesReference source,
+                                       XContentType contentType, int shardId) {
+        return new SourceToParse(index, type, id, source, contentType, shardId);
     }
 
     private final BytesReference source;
@@ -40,13 +40,15 @@ public class SourceToParse {
 
     private final String id;
 
+    private final int shardId;
+
     private String routing;
 
     private String parentId;
 
     private XContentType xContentType;
 
-    private SourceToParse(String index, String type, String id, BytesReference source, XContentType xContentType) {
+    private SourceToParse(String index, String type, String id, BytesReference source, XContentType xContentType, int shardId) {
         this.index = Objects.requireNonNull(index);
         this.type = Objects.requireNonNull(type);
         this.id = Objects.requireNonNull(id);
@@ -54,6 +56,7 @@ public class SourceToParse {
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
         this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
         this.xContentType = Objects.requireNonNull(xContentType);
+        this.shardId = shardId;
     }
 
     public BytesReference source() {
@@ -92,6 +95,10 @@ public class SourceToParse {
     public SourceToParse routing(String routing) {
         this.routing = routing;
         return this;
+    }
+
+    public int shardId() {
+        return shardId;
     }
 
     public enum Origin {

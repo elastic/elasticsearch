@@ -34,37 +34,37 @@ ES_CLASSPATH="$ES_HOME/lib/*"
 
 # now set the path to java
 if [ -x "$JAVA_HOME/bin/java" ]; then
-    JAVA="$JAVA_HOME/bin/java"
+  JAVA="$JAVA_HOME/bin/java"
 else
-    JAVA=`which java`
+  JAVA=`which java`
 fi
 
 if [ ! -x "$JAVA" ]; then
-    echo "could not find java; set JAVA_HOME or ensure java is in PATH"
-    exit 1
+  echo "could not find java; set JAVA_HOME or ensure java is in PATH"
+  exit 1
 fi
 
 # check the JAVA version
 "$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.JavaVersionChecker
 
 if [ $? -ne 0 ]; then
-    echo -n "the minimum required Java version is 8; "
-    echo "your Java version from $JAVA does not meet this requirement"
-    exit 1
+  echo -n "the minimum required Java version is 8; "
+  echo "your Java version from $JAVA does not meet this requirement"
+  exit 1
 fi
 
 # don't let JAVA_TOOL_OPTIONS slip in (e.g. agents in Ubuntu); works around
 # https://bugs.launchpad.net/ubuntu/+source/jayatana/+bug/1441487
 if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
-    echo "warning: ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
-    unset JAVA_TOOL_OPTIONS
+  echo "warning: ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
+  unset JAVA_TOOL_OPTIONS
 fi
 
 # JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we
 # warn them that we are not observing the value of $JAVA_OPTS
 if [ "x$JAVA_OPTS" != "x" ]; then
-    echo -n "warning: ignoring JAVA_OPTS=$JAVA_OPTS; "
-    echo "pass JVM parameters via ES_JAVA_OPTS"
+  echo -n "warning: ignoring JAVA_OPTS=$JAVA_OPTS; "
+  echo "pass JVM parameters via ES_JAVA_OPTS"
 fi
 
 ${source.path.env}

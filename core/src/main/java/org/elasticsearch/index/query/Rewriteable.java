@@ -21,6 +21,8 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.action.ActionListener;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A basic interface for rewriteable classes.
@@ -112,5 +114,25 @@ public interface Rewriteable<T> {
         } catch (IOException ex) {
             rewriteResponse.onFailure(ex);
         }
+    }
+
+    /**
+     * Rewrites each element of the list until it doesn't change and returns a new list iff there is at least one element of the list that
+     * changed during it's rewrite. Otherwise the given list instance is returned unchanged.
+     */
+    static <T extends Rewriteable<T>> List<T> rewrite(List<T> rewritables, QueryRewriteContext context) throws IOException {
+        List<T> list = rewritables;
+        boolean changed = false;
+        if (rewritables != null && rewritables.isEmpty() == false) {
+            list = new ArrayList<>(rewritables.size());
+            for (T instance : rewritables) {
+                T rewrite = rewrite(instance, context);
+                if (instance != rewrite) {
+                    changed = true;
+                }
+                list.add(rewrite);
+            }
+        }
+        return changed ? list : rewritables;
     }
 }

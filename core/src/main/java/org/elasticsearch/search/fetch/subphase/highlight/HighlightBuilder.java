@@ -426,20 +426,8 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         if (highlightQuery != null) {
             highlightQuery = this.highlightQuery.rewrite(ctx);
         }
-        List<Field> fields = this.fields;
-        boolean fieldChanged = false;
-        if (this.fields != null && this.fields.isEmpty() == false) {
-            fields = new ArrayList<>(this.fields.size());
-            for (Field field : this.fields) {
-                Field rewrite = field.rewrite(ctx);
-                if (field != rewrite) {
-                    fieldChanged = true;
-                }
-                fields.add(rewrite);
-            }
-        }
-
-        if (highlightQuery == this.highlightQuery && fieldChanged == false) {
+        List<Field> fields = Rewriteable.rewrite(this.fields, ctx);
+        if (highlightQuery == this.highlightQuery && fields == this.fields) {
             return this;
         }
         return new HighlightBuilder(this, highlightQuery, fields);

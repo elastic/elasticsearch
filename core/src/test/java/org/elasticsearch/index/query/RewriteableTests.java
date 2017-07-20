@@ -23,6 +23,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 
@@ -61,6 +64,31 @@ public class RewriteableTests extends ESTestCase {
         assertEquals(ise.getMessage(), "too many rewrite rounds, rewriteable might return new objects even if they are not rewritten");
     }
 
+    public void testRewriteList() throws IOException {
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
+        List<TestRewriteable> rewriteableList = new ArrayList();
+        int numInstances = randomIntBetween(1, 10);
+        rewriteableList.add(new TestRewriteable(randomIntBetween(1, Rewriteable.MAX_REWRITE_ROUNDS)));
+        for (int i = 0; i < numInstances; i++) {
+            rewriteableList.add(new TestRewriteable(randomIntBetween(0, Rewriteable.MAX_REWRITE_ROUNDS)));
+        }
+        List<TestRewriteable> rewrittenList = Rewriteable.rewrite(rewriteableList, context);
+        assertNotSame(rewrittenList, rewriteableList);
+        for (TestRewriteable instance : rewrittenList) {
+            assertEquals(0, instance.numRewrites);
+        }
+        rewriteableList = Collections.emptyList();
+        assertSame(rewriteableList, Rewriteable.rewrite(rewriteableList, context));
+        rewriteableList = null;
+        assertNull(Rewriteable.rewrite(rewriteableList, context));
+
+        rewriteableList = new ArrayList<>();
+        for (int i = 0; i < numInstances; i++) {
+            rewriteableList.add(new TestRewriteable(0));
+        }
+        assertSame(rewriteableList, Rewriteable.rewrite(rewriteableList, context));
+    }
+
     private static final class TestRewriteable implements Rewriteable<TestRewriteable> {
 
         final int numRewrites;
@@ -70,7 +98,7 @@ public class RewriteableTests extends ESTestCase {
         TestRewriteable(int numRewrites) {
             this(numRewrites, false, null);
         }
-        
+
         TestRewriteable(int numRewrites, boolean fetch) {
             this(numRewrites, fetch, null);
         }

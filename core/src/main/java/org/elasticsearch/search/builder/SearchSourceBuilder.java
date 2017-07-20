@@ -887,38 +887,16 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (this.aggregations != null) {
             aggregations = this.aggregations.rewrite(context);
         }
-        List<SortBuilder<?>> sorts = this.sorts;
-        boolean sortBuildersModified = false;
-        if (sorts != null) {
-            sorts = new ArrayList<>(sorts.size());
-            for (SortBuilder<?> builder : this.sorts) {
-                SortBuilder<?> newBuilder = builder.rewrite(context);
-                if (newBuilder != builder) {
-                    sortBuildersModified = true;
-                }
-                sorts.add(newBuilder);
-            }
-        }
+        List<SortBuilder<?>> sorts = Rewriteable.rewrite(this.sorts, context);
 
-        boolean rescoreBuildersModified = false;
-        List<RescoreBuilder> rescoreBuilders = this.rescoreBuilders;
-        if (rescoreBuilders != null) {
-            rescoreBuilders = new ArrayList<>(rescoreBuilders.size());
-            for (RescoreBuilder<? extends RescoreBuilder> builder : this.rescoreBuilders) {
-                RescoreBuilder newBuilder = builder.rewrite(context);
-                if (newBuilder != builder) {
-                    rescoreBuildersModified = true;
-                }
-                rescoreBuilders.add(newBuilder);
-            }
-        }
+        List<RescoreBuilder> rescoreBuilders = Rewriteable.rewrite(this.rescoreBuilders, context);
         HighlightBuilder highlightBuilder = this.highlightBuilder;
         if (highlightBuilder != null) {
             highlightBuilder = this.highlightBuilder.rewrite(context);
         }
 
         boolean rewritten = queryBuilder != this.queryBuilder || postQueryBuilder != this.postQueryBuilder
-                || aggregations != this.aggregations || rescoreBuildersModified || sortBuildersModified ||
+                || aggregations != this.aggregations || rescoreBuilders != this.rescoreBuilders || sorts != this.sorts ||
                 this.highlightBuilder != highlightBuilder;
         if (rewritten) {
             return shallowCopy(queryBuilder, postQueryBuilder, aggregations, this.sliceBuilder, sorts, rescoreBuilders, highlightBuilder);

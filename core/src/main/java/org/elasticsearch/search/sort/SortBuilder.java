@@ -49,7 +49,8 @@ import java.util.Optional;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
-public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentToBytes implements NamedWriteable, Rewriteable<SortBuilder>{
+public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentToBytes implements NamedWriteable,
+    Rewriteable<SortBuilder<?>>{
 
     protected SortOrder order = SortOrder.ASC;
 

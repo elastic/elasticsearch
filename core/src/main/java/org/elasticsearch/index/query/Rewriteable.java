@@ -68,7 +68,7 @@ public interface Rewriteable<T> {
                 throw new IllegalStateException("async actions are left after rewrite");
             }
             builder = rewrittenBuilder;
-            if (iteration++ > MAX_REWRITE_ROUNDS) {
+            if (iteration++ >= MAX_REWRITE_ROUNDS) {
                 // this is some protection against user provided queries if they don't obey the contract of rewrite we allow 16 rounds
                 // and then we fail to prevent infinite loops
                 throw new IllegalStateException("too many rewrite rounds, rewriteable might return new objects even if they are not " +
@@ -94,7 +94,7 @@ public interface Rewriteable<T> {
             for (T rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder;
                  rewrittenBuilder = builder.rewrite(context)) {
                 builder = rewrittenBuilder;
-                if (iteration++ > MAX_REWRITE_ROUNDS) {
+                if (iteration++ >= MAX_REWRITE_ROUNDS) {
                     // this is some protection against user provided queries if they don't obey the contract of rewrite we allow 16 rounds
                     // and then we fail to prevent infinite loops
                     throw new IllegalStateException("too many rewrite rounds, rewriteable might return new objects even if they are not " +

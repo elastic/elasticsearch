@@ -525,7 +525,7 @@ public final class Definition {
         simpleTypesMap = new HashMap<>();
         runtimeMap = new HashMap<>();
 
-        for (String dynamic : whitelist.dynamics) {
+        for (String dynamic : whitelist.pdynamics) {
             addStruct(dynamic, Object.class);
         }
 
@@ -555,7 +555,7 @@ public final class Definition {
             }
         }
 
-        for (String dynamic : whitelist.dynamics) {
+        for (String dynamic : whitelist.pdynamics) {
             copyStruct(dynamic, Collections.singletonList("Object"));
         }
 

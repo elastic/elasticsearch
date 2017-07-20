@@ -37,22 +37,62 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
+/**
+ * Whitelist contains data structures and methods designed to either load or generate a white-list of
+ * Java classes, methods, and fields that can be used within a Painless script.  Whitelist is used directly
+ * to create a new {@link Definition} and is passed into {@link Definition#Definition(Whitelist)}.
+ * {@link Definition}'s are then used as part of each Painless script at both compile-time and
+ * run-time to determine what a script is allowed to execute.
+ *
+ * Several single letters are used as prefixes for many variables in this class.  They mean the following:
+ * p - Used as part of the Painless typing system
+ * j - Used as part of the Java typing system
+ * w = Used as part of the Whitelist typing system
+ *
+ * A Whitelist consists of two pieces.  The first is a list {@link Whitelist#pdynamics} of {@link String}s
+ * that represent the allowed name(s) of dynamic types in Painless.  The second is a list of {@link WStruct}s
+ * that represent the equivalent of a Java class in Painless known as a struct.
+ */
 public final class Whitelist {
 
+    /**
+     * WStruct represents the equivalent of a Java class in Painless complete with super classes,
+     * constructors, methods, and fields.  In Painless a class is known as a struct primarily to avoid
+     * naming conflicts internally.
+     *
+     * Structs in Painless allow for arity overloading for constructors and methods.  Arity overloading
+     * means that multiple constructors are allowed for a single struct as long as they have a different
+     * number of parameter types, and multiples methods with the same name are allowed for a single struct
+     * as long as they have the same return type and a different number of parameter types.
+     *
+     * Structs are allowed to extend other structs, known as a super struct, in which they will have
+     * available all of the methods and fields from a super struct.
+     */
     public static class WStruct {
-        public final String name;
-        public final Class<?> clazz;
-        public final List<String> supers;
+        /** The Painless name of this struct. */
+        public final String pname;
 
+        /** The Java class this struct represents. */
+        public final Class<?> jclass;
+
+        /** The {@link List} of Painless structs, as names, this struct extends. */
+        public final List<String> psupers;
+
+        /** The {@link List} of white-listed constructors {@link WConstructor} available to this struct. */
         public final List<WConstructor> wconstructors;
+
+        /** The {@link List} of white-listed methods {@link WMethod} available to this struct. */
         public final List<WMethod> wmethods;
+
+        /** The {@link List} of white-listed fields {@link WField} available to this struct. */
         public final List<WField> wfields;
 
-        public WStruct(String name, Class<?> clazz, List<String> supers,
+        /** Standard constructor. All values must not be {@code null}. */
+        public WStruct(String pname, Class<?> jclass, List<String> psupers,
                        List<WConstructor> wconstructors, List<WMethod> wmethods, List<WField> wfields) {
-            this.name = Objects.requireNonNull(name);
-            this.clazz = Objects.requireNonNull(clazz);
-            this.supers = Collections.unmodifiableList(Objects.requireNonNull(supers));
+            this.pname = Objects.requireNonNull(pname);
+            this.jclass = Objects.requireNonNull(jclass);
+            this.psupers = Collections.unmodifiableList(Objects.requireNonNull(psupers));
 
             this.wconstructors = Collections.unmodifiableList(Objects.requireNonNull(wconstructors));
             this.wmethods = Collections.unmodifiableList(Objects.requireNonNull(wmethods));
@@ -96,7 +136,7 @@ public final class Whitelist {
 
     public static Whitelist loadFromResourceFiles(ClassLoader loader, Map<Class<?>, List<String>> resourcesToFiles) {
         Map<String, Class<?>> namesToClasses = new HashMap<>();
-        Set<String> dynamicsNames = new HashSet<>();
+        Set<String> pdynamics = new HashSet<>();
 
         for (Entry<Class<?>, List<String>> resourceToFiles : resourcesToFiles.entrySet()) {
             Class<?> resource = resourceToFiles.getKey();
@@ -129,7 +169,7 @@ public final class Whitelist {
                                     "invalid dynamic definition: name [" + elements[1] + "] already defined as a struct");
                             }
 
-                            dynamicsNames.add(elements[1]);
+                            pdynamics.add(elements[1]);
                         } else if (line.startsWith("class ")) {
                             if (line.endsWith("{") == false) {
                                 throw new IllegalArgumentException(
@@ -170,7 +210,7 @@ public final class Whitelist {
                                 jclass = Class.forName(jname, true, loader);
                             }
 
-                            if (dynamicsNames.contains(pname)) {
+                            if (pdynamics.contains(pname)) {
                                 throw new IllegalArgumentException(
                                     "invalid struct definition: name [" + elements[1] + "] already defined as a dynamic");
                             }
@@ -210,7 +250,7 @@ public final class Whitelist {
                 pnonarray = pname.substring(0, pname.length() - dimensions*2);
             }
 
-            Class<?> clazz = dynamicsNames.contains(pnonarray) ? Object.class : namesToClasses.get(pnonarray);
+            Class<?> clazz = pdynamics.contains(pnonarray) ? Object.class : namesToClasses.get(pnonarray);
 
             if (clazz == null) {
                 throw new IllegalArgumentException("invalid struct/dynamic name [" + pname + "]");
@@ -467,14 +507,14 @@ public final class Whitelist {
             }
         }
 
-        return new Whitelist(dynamicsNames, wstructs);
+        return new Whitelist(pdynamics, wstructs);
     }
 
-    public final Set<String> dynamics;
+    public final Set<String> pdynamics;
     public final List<WStruct> wstructs;
 
-    private Whitelist(Set<String> dynamics, List<WStruct> wstructs) {
-        this.dynamics = Collections.unmodifiableSet(Objects.requireNonNull(dynamics));
+    private Whitelist(Set<String> pdynamics, List<WStruct> wstructs) {
+        this.pdynamics = Collections.unmodifiableSet(Objects.requireNonNull(pdynamics));
         this.wstructs = Collections.unmodifiableList(Objects.requireNonNull(wstructs));
 
         validate();

@@ -33,6 +33,7 @@ parse_jvm_options() {
 }
 
 source "`dirname "$0"`"/elasticsearch-env
+declare -a args=("$@")
 
 ES_JVM_OPTIONS="$CONF_DIR"/jvm.options
 

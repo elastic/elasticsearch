@@ -88,7 +88,9 @@ public class MainResponseTests extends ESTestCase {
                     + "\"build_hash\":\"buildHash\","
                     + "\"build_date\":\"2016-11-15\","
                     + "\"build_snapshot\":true,"
-                    + "\"lucene_version\":\"" + version.luceneVersion.toString() + "\"},"
+                    + "\"lucene_version\":\"" + version.luceneVersion.toString() + "\","
+                    + "\"minimum_wire_compatibility_version\":\"" + version.minimumCompatibilityVersion().toString() + "\","
+                    + "\"minimum_index_compatibility_version\":\"" + version.minimumIndexCompatibilityVersion().toString() + "\"},"
                 + "\"tagline\":\"You Know, for Search\""
           + "}", builder.string());
     }

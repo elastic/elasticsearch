@@ -52,6 +52,9 @@ public class QueryRewriteContext {
         return xContentRegistry;
     }
 
+    /**
+     * Returns the time in milliseconds that is shared across all resources involved. Even across shards and nodes.
+     */
     public long nowInMillis() {
         return nowInMillis.getAsLong();
     }
@@ -63,14 +66,26 @@ public class QueryRewriteContext {
         return null;
     }
 
+    /**
+     * Registers an async action that must be executed before the next rewrite round in order to make progress.
+     * This should be used if a rewriteabel needs to fetch some external resources in order to be executed ie. a document
+     * from an index.
+     */
     public void registerAsyncAction(BiConsumer<Client, ActionListener<?>> asyncAction) {
         asyncActions.add(asyncAction);
     }
 
+    /**
+     * Returns <code>true</code> if there are any registered async actions.
+     */
     public boolean hasAsyncActions() {
         return asyncActions.isEmpty() == false;
     }
 
+    /**
+     * Executes all registered async actions and notifies the listener once it's done. The value that is passed to the listener is always
+     * <code>null</code>. The list of registered actions is cleared once this method returns.
+     */
     public void executeAsyncActions(ActionListener listener) {
         if (asyncActions.isEmpty()) {
             listener.onResponse(null);
@@ -91,6 +106,7 @@ public class QueryRewriteContext {
                     }
                 }
             };
+            // make a copy to preven concurrent modification exception
             ArrayList<BiConsumer<Client, ActionListener<?>>> biConsumers = new ArrayList<>(asyncActions);
             asyncActions.clear();
             for (BiConsumer<Client, ActionListener<?>> action : biConsumers) {

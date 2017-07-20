@@ -31,11 +31,6 @@ fi
 # For a ${project.name} package, the value is "${path.env}".
 ES_ENV_FILE="${path.env}"
 
-# If an include is specified with the ES_INCLUDE environment variable, use it
-if [ -n "$ES_INCLUDE" ]; then
-    ES_ENV_FILE="$ES_INCLUDE"
-fi
-
 # Source the environment file
 if [ -n "$ES_ENV_FILE" ]; then
 

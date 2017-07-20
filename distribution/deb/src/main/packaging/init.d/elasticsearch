@@ -79,7 +79,6 @@ DAEMON_OPTS="-d -p $PID_FILE --path.conf $CONF_DIR"
 
 export ES_JAVA_OPTS
 export JAVA_HOME
-export ES_INCLUDE
 export CONF_DIR
 
 if [ ! -x "$DAEMON" ]; then

@@ -6,108 +6,112 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
-
-import java.util.TimeZone;
+import org.joda.time.DateTimeZone;
 
 public enum Extract {
 
     YEAR {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+        public DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone) {
             return new Year(source, argument, timeZone);
         }
     },
     MONTH {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+        public DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone) {
             return new MonthOfYear(source, argument, timeZone);
         }
     },
     WEEK {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+        public DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone) {
             return new WeekOfWeekYear(source, argument, timeZone);
         }
     },
     DAY {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+        public DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone) {
             return new DayOfMonth(source, argument, timeZone);
         }
     },
     DAY_OF_MONTH {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+        public DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone) {
             return DAY.toFunction(source, argument, timeZone);
         }
     },
     DOM {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+        public DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone) {
             return DAY.toFunction(source, argument, timeZone);
         }
     },
     DAY_OF_WEEK {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+        public DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone) {
             return new DayOfWeek(source, argument, timeZone);
         }
     },
     DOW {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+        public DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone) {
             return DAY_OF_WEEK.toFunction(source, argument, timeZone);
         }
     },
     DAY_OF_YEAR {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+        public DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone) {
             return new DayOfYear(source, argument, timeZone);
         }
     },
     DOY {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+        public DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone) {
             return DAY_OF_YEAR.toFunction(source, argument, timeZone);
         }
     },
     HOUR {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+        public DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone) {
             return new HourOfDay(source, argument, timeZone);
         }
     },
     MINUTE {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+        public DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone) {
             return new MinuteOfHour(source, argument, timeZone);
         }
     },
     MINUTE_OF_HOUR {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+        public DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone) {
             return MINUTE.toFunction(source, argument, timeZone);
         }
     },
     MINUTE_OF_DAY {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+        public DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone) {
             return new MinuteOfDay(source, argument, timeZone);
         }
     },
     SECOND {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+        public DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone) {
             return new SecondOfMinute(source, argument, timeZone);
         }
     },
     SECOND_OF_MINUTE {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+        public DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone) {
             return SECOND.toFunction(source, argument, timeZone);
         }
     };
 
-    public abstract DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone);
+    public DateTimeFunction toFunction(Location source, Expression argument) {
+        return toFunction(source, argument, SqlSession.CURRENT.get().timeZone());
+    }
+
+    public abstract DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone);
 }

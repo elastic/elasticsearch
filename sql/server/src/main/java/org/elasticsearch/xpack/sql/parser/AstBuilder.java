@@ -8,12 +8,7 @@ package org.elasticsearch.xpack.sql.parser;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SingleStatementContext;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 
-import java.util.TimeZone;
-
 class AstBuilder extends CommandBuilder {
-    AstBuilder(TimeZone timeZone) {
-        super(timeZone);
-    }
 
     @Override
     public LogicalPlan visitSingleStatement(SingleStatementContext ctx) {

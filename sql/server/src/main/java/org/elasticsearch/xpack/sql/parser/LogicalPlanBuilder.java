@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TimeZone;
-
+import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.NamedExpression;
+import org.elasticsearch.xpack.sql.expression.Order;
+import org.elasticsearch.xpack.sql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.AliasedQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.AliasedRelationContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.FromClauseContext;
@@ -23,17 +23,13 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QuerySpecificationContex
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.RelationContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SubqueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TableNameContext;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.Order;
-import org.elasticsearch.xpack.sql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.FromlessSelect;
 import org.elasticsearch.xpack.sql.plan.logical.Join;
+import org.elasticsearch.xpack.sql.plan.logical.Join.JoinType;
 import org.elasticsearch.xpack.sql.plan.logical.Limit;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
@@ -41,16 +37,16 @@ import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
-import org.elasticsearch.xpack.sql.plan.logical.Join.JoinType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 
 abstract class LogicalPlanBuilder extends ExpressionBuilder {
-    LogicalPlanBuilder(TimeZone timeZone) {
-        super(timeZone);
-    }
 
     @Override
     public LogicalPlan visitQuery(QueryContext ctx) {

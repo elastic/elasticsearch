@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
-import java.util.TimeZone;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ActionListener.wrap;
@@ -78,8 +77,9 @@ public class CliServer extends AbstractSqlServer {
     public void command(CommandRequest req, ActionListener<Response> listener) {
         final long start = System.currentTimeMillis(); // NOCOMMIT should be nanoTime or else clock skew will skew us
 
+        // NOCOMMIT: need to add settings for CLI
         // TODO support non-utc for cli server
-        executor.sql(req.command, TimeZone.getTimeZone("UTC"), wrap(
+        executor.sql(req.command, wrap(
                 c -> {
                     long stop = System.currentTimeMillis();
                     String requestId = EMPTY;

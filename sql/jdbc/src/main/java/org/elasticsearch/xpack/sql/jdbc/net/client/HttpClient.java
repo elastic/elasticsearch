@@ -33,11 +33,11 @@ class HttpClient {
     }
 
     void setNetworkTimeout(long millis) {
-        cfg.setNetworkTimeout(millis);
+        cfg.networkTimeout(millis);
     }
 
     long getNetworkTimeout() {
-        return cfg.getNetworkTimeout();
+        return cfg.networkTimeout();
     }
 
     private URL url(String subPath) {

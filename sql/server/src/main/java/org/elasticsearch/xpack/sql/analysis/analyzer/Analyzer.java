@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
+import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.CompoundDataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -641,8 +642,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         // TODO: might be removed
                         // dedicated count optimization
                         if (name.toUpperCase(Locale.ROOT).equals("COUNT")) {
-                            uf = new UnresolvedFunction(uf.location(), uf.name(), uf.distinct(), uf.timeZone(),
-                                    singletonList(Literal.of(uf.arguments().get(0).location(), Integer.valueOf(1))));
+                            uf = new UnresolvedFunction(uf.location(), uf.name(), uf.distinct(), singletonList(Literal.of(uf.arguments().get(0).location(), Integer.valueOf(1))));
                         }
                     }
 
@@ -666,7 +666,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         throw new UnknownFunctionException(name, uf);
                     }
                     // TODO: look into Generator for significant terms, etc..
-                    Function f = functionRegistry.resolveFunction(uf);
+                    Function f = functionRegistry.resolveFunction(uf, SqlSession.CURRENT.get());
 
                     list.add(f);
                     return f;

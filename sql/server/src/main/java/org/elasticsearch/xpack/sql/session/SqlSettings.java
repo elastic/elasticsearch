@@ -6,11 +6,18 @@
 package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.common.settings.Settings;
+import org.joda.time.DateTimeZone;
 
 // Typed object holding properties for a given 
 public class SqlSettings {
 
     public static final SqlSettings EMPTY = new SqlSettings(Settings.EMPTY);
+
+    public static final String TIMEZONE_ID = "sql.timeZoneId";
+    public static final String TIMEZONE_ID_DEFAULT = null;
+
+    public static final String PAGE_SIZE = "sql.fetch.size";
+    public static final int PAGE_SIZE_DEFAULT = 100;
 
     private final Settings cfg;
 
@@ -27,14 +34,15 @@ public class SqlSettings {
         return cfg.toDelimitedString(',');
     }
 
-    public boolean dateAsString() {
-        return cfg.getAsBoolean(DATE_AS_STRING, false);
+    public String timeZoneId() {
+        return cfg.get(TIMEZONE_ID, TIMEZONE_ID_DEFAULT);
     }
 
-    public SqlSettings dateAsString(boolean value) {
-        return new SqlSettings(Settings.builder().put(cfg).put(DATE_AS_STRING, value).build());
+    public DateTimeZone timeZone() {
+        return DateTimeZone.forID(TIMEZONE_ID);
     }
 
-
-    private static final String DATE_AS_STRING = "sql.date_as_string";
+    public int pageSize() {
+        return cfg.getAsInt(PAGE_SIZE, 100);
+    }
 }

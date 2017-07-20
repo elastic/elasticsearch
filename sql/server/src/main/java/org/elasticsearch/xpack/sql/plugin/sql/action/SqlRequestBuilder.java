@@ -7,8 +7,7 @@ package org.elasticsearch.xpack.sql.plugin.sql.action;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-
-import java.util.TimeZone;
+import org.joda.time.DateTimeZone;
 
 public class SqlRequestBuilder extends ActionRequestBuilder<SqlRequest, SqlResponse, SqlRequestBuilder> {
 
@@ -16,7 +15,7 @@ public class SqlRequestBuilder extends ActionRequestBuilder<SqlRequest, SqlRespo
         this(client, action, null, null, null);
     }
 
-    public SqlRequestBuilder(ElasticsearchClient client, SqlAction action, String query, TimeZone timeZone, String sessionId) {
+    public SqlRequestBuilder(ElasticsearchClient client, SqlAction action, String query, DateTimeZone timeZone, String sessionId) {
         super(client, action, new SqlRequest(query, timeZone, sessionId));
     }
 

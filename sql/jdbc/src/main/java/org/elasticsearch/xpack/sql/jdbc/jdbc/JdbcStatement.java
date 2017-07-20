@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
+import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
+import org.elasticsearch.xpack.sql.jdbc.net.client.RequestMeta;
+
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -13,13 +16,10 @@ import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.concurrent.TimeUnit;
 
-import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
-import org.elasticsearch.xpack.sql.jdbc.net.client.RequestMeta;
-
 class JdbcStatement implements Statement, JdbcWrapper {
 
     final JdbcConnection con;
-    final JdbcConfiguration info;
+    final JdbcConfiguration cfg;
 
     private boolean closed = false;
     private boolean closeOnCompletion = false;
@@ -30,7 +30,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
 
     JdbcStatement(JdbcConnection jdbcConnection, JdbcConfiguration info) {
         this.con = jdbcConnection;
-        this.info = info;
+        this.cfg = info;
     }
 
     @Override
@@ -155,7 +155,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
         // close previous result set
         closeResultSet();
 
-        Cursor cursor = con.client.query(sql, info.timeZone(), requestMeta);
+        Cursor cursor = con.client.query(sql, requestMeta);
         rs = new JdbcResultSet(this, cursor);
     }
 

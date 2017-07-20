@@ -108,31 +108,31 @@ public class ConnectionConfiguration {
         return ssl;
     }
 
-    public void setConnectTimeout(long millis) {
+    public void connectTimeout(long millis) {
         connectTimeout = millis;
     }
 
-    public long getConnectTimeout() {
+    public long connectTimeout() {
         return connectTimeout;
     }
 
-    public void setNetworkTimeout(long millis) {
+    public void networkTimeout(long millis) {
         networkTimeout = millis;
     }
 
-    public long getNetworkTimeout() {
+    public long networkTimeout() {
         return networkTimeout;
     }
 
-    public void setQueryTimeout(long millis) {
+    public void queryTimeout(long millis) {
         queryTimeout = millis;
     }
 
-    public long getQueryTimeout() {
+    public long queryTimeout() {
         return queryTimeout;
     }
 
-    public long getPageTimeout() {
+    public long pageTimeout() {
         return pageTimeout;
     }
 

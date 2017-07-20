@@ -44,8 +44,13 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     // can be out/err/url
     static final String DEBUG_OUTPUT_DEFAULT = "err";
 
-    static final String TIME_ZONE = "time_zone";
-    static final String TIME_ZONE_DEFAULT = "UTC_CALENDAR";
+    static final String TIME_ZONE = "timezone";
+
+    // follow the JDBC spec and use the JVM default...
+    // to avoid inconsistency, the default is picked up once at startup and reused across connections
+    // to cater to the principle of least surprise 
+    // really, the way to move forward is to specify a calendar or the timezone manually
+    static final String TIME_ZONE_DEFAULT = TimeZone.getDefault().getID();
 
     private static final List<String> KNOWN_OPTIONS = Arrays.asList(DEBUG, DEBUG_OUTPUT, TIME_ZONE);
 

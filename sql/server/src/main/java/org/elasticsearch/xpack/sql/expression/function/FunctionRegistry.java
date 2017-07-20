@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
+import org.elasticsearch.xpack.sql.session.SqlSettings;
+
 import java.util.Collection;
 
 public interface FunctionRegistry {
 
-    Function resolveFunction(UnresolvedFunction ur);
+    Function resolveFunction(UnresolvedFunction ur, SqlSettings settings);
 
     boolean functionExists(String name);
 

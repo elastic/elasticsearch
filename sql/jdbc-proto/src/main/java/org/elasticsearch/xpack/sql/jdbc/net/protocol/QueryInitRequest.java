@@ -15,29 +15,29 @@ import java.util.Objects;
 import java.util.TimeZone;
 
 public class QueryInitRequest extends Request {
-    public final int fetchSize;
     public final String query;
+    public final int fetchSize;
     public final TimeZone timeZone;
     public final TimeoutInfo timeout;
 
-    public QueryInitRequest(int fetchSize, String query, TimeZone timeZone, TimeoutInfo timeout) {
-        this.fetchSize = fetchSize;
+    public QueryInitRequest(String query, int fetchSize, TimeZone timeZone, TimeoutInfo timeout) {
         this.query = query;
+        this.fetchSize = fetchSize;
         this.timeZone = timeZone;
         this.timeout = timeout;
     }
 
     QueryInitRequest(int clientVersion, DataInput in) throws IOException {
-        fetchSize = in.readInt();
         query = in.readUTF();
+        fetchSize = in.readInt();
         timeZone = TimeZone.getTimeZone(in.readUTF());
         timeout = new TimeoutInfo(in);
     }
 
     @Override
     public void write(DataOutput out) throws IOException {
-        out.writeInt(fetchSize);
         out.writeUTF(query);
+        out.writeInt(fetchSize);
         out.writeUTF(timeZone.getID());
         timeout.write(out);
     }

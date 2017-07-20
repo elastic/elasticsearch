@@ -23,8 +23,9 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsCatalog;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
+import org.elasticsearch.xpack.sql.session.SqlSettings;
+import org.joda.time.DateTimeZone;
 
-import java.util.TimeZone;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.sql.util.ActionUtils.chain;
@@ -60,8 +61,14 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
     protected void doExecute(SqlRequest request, ActionListener<SqlResponse> listener) {
         String sessionId = request.sessionId();
         String query = request.query();
-        TimeZone timeZone = request.timeZone();
+        DateTimeZone timeZone = request.timeZone();
         
+        SqlSettings sqlCfg = new SqlSettings(
+                Settings.builder()
+                //    .put(SqlSettings.PAGE_SIZE, req.fetchSize)
+                        .put(SqlSettings.TIMEZONE_ID, request.timeZone().getID())
+                .build());
+
         try {
             if (sessionId == null) {
                 if (!Strings.hasText(query)) {
@@ -69,7 +76,7 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
                     return;
                 }
 
-                planExecutor.sql(query, timeZone, chain(listener, c -> {
+                planExecutor.sql(query, chain(listener, c -> {
                             String id = generateId();
                             SESSIONS.put(id, c);
                             return new SqlResponse(id, c);

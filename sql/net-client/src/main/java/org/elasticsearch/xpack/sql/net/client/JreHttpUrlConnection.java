@@ -40,8 +40,8 @@ public class JreHttpUrlConnection implements Closeable {
             throw new ClientException(ex, "Cannot setup connection to %s (%s)", url, ex.getMessage());
         }
 
-        con.setConnectTimeout((int) cfg.getConnectTimeout());
-        con.setReadTimeout((int) cfg.getNetworkTimeout());
+        con.setConnectTimeout((int) cfg.connectTimeout());
+        con.setReadTimeout((int) cfg.networkTimeout());
 
         con.setAllowUserInteraction(false);
         con.setUseCaches(false);

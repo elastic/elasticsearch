@@ -8,21 +8,25 @@ package org.elasticsearch.xpack.sql.expression.function;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.function.aware.DistinctAware;
+import org.elasticsearch.xpack.sql.expression.function.aware.TimeZoneAware;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
+import org.elasticsearch.xpack.sql.session.SqlSettings;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.tree.NodeUtils;
 import org.elasticsearch.xpack.sql.tree.NodeUtils.NodeInfo;
 import org.elasticsearch.xpack.sql.util.Assert;
 import org.elasticsearch.xpack.sql.util.StringUtils;
+import org.joda.time.DateTimeZone;
 
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
@@ -50,12 +54,12 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
 
     
     @Override
-    public Function resolveFunction(UnresolvedFunction ur) {
+    public Function resolveFunction(UnresolvedFunction ur, SqlSettings settings) {
         FunctionDefinition def = defs.get(normalize(ur.name()));
         if (def == null) {
             throw new SqlIllegalArgumentException("Cannot find function %s; this should have been caught during analysis", ur.name());
         }
-        return createInstance(def.clazz(), ur);
+        return createInstance(def.clazz(), ur, settings);
     }
 
     @Override
@@ -95,42 +99,62 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
     }
 
     @SuppressWarnings("rawtypes")
-    private static Function createInstance(Class<? extends Function> clazz, UnresolvedFunction ur) {
+    private static Function createInstance(Class<? extends Function> clazz, UnresolvedFunction ur, SqlSettings settings) {
         NodeInfo info = NodeUtils.info((Class<? extends Node>) clazz);
         Class<?> exp = ur.children().size() == 1 ? Expression.class : List.class;
         Object expVal = exp == Expression.class ? ur.children().get(0) : ur.children();
 
-        boolean distinctAware = true;
-        boolean noArgument = false;
-        boolean tzAware = false;
-        // distinct ctor
-        if (!Arrays.equals(new Class[] { Location.class, exp, boolean.class }, info.ctr.getParameterTypes())) {
-            if (ur.distinct()) {
-                throw new ParsingException(ur.location(), "Function [%s] does not support DISTINCT yet it was specified", ur.name());
-            }
-            distinctAware = false;
-            
-            // might be a constant function
-            if (expVal instanceof List && ((List) expVal).isEmpty()) {
-                noArgument = Arrays.equals(new Class[] { Location.class }, info.ctr.getParameterTypes());
-            }
-            else if (Arrays.equals(new Class[] { Location.class, exp, TimeZone.class }, info.ctr.getParameterTypes())) {
-                tzAware = true;
-            }
-            // distinctless
-            else if (!Arrays.equals(new Class[] { Location.class, exp }, info.ctr.getParameterTypes())) {
-                throw new SqlIllegalArgumentException("No constructor with signature [%s, %s (,%s)?] found for [%s]",
-                        Location.class, exp, boolean.class, clazz.getTypeName());
-            }
+        boolean noExpression = false;
+        boolean distinctAware = DistinctAware.class.isAssignableFrom(clazz);
+        boolean timezoneAware = TimeZoneAware.class.isAssignableFrom(clazz);
+
+        // check constructor signature
+        
+        
+        // validate distinct ctor
+        if (!distinctAware && ur.distinct()) {
+            throw new ParsingException(ur.location(), "Function [%s] does not support DISTINCT yet it was specified", ur.name());
         }
         
+        List<Class> ctorSignature = new ArrayList<>();
+        ctorSignature.add(Location.class);
+        
+        // might be a constant function
+        if (expVal instanceof List && ((List) expVal).isEmpty()) {
+            noExpression = Arrays.equals(new Class[] { Location.class }, info.ctr.getParameterTypes());
+        }
+        else {
+            ctorSignature.add(exp);
+        }
+
+        // aware stuff
+        if (distinctAware) {
+            ctorSignature.add(boolean.class);
+        }
+        if (timezoneAware) {
+            ctorSignature.add(DateTimeZone.class);
+        }
+        
+        // validate
+        Assert.isTrue(Arrays.equals(ctorSignature.toArray(new Class[ctorSignature.size()]), info.ctr.getParameterTypes()),
+                "No constructor with signature %s found for [%s]", ctorSignature, clazz.getTypeName());
+        
+        // now add the actual values
         try {
-            // NOCOMMIT reflection here feels icky
-            Object[] args;
-            if (tzAware) {
-                args = new Object[] { ur.location(), expVal, ur.timeZone() };
-            } else {
-                args = noArgument ? new Object[] { ur.location() } : (distinctAware ? new Object[] { ur.location(), expVal, ur.distinct() } : new Object[] { ur.location(), expVal });
+            List<Object> args = new ArrayList<>();
+
+            // always add location first
+            args.add(ur.location());
+
+            // has multiple arguments
+            if (!noExpression) {
+                args.add(expVal);
+                if (distinctAware) {
+                    args.add(ur.distinct());
+                }
+                if (timezoneAware) {
+                    args.add(settings.timeZone());
+                }
             } 
             return (Function) info.ctr.newInstance(args);
         } catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {

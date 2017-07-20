@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
+import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
+import org.elasticsearch.xpack.sql.jdbc.util.Version;
+
 import java.io.Closeable;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -14,9 +17,6 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
-
-import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
-import org.elasticsearch.xpack.sql.jdbc.util.Version;
 
 public class JdbcDriver implements java.sql.Driver, Closeable {
 
@@ -55,7 +55,7 @@ public class JdbcDriver implements java.sql.Driver, Closeable {
     private static JdbcConfiguration initInfo(String url, Properties props) {
         JdbcConfiguration ci = new JdbcConfiguration(url, props);
         if (DriverManager.getLoginTimeout() > 0) {
-            ci.setConnectTimeout(TimeUnit.SECONDS.toMillis(DriverManager.getLoginTimeout()));
+            ci.connectTimeout(TimeUnit.SECONDS.toMillis(DriverManager.getLoginTimeout()));
         }
         return ci;
     }

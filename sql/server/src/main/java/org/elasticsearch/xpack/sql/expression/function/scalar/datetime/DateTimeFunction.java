@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.aware.TimeZoneAware;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
@@ -20,20 +21,25 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
 
 import java.time.temporal.ChronoField;
-import java.util.TimeZone;
+import java.util.Locale;
 
+import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
-public abstract class DateTimeFunction extends ScalarFunction {
-    private final TimeZone timeZone;
+public abstract class DateTimeFunction extends ScalarFunction implements TimeZoneAware {
 
-    // NOCOMMIT I feel like our lives could be made a lot simpler with composition instead of inheritance here
-    public DateTimeFunction(Location location, Expression argument, TimeZone timeZone) {
+    private final DateTimeZone timeZone;
+
+    public DateTimeFunction(Location location, Expression argument, DateTimeZone timeZone) {
         super(location, argument);
         this.timeZone = timeZone;
     }
     
+    public DateTimeZone timeZone() {
+        return timeZone;
+    }
+
     @Override
     protected TypeResolution resolveType() {
         return argument().dataType().same(DataTypes.DATE) ? 
@@ -62,16 +68,16 @@ public abstract class DateTimeFunction extends ScalarFunction {
     }
 
     private String createTemplate() {
-        if (timeZone.getID().equals("UTC")) {
+        if (DateTimeZone.UTC.equals(timeZone)) {
             return formatTemplate("doc[{}].value.get" + extractFunction() + "()");
         } else {
             // NOCOMMIT ewwww
-            /* This uses the Java 9 time API because Painless doesn't whitelist creation of new
+            /* This uses the Java 8 time API because Painless doesn't whitelist creation of new
              * Joda classes. */
+
+            // ideally JodaTime should be used since that's internally used and there are subtle differences between that and the JDK API
             String asInstant = formatTemplate("Instant.ofEpochMilli(doc[{}].value.millis)");
-            String zoneId = "ZoneId.of(\"" + timeZone.toZoneId().getId() + "\"";
-            String asZonedDateTime = "ZonedDateTime.ofInstant(" + asInstant + ", " + zoneId + "))";
-            return asZonedDateTime + ".get(ChronoField." + chronoField().name() + ")";
+            return format(Locale.ROOT, "ZonedDateTime.ofInstant(%s, ZoneId.of(\"%s\")).get(ChronoField.%s)", asInstant, timeZone.getID(), chronoField().name());
         }
     }
 
@@ -87,13 +93,8 @@ public abstract class DateTimeFunction extends ScalarFunction {
             if (l instanceof Long) {
                 dt = new DateTime((Long) l, DateTimeZone.UTC);
             }
-            // but date histogram returns the keys already as DateTime on UTC
             else {
                 dt = (ReadableDateTime) l;
-            }
-            if (false == timeZone.getID().equals("UTC")) {
-                // TODO probably faster to use `null` for UTC like core does
-                dt = dt.toDateTime().withZone(DateTimeZone.forTimeZone(timeZone));
             }
             return Integer.valueOf(extract(dt));
         };
@@ -102,10 +103,6 @@ public abstract class DateTimeFunction extends ScalarFunction {
     @Override
     public DataType dataType() {
         return DataTypes.INTEGER;
-    }
-
-    public TimeZone timeZone() {
-        return timeZone;
     }
 
     protected abstract int extract(ReadableDateTime dt);

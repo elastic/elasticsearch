@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.plugin.sql.action;
 
-import java.io.IOException;
-import java.util.Objects;
-import java.util.TimeZone;
-
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.joda.time.DateTimeZone;
+
+import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -22,13 +22,13 @@ public class SqlRequest extends ActionRequest implements CompositeIndicesRequest
 
     // initialized on the first request
     private String query;
-    private TimeZone timeZone;
+    private DateTimeZone timeZone;
     // initialized after the plan has been translated
     private String sessionId;
 
     public SqlRequest() {}
 
-    public SqlRequest(String query, TimeZone timeZone, String sessionId) {
+    public SqlRequest(String query, DateTimeZone timeZone, String sessionId) {
         this.query = query;
         this.timeZone = timeZone;
         this.sessionId = sessionId;
@@ -51,7 +51,7 @@ public class SqlRequest extends ActionRequest implements CompositeIndicesRequest
         return sessionId;
     }
 
-    public TimeZone timeZone() {
+    public DateTimeZone timeZone() {
         return timeZone;
     }
 
@@ -69,7 +69,7 @@ public class SqlRequest extends ActionRequest implements CompositeIndicesRequest
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         query = in.readString();
-        timeZone = TimeZone.getTimeZone(in.readString());
+        timeZone = DateTimeZone.forID(in.readString());
         sessionId = in.readOptionalString();
     }
 

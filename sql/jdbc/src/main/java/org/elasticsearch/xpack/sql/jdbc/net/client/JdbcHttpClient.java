@@ -37,7 +37,6 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.List;
-import java.util.TimeZone;
 
 public class JdbcHttpClient implements Closeable {
     @FunctionalInterface
@@ -65,9 +64,9 @@ public class JdbcHttpClient implements Closeable {
         }
     }
 
-    public Cursor query(String sql, TimeZone timeZone, RequestMeta meta) throws SQLException {
+    public Cursor query(String sql, RequestMeta meta) throws SQLException {
         int fetch = meta.fetchSize() >= 0 ? meta.fetchSize() : conCfg.pageSize();
-        QueryInitRequest request = new QueryInitRequest(fetch, sql, timeZone, timeout(meta));
+        QueryInitRequest request = new QueryInitRequest(sql, fetch, conCfg.timeZone(), timeout(meta));
         BytesArray ba = http.put(out -> Proto.INSTANCE.writeRequest(request, out));
         QueryInitResponse response = doIO(ba, in -> (QueryInitResponse) readResponse(request, in));
         return new DefaultCursor(this, response.requestId, (Page) response.data, meta);
@@ -149,8 +148,8 @@ public class JdbcHttpClient implements Closeable {
         // timeout (in ms)
         long timeout = meta.timeoutInMs();
         if (timeout == 0) {
-            timeout = conCfg.getQueryTimeout();
+            timeout = conCfg.queryTimeout();
         }
-        return new TimeoutInfo(clientTime, timeout, conCfg.getPageTimeout());
+        return new TimeoutInfo(clientTime, timeout, conCfg.pageTimeout());
     }
 }

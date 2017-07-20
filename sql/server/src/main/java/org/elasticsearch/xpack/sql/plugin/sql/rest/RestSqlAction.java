@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.plugin.sql.rest;
 
-import java.io.IOException;
-import java.util.TimeZone;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
@@ -21,6 +18,9 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlRequest;
+import org.joda.time.DateTimeZone;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -73,7 +73,7 @@ public class RestSqlAction extends BaseRestHandler {
         }
 
         String query;
-        TimeZone timeZone;
+        DateTimeZone timeZone;
 
         static Payload from(RestRequest request) throws IOException {
             Payload payload = new Payload();
@@ -89,7 +89,7 @@ public class RestSqlAction extends BaseRestHandler {
         }
 
         public void setTimeZone(String timeZone) {
-            this.timeZone = TimeZone.getTimeZone(timeZone);
+            this.timeZone = DateTimeZone.forID(timeZone);
         }
     }
 }

@@ -40,10 +40,10 @@ import static java.lang.String.format;
 class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     // temporary calendar instance (per connection) used for normalizing the date and time
-    // even though the info is already in UTC_CALENDAR format, JDBC 3.0 requires java.sql.Time to have its date
+    // even though the cfg is already in UTC format, JDBC 3.0 requires java.sql.Time to have its date
     // removed (set to Jan 01 1970) and java.sql.Date to have its HH:mm:ss component removed
     // instead of dealing with longs, a Calendar object is used instead
-    private final Calendar DEFAULT_CALENDAR = TypeConverter.defaultCalendar();
+    private final Calendar defaultCalendar;
 
     private final JdbcStatement statement;
     private final Cursor cursor;
@@ -57,6 +57,8 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     JdbcResultSet(JdbcStatement statement, Cursor cursor) {
         this.statement = statement;
         this.cursor = cursor;
+        // TODO: should we consider the locale as well? 
+        this.defaultCalendar = Calendar.getInstance(statement.cfg.timeZone(), Locale.ROOT);
 
         List<ColumnInfo> columns = cursor.columns();
         for (int i = 0; i < columns.size(); i++) {
@@ -239,7 +241,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     }
 
     private Calendar safeCalendar(Calendar calendar) {
-        return calendar == null ? DEFAULT_CALENDAR : calendar;
+        return calendar == null ? defaultCalendar : calendar;
     }
 
     @Override

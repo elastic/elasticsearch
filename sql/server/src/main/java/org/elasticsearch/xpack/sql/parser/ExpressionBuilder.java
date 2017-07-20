@@ -71,29 +71,11 @@ import org.elasticsearch.xpack.sql.type.DataTypes;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
-import java.util.TimeZone;
 import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
-    /**
-     * Time zone in which to execute the query. Used by date time
-     * functions and the rounding in date histograms.
-     */
-    private final TimeZone timeZone;
-
-    ExpressionBuilder(TimeZone timeZone) {
-        this.timeZone = timeZone;
-    }
-
-    /**
-     * Time zone in which to execute the query. Used by date time
-     * functions and the rounding in date histograms.
-     */
-    protected TimeZone timeZone() {
-        return timeZone;
-    }
 
     protected Expression expression(ParseTree ctx) {
         return typedParsing(ctx, Expression.class);
@@ -304,7 +286,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ctx.setQuantifier() != null) {
             isDistinct = (ctx.setQuantifier().DISTINCT() != null);
         }
-        return new UnresolvedFunction(source(ctx), name, isDistinct, timeZone, expressions(ctx.expression()));
+        return new UnresolvedFunction(source(ctx), name, isDistinct, expressions(ctx.expression()));
     }
 
     @Override
@@ -317,7 +299,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch (IllegalArgumentException ex) {
             throw new ParsingException(source, format(Locale.ROOT, "Invalid EXTRACT field %s", fieldString));
         }
-        return extract.toFunction(source, expression(ctx.valueExpression()), timeZone);
+        return extract.toFunction(source, expression(ctx.valueExpression()));
     }
 
     @Override

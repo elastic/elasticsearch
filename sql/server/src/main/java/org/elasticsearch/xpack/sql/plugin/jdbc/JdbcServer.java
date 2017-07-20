@@ -9,6 +9,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsType;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.execution.search.SearchHitRowSetCursor;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.sql.plugin.AbstractSqlServer;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto.SqlExceptionType;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
+import org.elasticsearch.xpack.sql.session.SqlSettings;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -141,7 +143,13 @@ public class JdbcServer extends AbstractSqlServer {
     public void queryInit(QueryInitRequest req, ActionListener<Response> listener) {
         final long start = System.currentTimeMillis();
 
-        executor.sql(req.query, req.timeZone, wrap(c -> {
+        SqlSettings sqlCfg = new SqlSettings(Settings.builder()
+                .put(SqlSettings.PAGE_SIZE, req.fetchSize)
+                .put(SqlSettings.TIMEZONE_ID, req.timeZone.getID())
+                .build()
+        );
+        
+        executor.sql(sqlCfg, req.query, wrap(c -> {
             long stop = System.currentTimeMillis();
             String requestId = EMPTY;
             if (c.hasNextSet() && c instanceof SearchHitRowSetCursor) {

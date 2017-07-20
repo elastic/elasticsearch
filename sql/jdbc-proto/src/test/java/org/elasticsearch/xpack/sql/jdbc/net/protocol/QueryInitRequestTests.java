@@ -16,7 +16,7 @@ import static org.elasticsearch.xpack.sql.jdbc.net.protocol.TimeoutInfoTests.ran
 
 public class QueryInitRequestTests extends ESTestCase {
     public static QueryInitRequest randomQueryInitRequest() {
-        return new QueryInitRequest(between(0, Integer.MAX_VALUE), randomAlphaOfLength(5), randomTimeZone(random()), randomTimeoutInfo());
+        return new QueryInitRequest(randomAlphaOfLength(5), between(0, Integer.MAX_VALUE), randomTimeZone(random()), randomTimeoutInfo());
     }
 
     public void testRoundTrip() throws IOException {
@@ -25,8 +25,8 @@ public class QueryInitRequestTests extends ESTestCase {
 
     public void testToString() {
         assertEquals("QueryInitRequest<query=[SELECT * FROM test.doc]>",
-                new QueryInitRequest(10, "SELECT * FROM test.doc", TimeZone.getTimeZone("UTC"), new TimeoutInfo(1, 1, 1)).toString());
+                new QueryInitRequest("SELECT * FROM test.doc", 10, TimeZone.getTimeZone("UTC"), new TimeoutInfo(1, 1, 1)).toString());
         assertEquals("QueryInitRequest<query=[SELECT * FROM test.doc] timeZone=[GMT-05:00]>",
-                new QueryInitRequest(10, "SELECT * FROM test.doc", TimeZone.getTimeZone("GMT-5"), new TimeoutInfo(1, 1, 1)).toString());
+                new QueryInitRequest("SELECT * FROM test.doc", 10, TimeZone.getTimeZone("GMT-5"), new TimeoutInfo(1, 1, 1)).toString());
     }
 }

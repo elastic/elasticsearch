@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.Planner;
 
-import java.util.TimeZone;
 import java.util.function.Function;
 
 public class SqlSession {
@@ -34,6 +33,15 @@ public class SqlSession {
 
     private final SqlSettings defaults;
     private SqlSettings settings;
+
+    // thread-local used for sharing settings across the plan compilation
+    public static final ThreadLocal<SqlSettings> CURRENT = new ThreadLocal<SqlSettings>() {
+
+        @Override
+        public String toString() {
+            return "SQL Session";
+        }
+    };
 
     public SqlSession(SqlSession other) {
         this(other.defaults(), other.client(), other.parser, other.catalog(), other.functionRegistry(), other.analyzer(), other.optimizer(), other.planner());
@@ -79,12 +87,12 @@ public class SqlSession {
         return optimizer;
     }
 
-    public LogicalPlan parse(String sql, TimeZone timeZone) {
-        return parser.createStatement(sql, timeZone);
+    public LogicalPlan parse(String sql) {
+        return parser.createStatement(sql);
     }
 
-    public Expression expression(String expression, TimeZone timeZone) {
-        return parser.createExpression(expression, timeZone);
+    public Expression expression(String expression) {
+        return parser.createExpression(expression);
     }
 
     public LogicalPlan analyzedPlan(LogicalPlan plan, boolean verify) {
@@ -99,8 +107,17 @@ public class SqlSession {
         return planner.plan(optimizedPlan(optimized), verify);
     }
 
-    public PhysicalPlan executable(String sql, TimeZone timeZone) {
-        return physicalPlan(parse(sql, timeZone), true);
+    public PhysicalPlan executable(String sql) {
+        CURRENT.set(settings);
+        try {
+            return physicalPlan(parse(sql), true);
+        } finally {
+            CURRENT.remove();
+        }
+    }
+
+    public void sql(String sql, ActionListener<RowSetCursor> listener) {
+        executable(sql).execute(this, listener);
     }
 
     public SqlSettings defaults() {

@@ -18,7 +18,6 @@ import java.time.OffsetTime;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.Locale;
-import java.util.TimeZone;
 import java.util.function.Function;
 
 import static java.lang.String.format;
@@ -33,13 +32,7 @@ import static java.util.Calendar.YEAR;
 
 abstract class TypeConverter {
 
-    static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC_CALENDAR"), Locale.ROOT);
-
     private static final long DAY_IN_MILLIS = 60 * 60 * 24;
-
-    static Calendar defaultCalendar() {
-        return (Calendar) UTC_CALENDAR.clone();
-    }
 
     static Date convertDate(Long millis, Calendar cal) {
         return dateTimeConvert(millis, cal, c -> {

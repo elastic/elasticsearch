@@ -36,8 +36,7 @@ public class TransportJdbcAction extends HandledTransportAction<JdbcRequest, Jdb
         // lazy init of the resolver
         ((EsCatalog) planExecutor.catalog()).setIndexNameExpressionResolver(indexNameExpressionResolver);
         // NOCOMMIT indexNameExpressionResolver should be available some other way
-        this.jdbcServer = new JdbcServer(planExecutor, clusterService.getClusterName().value(), () -> clusterService.localNode().getName(),
-                Version.CURRENT, Build.CURRENT);
+        this.jdbcServer = new JdbcServer(planExecutor, clusterService.getClusterName().value(), () -> clusterService.localNode().getName(), Version.CURRENT, Build.CURRENT);
     }
 
     @Override

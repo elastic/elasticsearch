@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbcx;
 
+import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
+import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
+import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConnection;
+
 import java.io.Closeable;
 import java.io.PrintWriter;
 import java.sql.Connection;
@@ -16,10 +20,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 import javax.sql.DataSource;
-
-import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConnection;
 
 public class JdbcDataSource implements DataSource, Wrapper, Closeable {
 
@@ -86,7 +86,7 @@ public class JdbcDataSource implements DataSource, Wrapper, Closeable {
     private Connection doGetConnection(Properties p) {
         JdbcConfiguration ci = new JdbcConfiguration(url, p);
         if (loginTimeout > 0) {
-            ci.setConnectTimeout(TimeUnit.SECONDS.toMillis(loginTimeout));
+            ci.connectTimeout(TimeUnit.SECONDS.toMillis(loginTimeout));
         }
         return new JdbcConnection(ci);
     }

@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.replication.RecoveryDuringReplicationTests;
@@ -34,7 +33,6 @@ import org.elasticsearch.index.shard.IndexShard;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
-import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -92,16 +90,16 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.startAll();
             // create out of order delete and index op on replica
             final IndexShard orgReplica = shards.getReplicas().get(0);
-            final Consumer<Mapping> mappingConsumer = getMappingUpdater(orgReplica, "type");
-            orgReplica.applyDeleteOperationOnReplica(1, 1, 2, "type", "id", VersionType.EXTERNAL, mappingConsumer);
+            orgReplica.applyDeleteOperationOnReplica(1, 1, 2, "type", "id", VersionType.EXTERNAL, u -> {});
             orgReplica.getTranslog().rollGeneration(); // isolate the delete in it's own generation
             orgReplica.applyIndexOperationOnReplica(0, 1, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
-                SourceToParse.source(orgReplica.shardId().getIndexName(), "type", "id", new BytesArray("{}"), XContentType.JSON), mappingConsumer);
+                SourceToParse.source(orgReplica.shardId().getIndexName(), "type", "id", new BytesArray("{}"), XContentType.JSON),
+                u -> {});
 
-            // index a second item into the second generation, skipping seq# 2. Local checkpoint is now 1, which will make this generation stick
-            // around
+            // index a second item into the second generation, skipping seq# 2. Local checkpoint is now 1, which will make this generation
+            // stick around
             orgReplica.applyIndexOperationOnReplica(3, 1, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
-                SourceToParse.source(orgReplica.shardId().getIndexName(), "type", "id2", new BytesArray("{}"), XContentType.JSON), mappingConsumer);
+                SourceToParse.source(orgReplica.shardId().getIndexName(), "type", "id2", new BytesArray("{}"), XContentType.JSON), u -> {});
 
             final int translogOps;
             if (randomBoolean()) {

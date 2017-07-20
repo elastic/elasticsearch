@@ -105,6 +105,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
@@ -935,6 +936,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * The action listener is guaranteed to be executed on the search thread-pool
      */
     private void rewriteShardRequest(ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
+        // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
+        // AliasFilters
+        // that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not
+        // adding a lot of overhead
         Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getRewriteContext(request::nowInMillis),
             ActionListener.wrap(r ->
                     threadPool.executor(Names.SEARCH).execute(new AbstractRunnable() {
@@ -948,5 +953,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                             listener.onResponse(request);
                         }
                     }), listener::onFailure));
+    }
+
+    /**
+     * Returns a new {@link QueryRewriteContext} with the given <tt>now</tt> provider
+     */
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
+        return indicesService.getRewriteContext(nowInMillis);
     }
 }

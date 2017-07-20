@@ -219,11 +219,6 @@ public class MembershipAction extends AbstractComponent {
     /** ensures that the joining node has a version that's compatible with a given version range */
     static void ensureNodesCompatibility(Version joiningNodeVersion, Version minClusterNodeVersion, Version maxClusterNodeVersion) {
         assert minClusterNodeVersion.onOrBefore(maxClusterNodeVersion) : minClusterNodeVersion + " > " + maxClusterNodeVersion;
-        final byte clusterMajor = minClusterNodeVersion.major;
-        if (joiningNodeVersion.major < clusterMajor) {
-            throw new IllegalStateException("node version [" + joiningNodeVersion + "] is not supported. " +
-                "All nodes in the cluster are of a higher major [" + clusterMajor + "].");
-        }
         if (joiningNodeVersion.isCompatible(maxClusterNodeVersion) == false) {
             throw new IllegalStateException("node version [" + joiningNodeVersion + "] is not supported. " +
                 "The cluster contains nodes with version [" + maxClusterNodeVersion + "], which is incompatible.");
@@ -231,6 +226,19 @@ public class MembershipAction extends AbstractComponent {
         if (joiningNodeVersion.isCompatible(minClusterNodeVersion) == false) {
             throw new IllegalStateException("node version [" + joiningNodeVersion + "] is not supported." +
                 "The cluster contains nodes with version [" + minClusterNodeVersion + "], which is incompatible.");
+        }
+    }
+
+    /**
+     * ensures that the joining node's major version is equal or higher to the minClusterNodeVersion. This is needed
+     * to ensure that if the master is already fully operating under the new major version, it doesn't go back to mixed
+     * version mode
+     **/
+    static void ensureMajorVersionBarrier(Version joiningNodeVersion, Version minClusterNodeVersion) {
+        final byte clusterMajor = minClusterNodeVersion.major;
+        if (joiningNodeVersion.major < clusterMajor) {
+            throw new IllegalStateException("node version [" + joiningNodeVersion + "] is not supported. " +
+                "All nodes in the cluster are of a higher major [" + clusterMajor + "].");
         }
     }
 

@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
+import internal.org.apache.http.client.methods.HttpPost;
+import internal.org.apache.http.client.methods.HttpPut;
 
 import java.util.ArrayList;
 import java.util.List;

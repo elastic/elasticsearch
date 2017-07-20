@@ -26,11 +26,16 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
  * 1) The original jar contents, using the `internal.` packages, but without the `internal.` code also in the jar.
  *    The reason this jar was not overwritten was because gradle knows what its inputs and outputs are for a given task
  *    and we should not alter that by overwriting the original jar. What we do is add a `nodeps` classifier to it instead.
+ *    This jar is removed from the output artifacts of the build though, so in affect its never used.
  * 2) A jar that contains *only* the `internal.` dependencies. This is a jar that is built before the src is compiled.
  *    This jar is only used by the rest client so its compilable. There exists a chicken-egg situation where the src
  *    needs compilation and depends on `internal.` classes, so an intermediary jar needs to exist to satisfy the compile.
- *    The `deps` classifier is added to this jar.
+ *    The `deps` classifier is added to this jar. This jar is removed from the output artifacts in cli, and retained in
+ *    IDE builds. The IDE does not like removing artifacts and changing configurations on the fly, so the bits that make
+ *    the build use the actual shaded jar (3) are only executed on the cli. The tests run in an IDE rely on the modules
+ *    classfiles and the -deps jar.
  * 3) The *actual* jar that will be used by clients. This has no classifier, contains the rest client src and `internal.`.
+ *    This jar is the only actual output artifact of this job.
  */
 plugins {
   id "com.github.johnrengelman.shadow" version "2.0.1"
@@ -64,6 +69,7 @@ configurations {
 // Useful for build time dependencies, as it is generated before compilation of the source in the rest client.
 // This cannot be used as the final shaded jar, as it will contain the compiled source and dependencies
 File shadedDir = file("${buildDir}/shaded")
+// This directory exists so that the shadeDeps task would produce an output, so we can add it (below) to the source set.
 File shadedSrcDir = file("${buildDir}/generated-dummy-shaded")
 task shadeDeps(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
   destinationDir = shadedDir
@@ -88,7 +94,22 @@ jar {
   classifier = 'nodeps'
 }
 
-project.tasks.jar.dependsOn project.tasks.shadowJar
+// Mangle this build so it outputs the correct artifacts
+
+// removes the -nodeps jar
+configurations.runtime.artifacts.removeAll { it.archiveTask.is jar }
+
+// readds the shadowJar output (the actual uber jar) but only from the cli
+if (isIdea == false && isEclipse == false) {
+  // removes the runtime configuration inheritance from compile
+  configurations.runtime.extendsFrom -= [configurations.compile]
+  artifacts {
+    runtime project.tasks.shadowJar
+  }
+}
+
+// adds a dependency to compile, so the -deps jar is built first
+sourceSets.main.output.dir(shadedSrcDir, builtBy: 'shadeDeps')
 
 dependencies {
   shade "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -109,8 +130,6 @@ dependencies {
   testCompile "org.codehaus.mojo:animal-sniffer-annotations:1.15"
   signature "org.codehaus.mojo.signature:java17:1.0@signature"
 }
-
-sourceSets.main.output.dir(shadedSrcDir, builtBy: 'shadeDeps')
 
 dependencyLicenses.dependencies = project.configurations.shade
 

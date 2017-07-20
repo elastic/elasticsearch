@@ -63,7 +63,6 @@ grant codeBase "${codebase.mocksocket-1.2.jar}" {
   permission java.net.SocketPermission "*", "accept,connect";
 };
 
-
 grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT.jar}" {
   // rest makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";
@@ -71,11 +70,8 @@ grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT.jar}" 
   permission java.net.NetPermission "getProxySelector";
 };
 
-grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT-nodeps.jar}" {
-  // rest makes socket connections for rest tests
-  permission java.net.SocketPermission "*", "connect";
-};
-
+// IDEs need this because they do not play nicely with removing artifacts on projects,
+// so we keep it in here for IDE test support
 grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT-deps.jar}" {
   // rest makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";

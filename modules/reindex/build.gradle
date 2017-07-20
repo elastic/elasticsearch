@@ -54,7 +54,7 @@ thirdPartyAudit.excludes = [
   // Commons logging
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
-  'org.apache.avalon.framework.logger.Logger',
-  'org.apache.log.Hierarchy',
-  'org.apache.log.Logger',
+  'internal.org.apache.avalon.framework.logger.Logger',
+  'internal.org.apache.log.Hierarchy',
+  'internal.org.apache.log.Logger',
 ]

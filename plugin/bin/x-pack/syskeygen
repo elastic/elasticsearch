@@ -24,24 +24,7 @@ ES_HOME=`dirname "$SCRIPT"`/../..
 # make ELASTICSEARCH_HOME absolute
 ES_HOME=`cd "$ES_HOME"; pwd`
 
-# If an include wasn't specified in the environment, then search for one...
-if [ "x$ES_INCLUDE" = "x" ]; then
-    # Locations (in order) to use when searching for an include file.
-    for include in /usr/share/elasticsearch/elasticsearch.in.sh \
-                   /usr/local/share/elasticsearch/elasticsearch.in.sh \
-                   /opt/elasticsearch/elasticsearch.in.sh \
-                   ~/.elasticsearch.in.sh \
-                   "`dirname "$0"`"/../elasticsearch.in.sh \
-                   "$ES_HOME/bin/elasticsearch.in.sh"; do
-        if [ -r "$include" ]; then
-            . "$include"
-            break
-        fi
-    done
-# ...otherwise, source the specified include.
-elif [ -r "$ES_INCLUDE" ]; then
-    . "$ES_INCLUDE"
-fi
+source "$ES_HOME/bin/elasticsearch.in.sh"
 
 if [ -x "$JAVA_HOME/bin/java" ]; then
     JAVA="$JAVA_HOME/bin/java"

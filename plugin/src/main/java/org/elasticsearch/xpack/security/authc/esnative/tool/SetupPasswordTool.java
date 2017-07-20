@@ -20,7 +20,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.LogstashSystemUser;
@@ -40,7 +39,7 @@ public class SetupPasswordTool extends MultiCommand {
 
     private static final char[] CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" +
             "~!@#$%^&*-_=+?").toCharArray();
-    private static final String[] USERS = new String[]{ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME};
+    private static final String[] USERS = new String[]{ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME};
 
     private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;

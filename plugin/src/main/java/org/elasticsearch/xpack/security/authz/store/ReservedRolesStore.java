@@ -69,8 +69,6 @@ public class ReservedRolesStore {
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("logstash_system", new RoleDescriptor("logstash_system", new String[] { "monitor", MonitoringBulkAction.NAME},
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
-                .put("beats_system", new RoleDescriptor("beats_system", new String[] { "monitor", MonitoringBulkAction.NAME},
-                        null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("machine_learning_user", new RoleDescriptor("machine_learning_user", new String[] { "monitor_ml" },
                         new RoleDescriptor.IndicesPrivileges[] { RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*",
                                 ".ml-notifications").privileges("view_index_metadata", "read").build() },

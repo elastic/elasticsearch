@@ -612,7 +612,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 long localCheckPoint = indexShard.getGlobalCheckpoint() + randomInt(100);
                 // advance local checkpoint
                 for (int i = 0; i <= localCheckPoint; i++) {
-                    indexShard.markSeqNoAsNoop(i, indexShard.getPrimaryTerm(), "dummy doc");
+                    indexShard.markSeqNoAsNoop(i, "dummy doc");
                 }
                 newGlobalCheckPoint = randomIntBetween((int) indexShard.getGlobalCheckpoint(), (int) localCheckPoint);
             }
@@ -1434,7 +1434,7 @@ public class IndexShardTests extends IndexShardTestCase {
         updateMappings(otherShard, shard.indexSettings().getIndexMetaData());
         SourceToParse sourceToParse = SourceToParse.source(shard.shardId().getIndexName(), "test", "1",
             new BytesArray("{}"), XContentType.JSON);
-        otherShard.applyIndexOperationOnReplica(1, 1, 1,
+        otherShard.applyIndexOperationOnReplica(1, 1,
             VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse, update -> {});
 
         final ShardRouting primaryShardRouting = shard.routingEntry();
@@ -2131,7 +2131,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 final String id = Integer.toString(i);
                 SourceToParse sourceToParse = SourceToParse.source(indexShard.shardId().getIndexName(), "test", id,
                         new BytesArray("{}"), XContentType.JSON);
-                indexShard.applyIndexOperationOnReplica(i, indexShard.getPrimaryTerm(),
+                indexShard.applyIndexOperationOnReplica(i,
                         1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse,
                         getMappingUpdater(indexShard, sourceToParse.type()));
                 if (!gap && i == localCheckpoint + 1) {

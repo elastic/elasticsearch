@@ -19,10 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -33,17 +32,15 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class GetStoredScriptRequest extends MasterNodeReadRequest<GetStoredScriptRequest> {
 
     protected String id;
-    protected String lang;
 
     GetStoredScriptRequest() {
         super();
     }
 
-    public GetStoredScriptRequest(String id, String lang) {
+    public GetStoredScriptRequest(String id) {
         super();
 
         this.id = id;
-        this.lang = lang;
     }
 
     @Override
@@ -54,10 +51,6 @@ public class GetStoredScriptRequest extends MasterNodeReadRequest<GetStoredScrip
             validationException = addValidationError("must specify id for stored script", validationException);
         } else if (id.contains("#")) {
             validationException = addValidationError("id cannot contain '#' for stored script", validationException);
-        }
-
-        if (lang != null && lang.contains("#")) {
-            validationException = addValidationError("lang cannot contain '#' for stored script", validationException);
         }
 
         return validationException;
@@ -73,24 +66,12 @@ public class GetStoredScriptRequest extends MasterNodeReadRequest<GetStoredScrip
         return this;
     }
 
-    public String lang() {
-        return lang;
-    }
-
-    public GetStoredScriptRequest lang(String lang) {
-        this.lang = lang;
-
-        return this;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
 
-        lang = in.readString();
-
-        if (lang.isEmpty()) {
-            lang = null;
+        if (in.getVersion().before(Version.V_6_0_0_alpha2)) {
+            in.readString(); // read lang from previous versions
         }
 
         id = in.readString();
@@ -100,12 +81,15 @@ public class GetStoredScriptRequest extends MasterNodeReadRequest<GetStoredScrip
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
 
-        out.writeString(lang == null ? "" : lang);
+        if (out.getVersion().before(Version.V_6_0_0_alpha2)) {
+            out.writeString(""); // write an empty lang to previous versions
+        }
+
         out.writeString(id);
     }
 
     @Override
     public String toString() {
-        return "get script [" + lang + "][" + id + "]";
+        return "get script [" + id + "]";
     }
 }

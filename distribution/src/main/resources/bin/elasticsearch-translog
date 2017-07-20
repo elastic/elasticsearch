@@ -31,11 +31,6 @@ fi
 # For a ${project.name} package, the value is "${path.env}".
 ES_ENV_FILE="${path.env}"
 
-# If an include is specified with the ES_INCLUDE environment variable, use it
-if [ -n "$ES_INCLUDE" ]; then
-    ES_ENV_FILE="$ES_INCLUDE"
-fi
-
 # Source the environment file
 if [ -n "$ES_ENV_FILE" ]; then
 
@@ -59,11 +54,6 @@ if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
     unset JAVA_TOOL_OPTIONS
 fi
 
-# CONF_FILE setting was removed
-if [ ! -z "$CONF_FILE" ]; then
-    echo "CONF_FILE setting is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed."
-    exit 1
-fi
 
 if [ -x "$JAVA_HOME/bin/java" ]; then
     JAVA=$JAVA_HOME/bin/java
@@ -75,11 +65,6 @@ if [ ! -x "$JAVA" ]; then
     echo "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
     exit 1
 fi
-
-# full hostname passed through cut for portability on systems that do not support hostname -s
-# export on separate line for shells that do not support combining definition and export
-HOSTNAME=`hostname | cut -d. -f1`
-export HOSTNAME
 
 declare -a args=("$@")
 

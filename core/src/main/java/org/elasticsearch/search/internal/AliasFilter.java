@@ -19,82 +19,54 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
-
 /**
  * Represents a {@link QueryBuilder} and a list of alias names that filters the builder is composed of.
  */
-public final class AliasFilter implements Writeable {
+public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
 
     private final String[] aliases;
     private final QueryBuilder filter;
-    private final boolean reparseAliases;
 
     public static final AliasFilter EMPTY = new AliasFilter(null, Strings.EMPTY_ARRAY);
 
     public AliasFilter(QueryBuilder filter, String... aliases) {
         this.aliases = aliases == null ? Strings.EMPTY_ARRAY : aliases;
         this.filter = filter;
-        reparseAliases = false; // no bwc here - we only do this if we parse the filter
     }
 
     public AliasFilter(StreamInput input) throws IOException {
         aliases = input.readStringArray();
-        if (input.getVersion().onOrAfter(Version.V_5_1_1)) {
-            filter = input.readOptionalNamedWriteable(QueryBuilder.class);
-            reparseAliases = false;
-        } else {
-            reparseAliases = true; // alright we read from 5.0
-            filter = null;
-        }
+        filter = input.readOptionalNamedWriteable(QueryBuilder.class);
     }
 
-    private QueryBuilder reparseFilter(QueryRewriteContext context) {
-        if (reparseAliases) {
-            // we are processing a filter received from a 5.0 node - we need to reparse this on the executing node
-            final IndexMetaData indexMetaData = context.getIndexSettings().getIndexMetaData();
-            /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
-             * of dependencies we pass in a function that can perform the parsing. */
-            CheckedFunction<byte[], QueryBuilder, IOException> filterParser = bytes -> {
-                try (XContentParser parser = XContentFactory.xContent(bytes).createParser(context.getXContentRegistry(), bytes)) {
-                    return parseInnerQueryBuilder(parser);
-                }
-            };
-            return ShardSearchRequest.parseAliasFilter(filterParser, indexMetaData, aliases);
-        }
-        return filter;
-    }
-
-    AliasFilter rewrite(QueryRewriteContext context) throws IOException {
-        QueryBuilder queryBuilder = reparseFilter(context);
+    @Override
+    public AliasFilter rewrite(QueryRewriteContext context) throws IOException {
+        QueryBuilder queryBuilder = this.filter;
         if (queryBuilder != null) {
-            return new AliasFilter(QueryBuilder.rewriteQuery(queryBuilder, context), aliases);
+            QueryBuilder rewrite = Rewriteable.rewrite(queryBuilder, context);
+            if (rewrite != queryBuilder) {
+                return new AliasFilter(rewrite, aliases);
+            }
         }
-        return new AliasFilter(filter, aliases);
+        return this;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(aliases);
-        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
-            out.writeOptionalNamedWriteable(filter);
-        }
+        out.writeOptionalNamedWriteable(filter);
     }
 
     /**
@@ -109,12 +81,6 @@ public final class AliasFilter implements Writeable {
      * Returns the alias filter {@link QueryBuilder} or <code>null</code> if there is no such filter
      */
     public QueryBuilder getQueryBuilder() {
-        if (reparseAliases) {
-            // this is only for BWC since 5.0 still  only sends aliases so this must be rewritten on the executing node
-            // if we talk to an older node we also only forward/write the string array which is compatible with the consumers
-            // in 5.0 see ExplainRequest and QueryValidationRequest
-            throw new IllegalStateException("alias filter for aliases: " + Arrays.toString(aliases) + " must be rewritten first");
-        }
         return filter;
     }
 
@@ -123,14 +89,13 @@ public final class AliasFilter implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AliasFilter that = (AliasFilter) o;
-        return reparseAliases == that.reparseAliases &&
-            Arrays.equals(aliases, that.aliases) &&
+        return Arrays.equals(aliases, that.aliases) &&
             Objects.equals(filter, that.filter);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(reparseAliases, Arrays.hashCode(aliases), filter);
+        return Objects.hash(Arrays.hashCode(aliases), filter);
     }
 
     @Override
@@ -138,7 +103,6 @@ public final class AliasFilter implements Writeable {
         return "AliasFilter{" +
             "aliases=" + Arrays.toString(aliases) +
             ", filter=" + filter +
-            ", reparseAliases=" + reparseAliases +
             '}';
     }
 }

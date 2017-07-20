@@ -197,3 +197,21 @@ recovery has completed.
 When the cluster is stable and the node has recovered, repeat the above steps
 for all remaining nodes.
 --
+
+[IMPORTANT]
+====================================================
+
+During a rolling upgrade the cluster will continue to operate as normal. Any
+new functionality will be disabled or work in a backward compatible manner
+until all nodes of the cluster have been upgraded. Once the upgrade is
+completed and all nodes are on the new version, the new functionality will
+become operational. Once that has happened, it is practically impossible to
+go back to operating in a backward compatible mode. To protect against such a
+scenario, nodes from the previous major version (e.g. 5.x) will not be allowed
+to join a cluster where all nodes are of a higher major version (e.g. 6.x).
+
+In the unlikely case of a network malfunction during upgrades, where all
+remaining old nodes are isolated from the cluster, you will have to take all
+old nodes offline and upgrade them before they can rejoin the cluster.
+
+====================================================

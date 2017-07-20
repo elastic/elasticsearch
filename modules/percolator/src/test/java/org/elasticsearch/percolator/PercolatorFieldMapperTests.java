@@ -35,6 +35,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -58,8 +59,10 @@ import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.indices.TermsLookup;
@@ -308,8 +311,13 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().bytes(),
                 XContentType.JSON));
         BytesRef qbSource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
-        assertQueryBuilder(qbSource, queryBuilder.rewrite(indexService.newQueryShardContext(
-                randomInt(20), null, () -> { throw new UnsupportedOperationException(); })));
+        QueryShardContext shardContext = indexService.newQueryShardContext(
+            randomInt(20), null, () -> {
+                throw new UnsupportedOperationException();
+            });
+        PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
+        Rewriteable.rewriteAndFetch(queryBuilder, shardContext, future);
+        assertQueryBuilder(qbSource, future.get());
     }
 
 

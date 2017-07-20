@@ -21,6 +21,7 @@ package org.elasticsearch.search.functionscore;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -98,7 +99,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         ensureGreen(); // make sure we are done otherwise preference could change?
         int docCount = randomIntBetween(100, 200);
         for (int i = 0; i < docCount; i++) {
-            index("test", "type", "" + i, jsonBuilder().startObject().endObject());
+            index("test", "type", "" + i, jsonBuilder().startObject().field("foo", i).endObject());
         }
         flush();
         refresh();
@@ -116,7 +117,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                 SearchResponse searchResponse = client().prepareSearch()
                         .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
                         .setPreference(preference)
-                        .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(seed)))
+                        .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(seed).setField("foo")))
                         .execute().actionGet();
                 assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()),
                         searchResponse.getShardFailures().length, CoreMatchers.equalTo(0));
@@ -143,7 +144,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                 int numDocsToChange = randomIntBetween(20, 50);
                 while (numDocsToChange > 0) {
                     int doc = randomInt(docCount-1);// watch out this is inclusive the max values!
-                    index("test", "type", "" + doc, jsonBuilder().startObject().endObject());
+                    index("test", "type", "" + doc, jsonBuilder().startObject().field("foo", doc).endObject());
                     --numDocsToChange;
                 }
                 flush();
@@ -259,7 +260,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         int seed = 12345678;
 
         SearchResponse resp = client().prepareSearch("test")
-                .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(seed)))
+                .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(seed).setField(SeqNoFieldMapper.NAME)))
                 .setExplain(true)
                 .get();
         assertNoFailures(resp);
@@ -273,7 +274,13 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         ensureGreen();
 
         SearchResponse resp = client().prepareSearch("test")
-                .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(1234)))
+                .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(1234).setField(SeqNoFieldMapper.NAME)))
+                .get();
+        assertNoFailures(resp);
+        assertEquals(0, resp.getHits().getTotalHits());
+
+        resp = client().prepareSearch("test")
+                .setQuery(functionScoreQuery(matchAllQuery(), randomFunction()))
                 .get();
         assertNoFailures(resp);
         assertEquals(0, resp.getHits().getTotalHits());
@@ -292,9 +299,8 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         refresh();
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; ++i) {
-            int seed = randomInt();
             SearchResponse searchResponse = client().prepareSearch()
-                    .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(seed)))
+                    .setQuery(functionScoreQuery(matchAllQuery(), randomFunction()))
                     .setSize(docCount)
                     .execute().actionGet();
 
@@ -316,17 +322,18 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
 
         assertNoFailures(client().prepareSearch()
                 .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
-                .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(randomInt())))
+                .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(randomInt()).setField(SeqNoFieldMapper.NAME)))
                 .execute().actionGet());
 
         assertNoFailures(client().prepareSearch()
                 .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
-                .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(randomLong())))
+                .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(randomLong()).setField(SeqNoFieldMapper.NAME)))
                 .execute().actionGet());
 
         assertNoFailures(client().prepareSearch()
                 .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
-                .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(randomRealisticUnicodeOfLengthBetween(10, 20))))
+                .setQuery(functionScoreQuery(matchAllQuery(), randomFunction()
+                        .seed(randomRealisticUnicodeOfLengthBetween(10, 20)).setField(SeqNoFieldMapper.NAME)))
                 .execute().actionGet());
     }
 

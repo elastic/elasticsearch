@@ -89,35 +89,6 @@ else
     }
 fi
 
-@test "[$GROUP] install jvm-example plugin with a custom CONFIG_FILE and check failure" {
-    local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
-    CONF_FILE="$ESCONFIG/elasticsearch.yml" run sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath"
-    # this should fail because CONF_FILE is no longer supported
-    [ $status = 1 ]
-    CONF_FILE="$ESCONFIG/elasticsearch.yml" run sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" remove jvm-example
-    echo "status is $status"
-    [ $status = 1 ]
-}
-
-@test "[$GROUP] start elasticsearch with a custom CONFIG_FILE and check failure" {
-    local CONF_FILE="$ESCONFIG/elasticsearch.yml"
-
-    if is_dpkg; then
-        echo "CONF_FILE=$CONF_FILE" >> /etc/default/elasticsearch;
-    elif is_rpm; then
-        echo "CONF_FILE=$CONF_FILE" >> /etc/sysconfig/elasticsearch;
-    fi
-
-    run_elasticsearch_service 1 -Ees.default.config="$CONF_FILE"
-
-    # remove settings again otherwise cleaning up before next testrun will fail
-    if is_dpkg ; then
-        sudo sed -i '/CONF_FILE/d' /etc/default/elasticsearch
-    elif is_rpm; then
-        sudo sed -i '/CONF_FILE/d' /etc/sysconfig/elasticsearch
-    fi
-}
-
 @test "[$GROUP] install jvm-example plugin with a symlinked plugins path" {
     # Clean up after the last time this test was run
     rm -rf /tmp/plugins.*

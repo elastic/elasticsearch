@@ -63,7 +63,6 @@ pidfile="$PID_DIR/${prog}.pid"
 
 export ES_JAVA_OPTS
 export JAVA_HOME
-export ES_INCLUDE
 export CONF_DIR
 export ES_STARTUP_SLEEP_TIME
 

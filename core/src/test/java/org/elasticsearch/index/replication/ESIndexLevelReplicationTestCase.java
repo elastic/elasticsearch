@@ -287,14 +287,12 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
                 assert request.versionType().validateVersionForWrites(request.version());
             }
-            request.primaryTerm(primary.getPrimaryTerm());
             IndexResponse response = new IndexResponse(
                     primary.shardId(),
                     request.type(),
                     request.id(),
                     indexResult.getVersion(),
                     indexResult.isCreated());
-            request.primaryTerm(primary.getPrimaryTerm());
             return new IndexingResult(request, response);
         }
 
@@ -320,13 +318,13 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         @Override
-        public void failShard(ShardRouting replica, long primaryTerm, String message, Exception exception, Runnable onSuccess,
+        public void failShard(ShardRouting replica, String message, Exception exception, Runnable onSuccess,
                               Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public void markShardCopyAsStale(ShardId shardId, String allocationId, long primaryTerm, Runnable onSuccess,
+        public void markShardCopyAsStale(ShardId shardId, String allocationId, Runnable onSuccess,
                                          Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
             throw new UnsupportedOperationException();
         }

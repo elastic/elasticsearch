@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -55,7 +56,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      */
     protected ShardId shardId;
 
-    long primaryTerm;
+    private long primaryTerm;
 
     protected TimeValue timeout = DEFAULT_TIMEOUT;
     protected String index;
@@ -171,12 +172,12 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     /** returns the primary term active at the time the operation was performed on the primary shard */
-    public long primaryTerm() {
+    long primaryTerm() {
         return primaryTerm;
     }
 
     /** marks the primary term in which the operation was performed */
-    public void primaryTerm(long term) {
+    void primaryTerm(long term) {
         primaryTerm = term;
     }
 
@@ -201,7 +202,11 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         timeout = new TimeValue(in);
         index = in.readString();
         routedBasedOnClusterVersion = in.readVLong();
-        primaryTerm = in.readVLong();
+        if (in.getVersion().before(Version.V_5_6_0_UNRELEASED)) {
+            primaryTerm = in.readVLong();
+        } else {
+            primaryTerm = 0L;
+        }
     }
 
     @Override
@@ -217,7 +222,9 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         timeout.writeTo(out);
         out.writeString(index);
         out.writeVLong(routedBasedOnClusterVersion);
-        out.writeVLong(primaryTerm);
+        if (out.getVersion().before(Version.V_5_6_0_UNRELEASED)) {
+            out.writeVLong(primaryTerm);
+        }
     }
 
     @Override

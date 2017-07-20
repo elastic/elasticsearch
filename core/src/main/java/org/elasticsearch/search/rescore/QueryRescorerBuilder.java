@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
@@ -171,7 +172,8 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
     public QueryRescoreContext build(QueryShardContext context) throws IOException {
         org.elasticsearch.search.rescore.QueryRescorer rescorer = new org.elasticsearch.search.rescore.QueryRescorer();
         QueryRescoreContext queryRescoreContext = new QueryRescoreContext(rescorer);
-        queryRescoreContext.setQuery(Rewriteable.rewrite(this.queryBuilder, context).toQuery(context));
+        // query is rewritten at this point already
+        queryRescoreContext.setQuery(queryBuilder.toQuery(context));
         queryRescoreContext.setQueryWeight(this.queryWeight);
         queryRescoreContext.setRescoreQueryWeight(this.rescoreQueryWeight);
         queryRescoreContext.setScoreMode(this.scoreMode);
@@ -243,5 +245,14 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
         void setScoreMode(QueryRescoreMode scoreMode) {
             this.scoreMode = scoreMode;
         }
+    }
+
+    @Override
+    public RescoreBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        QueryBuilder rewrite = queryBuilder.rewrite(ctx);
+        if (rewrite == queryBuilder) {
+            return this;
+        }
+        return new QueryRescorerBuilder(rewrite);
     }
 }

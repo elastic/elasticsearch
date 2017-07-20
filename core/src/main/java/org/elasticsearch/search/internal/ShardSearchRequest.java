@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
@@ -52,13 +53,15 @@ public interface ShardSearchRequest {
 
     SearchSourceBuilder source();
 
+    AliasFilter getAliasFilter();
+
+    void setAliasFilter(AliasFilter filter);
+
     void source(SearchSourceBuilder source);
 
     int numberOfShards();
 
     SearchType searchType();
-
-    QueryBuilder filteringAliases();
 
     float indexBoost();
 
@@ -83,12 +86,6 @@ public interface ShardSearchRequest {
      * Returns the cache key for this shard search request, based on its content
      */
     BytesReference cacheKey() throws IOException;
-
-    /**
-     * Rewrites this request into its primitive form. e.g. by rewriting the
-     * QueryBuilder.
-     */
-    void rewrite(QueryRewriteContext context) throws IOException;
 
     /**
      * Returns the filter associated with listed filtering aliases.
@@ -147,5 +144,7 @@ public interface ShardSearchRequest {
      * cluster.
      */
     String getClusterAlias();
+
+    Rewriteable<Rewriteable> getRewriteable();
 
 }

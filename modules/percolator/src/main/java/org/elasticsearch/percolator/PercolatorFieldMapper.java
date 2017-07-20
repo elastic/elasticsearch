@@ -37,6 +37,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
@@ -283,7 +284,9 @@ public class PercolatorFieldMapper extends FieldMapper {
         );
         verifyQuery(queryBuilder);
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
-        queryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
+        PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
+        Rewriteable.rewriteAndFetch(queryBuilder, queryShardContext, future);
+        queryBuilder = future.actionGet();
 
         try (XContentBuilder builder = XContentFactory.contentBuilder(QUERY_BUILDER_CONTENT_TYPE)) {
             queryBuilder.toXContent(builder, new MapParams(Collections.emptyMap()));

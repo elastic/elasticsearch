@@ -26,6 +26,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
@@ -58,6 +59,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
 import static java.util.Collections.unmodifiableMap;
@@ -304,7 +306,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private ParsedQuery toQuery(QueryBuilder queryBuilder, CheckedFunction<QueryBuilder, Query, IOException> filterOrQuery) {
         reset();
         try {
-            QueryBuilder rewriteQuery = Rewriteable.rewrite(queryBuilder, this);
+            QueryBuilder rewriteQuery = Rewriteable.rewrite(queryBuilder, this, true);
             return new ParsedQuery(filterOrQuery.apply(rewriteQuery), copyNamedQueries());
         } catch(QueryShardException | ParsingException e ) {
             throw e;
@@ -327,7 +329,7 @@ public class QueryShardContext extends QueryRewriteContext {
 
     /**
      * if this method is called the query context will throw exception if methods are accessed
-     * that could yield different results across executions like {@link #getTemplateBytes(Script)}
+     * that could yield different results across executions like {@link #getClient()}
      */
     public final void freezeContext() {
         this.frozen.set(Boolean.TRUE);
@@ -351,10 +353,16 @@ public class QueryShardContext extends QueryRewriteContext {
         }
     }
 
-    public final String getTemplateBytes(Script template) {
+    @Override
+    public void registerAsyncAction(BiConsumer<Client, ActionListener<?>> asyncAction) {
         failIfFrozen();
-        TemplateScript compiledTemplate = scriptService.compile(template, TemplateScript.CONTEXT).newInstance(template.getParams());
-        return compiledTemplate.execute();
+        super.registerAsyncAction(asyncAction);
+    }
+
+    @Override
+    public void executeAsyncActions(ActionListener listener) {
+        failIfFrozen();
+        super.executeAsyncActions(listener);
     }
 
     /**
@@ -377,10 +385,9 @@ public class QueryShardContext extends QueryRewriteContext {
         return super.nowInMillis();
     }
 
-    @Override
     public Client getClient() {
         failIfFrozen(); // we somebody uses a terms filter with lookup for instance can't be cached...
-        return super.getClient();
+        return client;
     }
 
     public QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {

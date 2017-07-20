@@ -19,19 +19,19 @@
 
 package org.elasticsearch.client;
 
-import internal.org.apache.http.HttpEntity;
-import internal.org.apache.http.HttpHost;
-import internal.org.apache.http.HttpResponse;
-import internal.org.apache.http.ProtocolVersion;
-import internal.org.apache.http.RequestLine;
-import internal.org.apache.http.StatusLine;
-import internal.org.apache.http.entity.ContentType;
-import internal.org.apache.http.entity.InputStreamEntity;
-import internal.org.apache.http.entity.StringEntity;
-import internal.org.apache.http.message.BasicHttpResponse;
-import internal.org.apache.http.message.BasicRequestLine;
-import internal.org.apache.http.message.BasicStatusLine;
-import internal.org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.HttpResponse;
+import org.elasticsearch.client.http.ProtocolVersion;
+import org.elasticsearch.client.http.RequestLine;
+import org.elasticsearch.client.http.StatusLine;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.InputStreamEntity;
+import org.elasticsearch.client.http.entity.StringEntity;
+import org.elasticsearch.client.http.message.BasicHttpResponse;
+import org.elasticsearch.client.http.message.BasicRequestLine;
+import org.elasticsearch.client.http.message.BasicStatusLine;
+import org.elasticsearch.client.http.util.EntityUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

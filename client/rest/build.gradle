@@ -75,7 +75,7 @@ task shadeDeps(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar)
   destinationDir = shadedDir
   configurations = [project.configurations.shade]
   classifier = 'deps'
-  relocate 'org.apache', 'internal.org.apache'
+  relocate 'org.apache', 'org.elasticsearch.client'
 
   doLast {
     shadedSrcDir.mkdir()
@@ -86,7 +86,7 @@ task shadeDeps(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar)
 shadowJar {
   configurations = [project.configurations.shade]
   classifier = null
-  relocate 'org.apache', 'internal.org.apache'
+  relocate 'org.apache', 'org.elasticsearch.client'
 }
 
 jar {
@@ -96,11 +96,11 @@ jar {
 
 // Mangle this build so it outputs the correct artifacts
 
-// removes the -nodeps jar
-configurations.runtime.artifacts.removeAll { it.archiveTask.is jar }
-
 // readds the shadowJar output (the actual uber jar) but only from the cli
 if (isIdea == false && isEclipse == false) {
+  // removes the -nodeps jar
+  configurations.runtime.artifacts.removeAll { it.archiveTask.is jar }
+
   // removes the runtime configuration inheritance from compile
   configurations.runtime.extendsFrom -= [configurations.compile]
   artifacts {
@@ -159,13 +159,13 @@ namingConventions {
 
 thirdPartyAudit.excludes = [
   //commons-logging optional dependencies
-  'internal.org.apache.avalon.framework.logger.Logger',
-  'internal.org.apache.log.Hierarchy',
-  'internal.org.apache.log.Logger',
-  'internal.org.apache.log4j.Category',
-  'internal.org.apache.log4j.Level',
-  'internal.org.apache.log4j.Logger',
-  'internal.org.apache.log4j.Priority',
+  'org.elasticsearch.client.avalon.framework.logger.Logger',
+  'org.elasticsearch.client.log.Hierarchy',
+  'org.elasticsearch.client.log.Logger',
+  'org.elasticsearch.client.log4j.Category',
+  'org.elasticsearch.client.log4j.Level',
+  'org.elasticsearch.client.log4j.Logger',
+  'org.elasticsearch.client.log4j.Priority',
   //commons-logging provided dependencies
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener'

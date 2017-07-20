@@ -19,13 +19,13 @@
 
 package org.elasticsearch.wildfly;
 
-import internal.org.apache.http.client.methods.CloseableHttpResponse;
-import internal.org.apache.http.client.methods.HttpGet;
-import internal.org.apache.http.client.methods.HttpPut;
-import internal.org.apache.http.entity.ContentType;
-import internal.org.apache.http.entity.StringEntity;
-import internal.org.apache.http.impl.client.CloseableHttpClient;
-import internal.org.apache.http.impl.client.HttpClientBuilder;
+import org.elasticsearch.client.http.client.methods.CloseableHttpResponse;
+import org.elasticsearch.client.http.client.methods.HttpGet;
+import org.elasticsearch.client.http.client.methods.HttpPut;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
+import org.elasticsearch.client.http.impl.client.CloseableHttpClient;
+import org.elasticsearch.client.http.impl.client.HttpClientBuilder;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;

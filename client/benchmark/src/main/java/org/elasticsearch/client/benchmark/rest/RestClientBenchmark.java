@@ -18,17 +18,17 @@
  */
 package org.elasticsearch.client.benchmark.rest;
 
-import internal.org.apache.http.HttpEntity;
-import internal.org.apache.http.HttpHeaders;
-import internal.org.apache.http.HttpHost;
-import internal.org.apache.http.HttpStatus;
-import internal.org.apache.http.client.config.RequestConfig;
-import internal.org.apache.http.conn.ConnectionKeepAliveStrategy;
-import internal.org.apache.http.entity.ContentType;
-import internal.org.apache.http.entity.StringEntity;
-import internal.org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import internal.org.apache.http.message.BasicHeader;
-import internal.org.apache.http.nio.entity.NStringEntity;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.HttpHeaders;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.HttpStatus;
+import org.elasticsearch.client.http.client.config.RequestConfig;
+import org.elasticsearch.client.http.conn.ConnectionKeepAliveStrategy;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
+import org.elasticsearch.client.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.elasticsearch.client.http.message.BasicHeader;
+import org.elasticsearch.client.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;

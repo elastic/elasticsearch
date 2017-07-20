@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client;
 
-import internal.org.apache.http.Header;
-import internal.org.apache.http.HttpEntity;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.HttpEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;

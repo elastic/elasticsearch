@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.client;
 
-import internal.org.apache.http.client.methods.HttpDelete;
-import internal.org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
+import org.elasticsearch.client.http.client.methods.HttpDelete;
+import org.elasticsearch.client.http.client.methods.HttpEntityEnclosingRequestBase;
 
 import java.net.URI;
 

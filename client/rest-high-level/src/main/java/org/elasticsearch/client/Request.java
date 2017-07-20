@@ -19,14 +19,14 @@
 
 package org.elasticsearch.client;
 
-import internal.org.apache.http.HttpEntity;
-import internal.org.apache.http.client.methods.HttpDelete;
-import internal.org.apache.http.client.methods.HttpGet;
-import internal.org.apache.http.client.methods.HttpHead;
-import internal.org.apache.http.client.methods.HttpPost;
-import internal.org.apache.http.client.methods.HttpPut;
-import internal.org.apache.http.entity.ByteArrayEntity;
-import internal.org.apache.http.entity.ContentType;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.client.methods.HttpDelete;
+import org.elasticsearch.client.http.client.methods.HttpGet;
+import org.elasticsearch.client.http.client.methods.HttpHead;
+import org.elasticsearch.client.http.client.methods.HttpPost;
+import org.elasticsearch.client.http.client.methods.HttpPut;
+import org.elasticsearch.client.http.entity.ByteArrayEntity;
+import org.elasticsearch.client.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;

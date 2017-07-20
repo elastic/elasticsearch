@@ -19,7 +19,7 @@
 
 package org.elasticsearch.http;
 
-import internal.org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 

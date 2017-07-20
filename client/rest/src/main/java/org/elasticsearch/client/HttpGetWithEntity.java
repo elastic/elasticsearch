@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.client;
 
-import internal.org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
-import internal.org.apache.http.client.methods.HttpGet;
+import org.elasticsearch.client.http.client.methods.HttpEntityEnclosingRequestBase;
+import org.elasticsearch.client.http.client.methods.HttpGet;
 
 import java.net.URI;
 

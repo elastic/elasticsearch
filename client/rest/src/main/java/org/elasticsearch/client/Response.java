@@ -19,12 +19,12 @@
 
 package org.elasticsearch.client;
 
-import internal.org.apache.http.Header;
-import internal.org.apache.http.HttpEntity;
-import internal.org.apache.http.HttpHost;
-import internal.org.apache.http.HttpResponse;
-import internal.org.apache.http.RequestLine;
-import internal.org.apache.http.StatusLine;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.HttpResponse;
+import org.elasticsearch.client.http.RequestLine;
+import org.elasticsearch.client.http.StatusLine;
 
 import java.util.Objects;
 

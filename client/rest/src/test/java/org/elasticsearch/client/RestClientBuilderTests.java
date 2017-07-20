@@ -19,11 +19,11 @@
 
 package org.elasticsearch.client;
 
-import internal.org.apache.http.Header;
-import internal.org.apache.http.HttpHost;
-import internal.org.apache.http.client.config.RequestConfig;
-import internal.org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import internal.org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.client.config.RequestConfig;
+import org.elasticsearch.client.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.elasticsearch.client.http.message.BasicHeader;
 
 import java.io.IOException;
 

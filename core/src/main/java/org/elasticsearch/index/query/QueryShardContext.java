@@ -329,7 +329,7 @@ public class QueryShardContext extends QueryRewriteContext {
 
     /**
      * if this method is called the query context will throw exception if methods are accessed
-     * that could yield different results across executions like {@link #getTemplateBytes(Script)}
+     * that could yield different results across executions like {@link #getClient()}
      */
     public final void freezeContext() {
         this.frozen.set(Boolean.TRUE);

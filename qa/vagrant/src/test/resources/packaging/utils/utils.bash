@@ -345,12 +345,6 @@ run_elasticsearch_service() {
     fi
 
     if [ -f "/tmp/elasticsearch/bin/elasticsearch" ]; then
-        if [ -z "$CONF_DIR" ]; then
-            local CONF_DIR=""
-            local ES_PATH_CONF=""
-        else
-            local ES_PATH_CONF="--path.conf $CONF_DIR"
-        fi
         # we must capture the exit code to compare so we don't want to start as background process in case we expect something other than 0
         local background=""
         local timeoutCommand=""
@@ -370,7 +364,7 @@ run_elasticsearch_service() {
 # And now we can start Elasticsearch normally, in the background (-d) and with a pidfile (-p).
 export CONF_DIR=$CONF_DIR
 export ES_JAVA_OPTS=$ES_JAVA_OPTS
-$timeoutCommand/tmp/elasticsearch/bin/elasticsearch $background -p /tmp/elasticsearch/elasticsearch.pid $ES_PATH_CONF $commandLineArgs
+$timeoutCommand/tmp/elasticsearch/bin/elasticsearch $background -p /tmp/elasticsearch/elasticsearch.pid commandLineArgs
 BASH
         [ "$status" -eq "$expectedStatus" ]
     elif is_systemd; then

@@ -2,10 +2,9 @@
 
 # CONTROLLING STARTUP:
 #
-# This script relies on few environment variables to determine startup
+# This script relies on a few environment variables to determine startup
 # behavior, those variables are:
 #
-#   ES_CLASSPATH -- A Java classpath containing everything necessary to run.
 #   CONF_DIR -- Path to config directory
 #   ES_JAVA_OPTS -- External Java Opts on top of the defaults set
 #
@@ -33,83 +32,24 @@ parse_jvm_options() {
   fi
 }
 
-CDPATH=""
-SCRIPT="$0"
+source "`dirname "$0"`"/elasticsearch-env
 
-# SCRIPT may be an arbitrarily deep series of symlinks. Loop until we have the concrete path.
-while [ -h "$SCRIPT" ] ; do
-  ls=`ls -ld "$SCRIPT"`
-  # Drop everything prior to ->
-  link=`expr "$ls" : '.*-> \(.*\)$'`
-  if expr "$link" : '/.*' > /dev/null; then
-    SCRIPT="$link"
-  else
-    SCRIPT=`dirname "$SCRIPT"`/"$link"
-  fi
-done
-
-# determine elasticsearch home
-ES_HOME=`dirname "$SCRIPT"`/..
-
-# make ELASTICSEARCH_HOME absolute
-ES_HOME=`cd "$ES_HOME"; pwd`
-
-if [ -z "$CONF_DIR" ]; then
-    ES_JVM_OPTIONS="$ES_HOME"/config/jvm.options
-else
-    ES_JVM_OPTIONS="$CONF_DIR"/jvm.options
-fi
+ES_JVM_OPTIONS="$CONF_DIR"/jvm.options
 
 ES_JAVA_OPTS="$(parse_jvm_options "$ES_JVM_OPTIONS") $ES_JAVA_OPTS"
 
-source "$ES_HOME/bin/elasticsearch.in.sh"
-
-if [ -x "$JAVA_HOME/bin/java" ]; then
-    JAVA="$JAVA_HOME/bin/java"
-else
-    JAVA=`which java`
-fi
-
-if [ ! -x "$JAVA" ]; then
-    echo "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
-    exit 1
-fi
-
-if [ -z "$ES_CLASSPATH" ]; then
-    echo "You must set the ES_CLASSPATH var" >&2
-    exit 1
-fi
-
-# don't let JAVA_TOOL_OPTIONS slip in (e.g. crazy agents in ubuntu)
-# works around https://bugs.launchpad.net/ubuntu/+source/jayatana/+bug/1441487
-if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
-    echo "Warning: Ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
-    echo "Please pass JVM parameters via ES_JAVA_OPTS instead"
-    unset JAVA_TOOL_OPTIONS
-fi
-
-# JAVA_OPTS is not a built-in JVM mechanism but some people think it is
-# so let us warn them that we are not observing the value of $JAVA_OPTS
-if [ "x$JAVA_OPTS" != "x" ]; then
-    echo "Warning: Ignoring JAVA_OPTS=$JAVA_OPTS"
-    echo "Please pass JVM parameters via ES_JAVA_OPTS instead"
-fi
-
-"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.JavaVersionChecker
-
-if [ $? -ne 0 ]; then
-    echo "Elasticsearch requires at least Java 8 but your Java version from $JAVA does not meet this requirement"
-    exit 1
+if [ -e "$CONF_DIR" ]; then
+  args=("${args[@]}" --path.conf "$CONF_DIR")
 fi
 
 # manual parsing to find out, if process should be detached
 daemonized=`echo $* | egrep -- '(^-d |-d$| -d |--daemonize$|--daemonize )'`
 if [ -z "$daemonized" ] ; then
     exec "$JAVA" $ES_JAVA_OPTS -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" \
-          org.elasticsearch.bootstrap.Elasticsearch "$@"
+          org.elasticsearch.bootstrap.Elasticsearch "${args[@]}"
 else
     exec "$JAVA" $ES_JAVA_OPTS -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" \
-          org.elasticsearch.bootstrap.Elasticsearch "$@" <&- &
+          org.elasticsearch.bootstrap.Elasticsearch "${args[@]}" <&- &
     retval=$?
     pid=$!
     [ $retval -eq 0 ] || exit $retval

@@ -105,7 +105,7 @@ start() {
     cd $ES_HOME
     echo -n $"Starting $prog: "
     # if not running, start it up here, usually something like "daemon $exec"
-    daemon --user elasticsearch --pidfile $pidfile $exec -p $pidfile -d --path.conf $CONF_DIR
+    daemon --user elasticsearch --pidfile $pidfile $exec -p $pidfile -d
     retval=$?
     echo
     [ $retval -eq 0 ] && touch $lockfile

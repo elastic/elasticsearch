@@ -79,6 +79,9 @@ https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-encrypted-communication]
 --------------------------------------------------
 
+If no explicit configuration is provided, the http://docs.oracle.com/javase/7/docs/technotes/guides/security/jsse/JSSERefGuide.html#CustomizingStores[system default configuration]
+will be used.
+
 === Others
 
 For any other required configuration needed, the Apache HttpAsyncClient docs

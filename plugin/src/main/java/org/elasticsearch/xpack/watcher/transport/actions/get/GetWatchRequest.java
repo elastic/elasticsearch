@@ -5,13 +5,11 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
@@ -61,20 +59,12 @@ public class GetWatchRequest extends MasterNodeReadRequest<GetWatchRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
-            in.readLong();
-            in.readByte();
-        }
         id = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
-            out.writeLong(1);
-            out.writeByte(VersionType.INTERNAL.getValue());
-        }
         out.writeString(id);
     }
 

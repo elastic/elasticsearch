@@ -18,15 +18,9 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.TemplateScript;
 
 import java.util.function.LongSupplier;
 
@@ -34,23 +28,14 @@ import java.util.function.LongSupplier;
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
  */
 public class QueryRewriteContext {
-    protected final MapperService mapperService;
-    protected final ScriptService scriptService;
-    protected final IndexSettings indexSettings;
+
     private final NamedXContentRegistry xContentRegistry;
     protected final Client client;
-    protected final IndexReader reader;
     protected final LongSupplier nowInMillis;
 
-    public QueryRewriteContext(IndexSettings indexSettings, MapperService mapperService, ScriptService scriptService,
-            NamedXContentRegistry xContentRegistry, Client client, IndexReader reader,
-            LongSupplier nowInMillis) {
-        this.mapperService = mapperService;
-        this.scriptService = scriptService;
-        this.indexSettings = indexSettings;
+    public QueryRewriteContext(NamedXContentRegistry xContentRegistry, Client client, LongSupplier nowInMillis) {
         this.xContentRegistry = xContentRegistry;
         this.client = client;
-        this.reader = reader;
         this.nowInMillis = nowInMillis;
     }
 
@@ -59,33 +44,6 @@ public class QueryRewriteContext {
      */
     public Client getClient() {
         return client;
-    }
-
-    /**
-     * Returns the index settings for this context. This might return null if the
-     * context has not index scope.
-     */
-    public IndexSettings getIndexSettings() {
-        return indexSettings;
-    }
-
-    /**
-     * Return the MapperService.
-     */
-    public MapperService getMapperService() {
-        return mapperService;
-    }
-
-    /** Return the script service to allow compiling scripts within queries. */
-    public ScriptService getScriptService() {
-        return scriptService;
-    }
-
-    /** Return the current {@link IndexReader}, or {@code null} if no index reader is available, for
-     *  instance if we are on the coordinating node or if this rewrite context is used to index
-     *  queries (percolation). */
-    public IndexReader getIndexReader() {
-        return reader;
     }
 
     /**
@@ -99,8 +57,10 @@ public class QueryRewriteContext {
         return nowInMillis.getAsLong();
     }
 
-    public String getTemplateBytes(Script template) {
-        TemplateScript compiledTemplate = scriptService.compile(template, TemplateScript.CONTEXT).newInstance(template.getParams());
-        return compiledTemplate.execute();
+    /**
+     * Returns an instance of {@link QueryShardContext} if available of null otherwise
+     */
+    public QueryShardContext convertToShardContext() {
+        return null;
     }
 }

@@ -36,7 +36,9 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -71,7 +73,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
  *
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
-public final class SearchSourceBuilder extends ToXContentToBytes implements Writeable, ToXContentObject {
+public final class SearchSourceBuilder extends ToXContentToBytes implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
     private static final DeprecationLogger DEPRECATION_LOGGER =
         new DeprecationLogger(Loggers.getLogger(SearchSourceBuilder.class));
 
@@ -870,7 +872,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * reference must be returned otherwise the builder will be rewritten
      * infinitely.
      */
-    public SearchSourceBuilder rewrite(QueryShardContext context) throws IOException {
+    @Override
+    public SearchSourceBuilder rewrite(QueryRewriteContext context) throws IOException {
         assert (this.equals(shallowCopy(queryBuilder, postQueryBuilder, aggregations, sliceBuilder)));
         QueryBuilder queryBuilder = null;
         if (this.queryBuilder != null) {
@@ -901,7 +904,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     /**
      * Create a shallow copy of this source replaced {@link #queryBuilder}, {@link #postQueryBuilder}, and {@link #sliceBuilder}. Used by
-     * {@link #rewrite(QueryShardContext)} and {@link #copyWithNewSlice(SliceBuilder)}.
+     * {@link #rewrite(QueryRewriteContext)} and {@link #copyWithNewSlice(SliceBuilder)}.
      */
     private SearchSourceBuilder shallowCopy(QueryBuilder queryBuilder, QueryBuilder postQueryBuilder,
             AggregatorFactories.Builder aggregations, SliceBuilder slice) {

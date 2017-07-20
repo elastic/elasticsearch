@@ -50,6 +50,7 @@ import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -66,12 +67,14 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class QueryShardContext extends QueryRewriteContext {
 
+    private final ScriptService scriptService;
+    private final IndexSettings indexSettings;
     private final MapperService mapperService;
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
     private final IndexFieldDataService indexFieldDataService;
-    private final IndexSettings indexSettings;
     private final int shardId;
+    private final IndexReader reader;
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean cachable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
@@ -94,15 +97,17 @@ public class QueryShardContext extends QueryRewriteContext {
             IndexFieldDataService indexFieldDataService, MapperService mapperService, SimilarityService similarityService,
             ScriptService scriptService, NamedXContentRegistry xContentRegistry,
             Client client, IndexReader reader, LongSupplier nowInMillis) {
-        super(indexSettings, mapperService, scriptService, xContentRegistry, client, reader, nowInMillis);
+        super(xContentRegistry, client, nowInMillis);
         this.shardId = shardId;
-        this.indexSettings = indexSettings;
         this.similarityService = similarityService;
         this.mapperService = mapperService;
         this.bitsetFilterCache = bitsetFilterCache;
         this.indexFieldDataService = indexFieldDataService;
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
         this.nestedScope = new NestedScope();
+        this.scriptService = scriptService;
+        this.indexSettings = indexSettings;
+        this.reader = reader;
 
     }
 
@@ -299,7 +304,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private ParsedQuery toQuery(QueryBuilder queryBuilder, CheckedFunction<QueryBuilder, Query, IOException> filterOrQuery) {
         reset();
         try {
-            QueryBuilder rewriteQuery = QueryBuilder.rewriteQuery(queryBuilder, this);
+            QueryBuilder rewriteQuery = Rewriteable.rewrite(queryBuilder, this);
             return new ParsedQuery(filterOrQuery.apply(rewriteQuery), copyNamedQueries());
         } catch(QueryShardException | ParsingException e ) {
             throw e;
@@ -310,12 +315,11 @@ public class QueryShardContext extends QueryRewriteContext {
         }
     }
 
-    public final Index index() {
+    public Index index() {
         return indexSettings.getIndex();
     }
 
     /** Return the script service to allow compiling scripts. */
-    @Override
     public final ScriptService getScriptService() {
         failIfFrozen();
         return scriptService;
@@ -347,10 +351,10 @@ public class QueryShardContext extends QueryRewriteContext {
         }
     }
 
-    @Override
     public final String getTemplateBytes(Script template) {
         failIfFrozen();
-        return super.getTemplateBytes(template);
+        TemplateScript compiledTemplate = scriptService.compile(template, TemplateScript.CONTEXT).newInstance(template.getParams());
+        return compiledTemplate.execute();
     }
 
     /**
@@ -382,4 +386,31 @@ public class QueryShardContext extends QueryRewriteContext {
     public QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
         return AbstractQueryBuilder.parseInnerQueryBuilder(parser);
     }
+
+    @Override
+    public final QueryShardContext convertToShardContext() {
+        return this;
+    }
+
+    /**
+     * Returns the index settings for this context. This might return null if the
+     * context has not index scope.
+     */
+    public IndexSettings getIndexSettings() {
+        return indexSettings;
+    }
+
+    /**
+     * Return the MapperService.
+     */
+    public MapperService getMapperService() {
+        return mapperService;
+    }
+
+    /** Return the current {@link IndexReader}, or {@code null} if no index reader is available,
+     *  for instance if this rewrite context is used to index queries (percolation). */
+    public IndexReader getIndexReader() {
+        return reader;
+    }
+
 }

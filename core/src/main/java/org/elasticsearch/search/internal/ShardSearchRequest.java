@@ -28,6 +28,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
@@ -87,7 +88,7 @@ public interface ShardSearchRequest {
      * Rewrites this request into its primitive form. e.g. by rewriting the
      * QueryBuilder.
      */
-    void rewrite(QueryShardContext context) throws IOException;
+    void rewrite(QueryRewriteContext context) throws IOException;
 
     /**
      * Returns the filter associated with listed filtering aliases.

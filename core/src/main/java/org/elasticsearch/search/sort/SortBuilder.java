@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -189,7 +190,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
             Query innerDocumentsQuery;
             if (nestedFilter != null) {
                 context.nestedScope().nextLevel(nestedObjectMapper);
-                innerDocumentsQuery = QueryBuilder.rewriteQuery(nestedFilter, context).toFilter(context);
+                innerDocumentsQuery = Rewriteable.rewrite(nestedFilter, context).toFilter(context);
                 context.nestedScope().previousLevel();
             } else {
                 innerDocumentsQuery = nestedObjectMapper.nestedTypeFilter();

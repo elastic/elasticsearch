@@ -50,7 +50,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         reindex.setRemoteInfo(
                 new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE), new BytesArray("real_query"),
                         null, null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
-        reindex.setSlices(between(2, Integer.MAX_VALUE));
+        reindex.setSlices(SlicesCount.of(between(2, Integer.MAX_VALUE)));
         ActionRequestValidationException e = reindex.validate();
         assertEquals(
                 "Validation Failed: 1: reindex from remote sources doesn't support workers > 1 but was [" + reindex.getSlices() + "];",
@@ -60,7 +60,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
     public void testNoSliceWithWorkers() {
         ReindexRequest reindex = newRequest();
         reindex.getSearchRequest().source().slice(new SliceBuilder(0, 4));
-        reindex.setSlices(between(2, Integer.MAX_VALUE));
+        reindex.setSlices(SlicesCount.of(between(2, Integer.MAX_VALUE)));
         ActionRequestValidationException e = reindex.validate();
         assertEquals("Validation Failed: 1: can't specify both slice and workers;", e.getMessage());
     }

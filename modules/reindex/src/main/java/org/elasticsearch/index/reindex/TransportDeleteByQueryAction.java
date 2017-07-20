@@ -51,29 +51,20 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
 
     @Override
     public void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
-
-        if (request.getSlices().isAuto()) {
-            client.admin().cluster().prepareSearchShards(request.getSearchRequest().indices()).execute(ActionListener.wrap(
-                r -> doDeleteByQuery(task, request, listener, r.getGroups().length),
-                e -> listener.onFailure(e)
-            ));
-        } else {
-            doDeleteByQuery(task, request, listener, request.getSlices().number());
-        }
-    }
-
-    private void doDeleteByQuery(Task task, DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener, int slices) {
-        if (slices > 1) {
-            ParentBulkByScrollTask parentTask = (ParentBulkByScrollTask) task;
-            parentTask.setSlices(slices);
-            BulkByScrollParallelizationHelper.startSlices(client, taskManager, DeleteByQueryAction.INSTANCE,
+        BulkByScrollParallelizationHelper.computeSlicing(client, request, listener, slices -> {
+            logger.error("SLICES {} TASK {}", slices, task.getClass());
+            if (slices > 1) {
+                ParentBulkByScrollTask parentTask = (ParentBulkByScrollTask) task;
+                parentTask.setSlices(slices);
+                BulkByScrollParallelizationHelper.startSlices(client, taskManager, DeleteByQueryAction.INSTANCE,
                     clusterService.localNode().getId(), parentTask, request, slices, listener);
-        } else {
-            ClusterState state = clusterService.state();
-            ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
-            new AsyncDeleteByQueryAction((WorkingBulkByScrollTask) task, logger, client, threadPool, request, scriptService, state,
+            } else {
+                ClusterState state = clusterService.state();
+                ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
+                new AsyncDeleteByQueryAction((WorkingBulkByScrollTask) task, logger, client, threadPool, request, scriptService, state,
                     listener).start();
-        }
+            }
+        });
     }
 
     @Override

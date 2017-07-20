@@ -64,28 +64,19 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
     @Override
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
-        if (request.getSlices().isAuto()) {
-            client.admin().cluster().prepareSearchShards(request.getSearchRequest().indices()).execute(ActionListener.wrap(
-                r -> doUpdateByQuery(task, request, listener, r.getGroups().length),
-                e -> listener.onFailure(e)
-            ));
-        } else {
-            doUpdateByQuery(task, request, listener, request.getSlices().number());
-        }
-    }
-
-    private void doUpdateByQuery(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener, int slices) {
-        if (slices > 1) {
-            ParentBulkByScrollTask parentTask = (ParentBulkByScrollTask) task;
-            parentTask.setSlices(slices);
-            BulkByScrollParallelizationHelper.startSlices(client, taskManager, UpdateByQueryAction.INSTANCE,
+        BulkByScrollParallelizationHelper.computeSlicing(client, request, listener, slices -> {
+            if (slices > 1) {
+                ParentBulkByScrollTask parentTask = (ParentBulkByScrollTask) task;
+                parentTask.setSlices(slices);
+                BulkByScrollParallelizationHelper.startSlices(client, taskManager, UpdateByQueryAction.INSTANCE,
                     clusterService.localNode().getId(), parentTask, request, slices, listener);
-        } else {
-            ClusterState state = clusterService.state();
-            ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
-            new AsyncIndexBySearchAction((WorkingBulkByScrollTask) task, logger, client, threadPool, request, scriptService, state,
+            } else {
+                ClusterState state = clusterService.state();
+                ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
+                new AsyncIndexBySearchAction((WorkingBulkByScrollTask) task, logger, client, threadPool, request, scriptService, state,
                     listener).start();
-        }
+            }
+        });
     }
 
     @Override

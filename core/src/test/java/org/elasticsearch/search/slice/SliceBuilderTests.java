@@ -117,10 +117,10 @@ public class SliceBuilderTests extends ESTestCase {
         assertEquals(e.getMessage(), "id must be greater than or equal to 0");
 
         e = expectThrows(IllegalArgumentException.class, () -> new SliceBuilder("field", 10, -1));
-        assertEquals(e.getMessage(), "max must be greater than 1");
+        assertEquals(e.getMessage(), "max must be greater than 0");
 
         e = expectThrows(IllegalArgumentException.class, () -> new SliceBuilder("field", 10, 0));
-        assertEquals(e.getMessage(), "max must be greater than 1");
+        assertEquals(e.getMessage(), "max must be greater than 0");
 
         e = expectThrows(IllegalArgumentException.class, () -> new SliceBuilder("field", 10, 5));
         assertEquals(e.getMessage(), "max must be greater than id");

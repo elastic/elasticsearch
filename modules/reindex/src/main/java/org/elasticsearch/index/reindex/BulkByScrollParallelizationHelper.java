@@ -21,19 +21,58 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+
 /**
  * Helps parallelize reindex requests using sliced scrolls.
  */
 class BulkByScrollParallelizationHelper {
+
+    public static final int AUTO_SLICE_CEILING = 20;
+
     private BulkByScrollParallelizationHelper() {}
+
+    public static <Request extends AbstractBulkByScrollRequest<Request>> void
+        computeSlicing(Client client, Request request, ActionListener<BulkByScrollResponse> listener, Consumer<Integer> slicedBehavior) {
+
+        SlicesCount slices = request.getSlices();
+        if (slices.isAuto()) {
+            client.admin().cluster().prepareSearchShards(request.getSearchRequest().indices()).execute(ActionListener.wrap(
+                response -> slicedBehavior.accept(sliceBasedOnShards(response)),
+                exception -> listener.onFailure(exception)
+            ));
+        } else {
+            slicedBehavior.accept(request.getSlices().number());
+        }
+
+    }
+
+    private static int sliceBasedOnShards(ClusterSearchShardsResponse response) {
+        Map<Index, Integer> countsByIndex = Arrays.stream(response.getGroups()).collect(Collectors.toMap(
+            group -> group.getShardId().getIndex(),
+            __ -> 1,
+            (sum, term) -> sum + term
+        ));
+        Set<Integer> counts = new HashSet<>(countsByIndex.values());
+        int leastShards = Collections.min(counts);
+        return Math.min(leastShards, AUTO_SLICE_CEILING);
+    }
 
     public static <Request extends AbstractBulkByScrollRequest<Request>> void startSlices(Client client, TaskManager taskManager,
                                Action<Request, BulkByScrollResponse, ?> action,

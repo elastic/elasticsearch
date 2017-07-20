@@ -235,6 +235,8 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         );
         assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 7);
 
+        logger.error("SHARDSCOUNT {}", getNumShards("test").numPrimaries);
+
         // Deletes the two docs that matches "foo:a"
         assertThat(deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).setSlices(SlicesCount.of(5)).get(),
                 matcher().deleted(2).slices(hasSize(5)));
@@ -260,6 +262,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 7);
 
         NumShards numShards = getNumShards("test");
+        logger.error("SHARDSCOUNT {}", numShards.numPrimaries);
 
         // Deletes the two docs that matches "foo:a"
         assertThat(deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).setSlices(SlicesCount.AUTO).get(),

@@ -121,4 +121,13 @@ public final class SlicesCount implements ToXContent, Writeable {
     public int hashCode() {
         return Objects.hash(count);
     }
+
+    @Override
+    public String toString() {
+        if (isAuto()) {
+            return "auto";
+        } else {
+            return Integer.toString(count);
+        }
+    }
 }

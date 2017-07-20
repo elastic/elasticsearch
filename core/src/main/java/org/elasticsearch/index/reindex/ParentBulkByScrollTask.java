@@ -47,6 +47,9 @@ public class ParentBulkByScrollTask extends BulkByScrollTask {
     // todo either enforce slices being set before calling task methods or separate that out into another class
     // todo probably want to look at the tests for this class and make sure the slices set behavior is enforced
 
+    // todo this class may not be thread safe because the accesses to results and counter are not synchronized
+    // e.g. it's possible to read all task results finished and runningSubtasks != 0 at the same time
+
     public ParentBulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId) {
         super(id, type, action, description, parentTaskId);
     }
@@ -118,6 +121,20 @@ public class ParentBulkByScrollTask extends BulkByScrollTask {
         recordSliceCompletionAndRespondIfAllDone(listener);
     }
 
+
+    // todo this is not an atomic operation: you can read all the tasks results finished while counter is still not 0
+    /*
+     * e.g.
+     * there are two child tasks
+     *
+     * thread A enters onSliceResponse
+     * thread A sets a result for child task 1
+     * thread B enters onSliceResponse
+     * thread B enters a result for task 2
+     * at this point all tasks are done
+     * thread B decrements counter
+     * thread A decrements counter and now thinks it's the last task even though it's not
+     */
     /**
      * Record a failure from a slice and respond to the listener if the request is finished.
      */

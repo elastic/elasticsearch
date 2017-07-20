@@ -37,7 +37,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchExtBuilder;
@@ -874,7 +873,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      */
     @Override
     public SearchSourceBuilder rewrite(QueryRewriteContext context) throws IOException {
-        assert (this.equals(shallowCopy(queryBuilder, postQueryBuilder, aggregations, sliceBuilder)));
+        assert (this.equals(shallowCopy(queryBuilder, postQueryBuilder, aggregations, sliceBuilder, sorts, rescoreBuilders,
+            highlightBuilder)));
         QueryBuilder queryBuilder = null;
         if (this.queryBuilder != null) {
             queryBuilder = this.queryBuilder.rewrite(context);
@@ -887,10 +887,19 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (this.aggregations != null) {
             aggregations = this.aggregations.rewrite(context);
         }
+        List<SortBuilder<?>> sorts = Rewriteable.rewrite(this.sorts, context);
+
+        List<RescoreBuilder> rescoreBuilders = Rewriteable.rewrite(this.rescoreBuilders, context);
+        HighlightBuilder highlightBuilder = this.highlightBuilder;
+        if (highlightBuilder != null) {
+            highlightBuilder = this.highlightBuilder.rewrite(context);
+        }
+
         boolean rewritten = queryBuilder != this.queryBuilder || postQueryBuilder != this.postQueryBuilder
-                || aggregations != this.aggregations;
+                || aggregations != this.aggregations || rescoreBuilders != this.rescoreBuilders || sorts != this.sorts ||
+                this.highlightBuilder != highlightBuilder;
         if (rewritten) {
-            return shallowCopy(queryBuilder, postQueryBuilder, aggregations, sliceBuilder);
+            return shallowCopy(queryBuilder, postQueryBuilder, aggregations, this.sliceBuilder, sorts, rescoreBuilders, highlightBuilder);
         }
         return this;
     }
@@ -899,7 +908,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * Create a shallow copy of this builder with a new slice configuration.
      */
     public SearchSourceBuilder copyWithNewSlice(SliceBuilder slice) {
-        return shallowCopy(queryBuilder, postQueryBuilder, aggregations, slice);
+        return shallowCopy(queryBuilder, postQueryBuilder, aggregations, slice, sorts, rescoreBuilders, highlightBuilder);
     }
 
     /**
@@ -907,7 +916,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * {@link #rewrite(QueryRewriteContext)} and {@link #copyWithNewSlice(SliceBuilder)}.
      */
     private SearchSourceBuilder shallowCopy(QueryBuilder queryBuilder, QueryBuilder postQueryBuilder,
-            AggregatorFactories.Builder aggregations, SliceBuilder slice) {
+                                            AggregatorFactories.Builder aggregations, SliceBuilder slice, List<SortBuilder<?>> sorts,
+                                            List<RescoreBuilder> rescoreBuilders, HighlightBuilder highlightBuilder) {
         SearchSourceBuilder rewrittenBuilder = new SearchSourceBuilder();
         rewrittenBuilder.aggregations = aggregations;
         rewrittenBuilder.explain = explain;

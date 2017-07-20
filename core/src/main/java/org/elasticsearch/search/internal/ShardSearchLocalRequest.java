@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
@@ -124,6 +125,16 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     @Override
+    public AliasFilter getAliasFilter() {
+        return aliasFilter;
+    }
+
+    @Override
+    public void setAliasFilter(AliasFilter aliasFilter) {
+        this.aliasFilter = aliasFilter;
+    }
+
+    @Override
     public void source(SearchSourceBuilder source) {
         this.source = source;
     }
@@ -136,11 +147,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     @Override
     public SearchType searchType() {
         return searchType;
-    }
-
-    @Override
-    public QueryBuilder filteringAliases() {
-        return aliasFilter.getQueryBuilder();
     }
 
     @Override
@@ -238,13 +244,35 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     @Override
-    public void rewrite(QueryRewriteContext context) throws IOException {
-        aliasFilter = Rewriteable.rewrite(aliasFilter, context);
-        source = source == null ? null : Rewriteable.rewrite(source, context);
-    }
-
-    @Override
     public String getClusterAlias() {
         return clusterAlias;
     }
+
+    @Override
+    public Rewriteable<Rewriteable> getRewriteable() {
+        return new RequestRewritable(this);
+    }
+
+    static class RequestRewritable implements Rewriteable<Rewriteable> {
+
+        final ShardSearchRequest request;
+
+        RequestRewritable(ShardSearchRequest request) {
+            this.request = request;
+        }
+
+        @Override
+        public Rewriteable rewrite(QueryRewriteContext ctx) throws IOException {
+            SearchSourceBuilder newSource = request.source() == null ? null : Rewriteable.rewrite(request.source(), ctx);
+            AliasFilter newAliasFilter = Rewriteable.rewrite(request.getAliasFilter(), ctx);
+            if (newSource == request.source() && newAliasFilter == request.getAliasFilter()) {
+                return this;
+            } else {
+                request.source(newSource);
+                request.setAliasFilter(newAliasFilter);
+                return new RequestRewritable(request);
+            }
+        }
+    }
+
 }

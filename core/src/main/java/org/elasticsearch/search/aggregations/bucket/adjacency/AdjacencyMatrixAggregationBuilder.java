@@ -196,7 +196,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
 
         List<KeyedFilter> rewrittenFilters = new ArrayList<>(filters.size());
         for (KeyedFilter kf : filters) {
-            rewrittenFilters.add(new KeyedFilter(kf.key(), Rewriteable.rewrite(kf.filter(), context.getQueryShardContext())));
+            rewrittenFilters.add(new KeyedFilter(kf.key(), Rewriteable.rewrite(kf.filter(), context.getQueryShardContext(), true)));
         }
 
         return new AdjacencyMatrixAggregatorFactory(name, rewrittenFilters, separator, context, parent,

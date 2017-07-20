@@ -24,7 +24,7 @@ ES_HOME=`dirname "$SCRIPT"`/../..
 # make ELASTICSEARCH_HOME absolute
 ES_HOME=`cd "$ES_HOME"; pwd`
 
-source "ES_HOME/bin/elasticsearch.in.sh"
+source "$ES_HOME/bin/elasticsearch.in.sh"
 
 if [ -x "$JAVA_HOME/bin/java" ]; then
     JAVA="$JAVA_HOME/bin/java"

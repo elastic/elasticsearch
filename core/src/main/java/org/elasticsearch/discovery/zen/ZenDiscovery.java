@@ -74,7 +74,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -847,6 +846,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         } else {
             // we do this in a couple of places including the cluster update thread. This one here is really just best effort
             // to ensure we fail as fast as possible.
+            MembershipAction.ensureNodesCompatibility(node.getVersion(), state.getNodes());
             MembershipAction.ensureIndexCompatibility(node.getVersion(), state.getMetaData());
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);

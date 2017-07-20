@@ -281,8 +281,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         try {
             components.addAll(security.createComponents(internalClient, threadPool, clusterService, resourceWatcherService,
                     extensionsService.getExtensions()));
-        } catch (Exception e) {
-            throw new Error("security initialization failed", e);
+        } catch (final Exception e) {
+            throw new IllegalStateException("security initialization failed", e);
         }
         components.addAll(monitoring.createComponents(internalClient, threadPool, clusterService, licenseService, sslService));
 

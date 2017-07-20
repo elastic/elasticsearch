@@ -243,7 +243,7 @@
             "pipelines": {
               "type": "nested",
               "properties": {
-                "name": {
+                "id": {
                   "type": "keyword"
                 },
                 "hash": {
@@ -292,7 +292,7 @@
                     "events_out": { "type": "long" },
                     "duration_in_millis": { "type": "long" },
                     "queue_push_duration_in_millis": { "type": "long" },
-                    "counters": {
+                    "long_counters": {
                       "type": "nested",
                       "properties": {
                         "name": {
@@ -311,28 +311,6 @@
                         },
                         "value": {
                           "type": "double"
-                        }
-                      }
-                    },
-                    "text_gauges": {
-                      "type": "nested",
-                      "properties": {
-                        "name": {
-                          "type": "keyword"
-                        },
-                        "value": {
-                          "type": "keyword"
-                        }
-                      }
-                    },
-                    "boolean_gauges": {
-                      "type": "nested",
-                      "properties": {
-                        "name": {
-                          "type": "keyword"
-                        },
-                        "value": {
-                          "type": "boolean"
                         }
                       }
                     }
@@ -386,7 +364,7 @@
             },
             "pipeline": {
               "properties": {
-                "name": {
+                "id": {
                   "type": "keyword"
                 },
                 "hash": {

@@ -254,7 +254,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         if (documentSupplier != null) {
-            throw new IllegalStateException("document supplier must be non-null");
+            throw new IllegalStateException("supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
         }
         out.writeString(field);
         if (out.getVersion().before(Version.V_6_0_0_beta1)) {

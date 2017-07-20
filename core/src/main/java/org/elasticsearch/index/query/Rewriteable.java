@@ -50,8 +50,9 @@ public interface Rewriteable<T> {
 
     /**
      * Rewrites the given {@link Rewriteable} into its primitive form. Rewriteables that for instance fetch resources from remote hosts or
-     * can simplify / optimize itself should do their heavy lifting during {@link #rewrite(QueryRewriteContext)}. This method
-     * rewrites the rewriteable until it doesn't change anymore.
+     * can simplify / optimize itself should do their heavy lifting during
+     * {@link #rewriteAndFetch(Rewriteable, QueryRewriteContext, ActionListener)} (QueryRewriteContext)}. This method rewrites the
+     * rewriteable until it doesn't change anymore.
      * @param original the original rewriteable to rewrite
      * @param context the rewrite context to use
      * @param assertNoAsyncTasks if <code>true</code> the rewrite will fail if there are any pending async tasks on the context after the

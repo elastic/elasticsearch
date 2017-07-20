@@ -40,12 +40,12 @@ import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -78,7 +78,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
@@ -430,7 +429,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         if (indexedDocumentVersion != null) {
             getRequest.version(indexedDocumentVersion);
         }
-        AtomicReference<BytesReference> documentSupplier = new AtomicReference<>();
+        SetOnce<BytesReference> documentSupplier = new SetOnce<>();
         queryShardContext.registerAsyncAction((client, listener) -> {
             client.get(getRequest, ActionListener.wrap(getResponse -> {
                 if (getResponse.isExists() == false) {

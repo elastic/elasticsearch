@@ -55,8 +55,6 @@ if [ -z "$CONF_DIR" ]; then
     fi
 fi
 
-export HOSTNAME=`hostname -s`
-
 # include x-pack jars in classpath
 ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/plugins/x-pack/*"
 

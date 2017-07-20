@@ -54,12 +54,6 @@ if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
     unset JAVA_TOOL_OPTIONS
 fi
 
-# CONF_FILE setting was removed
-if [ ! -z "$CONF_FILE" ]; then
-    echo "CONF_FILE setting is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed."
-    exit 1
-fi
-
 if [ -x "$JAVA_HOME/bin/java" ]; then
     JAVA=$JAVA_HOME/bin/java
 else

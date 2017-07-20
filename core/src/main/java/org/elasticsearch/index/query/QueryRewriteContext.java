@@ -90,24 +90,24 @@ public class QueryRewriteContext {
         if (asyncActions.isEmpty()) {
             listener.onResponse(null);
         } else {
-            CountDown done = new CountDown(asyncActions.size());
-            ActionListener internalListener = new ActionListener() {
+            CountDown countDown = new CountDown(asyncActions.size());
+            ActionListener<?> internalListener = new ActionListener() {
                 @Override
                 public void onResponse(Object o) {
-                    if (done.countDown()) {
+                    if (countDown.countDown()) {
                         listener.onResponse(null);
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (done.fastForward()) {
+                    if (countDown.fastForward()) {
                         listener.onFailure(e);
                     }
                 }
             };
-            // make a copy to preven concurrent modification exception
-            ArrayList<BiConsumer<Client, ActionListener<?>>> biConsumers = new ArrayList<>(asyncActions);
+            // make a copy to prevent concurrent modification exception
+            List<BiConsumer<Client, ActionListener<?>>> biConsumers = new ArrayList<>(asyncActions);
             asyncActions.clear();
             for (BiConsumer<Client, ActionListener<?>> action : biConsumers) {
                 action.accept(client, internalListener);

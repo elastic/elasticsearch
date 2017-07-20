@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.plan.physical;
 
-import java.util.List;
-import java.util.Objects;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.execution.search.Scroller;
 import org.elasticsearch.xpack.sql.expression.Attribute;
@@ -16,6 +13,9 @@ import org.elasticsearch.xpack.sql.session.RowSetCursor;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
+
+import java.util.List;
+import java.util.Objects;
 
 public class EsQueryExec extends LeafExec {
 
@@ -55,7 +55,7 @@ public class EsQueryExec extends LeafExec {
     
     @Override
     public void execute(SqlSession session, ActionListener<RowSetCursor> listener) {
-        Scroller scroller = new Scroller(session.client());
+        Scroller scroller = new Scroller(session.client(), session.settings());
         scroller.scroll(Rows.schema(output), queryContainer, index, type, listener);
     }
 

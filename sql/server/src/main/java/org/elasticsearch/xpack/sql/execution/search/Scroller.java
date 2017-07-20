@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.TotalCountRef;
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
 import org.elasticsearch.xpack.sql.session.Rows;
+import org.elasticsearch.xpack.sql.session.SqlSettings;
 import org.elasticsearch.xpack.sql.type.Schema;
 import org.elasticsearch.xpack.sql.util.ObjectUtils;
 
@@ -51,9 +52,9 @@ public class Scroller {
     private final int size;
     private final Client client;
 
-    public Scroller(Client client) {
-        // TODO: use better defaults?
-        this(client, TimeValue.timeValueSeconds(90), TimeValue.timeValueSeconds(45), 100);
+    public Scroller(Client client, SqlSettings settings) {
+        // TODO: use better defaults (maybe use the sql settings)?
+        this(client, TimeValue.timeValueSeconds(90), TimeValue.timeValueSeconds(45), settings.pageSize());
     }
 
     public Scroller(Client client, TimeValue keepAlive, TimeValue timeout, int size) {

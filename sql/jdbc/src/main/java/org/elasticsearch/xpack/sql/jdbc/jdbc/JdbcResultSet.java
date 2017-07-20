@@ -388,6 +388,9 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         if (rows < 0) {
             throw new SQLException("Rows is negative");
         }
+        if (rows != getFetchSize()) {
+            throw new SQLException("Fetch size cannot be changed");
+        }
         // ignore fetch size since scrolls cannot be changed in flight
     }
 

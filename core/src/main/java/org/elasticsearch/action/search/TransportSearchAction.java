@@ -194,16 +194,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     (clusterName, nodeId) -> null, clusterState, Collections.emptyMap(), listener, clusterState.getNodes()
                         .getDataNodes().size());
             } else {
-                remoteClusterService.collectSearchShards(searchRequest.indicesOptions(), searchRequest.preference(), searchRequest.routing(),
-                    remoteClusterIndices, ActionListener.wrap((searchShardsResponses) -> {
+                remoteClusterService.collectSearchShards(searchRequest.indicesOptions(), searchRequest.preference(),
+                    searchRequest.routing(), remoteClusterIndices, ActionListener.wrap((searchShardsResponses) -> {
                         List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
                         Map<String, AliasFilter> remoteAliasFilters = new HashMap<>();
                         BiFunction<String, String, DiscoveryNode> clusterNodeLookup = processRemoteShards(searchShardsResponses,
                             remoteClusterIndices, remoteShardIterators, remoteAliasFilters);
                         int numNodesInvovled = searchShardsResponses.values().stream().mapToInt(r -> r.getNodes().length).sum()
                             + clusterState.getNodes().getDataNodes().size();
-                        executeSearch((SearchTask) task, timeProvider, searchRequest, localIndices, remoteClusterIndices, remoteShardIterators,
-                            clusterNodeLookup, clusterState, remoteAliasFilters, listener, numNodesInvovled);
+                        executeSearch((SearchTask) task, timeProvider, searchRequest, localIndices, remoteClusterIndices,
+                            remoteShardIterators, clusterNodeLookup, clusterState, remoteAliasFilters, listener, numNodesInvovled);
                     }, listener::onFailure));
             }
         }, listener::onFailure);

@@ -215,14 +215,14 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
         assertThat(dQuery.getTieBreakerMultiplier(), equalTo(1.0f));
         assertThat(dQuery.getDisjuncts().size(), equalTo(2));
-        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "test")));
-        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(), equalTo(new Term(STRING_FIELD_NAME_2, "test")));
+        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME_2, "test")));
+        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "test")));
     }
 
     public void testToQueryFieldMissing() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         assertThat(multiMatchQuery("test").field(MISSING_WILDCARD_FIELD_NAME).toQuery(createShardContext()), instanceOf(MatchNoDocsQuery.class));
-        assertThat(multiMatchQuery("test").field(MISSING_FIELD_NAME).toQuery(createShardContext()), instanceOf(TermQuery.class));
+        assertThat(multiMatchQuery("test").field(MISSING_FIELD_NAME).toQuery(createShardContext()), instanceOf(MatchNoDocsQuery.class));
     }
 
     public void testFromJson() throws IOException {

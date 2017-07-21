@@ -93,7 +93,7 @@ setup() {
   sudo chmod +x $JAVA
 
   [ "$status" -eq 1 ]
-  local expected="Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
+  local expected="could not find java; set JAVA_HOME or ensure java is in PATH"
   [[ "$output" == *"$expected"* ]] || {
     echo "Expected error message [$expected] but found: $output"
     false

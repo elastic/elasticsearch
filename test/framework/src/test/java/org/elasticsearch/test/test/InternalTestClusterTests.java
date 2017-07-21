@@ -37,6 +37,7 @@ import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -176,6 +177,7 @@ public class InternalTestClusterTests extends ESTestCase {
         final int numClientNodes = randomIntBetween(0, 2);
         final String clusterName1 = "shared1";
         final String clusterName2 = "shared2";
+        String transportClient = randomBoolean() ? NioTransportPlugin.NIO_TRANSPORT_NAME : MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -201,7 +203,7 @@ public class InternalTestClusterTests extends ESTestCase {
             @Override
             public Settings transportClientSettings() {
                 return Settings.builder()
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).build();
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         };
 
@@ -253,6 +255,8 @@ public class InternalTestClusterTests extends ESTestCase {
         final int maxNumDataNodes = 2;
         final int numClientNodes = randomIntBetween(0, 2);
         final String clusterName1 = "shared1";
+        String transportClient = randomBoolean() ? NioTransportPlugin.NIO_TRANSPORT_NAME :
+            MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -272,7 +276,7 @@ public class InternalTestClusterTests extends ESTestCase {
             @Override
             public Settings transportClientSettings() {
                 return Settings.builder()
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).build();
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         };
         boolean enableHttpPipelining = randomBoolean();
@@ -360,6 +364,8 @@ public class InternalTestClusterTests extends ESTestCase {
     public void testDifferentRolesMaintainPathOnRestart() throws Exception {
         final Path baseDir = createTempDir();
         final int numNodes = 5;
+
+        String transportClient = randomBoolean() ? NioTransportPlugin.NIO_TRANSPORT_NAME : MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
         InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false,
                 false, 0, 0, "test", new NodeConfigurationSource() {
             @Override
@@ -383,7 +389,7 @@ public class InternalTestClusterTests extends ESTestCase {
             @Override
             public Settings transportClientSettings() {
                 return Settings.builder()
-                        .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).build();
+                        .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         }, 0, randomBoolean(), "", Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class), Function.identity());
         cluster.beforeTest(random(), 0.0);
@@ -447,6 +453,7 @@ public class InternalTestClusterTests extends ESTestCase {
     }
 
     public void testTwoNodeCluster() throws Exception {
+        String transportClient = randomBoolean() ? NioTransportPlugin.NIO_TRANSPORT_NAME : MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -464,7 +471,7 @@ public class InternalTestClusterTests extends ESTestCase {
             @Override
             public Settings transportClientSettings() {
                 return Settings.builder()
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).build();
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         };
         boolean enableHttpPipelining = randomBoolean();

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.security.action.token.InvalidateTokenResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -110,6 +111,11 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    @Before
+    public void waitForSecurityIndexWritable() throws Exception {
+        assertSecurityIndexWriteable();
     }
 
     @After

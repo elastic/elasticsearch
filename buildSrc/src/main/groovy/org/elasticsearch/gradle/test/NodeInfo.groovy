@@ -136,7 +136,7 @@ class NodeInfo {
             wrapperScript = new File(cwd, "run.bat")
             esScript = new File(homeDir, 'bin/elasticsearch.bat')
         } else {
-            executable = 'sh'
+            executable = 'bash'
             wrapperScript = new File(cwd, "run")
             esScript = new File(homeDir, 'bin/elasticsearch')
         }

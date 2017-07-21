@@ -337,7 +337,7 @@ run_elasticsearch_service() {
     local commandLineArgs=$2
     # Set the CONF_DIR setting in case we start as a service
     if [ ! -z "$CONF_DIR" ] ; then
-        if is_dpkg ; then
+        if is_dpkg; then
             echo "CONF_DIR=$CONF_DIR" >> /etc/default/elasticsearch;
         elif is_rpm; then
             echo "CONF_DIR=$CONF_DIR" >> /etc/sysconfig/elasticsearch;

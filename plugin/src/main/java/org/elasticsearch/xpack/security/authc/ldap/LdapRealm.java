@@ -5,6 +5,15 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
 import com.unboundid.ldap.sdk.LDAPException;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -36,13 +45,6 @@ import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.ssl.SSLService;
-
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 
 /**
@@ -145,9 +147,11 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
     protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
         // we submit to the threadpool because authentication using LDAP will execute blocking I/O for a bind request and we don't want
         // network threads stuck waiting for a socket to connect. After the bind, then all interaction with LDAP should be async
-        final CancellableLdapRunnable cancellableLdapRunnable = new CancellableLdapRunnable(listener,
+        final CancellableLdapRunnable<AuthenticationResult> cancellableLdapRunnable = new CancellableLdapRunnable<>(listener,
+                ex -> AuthenticationResult.unsuccessful("Authentication against realm [" + this.toString() + "] failed", ex),
                 () -> sessionFactory.session(token.principal(), token.credentials(),
-                        contextPreservingListener(new LdapSessionActionListener("authenticate", token.principal(), listener))), logger);
+                        contextPreservingListener(new LdapSessionActionListener("authenticate", token.principal(), listener))), logger
+        );
         threadPool.generic().execute(cancellableLdapRunnable);
         threadPool.schedule(executionTimeout, Names.SAME, cancellableLdapRunnable::maybeTimeout);
     }
@@ -159,7 +163,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
             // network threads stuck waiting for a socket to connect. After the bind, then all interaction with LDAP should be async
             final ActionListener<AuthenticationResult> sessionListener = ActionListener.wrap(AuthenticationResult::getUser,
                     userActionListener::onFailure);
-            final CancellableLdapRunnable cancellableLdapRunnable = new CancellableLdapRunnable(userActionListener,
+            final CancellableLdapRunnable<User> cancellableLdapRunnable = new CancellableLdapRunnable<>(userActionListener, e -> null,
                     () -> sessionFactory.unauthenticatedSession(username,
                             contextPreservingListener(new LdapSessionActionListener("lookup", username, sessionListener))), logger);
             threadPool.generic().execute(cancellableLdapRunnable);
@@ -193,7 +197,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
     private static void buildUser(LdapSession session, String username, ActionListener<AuthenticationResult> listener,
                                   UserRoleMapper roleMapper) {
         if (session == null) {
-            listener.onResponse(null);
+            listener.onResponse(AuthenticationResult.notHandled());
         } else {
             boolean loadingGroups = false;
             try {
@@ -250,7 +254,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
         @Override
         public void onResponse(LdapSession session) {
             if (session == null) {
-                resultListener.onResponse(null);
+                resultListener.onResponse(AuthenticationResult.notHandled());
             } else {
                 ldapSessionAtomicReference.set(session);
                 buildUser(session, username, resultListener, roleMapper);
@@ -275,15 +279,17 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
      * be queued and not executed for a long time or ever and this causes user requests to appear
      * to hang. In these cases at least we can provide a response.
      */
-    static class CancellableLdapRunnable extends AbstractRunnable {
+    static class CancellableLdapRunnable<T> extends AbstractRunnable {
 
         private final Runnable in;
-        private final ActionListener<?> listener;
+        private final ActionListener<T> listener;
+        private final Function<Exception, T> defaultValue;
         private final Logger logger;
         private final AtomicReference<LdapRunnableState> state = new AtomicReference<>(LdapRunnableState.AWAITING_EXECUTION);
 
-        CancellableLdapRunnable(ActionListener<?> listener, Runnable in, Logger logger) {
+        CancellableLdapRunnable(ActionListener<T> listener, Function<Exception, T> defaultValue, Runnable in, Logger logger) {
             this.listener = listener;
+            this.defaultValue = Objects.requireNonNull(defaultValue);
             this.in = in;
             this.logger = logger;
         }
@@ -291,9 +297,8 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
         @Override
         public void onFailure(Exception e) {
             logger.error("execution of ldap runnable failed", e);
-            // this is really a exceptional state but just call the listener and maybe another realm can authenticate, otherwise
-            // something as simple as a down ldap server/network error takes down auth
-            listener.onResponse(null);
+            final T result = defaultValue.apply(e);
+            listener.onResponse(result);
         }
 
         @Override

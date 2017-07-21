@@ -68,7 +68,7 @@ import java.util.function.Consumer;
 public class NativeUsersStore extends AbstractComponent {
 
     public static final String INDEX_TYPE = "doc";
-    private static final String USER_DOC_TYPE = "user";
+    static final String USER_DOC_TYPE = "user";
     public static final String RESERVED_USER_TYPE = "reserved-user";
 
     private final Hasher hasher = Hasher.BCRYPT;
@@ -511,7 +511,7 @@ public class NativeUsersStore extends AbstractComponent {
     void verifyPassword(String username, final SecureString password, ActionListener<AuthenticationResult> listener) {
         getUserAndPassword(username, ActionListener.wrap((userAndPassword) -> {
             if (userAndPassword == null || userAndPassword.passwordHash() == null) {
-                listener.onResponse(null);
+                listener.onResponse(AuthenticationResult.notHandled());
             } else if (hasher.verify(password, userAndPassword.passwordHash())) {
                 listener.onResponse(AuthenticationResult.success(userAndPassword.user()));
             } else {

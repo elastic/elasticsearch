@@ -22,8 +22,6 @@ IF %JAVA:~-13% == "\bin\java.exe" (
 )
 
 :cont
-if not "%CONF_FILE%" == "" goto conffileset
-
 set SCRIPT_DIR=%~dp0
 for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 
@@ -296,10 +294,6 @@ rem convert to KB
 set /a conv=%conv% * 1024 * 1024
 :kilo
 set "%~2=%conv%"
-goto:eof
-
-:conffileset
-echo CONF_FILE setting is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed.
 goto:eof
 
 ENDLOCAL

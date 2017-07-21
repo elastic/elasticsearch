@@ -813,30 +813,36 @@ public class SSLService extends AbstractComponent {
     /**
      * This is an empty trust manager that is used in case a loaded trust manager is null
      */
-    private static final class EmptyX509TrustManager extends X509ExtendedTrustManager {
+    static final class EmptyX509TrustManager extends X509ExtendedTrustManager {
 
         @Override
         public void checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
+            throw new CertificateException("no certificates are trusted");
         }
 
         @Override
         public void checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
+            throw new CertificateException("no certificates are trusted");
         }
 
         @Override
         public void checkClientTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
+            throw new CertificateException("no certificates are trusted");
         }
 
         @Override
         public void checkServerTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
+            throw new CertificateException("no certificates are trusted");
         }
 
         @Override
         public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+            throw new CertificateException("no certificates are trusted");
         }
 
         @Override
         public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+            throw new CertificateException("no certificates are trusted");
         }
 
         @Override

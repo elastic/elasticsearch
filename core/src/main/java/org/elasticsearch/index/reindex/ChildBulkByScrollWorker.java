@@ -24,11 +24,8 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.List;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -40,38 +37,21 @@ import static java.lang.Math.max;
 import static java.lang.Math.round;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 
-/**
- * todo remove.
- */
-public class WorkingBulkByScrollTask extends BulkByScrollTask implements SuccessfullyProcessed {
-    public WorkingBulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId) {
-        super(id, type, action, description, parentTaskId);
-    }
+public class ChildBulkByScrollWorker implements SuccessfullyProcessed {
 
-    @Override
-    public long getUpdated() {
-        return 0;
-    }
+    private static final Logger logger = ESLoggerFactory.getLogger(BulkByScrollTask.class.getPackage().getName());
 
-    @Override
-    public long getCreated() {
-        return 0;
-    }
+    private final BulkByScrollTask task;
 
-    @Override
-    public long getDeleted() {
-        return 0;
-    }
-    /*private static final Logger logger = ESLoggerFactory.getLogger(BulkByScrollTask.class.getPackage().getName());
-
-    *//**
-     * The id of the slice that this task is processing or {@code null} if this task isn't for a sliced request.
-     *//*
+    /**
+     * The id of the slice that this worker is processing or {@code null} if this task isn't for a sliced request.
+     */
     private final Integer sliceId;
-    *//**
+
+    /**
      * The total number of documents this request will process. 0 means we don't yet know or, possibly, there are actually 0 documents
      * to process. Its ok that these have the same meaning because any request with 0 actual documents should be quite short lived.
-     *//*
+     */
     private final AtomicLong total = new AtomicLong(0);
     private final AtomicLong updated = new AtomicLong(0);
     private final AtomicLong created = new AtomicLong(0);
@@ -82,56 +62,28 @@ public class WorkingBulkByScrollTask extends BulkByScrollTask implements Success
     private final AtomicLong bulkRetries = new AtomicLong(0);
     private final AtomicLong searchRetries = new AtomicLong(0);
     private final AtomicLong throttledNanos = new AtomicLong();
-    *//**
+
+    /**
      * The number of requests per second to which to throttle the request that this task represents. The other variables are all AtomicXXX
      * style variables but there isn't an AtomicFloat so we just use a volatile.
-     *//*
+     */
     private volatile float requestsPerSecond;
-    *//**
+
+    /**
      * Reference to any the last delayed prepareBulkRequest call. Used during rethrottling and canceling to reschedule the request.
-     *//*
+     */
     private final AtomicReference<DelayedPrepareBulkRequest> delayedPrepareBulkRequestReference = new AtomicReference<>();
 
-    public WorkingBulkByScrollTask(long id, String type, String action, String description, TaskId parentTask, Integer sliceId,
-            float requestsPerSecond) {
-        super(id, type, action, description, parentTask);
+    public ChildBulkByScrollWorker(BulkByScrollTask task, Integer sliceId, float requestsPerSecond) {
+        this.task = task;
         this.sliceId = sliceId;
         setRequestsPerSecond(requestsPerSecond);
     }
 
-    @Override
-    public Status getStatus() {
-        return new Status(sliceId, total.get(), updated.get(), created.get(), deleted.get(), batch.get(), versionConflicts.get(),
-                noops.get(), bulkRetries.get(), searchRetries.get(), timeValueNanos(throttledNanos.get()), getRequestsPerSecond(),
-                getReasonCancelled(), throttledUntil());
-    }
-
-    @Override
-    protected void onCancelled() {
-         Drop the throttle to 0, immediately rescheduling any throttled
-         * operation so it will wake up and cancel itself.
-        rethrottle(Float.POSITIVE_INFINITY);
-    }
-
-    @Override
-    public int runningSliceSubTasks() {
-        return 0;
-    }
-
-    @Override
-    public TaskInfo getInfoGivenSliceInfo(String localNodeId, List<TaskInfo> sliceInfo) {
-        throw new UnsupportedOperationException("This is only supported by " + ParentBulkByScrollTask.class.getName() + ".");
-    }
-
-    TimeValue throttledUntil() {
-        DelayedPrepareBulkRequest delayed = delayedPrepareBulkRequestReference.get();
-        if (delayed == null) {
-            return timeValueNanos(0);
-        }
-        if (delayed.future == null) {
-            return timeValueNanos(0);
-        }
-        return timeValueNanos(max(0, delayed.future.getDelay(TimeUnit.NANOSECONDS)));
+    public BulkByScrollTask.Status getStatus() {
+        return new BulkByScrollTask.Status(sliceId, total.get(), updated.get(), created.get(), deleted.get(), batch.get(), versionConflicts.get(),
+            noops.get(), bulkRetries.get(), searchRetries.get(), timeValueNanos(throttledNanos.get()), getRequestsPerSecond(),
+            task.getReasonCancelled(), throttledUntil());
     }
 
     public void setTotal(long totalHits) {
@@ -189,18 +141,29 @@ public class WorkingBulkByScrollTask extends BulkByScrollTask implements Success
         return requestsPerSecond;
     }
 
-    *//**
+    TimeValue throttledUntil() {
+        DelayedPrepareBulkRequest delayed = delayedPrepareBulkRequestReference.get();
+        if (delayed == null) {
+            return timeValueNanos(0);
+        }
+        if (delayed.future == null) {
+            return timeValueNanos(0);
+        }
+        return timeValueNanos(max(0, delayed.future.getDelay(TimeUnit.NANOSECONDS)));
+    }
+
+    /**
      * Schedule prepareBulkRequestRunnable to run after some delay. This is where throttling plugs into reindexing so the request can be
      * rescheduled over and over again.
-     *//*
+     */
     public void delayPrepareBulkRequest(ThreadPool threadPool, TimeValue lastBatchStartTime, int lastBatchSize,
                                         AbstractRunnable prepareBulkRequestRunnable) {
         // Synchronize so we are less likely to schedule the same request twice.
         synchronized (delayedPrepareBulkRequestReference) {
             TimeValue delay = throttleWaitTime(lastBatchStartTime, timeValueNanos(System.nanoTime()), lastBatchSize);
-            logger.debug("[{}]: preparing bulk request for [{}]", getId(), delay);
+            logger.debug("[{}]: preparing bulk request for [{}]", task.getId(), delay);
             delayedPrepareBulkRequestReference.set(new DelayedPrepareBulkRequest(threadPool, getRequestsPerSecond(),
-                    delay, new RunOnce(prepareBulkRequestRunnable)));
+                delay, new RunOnce(prepareBulkRequestRunnable)));
         }
     }
 
@@ -209,9 +172,9 @@ public class WorkingBulkByScrollTask extends BulkByScrollTask implements Success
         return timeValueNanos(max(0, earliestNextBatchStartTime - System.nanoTime()));
     }
 
-    *//**
+    /**
      * How many nanoseconds should a batch of lastBatchSize have taken if it were perfectly throttled? Package private for testing.
-     *//*
+     */
     float perfectlyThrottledBatchTime(int lastBatchSize) {
         if (requestsPerSecond == Float.POSITIVE_INFINITY) {
             return 0;
@@ -231,17 +194,15 @@ public class WorkingBulkByScrollTask extends BulkByScrollTask implements Success
         this.requestsPerSecond = requestsPerSecond;
     }
 
-
-    @Override
     public void rethrottle(float newRequestsPerSecond) {
         synchronized (delayedPrepareBulkRequestReference) {
-            logger.debug("[{}]: rethrottling to [{}] requests per second", getId(), newRequestsPerSecond);
+            logger.debug("[{}]: rethrottling to [{}] requests per second", task.getId(), newRequestsPerSecond);
             setRequestsPerSecond(newRequestsPerSecond);
 
             DelayedPrepareBulkRequest delayedPrepareBulkRequest = this.delayedPrepareBulkRequestReference.get();
             if (delayedPrepareBulkRequest == null) {
                 // No request has been queued so nothing to reschedule.
-                logger.debug("[{}]: skipping rescheduling because there is no scheduled task", getId());
+                logger.debug("[{}]: skipping rescheduling because there is no scheduled task", task.getId());
                 return;
             }
 
@@ -275,12 +236,12 @@ public class WorkingBulkByScrollTask extends BulkByScrollTask implements Success
 
         DelayedPrepareBulkRequest rethrottle(float newRequestsPerSecond) {
             if (newRequestsPerSecond < requestsPerSecond) {
-                *//* The user is attempting to slow the request down. We'll let the
+                /* The user is attempting to slow the request down. We'll let the
                  * change in throttle take effect the next time we delay
                  * prepareBulkRequest. We can't just reschedule the request further
-                 * out in the future because the bulk context might time out. *//*
-                logger.debug("[{}]: skipping rescheduling because the new throttle [{}] is slower than the old one [{}]", getId(),
-                        newRequestsPerSecond, requestsPerSecond);
+                 * out in the future because the bulk context might time out. */
+                logger.debug("[{}]: skipping rescheduling because the new throttle [{}] is slower than the old one [{}]", task.getId(),
+                    newRequestsPerSecond, requestsPerSecond);
                 return this;
             }
 
@@ -288,22 +249,22 @@ public class WorkingBulkByScrollTask extends BulkByScrollTask implements Success
             // Actually reschedule the task
             if (false == FutureUtils.cancel(future)) {
                 // Couldn't cancel, probably because the task has finished or been scheduled. Either way we have nothing to do here.
-                logger.debug("[{}]: skipping rescheduling because we couldn't cancel the task", getId());
+                logger.debug("[{}]: skipping rescheduling because we couldn't cancel the task", task.getId());
                 return this;
             }
 
-            *//* Strangely enough getting here doesn't mean that you actually
+            /* Strangely enough getting here doesn't mean that you actually
              * cancelled the request, just that you probably did. If you stress
              * test it you'll find that requests sneak through. So each request
-             * is given a runOnce boolean to prevent that. *//*
+             * is given a runOnce boolean to prevent that. */
             TimeValue newDelay = newDelay(remainingDelay, newRequestsPerSecond);
-            logger.debug("[{}]: rescheduling for [{}] in the future", getId(), newDelay);
+            logger.debug("[{}]: rescheduling for [{}] in the future", task.getId(), newDelay);
             return new DelayedPrepareBulkRequest(threadPool, requestsPerSecond, newDelay, command);
         }
 
-        *//**
+        /**
          * Scale back remaining delay to fit the new delay.
-         *//*
+         */
         TimeValue newDelay(long remainingDelay, float newRequestsPerSecond) {
             if (remainingDelay < 0) {
                 return timeValueNanos(0);
@@ -312,10 +273,10 @@ public class WorkingBulkByScrollTask extends BulkByScrollTask implements Success
         }
     }
 
-    *//**
+    /**
      * Runnable that can only be run one time. This is paranoia to prevent furiously rethrottling from running the command multiple times.
      * Without it the command would be run multiple times.
-     *//*
+     */
     private static class RunOnce extends AbstractRunnable {
         private final AtomicBoolean hasRun = new AtomicBoolean(false);
         private final AbstractRunnable delegate;
@@ -335,5 +296,5 @@ public class WorkingBulkByScrollTask extends BulkByScrollTask implements Success
         public void onFailure(Exception e) {
             delegate.onFailure(e);
         }
-    }*/
+    }
 }

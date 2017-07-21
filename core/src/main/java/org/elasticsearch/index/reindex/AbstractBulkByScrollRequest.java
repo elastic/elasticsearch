@@ -382,14 +382,16 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-        if (slices.isAuto() || slices.number() > 1) {
+        /*if (slices.isAuto() || slices.number() > 1) { todo remove this
             return new ParentBulkByScrollTask(id, type, action, getDescription(), parentTaskId);
         }
-        /* Extract the slice from the search request so it'll be available in the status. This is potentially useful for users that manually
+        *//* Extract the slice from the search request so it'll be available in the status. This is potentially useful for users that manually
          * slice their search requests so they can keep track of it and **absolutely** useful for automatically sliced reindex requests so
-         * they can properly track the responses. */
+         * they can properly track the responses. *//*
         Integer sliceId = searchRequest.source().slice() == null ? null : searchRequest.source().slice().getId();
-        return new WorkingBulkByScrollTask(id, type, action, getDescription(), parentTaskId, sliceId, requestsPerSecond);
+        return new WorkingBulkByScrollTask(id, type, action, getDescription(), parentTaskId, sliceId, requestsPerSecond);*/
+
+        return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId);
     }
 
     @Override

@@ -39,36 +39,71 @@ import java.util.Objects;
 
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 
 /**
  * Task storing information about a currently running BulkByScroll request.
  */
-public abstract class BulkByScrollTask extends CancellableTask {
+public class BulkByScrollTask extends CancellableTask {
+
+    private ParentBulkByScrollWorker parentWorker; // todo give this a better name (maybe task strategy or behavior)
+    private ChildBulkByScrollWorker childWorker;
+
     public BulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId) {
         super(id, type, action, description, parentTaskId);
     }
 
-    /**
-     * The number of sub-slices that are still running. {@link WorkingBulkByScrollTask} will always have 0 and
-     * {@link ParentBulkByScrollTask} will return the number of waiting tasks. Used to decide how to perform rethrottling.
-     */
-    public abstract int runningSliceSubTasks();
+    @Override
+    public BulkByScrollTask.Status getStatus() {
+        if (isParent()) {
+            return parentWorker.getStatus();
+        }
 
-    /**
-     * Apply the {@code newRequestsPerSecond}.
-     */
-    public abstract void rethrottle(float newRequestsPerSecond);
+        if (isChild()) {
+            return childWorker.getStatus();
+        }
 
-    /*
-     * Overridden to force children to return compatible status.
-     */
-    public abstract BulkByScrollTask.Status getStatus();
+        throw new IllegalStateException("This task's worker is not set");
+    }
 
-    /**
-     * Build the status for this task given a snapshot of the information of running slices.
-     */
-    public abstract TaskInfo getInfoGivenSliceInfo(String localNodeId, List<TaskInfo> sliceInfo);
+    public boolean isParent() {
+        return parentWorker != null;
+    }
+
+    public void setParent(int slices) {
+        if (isParent()) {
+            throw new IllegalStateException("Parent worker is already set");
+        }
+        if (isChild()) {
+            throw new IllegalStateException("Worker is already set as child");
+        }
+
+        parentWorker = new ParentBulkByScrollWorker(this, slices);
+    }
+
+    public ParentBulkByScrollWorker getParentWorker() {
+        return parentWorker;
+    }
+
+    public boolean isChild() {
+        return childWorker != null;
+    }
+
+    public void setChild(Integer sliceId, float requestsPerSecond) {
+        if (isChild()) {
+            throw new IllegalStateException("Child worker is already set");
+        }
+        if (isParent()) {
+            throw new IllegalStateException("Worker is already set as child");
+        }
+
+        childWorker = new ChildBulkByScrollWorker(this, sliceId, requestsPerSecond);
+    }
+
+    public ChildBulkByScrollWorker getChildWorker() {
+        return childWorker;
+    }
 
     @Override
     public boolean shouldCancelChildrenOnCancellation() {

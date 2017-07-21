@@ -33,13 +33,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static java.util.Collections.unmodifiableList;
 
 /**
- * Task for parent bulk by scroll requests that have sub-workers.
+ * Task for parent bulk by scroll requests that have sub-workers. todo remove
  */
 public class ParentBulkByScrollTask extends BulkByScrollTask {
+    public ParentBulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId) {
+        super(id, type, action, description, parentTaskId);
+    }
     /**
      * Holds the responses as they come back. This uses {@link Tuple} as an "Either" style holder where only the response or the exception
      * is set.
-     */
     private AtomicArray<Result> results;
     private AtomicInteger counter;
 
@@ -89,8 +91,8 @@ public class ParentBulkByScrollTask extends BulkByScrollTask {
 
     @Override
     public TaskInfo getInfoGivenSliceInfo(String localNodeId, List<TaskInfo> sliceInfo) {
-        /* Merge the list of finished sub requests with the provided info. If a slice is both finished and in the list then we prefer the
-         * finished status because we don't expect them to change after the task is finished. */
+         *//* Merge the list of finished sub requests with the provided info. If a slice is both finished and in the list then we prefer the
+         * finished status because we don't expect them to change after the task is finished. *//*
         List<StatusOrException> sliceStatuses = Arrays.asList(new StatusOrException[results.length()]);
         for (TaskInfo t : sliceInfo) {
             Status status = (Status) t.getStatus();
@@ -111,19 +113,19 @@ public class ParentBulkByScrollTask extends BulkByScrollTask {
         }
     }
 
-    /**
+    *//**
      * Record a response from a slice and respond to the listener if the request is finished.
-     */
+     *//*
     public void onSliceResponse(ActionListener<BulkByScrollResponse> listener, int sliceId, BulkByScrollResponse response) {
         results.setOnce(sliceId, new Result(sliceId, response));
-        /* If the request isn't finished we could automatically rethrottle the sub-requests here but we would only want to do that if we
-         * were fairly sure they had a while left to go. */
+        *//* If the request isn't finished we could automatically rethrottle the sub-requests here but we would only want to do that if we
+         * were fairly sure they had a while left to go. *//*
         recordSliceCompletionAndRespondIfAllDone(listener);
     }
 
 
     // todo this is not an atomic operation: you can read all the tasks results finished while counter is still not 0
-    /*
+    *//*
      * e.g.
      * there are two child tasks
      *
@@ -134,10 +136,10 @@ public class ParentBulkByScrollTask extends BulkByScrollTask {
      * at this point all tasks are done
      * thread B decrements counter
      * thread A decrements counter and now thinks it's the last task even though it's not
-     */
-    /**
+     *//*
+    *//**
      * Record a failure from a slice and respond to the listener if the request is finished.
-     */
+     *//*
     public void onSliceFailure(ActionListener<BulkByScrollResponse> listener, int sliceId, Exception e) {
         results.setOnce(sliceId, new Result(sliceId, e));
         recordSliceCompletionAndRespondIfAllDone(listener);
@@ -186,5 +188,5 @@ public class ParentBulkByScrollTask extends BulkByScrollTask {
             this.failure = failure;
             response = null;
         }
-    }
+    }*/
 }

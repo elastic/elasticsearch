@@ -76,16 +76,18 @@ class BulkByScrollParallelizationHelper {
 
     public static <Request extends AbstractBulkByScrollRequest<Request>> void startSlices(Client client, TaskManager taskManager,
                                Action<Request, BulkByScrollResponse, ?> action,
-                               String localNodeId, ParentBulkByScrollTask task, Request request,
-                               int totalSlices,
+                               String localNodeId,
+                               BulkByScrollTask task,
+                               Request request,
                                ActionListener<BulkByScrollResponse> listener) {
+        int totalSlices = task.getParentWorker().getSlices();
         TaskId parentTaskId = new TaskId(localNodeId, task.getId());
         for (final SearchRequest slice : sliceIntoSubRequests(request.getSearchRequest(), UidFieldMapper.NAME, totalSlices)) {
             // TODO move the request to the correct node. maybe here or somehow do it as part of startup for reindex in general....
             Request requestForSlice = request.forSlice(parentTaskId, slice, totalSlices);
             ActionListener<BulkByScrollResponse> sliceListener = ActionListener.wrap(
-                    r -> task.onSliceResponse(listener, slice.source().slice().getId(), r),
-                    e -> task.onSliceFailure(listener, slice.source().slice().getId(), e));
+                    r -> task.getParentWorker().onSliceResponse(listener, slice.source().slice().getId(), r),
+                    e -> task.getParentWorker().onSliceFailure(listener, slice.source().slice().getId(), e));
             client.execute(action, requestForSlice, sliceListener);
         }
     }

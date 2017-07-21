@@ -137,8 +137,8 @@ public class SliceBuilder extends ToXContentToBytes implements Writeable {
     }
 
     private SliceBuilder setMax(int max) {
-        if (max <= 0) { // todo here
-            throw new IllegalArgumentException("max must be greater than 0");
+        if (max <= 1) {
+            throw new IllegalArgumentException("max must be greater than 1");
         }
         if (id != -1 && id >= max) {
             throw new IllegalArgumentException("max must be greater than id");

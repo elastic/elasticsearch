@@ -80,7 +80,9 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.list;
 import static java.util.Collections.synchronizedList;
+import static java.util.Objects.compare;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
@@ -110,7 +112,28 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollParallelizationHelper.computeSlicing(client, request, listener, slices -> {
+
+            BulkByScrollTask bulkTask = (BulkByScrollTask) task;
+
             if (slices > 1) {
+                bulkTask.setParent(slices);
+                BulkByScrollParallelizationHelper.startSlices(client, taskManager, ReindexAction.INSTANCE,
+                    clusterService.localNode().getId(), bulkTask, request, listener);
+            } else {
+                checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
+                ClusterState state = clusterService.state();
+                validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(),
+                    indexNameExpressionResolver, autoCreateIndex, state);
+
+                Integer sliceId = request.getSearchRequest().source().slice() == null
+                    ? null
+                    : request.getSearchRequest().source().slice().getId();
+                bulkTask.setChild(sliceId, request.getRequestsPerSecond());
+                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), bulkTask);
+                new AsyncIndexBySearchAction(bulkTask, logger, assigningClient, threadPool, request, scriptService, state, listener).start();
+            }
+
+/*            if (slices > 1) {
                 ParentBulkByScrollTask parentTask = (ParentBulkByScrollTask) task;
                 parentTask.setSlices(slices);
                 BulkByScrollParallelizationHelper.startSlices(client, taskManager, ReindexAction.INSTANCE,
@@ -123,7 +146,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
                 new AsyncIndexBySearchAction((WorkingBulkByScrollTask) task, logger, assigningClient, threadPool, request, scriptService,
                     state, listener).start();
-            }
+            }*/
         });
     }
 
@@ -248,13 +271,13 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
          */
         private List<Thread> createdThreads = emptyList();
 
-        AsyncIndexBySearchAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+        AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                                  ThreadPool threadPool, ReindexRequest request, ScriptService scriptService, ClusterState clusterState,
                                  ActionListener<BulkByScrollResponse> listener) {
             this(task, logger, client, threadPool, request, scriptService, clusterState, listener, client.settings());
         }
 
-        AsyncIndexBySearchAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+        AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                 ThreadPool threadPool, ReindexRequest request, ScriptService scriptService, ClusterState clusterState,
                 ActionListener<BulkByScrollResponse> listener, Settings settings) {
             super(task, logger, client, threadPool, request, scriptService, clusterState, listener, settings);
@@ -275,7 +298,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
                 RestClient restClient = buildRestClient(remoteInfo, task.getId(), createdThreads);
-                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, task::countSearchRetry, this::finishHim, restClient,
+                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry, this::finishHim, restClient,
                         remoteInfo.getQuery(), mainRequest.getSearchRequest());
             }
             return super.buildScrollableResultSource(backoffPolicy);
@@ -297,7 +320,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         public BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
-                return new ReindexScriptApplier(task, scriptService, script, script.getParams());
+                return new ReindexScriptApplier(worker, scriptService, script, script.getParams());
             }
             return super.buildScriptApplier();
         }
@@ -389,9 +412,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
         class ReindexScriptApplier extends ScriptApplier {
 
-            ReindexScriptApplier(WorkingBulkByScrollTask task, ScriptService scriptService, Script script,
-                                 Map<String, Object> params) {
-                super(task, scriptService, script, params);
+            public ReindexScriptApplier(ChildBulkByScrollWorker taskWorker, ScriptService scriptService, Script script, Map<String, Object> params) {
+                super(taskWorker, scriptService, script, params);
             }
 
             /*

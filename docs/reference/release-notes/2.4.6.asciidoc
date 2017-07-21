@@ -1,0 +1,10 @@
+[[release-notes-2.4.6]]
+== 2.4.6 Release Notes
+
+[[bug-2.4.6]]
+[float]
+=== Bug fixes
+
+Aliases::
+* mget with an alias shouldn't ignore alias routing {pull}25697[#25697] (issue: {issue}25696[#25696])
+

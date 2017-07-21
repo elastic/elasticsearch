@@ -45,7 +45,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         TaskManager taskManager = new TaskManager(Settings.EMPTY);
         AtomicBoolean syncActionCalled = new AtomicBoolean();
         PrimaryReplicaSyncer.SyncAction syncAction =
-            (request, parentTask, allocationId, listener) -> {
+            (request, parentTask, allocationId, primaryTerm, listener) -> {
                 logger.info("Sending off {} operations", request.getOperations().size());
                 syncActionCalled.set(true);
                 assertThat(parentTask, instanceOf(PrimaryReplicaSyncer.ResyncTask.class));

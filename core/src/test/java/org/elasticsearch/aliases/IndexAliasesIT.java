@@ -20,6 +20,7 @@
 package org.elasticsearch.aliases;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
@@ -66,17 +67,11 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WR
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class IndexAliasesIT extends ESIntegTestCase {
     public void testAliases() throws Exception {
@@ -91,7 +86,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> indexing against [alias1], should work now");
         IndexResponse indexResponse = client().index(indexRequest("alias1").type("type1").id("1")
             .source(source("1", "test"), XContentType.JSON)).actionGet();
-        assertThat(indexResponse.getIndex(), equalTo("test"));
+        assertEquals(indexResponse.getIndex(), "test");
 
         logger.info("--> creating index [test_x]");
         createIndex("test_x");
@@ -104,7 +99,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> indexing against [alias1], should work against [test_x]");
         indexResponse = client().index(indexRequest("alias1").type("type1").id("1")
             .source(source("1", "test"), XContentType.JSON)).actionGet();
-        assertThat(indexResponse.getIndex(), equalTo("test_x"));
+        assertEquals(indexResponse.getIndex(), "test_x");
     }
 
     public void testFailedFilter() throws Exception {
@@ -114,12 +109,12 @@ public class IndexAliasesIT extends ESIntegTestCase {
         //invalid filter, invalid json
         Exception e = expectThrows(IllegalArgumentException.class,
                 () -> admin().indices().prepareAliases().addAlias("test", "alias1", "abcde").get());
-        assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias1]"));
+        assertEquals(e.getMessage(), "failed to parse filter for alias [alias1]");
 
         // valid json , invalid filter
         e = expectThrows(IllegalArgumentException.class,
                 () -> admin().indices().prepareAliases().addAlias("test", "alias1", "{ \"test\": {} }").get());
-        assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias1]"));
+        assertEquals(e.getMessage(), "failed to parse filter for alias [alias1]");
     }
 
     public void testFilteringAliases() throws Exception {
@@ -136,7 +131,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> making sure that filter was stored with alias [alias1] and filter [user:kimchy]");
         ClusterState clusterState = admin().cluster().prepareState().get().getState();
         IndexMetaData indexMd = clusterState.metaData().index("test");
-        assertThat(indexMd.getAliases().get("alias1").filter().string(), equalTo("{\"term\":{\"user\":{\"value\":\"kimchy\",\"boost\":1.0}}}"));
+        assertEquals(indexMd.getAliases().get("alias1").filter().string(), "{\"term\":{\"user\":{\"value\":\"kimchy\",\"boost\":1.0}}}");
 
     }
 
@@ -196,7 +191,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertSearchResponse(searchResponse);
         Global global = searchResponse.getAggregations().get("global");
         Terms terms = global.getAggregations().get("test");
-        assertThat(terms.getBuckets().size(), equalTo(4));
+        assertEquals(terms.getBuckets().size(), 4);
 
         logger.info("--> checking single filtering alias search with global facets and sort");
         searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
@@ -205,7 +200,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertSearchResponse(searchResponse);
         global = searchResponse.getAggregations().get("global");
         terms = global.getAggregations().get("test");
-        assertThat(terms.getBuckets().size(), equalTo(4));
+        assertEquals(terms.getBuckets().size(), 4);
 
         logger.info("--> checking single filtering alias search with non-global facets");
         searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
@@ -213,7 +208,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 .addSort("_index", SortOrder.ASC).get();
         assertSearchResponse(searchResponse);
         terms = searchResponse.getAggregations().get("test");
-        assertThat(terms.getBuckets().size(), equalTo(2));
+        assertEquals(terms.getBuckets().size(), 2);
 
         searchResponse = client().prepareSearch("foos", "bars").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2");
@@ -270,32 +265,32 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> checking filtering alias for two indices");
         SearchResponse searchResponse = client().prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "5");
-        assertThat(client().prepareSearch("foos").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(2L));
+        assertEquals(client().prepareSearch("foos").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), 2L);
 
         logger.info("--> checking filtering alias for one index");
         searchResponse = client().prepareSearch("bars").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "2");
-        assertThat(client().prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(1L));
+        assertEquals(client().prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), 1L);
 
         logger.info("--> checking filtering alias for two indices and one complete index");
         searchResponse = client().prepareSearch("foos", "test1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4", "5");
-        assertThat(client().prepareSearch("foos", "test1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(5L));
+        assertEquals(client().prepareSearch("foos", "test1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), 5L);
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for one index");
         searchResponse = client().prepareSearch("foos", "aliasToTest1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4", "5");
-        assertThat(client().prepareSearch("foos", "aliasToTest1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(5L));
+        assertEquals(client().prepareSearch("foos", "aliasToTest1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), 5L);
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for both indices");
         searchResponse = client().prepareSearch("foos", "aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(8L));
-        assertThat(client().prepareSearch("foos", "aliasToTests").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(8L));
+        assertEquals(searchResponse.getHits().getTotalHits(), 8L);
+        assertEquals(client().prepareSearch("foos", "aliasToTests").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), 8L);
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for both indices");
         searchResponse = client().prepareSearch("foos", "aliasToTests").setQuery(QueryBuilders.termQuery("name", "something")).get();
         assertHits(searchResponse.getHits(), "4", "8");
-        assertThat(client().prepareSearch("foos", "aliasToTests").setSize(0).setQuery(QueryBuilders.termQuery("name", "something")).get().getHits().getTotalHits(), equalTo(2L));
+        assertEquals(client().prepareSearch("foos", "aliasToTests").setSize(0).setQuery(QueryBuilders.termQuery("name", "something")).get().getHits().getTotalHits(), 2L);
     }
 
     public void testSearchingFilteringAliasesMultipleIndices() throws Exception {
@@ -339,27 +334,27 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> checking filtering alias for multiple indices");
         SearchResponse searchResponse = client().prepareSearch("filter23", "filter13").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "21", "31", "13", "33");
-        assertThat(client().prepareSearch("filter23", "filter13").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(4L));
+        assertEquals(client().prepareSearch("filter23", "filter13").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), 4L);
 
         searchResponse = client().prepareSearch("filter23", "filter1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "21", "31", "11", "12", "13");
-        assertThat(client().prepareSearch("filter23", "filter1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(5L));
+        assertEquals(client().prepareSearch("filter23", "filter1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), 5L);
 
         searchResponse = client().prepareSearch("filter13", "filter1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "11", "12", "13", "33");
-        assertThat(client().prepareSearch("filter13", "filter1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(4L));
+        assertEquals(client().prepareSearch("filter13", "filter1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), 4L);
 
         searchResponse = client().prepareSearch("filter13", "filter1", "filter23").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "11", "12", "13", "21", "31", "33");
-        assertThat(client().prepareSearch("filter13", "filter1", "filter23").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(6L));
+        assertEquals(client().prepareSearch("filter13", "filter1", "filter23").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), 6L);
 
         searchResponse = client().prepareSearch("filter23", "filter13", "test2").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "21", "22", "23", "31", "13", "33");
-        assertThat(client().prepareSearch("filter23", "filter13", "test2").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(6L));
+        assertEquals(client().prepareSearch("filter23", "filter13", "test2").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), 6L);
 
         searchResponse = client().prepareSearch("filter23", "filter13", "test1", "test2").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "11", "12", "13", "21", "22", "23", "31", "33");
-        assertThat(client().prepareSearch("filter23", "filter13", "test1", "test2").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(8L));
+        assertEquals(client().prepareSearch("filter23", "filter13", "test1", "test2").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), 8L);
     }
 
     public void testDeletingByQueryFilteringAliases() throws Exception {
@@ -396,7 +391,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         refresh();
 
         logger.info("--> checking counts before delete");
-        assertThat(client().prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), equalTo(1L));
+        assertEquals(client().prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits(), 1L);
     }
 
     public void testDeleteAliases() throws Exception {
@@ -424,7 +419,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         admin().indices().prepareAliases().removeAlias(indices, aliases).get();
 
         AliasesExistResponse response = admin().indices().prepareAliasesExist(aliases).get();
-        assertThat(response.exists(), equalTo(false));
+        assertFalse(response.exists());
 
         logger.info("--> creating index [foo_foo] and [bar_bar]");
         assertAcked(prepareCreate("foo_foo"));
@@ -492,7 +487,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         }
         executor.shutdown();
         boolean done = executor.awaitTermination(20, TimeUnit.SECONDS);
-        assertThat(done, equalTo(true));
+        assertTrue(done);
         if (!done) {
             executor.shutdownNow();
         }
@@ -529,7 +524,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         logger.info("--> verify that filter was updated");
         AliasMetaData aliasMetaData = ((AliasOrIndex.Alias) internalCluster().clusterService().state().metaData().getAliasAndIndexLookup().get("alias1")).getFirstAliasMetaData();
-        assertThat(aliasMetaData.getFilter().toString(), equalTo("{\"term\":{\"name\":{\"value\":\"bar\",\"boost\":1.0}}}"));
+        assertEquals(aliasMetaData.getFilter().toString(), "{\"term\":{\"name\":{\"value\":\"bar\",\"boost\":1.0}}}");
 
         logger.info("--> deleting alias1");
         stopWatch.start();
@@ -548,7 +543,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             admin().indices().prepareAliases().removeAlias("test", "alias1").get();
             fail("Expected AliasesNotFoundException");
         } catch (AliasesNotFoundException e) {
-            assertThat(e.getMessage(), containsString("[alias1] missing"));
+            assertTrue(e.getMessage().contains("[alias1] missing"));
         }
     }
 
@@ -569,42 +564,42 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         logger.info("--> getting alias1");
         GetAliasesResponse getResponse = admin().indices().prepareGetAliases("alias1").get();
-        assertThat(getResponse, notNullValue());
-        assertThat(getResponse.getAliases().size(), equalTo(5));
-        assertThat(getResponse.getAliases().get("foobar").size(), equalTo(1));
-        assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0).alias(), equalTo("alias1"));
-        assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+        assertNotNull(getResponse);
+        assertEquals(getResponse.getAliases().size(), 5);
+        assertEquals(getResponse.getAliases().get("foobar").size(), 1);
+        assertNotNull(getResponse.getAliases().get("foobar").get(0));
+        assertEquals(getResponse.getAliases().get("foobar").get(0).alias(), "alias1");
+        assertNull(getResponse.getAliases().get("foobar").get(0).getFilter());
+        assertNull(getResponse.getAliases().get("foobar").get(0).getIndexRouting());
+        assertNull(getResponse.getAliases().get("foobar").get(0).getSearchRouting());
         assertTrue(getResponse.getAliases().get("test").isEmpty());
         assertTrue(getResponse.getAliases().get("test123").isEmpty());
         assertTrue(getResponse.getAliases().get("foobarbaz").isEmpty());
         assertTrue(getResponse.getAliases().get("bazbar").isEmpty());
         AliasesExistResponse existsResponse = admin().indices().prepareAliasesExist("alias1").get();
-        assertThat(existsResponse.exists(), equalTo(true));
+        assertTrue(existsResponse.exists());
 
         logger.info("--> getting all aliases that start with alias*");
         getResponse = admin().indices().prepareGetAliases("alias*").get();
-        assertThat(getResponse, notNullValue());
-        assertThat(getResponse.getAliases().size(), equalTo(5));
-        assertThat(getResponse.getAliases().get("foobar").size(), equalTo(2));
-        assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0).alias(), equalTo("alias1"));
-        assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(1), notNullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(1).alias(), equalTo("alias2"));
-        assertThat(getResponse.getAliases().get("foobar").get(1).getFilter(), nullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(1).getIndexRouting(), nullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(1).getSearchRouting(), nullValue());
+        assertNotNull(getResponse);
+        assertEquals(getResponse.getAliases().size(), 5);
+        assertEquals(getResponse.getAliases().get("foobar").size(), 2);
+        assertNotNull(getResponse.getAliases().get("foobar").get(0));
+        assertEquals(getResponse.getAliases().get("foobar").get(0).alias(), "alias1");
+        assertNull(getResponse.getAliases().get("foobar").get(0).getFilter());
+        assertNull(getResponse.getAliases().get("foobar").get(0).getIndexRouting());
+        assertNull(getResponse.getAliases().get("foobar").get(0).getSearchRouting());
+        assertNotNull(getResponse.getAliases().get("foobar").get(1));
+        assertEquals(getResponse.getAliases().get("foobar").get(1).alias(), "alias2");
+        assertNull(getResponse.getAliases().get("foobar").get(1).getFilter());
+        assertNull(getResponse.getAliases().get("foobar").get(1).getIndexRouting());
+        assertNull(getResponse.getAliases().get("foobar").get(1).getSearchRouting());
         assertTrue(getResponse.getAliases().get("test").isEmpty());
         assertTrue(getResponse.getAliases().get("test123").isEmpty());
         assertTrue(getResponse.getAliases().get("foobarbaz").isEmpty());
         assertTrue(getResponse.getAliases().get("bazbar").isEmpty());
         existsResponse = admin().indices().prepareAliasesExist("alias*").get();
-        assertThat(existsResponse.exists(), equalTo(true));
+        assertTrue(existsResponse.exists());
 
 
         logger.info("--> creating aliases [bar, baz, foo]");
@@ -618,125 +613,125 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         logger.info("--> getting bar and baz for index bazbar");
         getResponse = admin().indices().prepareGetAliases("bar", "bac").addIndices("bazbar").get();
-        assertThat(getResponse, notNullValue());
-        assertThat(getResponse.getAliases().size(), equalTo(1));
-        assertThat(getResponse.getAliases().get("bazbar").size(), equalTo(2));
-        assertThat(getResponse.getAliases().get("bazbar").get(0), notNullValue());
-        assertThat(getResponse.getAliases().get("bazbar").get(0).alias(), equalTo("bac"));
-        assertThat(getResponse.getAliases().get("bazbar").get(0).getFilter().string(), containsString("term"));
-        assertThat(getResponse.getAliases().get("bazbar").get(0).getFilter().string(), containsString("field"));
-        assertThat(getResponse.getAliases().get("bazbar").get(0).getFilter().string(), containsString("value"));
-        assertThat(getResponse.getAliases().get("bazbar").get(0).getIndexRouting(), nullValue());
-        assertThat(getResponse.getAliases().get("bazbar").get(0).getSearchRouting(), nullValue());
-        assertThat(getResponse.getAliases().get("bazbar").get(1), notNullValue());
-        assertThat(getResponse.getAliases().get("bazbar").get(1).alias(), equalTo("bar"));
-        assertThat(getResponse.getAliases().get("bazbar").get(1).getFilter(), nullValue());
-        assertThat(getResponse.getAliases().get("bazbar").get(1).getIndexRouting(), nullValue());
-        assertThat(getResponse.getAliases().get("bazbar").get(1).getSearchRouting(), nullValue());
+        assertNotNull(getResponse);
+        assertEquals(getResponse.getAliases().size(), 1);
+        assertEquals(getResponse.getAliases().get("bazbar").size(), 2);
+        assertNotNull(getResponse.getAliases().get("bazbar").get(0));
+        assertEquals(getResponse.getAliases().get("bazbar").get(0).alias(), "bac");
+        assertTrue(getResponse.getAliases().get("bazbar").get(0).getFilter().string().contains("term"));
+        assertTrue(getResponse.getAliases().get("bazbar").get(0).getFilter().string().contains("field"));
+        assertTrue(getResponse.getAliases().get("bazbar").get(0).getFilter().string().contains("value"));
+        assertNull(getResponse.getAliases().get("bazbar").get(0).getIndexRouting());
+        assertNull(getResponse.getAliases().get("bazbar").get(0).getSearchRouting());
+        assertNotNull(getResponse.getAliases().get("bazbar").get(1));
+        assertEquals(getResponse.getAliases().get("bazbar").get(1).alias(), "bar");
+        assertNull(getResponse.getAliases().get("bazbar").get(1).getFilter());
+        assertNull(getResponse.getAliases().get("bazbar").get(1).getIndexRouting());
+        assertNull(getResponse.getAliases().get("bazbar").get(1).getSearchRouting());
         existsResponse = admin().indices().prepareAliasesExist("bar", "bac")
                 .addIndices("bazbar").get();
-        assertThat(existsResponse.exists(), equalTo(true));
+        assertTrue(existsResponse.exists());
 
         logger.info("--> getting *b* for index baz*");
         getResponse = admin().indices().prepareGetAliases("*b*").addIndices("baz*").get();
-        assertThat(getResponse, notNullValue());
-        assertThat(getResponse.getAliases().size(), equalTo(1));
-        assertThat(getResponse.getAliases().get("bazbar").size(), equalTo(2));
-        assertThat(getResponse.getAliases().get("bazbar").get(0), notNullValue());
-        assertThat(getResponse.getAliases().get("bazbar").get(0).alias(), equalTo("bac"));
-        assertThat(getResponse.getAliases().get("bazbar").get(0).getFilter().string(), containsString("term"));
-        assertThat(getResponse.getAliases().get("bazbar").get(0).getFilter().string(), containsString("field"));
-        assertThat(getResponse.getAliases().get("bazbar").get(0).getFilter().string(), containsString("value"));
-        assertThat(getResponse.getAliases().get("bazbar").get(0).getIndexRouting(), nullValue());
-        assertThat(getResponse.getAliases().get("bazbar").get(0).getSearchRouting(), nullValue());
-        assertThat(getResponse.getAliases().get("bazbar").get(1), notNullValue());
-        assertThat(getResponse.getAliases().get("bazbar").get(1).alias(), equalTo("bar"));
-        assertThat(getResponse.getAliases().get("bazbar").get(1).getFilter(), nullValue());
-        assertThat(getResponse.getAliases().get("bazbar").get(1).getIndexRouting(), nullValue());
-        assertThat(getResponse.getAliases().get("bazbar").get(1).getSearchRouting(), nullValue());
+        assertNotNull(getResponse);
+        assertEquals(getResponse.getAliases().size(), 1);
+        assertEquals(getResponse.getAliases().get("bazbar").size(), 2);
+        assertNotNull(getResponse.getAliases().get("bazbar").get(0));
+        assertEquals(getResponse.getAliases().get("bazbar").get(0).alias(), "bac");
+        assertTrue(getResponse.getAliases().get("bazbar").get(0).getFilter().string().contains("term"));
+        assertTrue(getResponse.getAliases().get("bazbar").get(0).getFilter().string().contains("field"));
+        assertTrue(getResponse.getAliases().get("bazbar").get(0).getFilter().string().contains("value"));
+        assertNull(getResponse.getAliases().get("bazbar").get(0).getIndexRouting());
+        assertNull(getResponse.getAliases().get("bazbar").get(0).getSearchRouting());
+        assertNotNull(getResponse.getAliases().get("bazbar").get(1));
+        assertEquals(getResponse.getAliases().get("bazbar").get(1).alias(), "bar");
+        assertNull(getResponse.getAliases().get("bazbar").get(1).getFilter());
+        assertNull(getResponse.getAliases().get("bazbar").get(1).getIndexRouting());
+        assertNull(getResponse.getAliases().get("bazbar").get(1).getSearchRouting());
         existsResponse = admin().indices().prepareAliasesExist("*b*")
                 .addIndices("baz*").get();
-        assertThat(existsResponse.exists(), equalTo(true));
+        assertTrue(existsResponse.exists());
 
         logger.info("--> getting *b* for index *bar");
         getResponse = admin().indices().prepareGetAliases("b*").addIndices("*bar").get();
-        assertThat(getResponse, notNullValue());
-        assertThat(getResponse.getAliases().size(), equalTo(2));
-        assertThat(getResponse.getAliases().get("bazbar").size(), equalTo(2));
-        assertThat(getResponse.getAliases().get("bazbar").get(0), notNullValue());
-        assertThat(getResponse.getAliases().get("bazbar").get(0).alias(), equalTo("bac"));
-        assertThat(getResponse.getAliases().get("bazbar").get(0).getFilter().string(), containsString("term"));
-        assertThat(getResponse.getAliases().get("bazbar").get(0).getFilter().string(), containsString("field"));
-        assertThat(getResponse.getAliases().get("bazbar").get(0).getFilter().string(), containsString("value"));
-        assertThat(getResponse.getAliases().get("bazbar").get(0).getIndexRouting(), nullValue());
-        assertThat(getResponse.getAliases().get("bazbar").get(0).getSearchRouting(), nullValue());
-        assertThat(getResponse.getAliases().get("bazbar").get(1), notNullValue());
-        assertThat(getResponse.getAliases().get("bazbar").get(1).alias(), equalTo("bar"));
-        assertThat(getResponse.getAliases().get("bazbar").get(1).getFilter(), nullValue());
-        assertThat(getResponse.getAliases().get("bazbar").get(1).getIndexRouting(), nullValue());
-        assertThat(getResponse.getAliases().get("bazbar").get(1).getSearchRouting(), nullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0).alias(), equalTo("bac"));
-        assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), equalTo("bla"));
-        assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), equalTo("bla"));
+        assertNotNull(getResponse);
+        assertEquals(getResponse.getAliases().size(), 2);
+        assertEquals(getResponse.getAliases().get("bazbar").size(), 2);
+        assertNotNull(getResponse.getAliases().get("bazbar").get(0));
+        assertEquals(getResponse.getAliases().get("bazbar").get(0).alias(), "bac");
+        assertTrue(getResponse.getAliases().get("bazbar").get(0).getFilter().string().contains("term"));
+        assertTrue(getResponse.getAliases().get("bazbar").get(0).getFilter().string().contains("field"));
+        assertTrue(getResponse.getAliases().get("bazbar").get(0).getFilter().string().contains("value"));
+        assertNull(getResponse.getAliases().get("bazbar").get(0).getIndexRouting());
+        assertNull(getResponse.getAliases().get("bazbar").get(0).getSearchRouting());
+        assertNotNull(getResponse.getAliases().get("bazbar").get(1));
+        assertEquals(getResponse.getAliases().get("bazbar").get(1).alias(), "bar");
+        assertNull(getResponse.getAliases().get("bazbar").get(1).getFilter());
+        assertNull(getResponse.getAliases().get("bazbar").get(1).getIndexRouting());
+        assertNull(getResponse.getAliases().get("bazbar").get(1).getSearchRouting());
+        assertNotNull(getResponse.getAliases().get("foobar").get(0));
+        assertEquals(getResponse.getAliases().get("foobar").get(0).alias(), "bac");
+        assertNull(getResponse.getAliases().get("foobar").get(0).getFilter());
+        assertEquals(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), "bla");
+        assertEquals(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), "bla");
         existsResponse = admin().indices().prepareAliasesExist("b*")
                 .addIndices("*bar").get();
-        assertThat(existsResponse.exists(), equalTo(true));
+        assertTrue(existsResponse.exists());
 
         logger.info("--> getting f* for index *bar");
         getResponse = admin().indices().prepareGetAliases("f*").addIndices("*bar").get();
-        assertThat(getResponse, notNullValue());
-        assertThat(getResponse.getAliases().size(), equalTo(2));
-        assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0).alias(), equalTo("foo"));
-        assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+        assertNotNull(getResponse);
+        assertEquals(getResponse.getAliases().size(), 2);
+        assertNotNull(getResponse.getAliases().get("foobar").get(0));
+        assertEquals(getResponse.getAliases().get("foobar").get(0).alias(), "foo");
+        assertNull(getResponse.getAliases().get("foobar").get(0).getFilter());
+        assertNull(getResponse.getAliases().get("foobar").get(0).getIndexRouting());
+        assertNull(getResponse.getAliases().get("foobar").get(0).getSearchRouting());
         assertTrue(getResponse.getAliases().get("bazbar").isEmpty());
         existsResponse = admin().indices().prepareAliasesExist("f*")
                 .addIndices("*bar").get();
-        assertThat(existsResponse.exists(), equalTo(true));
+        assertTrue(existsResponse.exists());
 
         // alias at work
         logger.info("--> getting f* for index *bac");
         getResponse = admin().indices().prepareGetAliases("foo").addIndices("*bac").get();
-        assertThat(getResponse, notNullValue());
-        assertThat(getResponse.getAliases().size(), equalTo(2));
-        assertThat(getResponse.getAliases().get("foobar").size(), equalTo(1));
-        assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0).alias(), equalTo("foo"));
-        assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+        assertNotNull(getResponse);
+        assertEquals(getResponse.getAliases().size(), 2);
+        assertEquals(getResponse.getAliases().get("foobar").size(), 1);
+        assertNotNull(getResponse.getAliases().get("foobar").get(0));
+        assertEquals(getResponse.getAliases().get("foobar").get(0).alias(), "foo");
+        assertNull(getResponse.getAliases().get("foobar").get(0).getFilter());
+        assertNull(getResponse.getAliases().get("foobar").get(0).getIndexRouting());
+        assertNull(getResponse.getAliases().get("foobar").get(0).getSearchRouting());
         assertTrue(getResponse.getAliases().get("bazbar").isEmpty());
         existsResponse = admin().indices().prepareAliasesExist("foo")
                 .addIndices("*bac").get();
-        assertThat(existsResponse.exists(), equalTo(true));
+        assertTrue(existsResponse.exists());
 
         logger.info("--> getting foo for index foobar");
         getResponse = admin().indices().prepareGetAliases("foo").addIndices("foobar").get();
-        assertThat(getResponse, notNullValue());
-        assertThat(getResponse.getAliases().size(), equalTo(1));
-        assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0).alias(), equalTo("foo"));
-        assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
-        assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+        assertNotNull(getResponse);
+        assertEquals(getResponse.getAliases().size(), 1);
+        assertNotNull(getResponse.getAliases().get("foobar").get(0));
+        assertEquals(getResponse.getAliases().get("foobar").get(0).alias(), "foo");
+        assertNull(getResponse.getAliases().get("foobar").get(0).getFilter());
+        assertNull(getResponse.getAliases().get("foobar").get(0).getIndexRouting());
+        assertNull(getResponse.getAliases().get("foobar").get(0).getSearchRouting());
         existsResponse = admin().indices().prepareAliasesExist("foo")
                 .addIndices("foobar").get();
-        assertThat(existsResponse.exists(), equalTo(true));
+        assertTrue(existsResponse.exists());
 
         // alias at work again
         logger.info("--> getting * for index *bac");
         getResponse = admin().indices().prepareGetAliases("*").addIndices("*bac").get();
-        assertThat(getResponse, notNullValue());
-        assertThat(getResponse.getAliases().size(), equalTo(2));
-        assertThat(getResponse.getAliases().get("foobar").size(), equalTo(4));
-        assertThat(getResponse.getAliases().get("bazbar").size(), equalTo(2));
+        assertNotNull(getResponse);
+        assertEquals(getResponse.getAliases().size(), 2);
+        assertEquals(getResponse.getAliases().get("foobar").size(), 4);
+        assertEquals(getResponse.getAliases().get("bazbar").size(), 2);
         existsResponse = admin().indices().prepareAliasesExist("*")
                 .addIndices("*bac").get();
-        assertThat(existsResponse.exists(), equalTo(true));
+        assertTrue(existsResponse.exists());
 
         assertAcked(admin().indices().prepareAliases()
                 .removeAlias("foobar", "foo"));
@@ -746,7 +741,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             assertTrue(entry.value.isEmpty());
         }
         existsResponse = admin().indices().prepareAliasesExist("foo").addIndices("foobar").get();
-        assertThat(existsResponse.exists(), equalTo(false));
+        assertFalse(existsResponse.exists());
     }
 
     public void testGetAllAliasesWorks() {
@@ -756,8 +751,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked(admin().indices().prepareAliases().addAlias("index1", "alias1").addAlias("index2", "alias2"));
 
         GetAliasesResponse response = admin().indices().prepareGetAliases().get();
-        assertThat(response.getAliases(), hasKey("index1"));
-        assertThat(response.getAliases(), hasKey("index1"));
+        assertTrue(response.getAliases().containsKey("index1"));
+        assertTrue(response.getAliases().containsKey("index1"));
     }
 
     public void testCreateIndexWithAliases() throws Exception {
@@ -802,7 +797,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             createIndexRequestBuilder.get();
             fail("create index should have failed due to invalid alias filter");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias2]"));
+            assertEquals(e.getMessage(), "failed to parse filter for alias [alias2]");
         }
 
         //valid json but non valid filter
@@ -812,7 +807,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             createIndexRequestBuilder.get();
             fail("create index should have failed due to invalid alias filter");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias2]"));
+            assertEquals(e.getMessage(), "failed to parse filter for alias [alias2]");
         }
     }
 
@@ -878,8 +873,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
                 assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1").addAlias("test", "alias2"));
                 assertAcked(admin().indices().prepareAliases().removeAlias("test", "alias1"));
-                assertThat(admin().indices().prepareGetAliases("alias2").execute().actionGet().getAliases().get("test").size(), equalTo(1));
-                assertThat(admin().indices().prepareAliasesExist("alias2").get().exists(), equalTo(true));
+                assertEquals(admin().indices().prepareGetAliases("alias2").execute().actionGet().getAliases().get("test").size(), 1);
+                assertTrue(admin().indices().prepareAliasesExist("alias2").get().exists());
             } finally {
                 disableIndexBlock("test", block);
             }
@@ -890,8 +885,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
             assertBlocked(admin().indices().prepareAliases().addAlias("test", "alias3"), INDEX_READ_ONLY_BLOCK);
             assertBlocked(admin().indices().prepareAliases().removeAlias("test", "alias2"), INDEX_READ_ONLY_BLOCK);
-            assertThat(admin().indices().prepareGetAliases("alias2").execute().actionGet().getAliases().get("test").size(), equalTo(1));
-            assertThat(admin().indices().prepareAliasesExist("alias2").get().exists(), equalTo(true));
+            assertEquals(admin().indices().prepareGetAliases("alias2").execute().actionGet().getAliases().get("test").size(), 1);
+            assertTrue(admin().indices().prepareAliasesExist("alias2").get().exists());
 
         } finally {
             disableIndexBlock("test", SETTING_READ_ONLY);
@@ -941,37 +936,37 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     private void checkAliases() {
         GetAliasesResponse getAliasesResponse = admin().indices().prepareGetAliases("alias1").get();
-        assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
+        assertEquals(getAliasesResponse.getAliases().get("test").size(), 1);
         AliasMetaData aliasMetaData = getAliasesResponse.getAliases().get("test").get(0);
-        assertThat(aliasMetaData.alias(), equalTo("alias1"));
-        assertThat(aliasMetaData.filter(), nullValue());
-        assertThat(aliasMetaData.indexRouting(), nullValue());
-        assertThat(aliasMetaData.searchRouting(), nullValue());
+        assertEquals(aliasMetaData.alias(), "alias1");
+        assertNull(aliasMetaData.filter());
+        assertNull(aliasMetaData.indexRouting());
+        assertNull(aliasMetaData.searchRouting());
 
         getAliasesResponse = admin().indices().prepareGetAliases("alias2").get();
-        assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
+        assertEquals(getAliasesResponse.getAliases().get("test").size(), 1);
         aliasMetaData = getAliasesResponse.getAliases().get("test").get(0);
-        assertThat(aliasMetaData.alias(), equalTo("alias2"));
-        assertThat(aliasMetaData.filter(), notNullValue());
-        assertThat(aliasMetaData.indexRouting(), nullValue());
-        assertThat(aliasMetaData.searchRouting(), nullValue());
+        assertEquals(aliasMetaData.alias(), "alias2");
+        assertNotNull(aliasMetaData.filter());
+        assertNull(aliasMetaData.indexRouting());
+        assertNull(aliasMetaData.searchRouting());
 
         getAliasesResponse = admin().indices().prepareGetAliases("alias3").get();
-        assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
+        assertEquals(getAliasesResponse.getAliases().get("test").size(), 1);
         aliasMetaData = getAliasesResponse.getAliases().get("test").get(0);
-        assertThat(aliasMetaData.alias(), equalTo("alias3"));
-        assertThat(aliasMetaData.filter(), nullValue());
-        assertThat(aliasMetaData.indexRouting(), equalTo("index"));
-        assertThat(aliasMetaData.searchRouting(), equalTo("search"));
+        assertEquals(aliasMetaData.alias(), "alias3");
+        assertNull(aliasMetaData.filter());
+        assertEquals(aliasMetaData.indexRouting(), "index");
+        assertEquals(aliasMetaData.searchRouting(), "search");
     }
 
     private void assertHits(SearchHits hits, String... ids) {
-        assertThat(hits.getTotalHits(), equalTo((long) ids.length));
+        assertEquals(hits.getTotalHits(), (long) ids.length);
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
             hitIds.add(hit.getId());
         }
-        assertThat(hitIds, containsInAnyOrder(ids));
+        assertTrue(hitIds.containsAll(Arrays.asList(ids)));
     }
 
     private String source(String id, String nameValue) {

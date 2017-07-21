@@ -50,7 +50,7 @@ public class BootstrapElasticPasswordTests extends ESTestCase {
     }
 
     public void testNoListenerAttachedWhenNoBootstrapPassword() {
-        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(Settings.EMPTY, logger, clusterService, realm, lifecycle);
+        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(Settings.EMPTY, clusterService, realm, lifecycle);
 
         bootstrap.initiatePasswordBootstrap();
 
@@ -64,7 +64,7 @@ public class BootstrapElasticPasswordTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false)
                 .build();
-        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, logger, clusterService, realm, lifecycle);
+        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, clusterService, realm, lifecycle);
 
         bootstrap.initiatePasswordBootstrap();
 
@@ -77,7 +77,7 @@ public class BootstrapElasticPasswordTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .setSecureSettings(secureSettings)
                 .build();
-        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, logger, clusterService, realm, lifecycle);
+        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, clusterService, realm, lifecycle);
 
         expectThrows(ValidationException.class, bootstrap::initiatePasswordBootstrap);
 
@@ -90,7 +90,7 @@ public class BootstrapElasticPasswordTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .setSecureSettings(secureSettings)
                 .build();
-        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, logger, clusterService, realm, lifecycle);
+        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, clusterService, realm, lifecycle);
 
         bootstrap.initiatePasswordBootstrap();
 
@@ -118,7 +118,7 @@ public class BootstrapElasticPasswordTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .setSecureSettings(secureSettings)
                 .build();
-        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, logger, clusterService, realm, lifecycle);
+        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, clusterService, realm, lifecycle);
 
         bootstrap.initiatePasswordBootstrap();
 
@@ -143,7 +143,7 @@ public class BootstrapElasticPasswordTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .setSecureSettings(secureSettings)
                 .build();
-        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, logger, clusterService, realm, lifecycle);
+        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, clusterService, realm, lifecycle);
 
         bootstrap.initiatePasswordBootstrap();
 
@@ -168,7 +168,7 @@ public class BootstrapElasticPasswordTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .setSecureSettings(secureSettings)
                 .build();
-        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, logger, clusterService, realm, lifecycle);
+        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, clusterService, realm, lifecycle);
 
         bootstrap.initiatePasswordBootstrap();
 
@@ -193,7 +193,7 @@ public class BootstrapElasticPasswordTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .setSecureSettings(secureSettings)
                 .build();
-        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, logger, clusterService, realm, lifecycle);
+        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, clusterService, realm, lifecycle);
 
         bootstrap.initiatePasswordBootstrap();
 
@@ -228,7 +228,7 @@ public class BootstrapElasticPasswordTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .setSecureSettings(secureSettings)
                 .build();
-        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, logger, clusterService, realm, lifecycle);
+        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, clusterService, realm, lifecycle);
 
         bootstrap.initiatePasswordBootstrap();
 
@@ -255,7 +255,7 @@ public class BootstrapElasticPasswordTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .setSecureSettings(secureSettings)
                 .build();
-        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, logger, clusterService, realm, lifecycle);
+        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, clusterService, realm, lifecycle);
 
         bootstrap.initiatePasswordBootstrap();
 
@@ -308,7 +308,7 @@ public class BootstrapElasticPasswordTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .setSecureSettings(secureSettings)
                 .build();
-        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, logger, clusterService, realm, lifecycle);
+        BootstrapElasticPassword bootstrap = new BootstrapElasticPassword(settings, clusterService, realm, lifecycle);
 
         bootstrap.initiatePasswordBootstrap();
 

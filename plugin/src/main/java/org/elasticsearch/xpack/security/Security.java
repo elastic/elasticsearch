@@ -394,7 +394,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(), authzService, licenseState,
                 sslService, securityContext.get(), destructiveOperations));
 
-        BootstrapElasticPassword bootstrapElasticPassword = new BootstrapElasticPassword(settings, logger, clusterService, reservedRealm,
+        BootstrapElasticPassword bootstrapElasticPassword = new BootstrapElasticPassword(settings, clusterService, reservedRealm,
                 securityLifecycleService);
         bootstrapElasticPassword.initiatePasswordBootstrap();
 

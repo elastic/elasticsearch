@@ -29,6 +29,7 @@ import org.apache.lucene.search.similarities.LambdaTTF;
 import org.apache.lucene.search.similarities.Normalization;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -65,7 +66,7 @@ public class IBSimilarityProvider extends AbstractSimilarityProvider {
 
     private final IBSimilarity similarity;
 
-    public IBSimilarityProvider(String name, Settings settings, Settings indexSettings) {
+    public IBSimilarityProvider(String name, Settings settings, Settings indexSettings, ScriptService scriptService) {
         super(name);
         Distribution distribution = parseDistribution(settings);
         Lambda lambda = parseLambda(settings);

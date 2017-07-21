@@ -29,6 +29,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -58,7 +59,7 @@ public class DFISimilarityProvider extends AbstractSimilarityProvider {
 
     private final DFISimilarity similarity;
 
-    public DFISimilarityProvider(String name, Settings settings, Settings indexSettings) {
+    public DFISimilarityProvider(String name, Settings settings, Settings indexSettings, ScriptService scriptService) {
         super(name);
         boolean discountOverlaps = settings.getAsBooleanLenientForPreEs6Indices(
             Version.indexCreated(indexSettings), "discount_overlaps", true, new DeprecationLogger(ESLoggerFactory.getLogger(getClass())));

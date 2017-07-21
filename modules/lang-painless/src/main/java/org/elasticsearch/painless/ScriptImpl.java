@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.similarity.ScriptedSimilarity;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
@@ -62,6 +63,8 @@ final class ScriptImpl extends SearchScript {
      */
     private Object aggregationValue;
 
+    private ScriptedSimilarity.Stats stats;
+
     /**
      * Creates a ScriptImpl for the a previously compiled Painless script.
      * @param script The previously compiled Painless script.
@@ -93,6 +96,9 @@ final class ScriptImpl extends SearchScript {
     @Override
     public void setNextVar(final String name, final Object value) {
         variables.put(name, value);
+        if (script.needsStats() && "stats".equals(name)) {
+            stats = (ScriptedSimilarity.Stats) value;
+        }
     }
 
     @Override
@@ -102,7 +108,7 @@ final class ScriptImpl extends SearchScript {
 
     @Override
     public Object run() {
-        return script.execute(variables, scoreLookup.getAsDouble(), getDoc(), aggregationValue, ctxLookup.apply(variables));
+        return script.execute(variables, scoreLookup.getAsDouble(), getDoc(), aggregationValue, ctxLookup.apply(variables), stats);
     }
 
     @Override

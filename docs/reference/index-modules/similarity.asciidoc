@@ -164,6 +164,152 @@ for title queries and `0.7` for long queries. Default to `0.1`. When value appro
 Type name: `LMJelinekMercer`
 
 [float]
+[[scripted_similarity]]
+==== Scripted similarity
+
+A similarity that allows you to use a script in order to specify how scores
+should be computed. For instance, the below example shows how to reimplement
+TF-IDF:
+
+[source,js]
+--------------------------------------------------
+PUT index
+{
+  "settings": {
+    "number_of_shards": 1, 
+    "similarity": {
+      "scripted_tfidf": {
+        "type": "scripted",
+        "source": "double tf = Math.sqrt(stats.doc.freq); double idf = Math.log((stats.field.docCount+1.0)/(stats.term.docFreq+1.0)) + 1.0; double norm = 1/Math.sqrt(stats.doc.length); return stats.query.boost * tf * idf * norm;"
+      }
+    }
+  },
+  "mappings": {
+    "doc": {
+      "properties": {
+        "field": {
+          "type": "text",
+          "similarity": "scripted_tfidf"
+        }
+      }
+    }
+  }
+}
+
+PUT index/doc/1
+{
+  "field": "foo bar foo"
+}
+
+PUT index/doc/2
+{
+  "field": "bar baz"
+}
+
+POST index/_refresh
+
+GET index/_search?explain=true
+{
+  "query": {
+    "query_string": {
+      "query": "foo^1.7",
+      "default_field": "field"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+Which yields:
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 12,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": 1,
+    "max_score": 1.9508477,
+    "hits": [
+      {
+        "_shard": "[index][0]",
+        "_node": "rTTMMMo2RnuPJY2wCvTAXg",
+        "_index": "index",
+        "_type": "doc",
+        "_id": "1",
+        "_score": 1.9508477,
+        "_source": {
+          "field": "foo bar foo"
+        },
+        "_explanation": {
+          "value": 1.9508477,
+          "description": "weight(field:foo in 0) [PerFieldSimilarity], result of:",
+          "details": [
+            {
+              "value": 1.9508477,
+              "description": "score from ScriptedSimilarity(Script{type=inline, lang='painless', idOrCode='double tf = Math.sqrt(stats.doc.freq); double idf = Math.log((stats.field.docCount+1.0)/(stats.term.docFreq+1.0)) + 1.0; double norm = 1/Math.sqrt(stats.doc.length); return stats.query.boost * tf * idf * norm;', options={}, params={}}) on field [field], computed from:",
+              "details": [
+                {
+                  "value": 1.7,
+                  "description": "stats.query.boost",
+                  "details": []
+                },
+                {
+                  "value": 2.0,
+                  "description": "stats.field.docCount",
+                  "details": []
+                },
+                {
+                  "value": 4.0,
+                  "description": "stats.field.sumDocFreq",
+                  "details": []
+                },
+                {
+                  "value": 5.0,
+                  "description": "stats.field.sumTotalTermFreq",
+                  "details": []
+                },
+                {
+                  "value": 1.0,
+                  "description": "stats.term.docFreq",
+                  "details": []
+                },
+                {
+                  "value": 2.0,
+                  "description": "stats.term.totalTermFreq",
+                  "details": []
+                },
+                {
+                  "value": 2.0,
+                  "description": "stats.doc.freq",
+                  "details": []
+                },
+                {
+                  "value": 3.0,
+                  "description": "stats.doc.length",
+                  "details": []
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 12/"took" : $body.took/]
+// TESTRESPONSE[s/rTTMMMo2RnuPJY2wCvTAXg/$body.hits.hits.0._node/]
+
+Type name: `scripted`
+
+[float]
 [[default-base]]
 ==== Default Similarity
 

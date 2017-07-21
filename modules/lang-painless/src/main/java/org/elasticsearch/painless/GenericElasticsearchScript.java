@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.similarity.ScriptedSimilarity;
 
 import java.util.Map;
 
@@ -30,10 +31,12 @@ public abstract class GenericElasticsearchScript {
 
     public GenericElasticsearchScript() {}
 
-    public static final String[] PARAMETERS = new String[] {"params", "_score", "doc", "_value", "ctx"};
+    public static final String[] PARAMETERS = new String[] {"params", "_score", "doc", "_value", "ctx", "stats"};
     public abstract Object execute(
-        Map<String, Object> params, double _score, Map<String, ScriptDocValues<?>> doc, Object _value, Map<?, ?> ctx);
+        Map<String, Object> params, double _score, Map<String, ScriptDocValues<?>> doc, Object _value, Map<?, ?> ctx,
+        ScriptedSimilarity.Stats stats);
 
     public abstract boolean needs_score();
     public abstract boolean needsCtx();
+    public abstract boolean needsStats();
 }

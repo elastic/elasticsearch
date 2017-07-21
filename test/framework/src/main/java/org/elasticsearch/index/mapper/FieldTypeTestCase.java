@@ -121,17 +121,17 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         new Modifier("similarity", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setSimilarity(new BM25SimilarityProvider("foo", Settings.EMPTY, INDEX_SETTINGS));
+                ft.setSimilarity(new BM25SimilarityProvider("foo", Settings.EMPTY, INDEX_SETTINGS, null));
             }
         },
         new Modifier("similarity", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setSimilarity(new BM25SimilarityProvider("foo", Settings.EMPTY, INDEX_SETTINGS));
+                ft.setSimilarity(new BM25SimilarityProvider("foo", Settings.EMPTY, INDEX_SETTINGS, null));
             }
             @Override
             public void normalizeOther(MappedFieldType other) {
-                other.setSimilarity(new BM25SimilarityProvider("bar", Settings.EMPTY, INDEX_SETTINGS));
+                other.setSimilarity(new BM25SimilarityProvider("bar", Settings.EMPTY, INDEX_SETTINGS, null));
             }
         },
         new Modifier("eager_global_ordinals", true) {

@@ -22,6 +22,7 @@ package org.elasticsearch.index.similarity;
 import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ScriptService;
 
 /**
  * {@link SimilarityProvider} for {@link LMJelinekMercerSimilarity}.
@@ -36,7 +37,7 @@ public class LMJelinekMercerSimilarityProvider extends AbstractSimilarityProvide
 
     private final LMJelinekMercerSimilarity similarity;
 
-    public LMJelinekMercerSimilarityProvider(String name, Settings settings, Settings indexSettings) {
+    public LMJelinekMercerSimilarityProvider(String name, Settings settings, Settings indexSettings, ScriptService scriptService) {
         super(name);
         float lambda = settings.getAsFloat("lambda", 0.1f);
         this.similarity = new LMJelinekMercerSimilarity(lambda);

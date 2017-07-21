@@ -509,6 +509,7 @@ public abstract class TransportReplicationAction<
             this.channel = channel;
             this.task = task;
             this.targetAllocationID = targetAllocationID;
+            assert primaryTerm > 0L : "primary term can't be zero";
             this.primaryTerm = primaryTerm;
             final ShardId shardId = request.shardId();
             assert shardId != null : "request shardId must be set";
@@ -1095,10 +1096,11 @@ public abstract class TransportReplicationAction<
             targetAllocationID = in.readString();
             if (in.getVersion().onOrAfter(Version.V_5_6_0_UNRELEASED)) {
                 primaryTerm = in.readVLong();
-            } else {
-                primaryTerm = request.primaryTerm(); // for bwc with ES < v5.6, that has the primary term on the inner ReplicationRequest
             }
             request.readFrom(in);
+            if (in.getVersion().before(Version.V_5_6_0_UNRELEASED)) {
+                primaryTerm = request.primaryTerm(); // for bwc with ES < v5.6, that has the primary term on the inner ReplicationRequest
+            }
         }
 
         @Override

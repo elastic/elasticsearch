@@ -20,6 +20,7 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -44,7 +45,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         TaskManager taskManager = new TaskManager(Settings.EMPTY);
         AtomicBoolean syncActionCalled = new AtomicBoolean();
         PrimaryReplicaSyncer.SyncAction syncAction =
-            (request, parentTask, allocationId, listener) -> {
+            (request, parentTask, allocationId, primaryTerm, listener) -> {
                 logger.info("Sending off {} operations", request.getOperations().size());
                 syncActionCalled.set(true);
                 assertThat(parentTask, instanceOf(PrimaryReplicaSyncer.ResyncTask.class));
@@ -63,7 +64,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
 
         String allocationId = shard.routingEntry().allocationId().getId();
         shard.updateShardState(shard.routingEntry(), shard.getPrimaryTerm(), null, 1000L, Collections.singleton(allocationId),
-            Collections.emptySet(), Collections.emptySet());
+            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build(), Collections.emptySet());
         shard.updateLocalCheckpointForShard(allocationId, globalCheckPoint);
         assertEquals(globalCheckPoint, shard.getGlobalCheckpoint());
 

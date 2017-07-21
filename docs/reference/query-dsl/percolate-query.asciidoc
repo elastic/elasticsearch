@@ -85,6 +85,7 @@ The above request will yield the following response:
   "_shards": {
     "total": 5,
     "successful": 5,
+    "skipped" : 0,
     "failed": 0
   },
   "hits": {
@@ -119,8 +120,8 @@ The following parameters are required when percolating a document:
 
 [horizontal]
 `field`:: The field of type `percolator` that holds the indexed queries. This is a required parameter.
-`document_type`:: The type / mapping of the document being percolated. This is a required parameter.
 `document`:: The source of the document being percolated.
+`document_type`:: The type / mapping of the document being percolated. This setting is deprecated and only required for indices created before 6.0
 
 Instead of specifying the source of the document being percolated, the source can also be retrieved from an already
 stored document. The `percolate` query will then internally execute a get request to fetch that document.
@@ -283,6 +284,7 @@ This will yield the following response.
   "_shards": {
     "total": 5,
     "successful": 5,
+    "skipped" : 0,
     "failed": 0
   },
   "hits": {

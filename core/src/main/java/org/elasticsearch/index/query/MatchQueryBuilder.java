@@ -445,7 +445,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
         MatchQuery matchQuery = new MatchQuery(context);
         matchQuery.setOccur(operator.toBooleanClauseOccur());
-        matchQuery.setAnalyzer(analyzer);
+        if (analyzer != null) {
+            matchQuery.setAnalyzer(analyzer);
+        }
         matchQuery.setPhraseSlop(slop);
         matchQuery.setFuzziness(fuzziness);
         matchQuery.setFuzzyPrefixLength(prefixLength);

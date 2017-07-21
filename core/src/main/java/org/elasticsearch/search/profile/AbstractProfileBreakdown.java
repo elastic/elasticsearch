@@ -53,7 +53,7 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
     public Map<String, Long> toTimingMap() {
         Map<String, Long> map = new HashMap<>();
         for (T timingType : timingTypes) {
-            map.put(timingType.toString(), timings[timingType.ordinal()].getTiming());
+            map.put(timingType.toString(), timings[timingType.ordinal()].getApproximateTiming());
             map.put(timingType.toString() + "_count", timings[timingType.ordinal()].getCount());
         }
         return Collections.unmodifiableMap(map);

@@ -29,7 +29,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -96,6 +98,16 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
+    public AliasFilter getAliasFilter() {
+        return shardSearchLocalRequest.getAliasFilter();
+    }
+
+    @Override
+    public void setAliasFilter(AliasFilter filter) {
+        shardSearchLocalRequest.setAliasFilter(filter);
+    }
+
+    @Override
     public void source(SearchSourceBuilder source) {
         shardSearchLocalRequest.source(source);
     }
@@ -108,11 +120,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     @Override
     public SearchType searchType() {
         return shardSearchLocalRequest.searchType();
-    }
-
-    @Override
-    public QueryBuilder filteringAliases() {
-        return shardSearchLocalRequest.filteringAliases();
     }
 
     @Override
@@ -167,11 +174,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public void rewrite(QueryShardContext context) throws IOException {
-        shardSearchLocalRequest.rewrite(context);
-    }
-
-    @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId) {
         return new SearchTask(id, type, action, getDescription(), parentTaskId);
     }
@@ -185,5 +187,10 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     @Override
     public String getClusterAlias() {
         return shardSearchLocalRequest.getClusterAlias();
+    }
+
+    @Override
+    public Rewriteable<Rewriteable> getRewriteable() {
+        return shardSearchLocalRequest.getRewriteable();
     }
 }

@@ -93,7 +93,7 @@ setup() {
   sudo chmod +x $JAVA
 
   [ "$status" -eq 1 ]
-  local expected="Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
+  local expected="could not find java; set JAVA_HOME or ensure java is in PATH"
   [[ "$output" == *"$expected"* ]] || {
     echo "Expected error message [$expected] but found: $output"
     false
@@ -111,8 +111,10 @@ setup() {
 
 @test "[TAR] start Elasticsearch with custom JVM options" {
     local es_java_opts=$ES_JAVA_OPTS
-    local es_jvm_options=$ES_JVM_OPTIONS
+    local conf_dir=$CONF_DIR
     local temp=`mktemp -d`
+    cp "$ESCONFIG"/elasticsearch.yml "$temp"
+    cp "$ESCONFIG"/log4j2.properties "$temp"
     touch "$temp/jvm.options"
     chown -R elasticsearch:elasticsearch "$temp"
     echo "-Xms512m" >> "$temp/jvm.options"
@@ -121,13 +123,13 @@ setup() {
     # manager exception before we have configured logging; this will fail
     # startup since we detect usages of logging before it is configured
     echo "-Dlog4j2.disable.jmx=true" >> "$temp/jvm.options"
-    export ES_JVM_OPTIONS="$temp/jvm.options"
+    export CONF_DIR="$temp"
     export ES_JAVA_OPTS="-XX:-UseCompressedOops"
     start_elasticsearch_service
     curl -s -XGET localhost:9200/_nodes | fgrep '"heap_init_in_bytes":536870912'
     curl -s -XGET localhost:9200/_nodes | fgrep '"using_compressed_ordinary_object_pointers":"false"'
     stop_elasticsearch_service
-    export ES_JVM_OPTIONS=$es_jvm_options
+    export CONF_DIR=$CONF_DIR
     export ES_JAVA_OPTS=$es_java_opts
 }
 

@@ -22,8 +22,6 @@ IF %JAVA:~-13% == "\bin\java.exe" (
 )
 
 :cont
-if not "%CONF_FILE%" == "" goto conffileset
-
 set SCRIPT_DIR=%~dp0
 for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 
@@ -126,9 +124,11 @@ if exist "%JAVA_HOME%\bin\client\jvm.dll" (
 )
 
 :foundJVM
-if "%ES_JVM_OPTIONS%" == "" (
-set ES_JVM_OPTIONS=%ES_HOME%\config\jvm.options
-)
+CALL "%ES_HOME%\bin\elasticsearch.in.bat"
+
+if "%CONF_DIR%" == "" set CONF_DIR=%ES_HOME%\config
+
+set ES_JVM_OPTIONS=%CONF_DIR%\jvm.options
 
 if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS: =;%
 
@@ -204,10 +204,6 @@ if "%JVM_SS%" == "" (
   echo thread stack size not set; configure using -Xss via %ES_JVM_OPTIONS% or ES_JAVA_OPTS
   goto:eof
 )
-
-CALL "%ES_HOME%\bin\elasticsearch.in.bat"
-
-if "%CONF_DIR%" == "" set CONF_DIR=%ES_HOME%\config
 
 set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%"
 
@@ -298,10 +294,6 @@ rem convert to KB
 set /a conv=%conv% * 1024 * 1024
 :kilo
 set "%~2=%conv%"
-goto:eof
-
-:conffileset
-echo CONF_FILE setting is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed.
 goto:eof
 
 ENDLOCAL

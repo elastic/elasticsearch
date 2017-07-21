@@ -14,6 +14,7 @@ setup:
                     type: double
                   date:
                     type: date
+                    format: epoch_second
 
   - do:
       cluster.health:
@@ -224,4 +225,51 @@ setup:
   - match: { aggregations.ip_range.buckets.1.to: "192.169.0.0" }
 
   - match: { aggregations.ip_range.buckets.1.doc_count: 2 } 
+
+---
+"Date range":
+  - skip:
+      version: " - 5.99.99"
+      reason: before 6.0, numeric date_range to/from parameters were always parsed as if they are epoch_millis (#17920)
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        body: { "date" : 1000 }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 2
+        body: { "date" : 2000 }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 3
+        body: { "date" : 3000 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "date_range" : { "date_range" : { "field" : "date", "ranges": [ { "from" : 1000, "to": 3000 }, { "from": 3000, "to": 4000 } ] } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.date_range.buckets: 2 }
+
+  - match: { aggregations.date_range.buckets.0.doc_count: 2 }
+  - match: { aggregations.date_range.buckets.0.key: "1000-3000" }
+  - match: { aggregations.date_range.buckets.0.from: 1000000 }
+  - match: { aggregations.date_range.buckets.0.to: 3000000 }
+  
+  - match: { aggregations.date_range.buckets.1.doc_count: 1 }
+  - match: { aggregations.date_range.buckets.1.key: "3000-4000" }
+  - match: { aggregations.date_range.buckets.1.from: 3000000 }
+  - match: { aggregations.date_range.buckets.1.to: 4000000 }
 

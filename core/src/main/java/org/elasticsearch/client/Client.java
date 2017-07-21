@@ -30,13 +30,9 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
 import org.elasticsearch.action.explain.ExplainResponse;
-import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequestBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.fieldstats.FieldStatsRequest;
-import org.elasticsearch.action.fieldstats.FieldStatsRequestBuilder;
-import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
@@ -455,24 +451,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      * Clears the search contexts associated with specified scroll ids.
      */
     void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener);
-
-    /**
-     * @deprecated Use _field_caps instead or run a min/max aggregations on the desired fields
-     */
-    @Deprecated
-    FieldStatsRequestBuilder prepareFieldStats();
-
-    /**
-     * @deprecated Use _field_caps instead or run a min/max aggregations on the desired fields
-     */
-    @Deprecated
-    ActionFuture<FieldStatsResponse> fieldStats(FieldStatsRequest request);
-
-    /**
-     * @deprecated Use _field_caps instead or run a min/max aggregations on the desired fields
-     */
-    @Deprecated
-    void fieldStats(FieldStatsRequest request, ActionListener<FieldStatsResponse> listener);
 
     /**
      * Builder for the field capabilities request.

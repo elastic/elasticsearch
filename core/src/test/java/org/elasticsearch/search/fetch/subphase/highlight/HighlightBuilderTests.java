@@ -44,6 +44,7 @@ import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
@@ -320,9 +321,9 @@ public class HighlightBuilderTests extends ESTestCase {
                 }
                 Query expectedValue = null;
                 if (fieldBuilder.highlightQuery != null) {
-                    expectedValue = QueryBuilder.rewriteQuery(fieldBuilder.highlightQuery, mockShardContext).toQuery(mockShardContext);
+                    expectedValue = Rewriteable.rewrite(fieldBuilder.highlightQuery, mockShardContext).toQuery(mockShardContext);
                 } else if (highlightBuilder.highlightQuery != null) {
-                    expectedValue = QueryBuilder.rewriteQuery(highlightBuilder.highlightQuery, mockShardContext).toQuery(mockShardContext);
+                    expectedValue = Rewriteable.rewrite(highlightBuilder.highlightQuery, mockShardContext).toQuery(mockShardContext);
                 }
                 assertEquals(expectedValue, fieldOptions.highlightQuery());
             }

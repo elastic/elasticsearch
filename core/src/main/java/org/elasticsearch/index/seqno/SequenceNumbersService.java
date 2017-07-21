@@ -19,8 +19,10 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Set;
@@ -170,6 +172,15 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
+     * Returns the current replication group for the shard.
+     *
+     * @return the replication group
+     */
+    public ReplicationGroup getReplicationGroup() {
+        return globalCheckpointTracker.getReplicationGroup();
+    }
+
+    /**
      * Returns the global checkpoint for the shard.
      *
      * @return the global checkpoint
@@ -205,17 +216,17 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
 
     /**
      * Notifies the service of the current allocation IDs in the cluster state. See
-     * {@link GlobalCheckpointTracker#updateFromMaster(long, Set, Set, Set)} for details.
+     * {@link GlobalCheckpointTracker#updateFromMaster(long, Set, IndexShardRoutingTable, Set)} for details.
      *
      * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
      * @param inSyncAllocationIds         the allocation IDs of the currently in-sync shard copies
-     * @param initializingAllocationIds   the allocation IDs of the currently initializing shard copies
+     * @param routingTable                the shard routing table
      * @param pre60AllocationIds          the allocation IDs of shards that are allocated to pre-6.0 nodes
      */
     public void updateAllocationIdsFromMaster(
-            final long applyingClusterStateVersion, final Set<String> inSyncAllocationIds, final Set<String> initializingAllocationIds,
+            final long applyingClusterStateVersion, final Set<String> inSyncAllocationIds, final IndexShardRoutingTable routingTable,
             final Set<String> pre60AllocationIds) {
-        globalCheckpointTracker.updateFromMaster(applyingClusterStateVersion, inSyncAllocationIds, initializingAllocationIds,
+        globalCheckpointTracker.updateFromMaster(applyingClusterStateVersion, inSyncAllocationIds, routingTable,
             pre60AllocationIds);
     }
 

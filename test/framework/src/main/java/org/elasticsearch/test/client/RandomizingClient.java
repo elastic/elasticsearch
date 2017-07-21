@@ -26,10 +26,12 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.routing.Preference;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 /** A {@link Client} that randomizes request parameters. */
 public class RandomizingClient extends FilterClient {
@@ -38,6 +40,8 @@ public class RandomizingClient extends FilterClient {
     private final String defaultPreference;
     private final int batchedReduceSize;
     private final int maxConcurrentShardRequests;
+    private final int preFilterShardSize;
+    private final boolean doTimeout;
 
 
     public RandomizingClient(Client client, Random random) {
@@ -61,6 +65,12 @@ public class RandomizingClient extends FilterClient {
         } else {
             this.maxConcurrentShardRequests = -1; // randomly use the default
         }
+        if (random.nextBoolean()) {
+            preFilterShardSize =  1 + random.nextInt(1 << random.nextInt(7));
+        } else {
+            preFilterShardSize = -1;
+        }
+        doTimeout = random.nextBoolean();
     }
 
     @Override
@@ -69,6 +79,12 @@ public class RandomizingClient extends FilterClient {
             .setPreference(defaultPreference).setBatchedReduceSize(batchedReduceSize);
         if (maxConcurrentShardRequests != -1) {
             searchRequestBuilder.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+        }
+        if (preFilterShardSize != -1) {
+            searchRequestBuilder.setPreFilterShardSize(preFilterShardSize);
+        }
+        if (doTimeout) {
+            searchRequestBuilder.setTimeout(new TimeValue(1, TimeUnit.DAYS));
         }
         return searchRequestBuilder;
     }

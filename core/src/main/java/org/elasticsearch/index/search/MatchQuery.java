@@ -29,6 +29,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -41,9 +42,9 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -57,6 +58,9 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
+
+import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
+import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
 public class MatchQuery {
 
@@ -139,7 +143,7 @@ public class MatchQuery {
 
     protected final QueryShardContext context;
 
-    protected String analyzer;
+    protected Analyzer analyzer;
 
     protected BooleanClause.Occur occur = BooleanClause.Occur.SHOULD;
 
@@ -167,7 +171,14 @@ public class MatchQuery {
         this.context = context;
     }
 
-    public void setAnalyzer(String analyzer) {
+    public void setAnalyzer(String analyzerName) {
+        this.analyzer = context.getMapperService().getIndexAnalyzers().get(analyzerName);
+        if (analyzer == null) {
+            throw new IllegalArgumentException("No analyzer found for [" + analyzerName + "]");
+        }
+    }
+
+    public void setAnalyzer(Analyzer analyzer) {
         this.analyzer = analyzer;
     }
 
@@ -215,29 +226,20 @@ public class MatchQuery {
         this.zeroTermsQuery = zeroTermsQuery;
     }
 
-    protected Analyzer getAnalyzer(MappedFieldType fieldType) {
-        if (this.analyzer == null) {
-            if (fieldType != null) {
-                return context.getSearchAnalyzer(fieldType);
-            }
-            return context.getMapperService().searchAnalyzer();
+    protected Analyzer getAnalyzer(MappedFieldType fieldType, boolean quoted) {
+        if (analyzer == null) {
+            return quoted ? context.getSearchQuoteAnalyzer(fieldType) : context.getSearchAnalyzer(fieldType);
         } else {
-            Analyzer analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
-            if (analyzer == null) {
-                throw new IllegalArgumentException("No analyzer found for [" + this.analyzer + "]");
-            }
             return analyzer;
         }
     }
 
     public Query parse(Type type, String fieldName, Object value) throws IOException {
-        final String field;
         MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType != null) {
-            field = fieldType.name();
-        } else {
-            field = fieldName;
+        if (fieldType == null) {
+            return newUnmappedFieldQuery(fieldName);
         }
+        final String field = fieldType.name();
 
         /*
          * If the user forced an analyzer we really don't care if they are
@@ -248,11 +250,11 @@ public class MatchQuery {
          * passing through QueryBuilder.
          */
         boolean noForcedAnalyzer = this.analyzer == null;
-        if (fieldType != null && fieldType.tokenized() == false && noForcedAnalyzer) {
+        if (fieldType.tokenized() == false && noForcedAnalyzer) {
             return blendTermQuery(new Term(fieldName, value.toString()), fieldType);
         }
 
-        Analyzer analyzer = getAnalyzer(fieldType);
+        Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE);
         assert analyzer != null;
         MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType);
         builder.setEnablePositionIncrements(this.enablePositionIncrements);
@@ -283,12 +285,12 @@ public class MatchQuery {
         }
     }
 
-    protected final Query termQuery(MappedFieldType fieldType, Object value, boolean lenient) {
+    protected final Query termQuery(MappedFieldType fieldType, BytesRef value, boolean lenient) {
         try {
             return fieldType.termQuery(value, context);
         } catch (RuntimeException e) {
             if (lenient) {
-                return null;
+                return newLenientFieldQuery(fieldType.name(), e);
             }
             throw e;
         }
@@ -308,7 +310,7 @@ public class MatchQuery {
         /**
          * Creates a new QueryBuilder using the given analyzer.
          */
-        MatchQueryBuilder(Analyzer analyzer, @Nullable MappedFieldType mapper) {
+        MatchQueryBuilder(Analyzer analyzer, MappedFieldType mapper) {
             super(analyzer);
             this.mapper = mapper;
         }
@@ -451,33 +453,21 @@ public class MatchQuery {
 
     protected Query blendTermQuery(Term term, MappedFieldType fieldType) {
         if (fuzziness != null) {
-            if (fieldType != null) {
-                try {
-                    Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions);
-                    if (query instanceof FuzzyQuery) {
-                        QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
-                    }
-                    return query;
-                } catch (RuntimeException e) {
-                    if (lenient) {
-                        return new TermQuery(term);
-                    } else {
-                        throw e;
-                    }
+            try {
+                Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions);
+                if (query instanceof FuzzyQuery) {
+                    QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
+                }
+                return query;
+            } catch (RuntimeException e) {
+                if (lenient) {
+                    return newLenientFieldQuery(fieldType.name(), e);
+                } else {
+                    throw e;
                 }
             }
-            int edits = fuzziness.asDistance(term.text());
-            FuzzyQuery query = new FuzzyQuery(term, edits, fuzzyPrefixLength, maxExpansions, transpositions);
-            QueryParsers.setRewriteMethod(query, fuzzyRewriteMethod);
-            return query;
         }
-        if (fieldType != null) {
-            Query query = termQuery(fieldType, term.bytes(), lenient);
-            if (query != null) {
-                return query;
-            }
-        }
-        return new TermQuery(term);
+        return termQuery(fieldType, term.bytes(), lenient);
     }
 
 }

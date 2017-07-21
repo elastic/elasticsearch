@@ -64,7 +64,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f), null,
                 new SearchRequest(), null, new GroupShardsIterator<>(Collections.singletonList(
                 new SearchShardIterator(null, null, Collections.emptyList(), null))), timeProvider, 0, null,
-            new InitialSearchPhase.SearchPhaseResults<>(10)) {
+                new InitialSearchPhase.ArraySearchPhaseResults<>(10)) {
             @Override
             protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, final SearchPhaseContext context) {
                 return null;
@@ -112,7 +112,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         ShardSearchTransportRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator);
         assertEquals(IndicesOptions.strictExpand(), shardSearchTransportRequest.indicesOptions());
         assertArrayEquals(new String[] {"name", "name1"}, shardSearchTransportRequest.indices());
-        assertEquals(new MatchAllQueryBuilder(), shardSearchTransportRequest.filteringAliases());
+        assertEquals(new MatchAllQueryBuilder(), shardSearchTransportRequest.getAliasFilter().getQueryBuilder());
         assertEquals(2.0f, shardSearchTransportRequest.indexBoost(), 0.0f);
     }
 }

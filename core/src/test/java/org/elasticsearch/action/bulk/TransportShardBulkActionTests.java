@@ -521,8 +521,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Translog.Location newLocation = new Translog.Location(1, 1, 1);
         final long version = randomNonNegativeLong();
         final long seqNo = randomNonNegativeLong();
-        final long primaryTerm = randomIntBetween(1, 16);
-        Engine.IndexResult indexResult = new IndexResultWithLocation(version, seqNo, primaryTerm, created, newLocation);
+        Engine.IndexResult indexResult = new IndexResultWithLocation(version, seqNo, created, newLocation);
         results = new BulkItemResultHolder(indexResponse, indexResult, replicaRequest);
         assertThat(TransportShardBulkAction.calculateTranslogLocation(original, results),
                 equalTo(newLocation));
@@ -550,9 +549,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         itemRequests[0] = itemRequest;
         BulkShardRequest bulkShardRequest = new BulkShardRequest(
                 shard.shardId(), RefreshPolicy.NONE, itemRequests);
-        bulkShardRequest.primaryTerm(randomIntBetween(1, (int) shard.getPrimaryTerm()));
         TransportShardBulkAction.performOnReplica(bulkShardRequest, shard);
-        verify(shard, times(1)).markSeqNoAsNoop(1, bulkShardRequest.primaryTerm(), exception.toString());
+        verify(shard, times(1)).markSeqNoAsNoop(1, exception.toString());
         closeShards(shard);
     }
 
@@ -616,7 +614,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
     public class IndexResultWithLocation extends Engine.IndexResult {
         private final Translog.Location location;
-        public IndexResultWithLocation(long version, long seqNo, long primaryTerm, boolean created, Translog.Location newLocation) {
+        public IndexResultWithLocation(long version, long seqNo, boolean created, Translog.Location newLocation) {
             super(version, seqNo, created);
             this.location = newLocation;
         }
@@ -628,7 +626,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     }
 
     public void testProcessUpdateResponse() throws Exception {
-        IndexMetaData metaData = indexMetaData();
         IndexShard shard = newStartedShard(false);
 
         UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");

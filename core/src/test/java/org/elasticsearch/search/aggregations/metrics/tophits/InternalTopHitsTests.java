@@ -178,14 +178,14 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             SearchHits internalHits = inputs.get(input).getHits();
             totalHits += internalHits.getTotalHits();
             maxScore = max(maxScore, internalHits.getMaxScore());
-            for (int i = 0; i < internalHits.internalHits().length; i++) {
+            for (int i = 0; i < internalHits.getHits().length; i++) {
                 ScoreDoc doc = inputs.get(input).getTopDocs().scoreDocs[i];
                 if (testInstancesLookSortedByField) {
                     doc = new FieldDoc(doc.doc, doc.score, ((FieldDoc) doc).fields, input);
                 } else {
                     doc = new ScoreDoc(doc.doc, doc.score, input);
                 }
-                allHits.add(new Tuple<>(doc, internalHits.internalHits()[i]));
+                allHits.add(new Tuple<>(doc, internalHits.getHits()[i]));
             }
         }
         allHits.sort(comparing(Tuple::v1, scoreDocComparator()));

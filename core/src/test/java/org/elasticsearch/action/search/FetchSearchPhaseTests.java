@@ -46,7 +46,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testShortcutQueryAndFetchOptimization() throws IOException {
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
-        InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> results =
+        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 1);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         boolean hasHits = randomBoolean();
@@ -86,7 +86,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testFetchTwoDocument() throws IOException {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
-        InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> results =
+        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         int resultSetSize = randomIntBetween(2, 10);
@@ -103,7 +103,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         results.consumeResult(queryResult);
 
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null) {
+            Settings.builder().put("search.remote.connect", false).build(), null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -140,7 +140,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testFailFetchOneDoc() throws IOException {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
-        InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> results =
+        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         int resultSetSize = randomIntBetween(2, 10);
@@ -157,7 +157,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         results.consumeResult(queryResult);
 
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null) {
+            Settings.builder().put("search.remote.connect", false).build(), null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -199,7 +199,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         int numHits = randomIntBetween(2, 100); // also numshards --> 1 hit per shard
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(numHits);
-        InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> results =
+        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), numHits);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         for (int i = 0; i < numHits; i++) {
@@ -210,7 +210,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             results.consumeResult(queryResult);
         }
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null) {
+            Settings.builder().put("search.remote.connect", false).build(), null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -254,7 +254,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testExceptionFailsPhase() throws IOException {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
-        InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> results =
+        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         int resultSetSize = randomIntBetween(2, 10);
@@ -271,7 +271,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         results.consumeResult(queryResult);
         AtomicInteger numFetches = new AtomicInteger(0);
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null) {
+            Settings.builder().put("search.remote.connect", false).build(), null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -307,7 +307,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testCleanupIrrelevantContexts() throws IOException { // contexts that are not fetched should be cleaned up
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
-        InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> results =
+        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         int resultSetSize = 1;
@@ -324,7 +324,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         results.consumeResult(queryResult);
 
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null) {
+            Settings.builder().put("search.remote.connect", false).build(), null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -350,7 +350,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(responseRef.get());
         assertEquals(2, responseRef.get().getHits().totalHits);
-        assertEquals(1, responseRef.get().getHits().internalHits().length);
+        assertEquals(1, responseRef.get().getHits().getHits().length);
         assertEquals(84, responseRef.get().getHits().getAt(0).docId());
         assertEquals(0, responseRef.get().getFailedShards());
         assertEquals(2, responseRef.get().getSuccessfulShards());

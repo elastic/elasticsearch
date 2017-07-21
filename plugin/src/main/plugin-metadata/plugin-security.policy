@@ -31,3 +31,13 @@ grant {
   // needed for Windows named pipes in machine learning
   permission java.io.FilePermission "\\\\.\\pipe\\*", "read,write";
 };
+
+grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT.jar}" {
+  // rest client uses system properties which gets the default proxy
+  permission java.net.NetPermission "getProxySelector";
+};
+
+grant codeBase "${codebase.httpasyncclient-4.1.2.jar}" {
+  // rest client uses system properties which gets the default proxy
+  permission java.net.NetPermission "getProxySelector";
+};

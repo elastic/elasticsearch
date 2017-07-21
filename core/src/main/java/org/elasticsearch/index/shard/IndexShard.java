@@ -1733,6 +1733,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public ReplicationGroup getReplicationGroup() {
         verifyPrimary();
+        verifyNotClosed();
         return getEngine().seqNoService().getReplicationGroup();
     }
 

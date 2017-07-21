@@ -12,7 +12,7 @@ declare -a args=("$@")
 args=("${args[@]}" --path.conf "$CONF_DIR")
 
 cd "$ES_HOME" > /dev/null
-"$JAVA" $ES_JAVA_OPTS -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" org.elasticsearch.common.settings.EncKeyTool $properties "${args[@]}"
+"$JAVA" $ES_JAVA_OPTS -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" org.elasticsearch.xpack.security.crypto.tool.SystemKeyTool "${args[@]}"
 status=$?
 cd - > /dev/null
 exit $status

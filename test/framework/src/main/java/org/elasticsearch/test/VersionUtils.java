@@ -27,15 +27,19 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static java.util.Collections.unmodifiableList;
 
 /** Utilities for selecting versions in tests */
 public class VersionUtils {
 
     private static final List<Version> RELEASED_VERSIONS;
     private static final List<Version> UNRELEASED_VERSIONS;
+    private static final List<Version> ALL_VERSIONS;
 
     static {
         final Field[] declaredFields = Version.class.getFields();
@@ -74,6 +78,12 @@ public class VersionUtils {
             Collections.unmodifiableList(releasedIdsSet.stream().sorted().map(Version::fromId).collect(Collectors.toList()));
         UNRELEASED_VERSIONS =
             Collections.unmodifiableList(unreleasedIdsSet.stream().sorted().map(Version::fromId).collect(Collectors.toList()));
+
+        List<Version> allVersions = new ArrayList<>(RELEASED_VERSIONS.size() + UNRELEASED_VERSIONS.size());
+        allVersions.addAll(RELEASED_VERSIONS);
+        allVersions.addAll(UNRELEASED_VERSIONS);
+        Collections.sort(allVersions);
+        ALL_VERSIONS = unmodifiableList(allVersions);
     }
 
     /**
@@ -92,6 +102,13 @@ public class VersionUtils {
      */
     public static List<Version> allUnreleasedVersions() {
         return UNRELEASED_VERSIONS;
+    }
+
+    /**
+     * Returns an immutable, sorted list containing all versions, both released and unreleased.
+     */
+    public static List<Version> allVersions() {
+        return ALL_VERSIONS;
     }
 
     public static Version getPreviousVersion(Version version) {
@@ -127,6 +144,12 @@ public class VersionUtils {
         return RELEASED_VERSIONS.get(random.nextInt(RELEASED_VERSIONS.size()));
     }
 
+    /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */
+    public static Version randomCompatibleVersion(Random random, Version version) {
+        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).collect(Collectors.toList());
+        return compatible.get(random.nextInt(compatible.size()));
+    }
+
     /** Returns a random {@link Version} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
     public static Version randomVersionBetween(Random random, Version minVersion, Version maxVersion) {
         int minVersionIndex = 0;
@@ -156,4 +179,20 @@ public class VersionUtils {
         }
         return false;
     }
+
+    /** returns the first future incompatible version */
+    public static Version incompatibleFutureVersion(Version version) {
+        final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version) == false).findAny();
+        assert opt.isPresent() : "no future incompatible version for " + version;
+        return opt.get();
+    }
+
+    /** Returns the maximum {@link Version} that is compatible with the given version. */
+    public static Version maxCompatibleVersion(Version version) {
+        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).filter(version::onOrBefore)
+            .collect(Collectors.toList());
+        assert compatible.size() > 0;
+        return compatible.get(compatible.size() - 1);
+    }
+
 }

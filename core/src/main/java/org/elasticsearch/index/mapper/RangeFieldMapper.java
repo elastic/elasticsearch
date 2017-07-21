@@ -443,7 +443,14 @@ public class RangeFieldMapper extends FieldMapper {
             }
             @Override
             public InetAddress parse(Object value, boolean coerce) {
-                return value instanceof InetAddress ? (InetAddress) value : InetAddresses.forString((String) value);
+                if (value instanceof InetAddress) {
+                    return (InetAddress) value;
+                } else {
+                    if (value instanceof BytesRef) {
+                        value = ((BytesRef) value).utf8ToString();
+                    }
+                    return InetAddresses.forString(value.toString());
+                }
             }
             @Override
             public InetAddress minValue() {

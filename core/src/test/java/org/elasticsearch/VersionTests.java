@@ -27,14 +27,18 @@ import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.Version.V_2_2_0;
 import static org.elasticsearch.Version.V_5_0_0_alpha1;
+import static org.elasticsearch.test.VersionUtils.allVersions;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
@@ -314,6 +318,16 @@ public class VersionTests extends ESTestCase {
             isCompatible(VersionUtils.getPreviousMinorVersion(), Version.fromString("6.0.0")));
         assertFalse(isCompatible(Version.V_2_0_0, Version.fromString("6.0.0")));
         assertFalse(isCompatible(Version.V_2_0_0, Version.V_5_0_0));
+    }
+
+    /* tests that if a new version's minCompatVersion is always equal or higher to any older version */
+    public void testMinCompatVersionOrderRespectsVersionOrder() {
+        List<Version> versionsByMinCompat = new ArrayList<>(allVersions());
+        versionsByMinCompat.sort(Comparator.comparing(Version::minimumCompatibilityVersion));
+        assertThat(versionsByMinCompat, equalTo(allVersions()));
+
+        versionsByMinCompat.sort(Comparator.comparing(Version::minimumIndexCompatibilityVersion));
+        assertThat(versionsByMinCompat, equalTo(allVersions()));
     }
 
     public boolean isCompatible(Version left, Version right) {

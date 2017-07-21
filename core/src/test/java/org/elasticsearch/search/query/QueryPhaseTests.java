@@ -66,7 +66,7 @@ public class QueryPhaseTests extends ESTestCase {
             }
         };
 
-        final boolean rescore = QueryPhase.execute(context, contextSearcher);
+        final boolean rescore = QueryPhase.execute(context, contextSearcher, checkCancelled -> {});
         assertFalse(rescore);
         assertEquals(searcher.count(query), context.queryResult().topDocs().totalHits);
         assertEquals(shouldCollect, collected.get());
@@ -135,12 +135,12 @@ public class QueryPhaseTests extends ESTestCase {
             }
         };
 
-        QueryPhase.execute(context, contextSearcher);
+        QueryPhase.execute(context, contextSearcher, checkCancelled -> {});
         assertEquals(0, context.queryResult().topDocs().totalHits);
         assertFalse(collected.get());
 
         context.parsedPostFilter(new ParsedQuery(new MatchNoDocsQuery()));
-        QueryPhase.execute(context, contextSearcher);
+        QueryPhase.execute(context, contextSearcher, checkCancelled -> {});
         assertEquals(0, context.queryResult().topDocs().totalHits);
         assertTrue(collected.get());
     }
@@ -159,12 +159,12 @@ public class QueryPhaseTests extends ESTestCase {
             }
         };
 
-        QueryPhase.execute(context, contextSearcher);
+        QueryPhase.execute(context, contextSearcher, checkCancelled -> {});
         assertEquals(0, context.queryResult().topDocs().totalHits);
         assertFalse(collected.get());
 
         context.minimumScore(1);
-        QueryPhase.execute(context, contextSearcher);
+        QueryPhase.execute(context, contextSearcher, checkCancelled -> {});
         assertEquals(0, context.queryResult().topDocs().totalHits);
         assertTrue(collected.get());
     }

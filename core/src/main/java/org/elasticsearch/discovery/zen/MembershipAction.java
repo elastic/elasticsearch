@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -181,6 +182,7 @@ public class MembershipAction extends AbstractComponent {
 
         @Override
         public void messageReceived(ValidateJoinRequest request, TransportChannel channel) throws Exception {
+            ensureNodesCompatibility(Version.CURRENT, request.state.getNodes());
             ensureIndexCompatibility(Version.CURRENT, request.state.getMetaData());
             // for now, the mere fact that we can serialize the cluster state acts as validation....
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -207,6 +209,26 @@ public class MembershipAction extends AbstractComponent {
                 throw new IllegalStateException("index " + idxMetaData.getIndex() + " version not supported: "
                     + idxMetaData.getCreationVersion() + " minimum compatible index version is: " + supportedIndexVersion);
             }
+        }
+    }
+
+    /** ensures that the joining node has a version that's compatible with all current nodes*/
+    static void ensureNodesCompatibility(final Version joiningNodeVersion, DiscoveryNodes currentNodes) {
+        final Version minNodeVersion = currentNodes.getMinNodeVersion();
+        final Version maxNodeVersion = currentNodes.getMaxNodeVersion();
+        ensureNodesCompatibility(joiningNodeVersion, minNodeVersion, maxNodeVersion);
+    }
+
+    /** ensures that the joining node has a version that's compatible with a given version range */
+    static void ensureNodesCompatibility(Version joiningNodeVersion, Version minClusterNodeVersion, Version maxClusterNodeVersion) {
+        assert minClusterNodeVersion.onOrBefore(maxClusterNodeVersion) : minClusterNodeVersion + " > " + maxClusterNodeVersion;
+        if (joiningNodeVersion.isCompatible(maxClusterNodeVersion) == false) {
+            throw new IllegalStateException("node version [" + joiningNodeVersion + "] is not supported. " +
+                "The cluster contains nodes with version [" + maxClusterNodeVersion + "], which is incompatible.");
+        }
+        if (joiningNodeVersion.isCompatible(minClusterNodeVersion) == false) {
+            throw new IllegalStateException("node version [" + joiningNodeVersion + "] is not supported." +
+                "The cluster contains nodes with version [" + minClusterNodeVersion + "], which is incompatible.");
         }
     }
 

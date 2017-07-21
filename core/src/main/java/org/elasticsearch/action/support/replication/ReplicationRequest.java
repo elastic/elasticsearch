@@ -171,13 +171,25 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         return routedBasedOnClusterVersion;
     }
 
-    /** returns the primary term active at the time the operation was performed on the primary shard */
+    /**
+     * Returns the primary term active at the time the operation was performed on the primary shard.
+     * This method should not be used anymore, as its functionality has moved to ConcreteShardRequest.
+     * It is purely here for interoperability with < v5.6 nodes.
+     */
+    @Deprecated
     long primaryTerm() {
         return primaryTerm;
     }
 
-    /** marks the primary term in which the operation was performed */
+    /**
+     * marks the primary term in which the operation was performed
+     * This method should not be used anymore, as its functionality has moved to ConcreteShardRequest.
+     * It is purely here for interoperability with < v5.6 nodes.
+     */
+    @Deprecated
     void primaryTerm(long term) {
+        assert term == 0L || primaryTerm == 0L || primaryTerm == term :
+            "primary term should only be set once on a request, was " + primaryTerm + " now set to "  + term;
         primaryTerm = term;
     }
 

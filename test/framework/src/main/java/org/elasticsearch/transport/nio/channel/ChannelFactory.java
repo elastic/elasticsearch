@@ -27,6 +27,7 @@ import org.elasticsearch.transport.nio.AcceptingSelector;
 import org.elasticsearch.transport.nio.SocketSelector;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -114,7 +115,12 @@ public class ChannelFactory {
         SocketChannel openNioChannel(InetSocketAddress remoteAddress) throws IOException {
             SocketChannel socketChannel = SocketChannel.open();
             configureSocketChannel(socketChannel);
-            PrivilegedSocketAccess.connect(socketChannel, remoteAddress);
+            try {
+                PrivilegedSocketAccess.connect(socketChannel, remoteAddress);
+            } catch (IOException e) {
+                closeRawChannel(socketChannel, e);
+                throw e;
+            }
             return socketChannel;
         }
 
@@ -130,8 +136,21 @@ public class ChannelFactory {
             serverSocketChannel.configureBlocking(false);
             ServerSocket socket = serverSocketChannel.socket();
             socket.setReuseAddress(tcpReusedAddress);
-            serverSocketChannel.bind(address);
+            try {
+                serverSocketChannel.bind(address);
+            } catch (IOException e) {
+                closeRawChannel(serverSocketChannel, e);
+                throw e;
+            }
             return serverSocketChannel;
+        }
+
+        private void closeRawChannel(Closeable c, IOException e) {
+            try {
+                c.close();
+            } catch (IOException closeException) {
+                e.addSuppressed(closeException);
+            }
         }
 
         private void configureSocketChannel(SocketChannel channel) throws IOException {

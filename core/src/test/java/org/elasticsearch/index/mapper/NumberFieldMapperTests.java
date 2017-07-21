@@ -21,14 +21,16 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -316,20 +318,24 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         }
     }
 
-    public void testOutOfRangeHalfFloatUpperBound() throws IOException {
-        DocumentMapper mapper = createDocumentMapper("half_float");
-        ThrowingRunnable runnable = () -> mapper.parse(createIndexRequest("65505"));
-        MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-        assertThat(e.getCause().getMessage(), containsString("only supports finite values"));
+    public void testOutOfRangeValue() {
+        final Map<String, String> outOfRangeValues = new HashMap<>();
+        outOfRangeValues.put("float", new BigDecimal("3.4028235E39").toString());
+        outOfRangeValues.put("double", new BigDecimal("1.7976931348623157E309").toString());
+        outOfRangeValues.put("half_float", new BigDecimal("65504.1").toString());
+
+        outOfRangeValues.forEach((type, value) -> {
+            try {
+                createDocumentMapper(type).parse(createIndexRequest(value));
+                fail("Mapper parsing exception expected for [" + type + "]");
+            } catch (MapperParsingException e) {
+                assertThat(e.getCause().getMessage(), containsString("[" + type + "] supports only finite values"));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
-    public void testOutOfRangeFloatUpperBound() throws IOException {
-        DocumentMapper mapper = createDocumentMapper("float");
-        ThrowingRunnable runnable = () -> mapper.parse(createIndexRequest(Double.toString(Math.pow(2, 150))));
-        MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-        assertThat(e.getCause().getMessage(), containsString("only supports finite values"));
-    }
-    
     private DocumentMapper createDocumentMapper(String type) throws IOException {
         String mapping = XContentFactory.jsonBuilder()
             .startObject()

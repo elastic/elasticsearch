@@ -216,6 +216,19 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            void validateParsed(Number value) {
+                float val = value.floatValue();
+
+                if (
+                    !Float.isFinite(val)
+                    || !Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(val)))
+                    || val > 65504
+                    ) {
+                    throw new IllegalArgumentException("[half_float] supports only finite values");
+                }
+            }
+
+            @Override
             public List<Field> createFields(String name, Number value,
                                             boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
@@ -293,6 +306,13 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            void validateParsed(Number value) {
+                if (!Float.isFinite(value.floatValue())) {
+                    throw new IllegalArgumentException("[float] supports only finite values");
+                }
+            }
+
+            @Override
             public List<Field> createFields(String name, Number value,
                                             boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
@@ -367,6 +387,13 @@ public class NumberFieldMapper extends FieldMapper {
                     query = new IndexOrDocValuesQuery(query, dvQuery);
                 }
                 return query;
+            }
+
+            @Override
+            void validateParsed(Number value) {
+                if (!Double.isFinite(value.doubleValue())) {
+                    throw new IllegalArgumentException("[double] supports only finite values, but got [" + value.toString() + "]");
+                }
             }
 
             @Override
@@ -751,6 +778,12 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         /**
+         * @throws IllegalArgumentException if value is not finite for this type
+         */
+        void validateParsed(Number value) {
+        }
+
+        /**
          * Returns true if the object is a number and has a decimal part
          */
         boolean hasDecimalPart(Object number) {
@@ -948,6 +981,8 @@ public class NumberFieldMapper extends FieldMapper {
         if (numericValue == null) {
             numericValue = fieldType().type.parse(value, coerce.value());
         }
+
+        fieldType().type.validateParsed(numericValue);
 
         if (includeInAll) {
             context.allEntries().addText(fieldType().name(), value.toString(), fieldType().boost());

@@ -114,7 +114,8 @@ public class NativeUsersStore extends AbstractComponent {
         } else {
             if (securityLifecycleService.isSecurityIndexOutOfDate()) {
                 listener.onFailure(new IllegalStateException(
-                    "Security index is not on the current version - please upgrade with the upgrade api"));
+                    "Security index is not on the current version - the native realm will not be operational " +
+                    "until the upgrade API is run on the security index"));
                 return;
             }
             try {
@@ -150,7 +151,8 @@ public class NativeUsersStore extends AbstractComponent {
     private void getUserAndPassword(final String user, final ActionListener<UserAndPassword> listener) {
         if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         }
         try {
@@ -197,7 +199,8 @@ public class NativeUsersStore extends AbstractComponent {
             return;
         } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("password cannot be changed as user service cannot write until template and " +
@@ -249,7 +252,8 @@ public class NativeUsersStore extends AbstractComponent {
     private void createReservedUser(String username, char[] passwordHash, RefreshPolicy refresh, ActionListener<Void> listener) {
         if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         }
         securityLifecycleService.createIndexIfNeededThenExecute(listener, () ->
@@ -282,7 +286,8 @@ public class NativeUsersStore extends AbstractComponent {
             return;
         } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("user cannot be created or changed as the user service cannot write until " +
@@ -384,7 +389,8 @@ public class NativeUsersStore extends AbstractComponent {
             return;
         } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("enabled status cannot be changed as user service cannot write until template " +
@@ -471,7 +477,8 @@ public class NativeUsersStore extends AbstractComponent {
             return;
         } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("user cannot be deleted as user service cannot write until template and " +
@@ -526,7 +533,8 @@ public class NativeUsersStore extends AbstractComponent {
             return;
         } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         }
         client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(RESERVED_USER_TYPE, username))
@@ -570,7 +578,8 @@ public class NativeUsersStore extends AbstractComponent {
     void getAllReservedUserInfo(ActionListener<Map<String, ReservedUserInfo>> listener) {
         if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         }
         client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)

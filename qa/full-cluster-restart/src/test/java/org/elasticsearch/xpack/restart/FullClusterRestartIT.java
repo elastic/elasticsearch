@@ -10,6 +10,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -111,8 +112,16 @@ public class FullClusterRestartIT extends ESRestTestCase {
             createUser("preupgrade_user");
             createRole("preupgrade_role");
         } else {
-            // run upgrade API first
             waitForYellow(".security");
+            // without upgrade, an error should be thrown
+            try {
+                createUser("postupgrade_user");
+                fail("should not be able to add a user when upgrade hasn't taken place");
+            } catch (ResponseException e) {
+                assertThat(e.getMessage(), containsString("Security index is not on the current version - " +
+                    "the native realm will not be operational until the upgrade API is run on the security index"));
+            }
+            // run upgrade API
             client().performRequest("POST", "_xpack/migration/upgrade/.security");
             // create additional user and role
             createUser("postupgrade_user");

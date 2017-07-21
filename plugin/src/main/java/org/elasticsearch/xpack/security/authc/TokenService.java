@@ -256,7 +256,8 @@ public final class TokenService extends AbstractComponent {
         ensureEnabled();
         if (lifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         } else if (lifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("cannot write to the tokens index"));
@@ -322,7 +323,8 @@ public final class TokenService extends AbstractComponent {
         if (lifecycleService.isSecurityIndexAvailable()) {
             if (lifecycleService.isSecurityIndexOutOfDate()) {
                 listener.onFailure(new IllegalStateException(
-                    "Security index is not on the current version - please upgrade with the upgrade api"));
+                    "Security index is not on the current version - the native realm will not be operational until " +
+                    "the upgrade API is run on the security index"));
                 return;
             }
             internalClient.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE, getDocumentId(userToken))

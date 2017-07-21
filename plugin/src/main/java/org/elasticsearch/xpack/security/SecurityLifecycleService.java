@@ -191,7 +191,8 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
             securityIndex.createIndexIfNeededThenExecute(listener, andThen);
         } else {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
         }
     }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -39,7 +40,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 
 public class ChildBulkByScrollWorker implements SuccessfullyProcessed {
 
-    private static final Logger logger = ESLoggerFactory.getLogger(BulkByScrollTask.class.getPackage().getName());
+    private static final Logger logger = Loggers.getLogger(ChildBulkByScrollWorker.class);
 
     private final BulkByScrollTask task;
 

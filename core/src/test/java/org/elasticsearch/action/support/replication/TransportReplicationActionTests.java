@@ -849,12 +849,12 @@ public class TransportReplicationActionTests extends ESTestCase {
         final long primaryTerm = clusterService.state().metaData().index(shardId.getIndexName()).primaryTerm(shardId.id());
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         final boolean wrongAllocationId = randomBoolean();
-        final long wrongTerm = primaryTerm + randomIntBetween(1, 10);
+        final long requestTerm = wrongAllocationId && randomBoolean() ? primaryTerm : primaryTerm + randomIntBetween(1, 10);
         Request request = new Request(shardId).timeout("1ms");
             action.new PrimaryOperationTransportHandler().messageReceived(
                 new TransportReplicationAction.ConcreteShardRequest<>(request,
                     wrongAllocationId ? "_not_a_valid_aid_" : primary.allocationId().getId(),
-                    wrongTerm),
+                    requestTerm),
                 createTransportChannel(listener), maybeTask()
             );
         try {
@@ -869,7 +869,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                     primary.allocationId().getId() + "]"));
             } else {
                 assertThat(throwable.getMessage(), containsString("expected aID [" + primary.allocationId().getId() + "] with term [" +
-                    wrongTerm + "] but found [" + primaryTerm + "]"));
+                    requestTerm + "] but found [" + primaryTerm + "]"));
             }
         }
     }

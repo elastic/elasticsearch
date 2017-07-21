@@ -267,7 +267,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
             if (out.getVersion().before(Version.V_6_0_0_beta1)) {
                 out.writeBoolean(false); // split_on_whitespace
-                Boolean useAllFields = defaultField == null ? null : "*".equals(defaultField);
+                Boolean useAllFields = defaultField == null ? null : Regex.isMatchAllPattern(defaultField);
                 out.writeOptionalBoolean(useAllFields);
             }
         }
@@ -295,13 +295,15 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      */
     @Deprecated
     public QueryStringQueryBuilder useAllFields(Boolean useAllFields) {
-        this.defaultField = "*";
+        if (useAllFields) {
+            this.defaultField = "*";
+        }
         return this;
     }
 
     @Deprecated
     public Boolean useAllFields() {
-        return defaultField == null ? null : "*".equals(defaultField);
+        return defaultField == null ? null : Regex.isMatchAllPattern(defaultField);
     }
 
     /**

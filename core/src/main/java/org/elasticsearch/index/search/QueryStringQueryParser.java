@@ -698,7 +698,7 @@ public class QueryStringQueryParser extends XQueryParser {
              * We rewrite _all:* to a match all query.
              * TODO: We can remove this special case when _all is completely removed.
              */
-            if ("*".equals(field) || AllFieldMapper.NAME.equals(field)) {
+            if (Regex.isMatchAllPattern(field) || AllFieldMapper.NAME.equals(field)) {
                 return newMatchAllDocsQuery();
             }
             String actualField = field;

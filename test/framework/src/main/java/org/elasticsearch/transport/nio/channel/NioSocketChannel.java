@@ -112,11 +112,11 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     }
 
     public boolean isWritable() {
-        return isClosed.get() == false;
+        return isClosing.get() == false;
     }
 
     public boolean isReadable() {
-        return isClosed.get() == false;
+        return isClosing.get() == false;
     }
 
     /**

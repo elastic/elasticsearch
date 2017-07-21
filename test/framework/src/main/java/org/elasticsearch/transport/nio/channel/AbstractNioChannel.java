@@ -48,7 +48,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkChannel> implements NioChannel {
 
     final S socketChannel;
-    final AtomicBoolean isClosed = new AtomicBoolean(false);
+    // This indicates if the channel has been scheduled to be closed. Read the closeFuture to determine if
+    // the channel close process has completed.
+    final AtomicBoolean isClosing = new AtomicBoolean(false);
 
     private final InetSocketAddress localAddress;
     private final String profile;
@@ -90,7 +92,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
      */
     @Override
     public CloseFuture closeAsync() {
-        if (isClosed.compareAndSet(false, true)) {
+        if (isClosing.compareAndSet(false, true)) {
             selector.queueChannelClose(this);
         }
         return closeFuture;
@@ -104,7 +106,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     @Override
     public void closeFromSelector() {
         assert selector.isOnCurrentThread() : "Should only call from selector thread";
-        isClosed.compareAndSet(false, true);
+        isClosing.set(true);
         if (closeFuture.isClosed() == false) {
             boolean closedOnThisCall = false;
             try {

@@ -75,7 +75,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "1234")
                 .endObject()
                 .bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -115,7 +115,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .nullField("field")
                 .endObject()
                 .bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -131,7 +131,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject()
                 .endObject()
                 .bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
@@ -141,7 +141,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .nullField("field")
                 .endObject()
                 .bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
 
         Collator collator = Collator.getInstance();
         RawCollationKey key = collator.getRawCollationKey("1234", null);
@@ -167,7 +167,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "1234")
                 .endObject()
                 .bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -189,7 +189,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "1234")
                 .endObject()
                 .bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -212,7 +212,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "1234")
                 .endObject()
                 .bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -234,7 +234,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "1234")
                 .endObject()
                 .bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -267,7 +267,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "1234")
                 .endObject()
                 .bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -291,7 +291,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "I WİLL USE TURKİSH CASING")
                 .endObject()
                 .bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
 
         Collator collator = Collator.getInstance(new ULocale("tr"));
         collator.setStrength(Collator.PRIMARY);

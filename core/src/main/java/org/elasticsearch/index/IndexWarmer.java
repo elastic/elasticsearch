@@ -134,7 +134,7 @@ public final class IndexWarmer extends AbstractComponent {
                 executor.execute(() -> {
                     try {
                         final long start = System.nanoTime();
-                        IndexFieldData.Global ifd = indexFieldDataService.getForField(fieldType);
+                        IndexFieldData.Global ifd = indexFieldDataService.getForField(fieldType, indexShard.shardId().getId());
                         DirectoryReader reader = searcher.getDirectoryReader();
                         IndexFieldData<?> global = ifd.loadGlobal(reader);
                         if (reader.leaves().isEmpty() == false) {

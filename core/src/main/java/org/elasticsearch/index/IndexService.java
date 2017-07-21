@@ -157,7 +157,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             // The sort order is validated right after the merge of the mapping later in the process.
             this.indexSortSupplier = () -> indexSettings.getIndexSortConfig().buildIndexSort(
                 mapperService::fullName,
-                indexFieldData::getForField
+                field -> indexFieldData.getForField(field, -1)
             );
         } else {
             this.indexSortSupplier = () -> null;

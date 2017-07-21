@@ -51,7 +51,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 public class TypeFieldMapper extends MetadataFieldMapper {
 
@@ -114,7 +114,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
                 return new DocValuesIndexFieldData.Builder();
             } else {
                 // means the index has a single type and the type field is implicit
-                Function<MapperService, String> typeFunction = mapperService -> {
+                BiFunction<MapperService, Integer, String> typeFunction = (mapperService, shardId) -> {
                     Collection<String> types = mapperService.types();
                     if (types.size() > 1) {
                         throw new AssertionError();

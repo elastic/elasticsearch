@@ -64,7 +64,7 @@ public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData impleme
 
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                                       CircuitBreakerService breakerService, MapperService mapperService) {
+                                       CircuitBreakerService breakerService, MapperService mapperService, int shardId) {
             // Ignore breaker
             final String fieldName = fieldType.name();
             return new BytesBinaryDVIndexFieldData(indexSettings.getIndex(), fieldName);

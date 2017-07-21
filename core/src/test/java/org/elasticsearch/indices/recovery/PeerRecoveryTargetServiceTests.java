@@ -60,7 +60,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             for (int i = 0; i < docs; i++) {
                 replica.applyIndexOperationOnReplica(seqNo++, replica.getPrimaryTerm(), 1, VersionType.EXTERNAL,
                     IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
-                    SourceToParse.source(index, "type", "doc_" + i, new BytesArray("{}"), XContentType.JSON),
+                    SourceToParse.source(index, "type", "doc_" + i, new BytesArray("{}"), XContentType.JSON, 0),
                     update -> {});
                 if (rarely()) {
                     // insert a gap

@@ -20,8 +20,9 @@ GET twitter/tweet/_search
         }
     },
     "sort": [
-        {"date": "asc"},
-        {"_id": "desc"}
+        {"date":    "asc"},
+        {"_shard":  "asc"},
+        {"_seq_no": "asc"}
     ]
 }
 --------------------------------------------------
@@ -29,8 +30,9 @@ GET twitter/tweet/_search
 // TEST[setup:twitter]
 
 NOTE: A field with one unique value per document should be used as the tiebreaker of the sort specification.
-Otherwise the sort order for documents that have the same sort values would be undefined. The recommended way is to use
-the field `_id` which is certain to contain one unique value for each document.
+Otherwise the sort order for documents that have the same sort values would be undefined. The recommended way
+is to use <<mapping-uid-field,`_uid`>> on 5.x indices and <<mapping-shard-field,`_shard`>> plus
+<<mapping-seq-no-field,`_seq_no`>> on 6.x indices.
 
 The result from the above request includes an array of `sort values` for each document.
 These `sort values` can be used in conjunction with the `search_after` parameter to start returning results "after" any
@@ -47,10 +49,11 @@ GET twitter/tweet/_search
             "title" : "elasticsearch"
         }
     },
-    "search_after": [1463538857, "654323"],
+    "search_after": [1463538857, "2", 30],
     "sort": [
         {"date": "asc"},
-        {"_id": "desc"}
+        {"_shard":  "asc"},
+        {"_seq_no": "asc"}
     ]
 }
 --------------------------------------------------

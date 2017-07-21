@@ -89,7 +89,7 @@ public abstract class DocValuesIndexFieldData {
 
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                                       CircuitBreakerService breakerService, MapperService mapperService) {
+                                       CircuitBreakerService breakerService, MapperService mapperService, int shardId) {
             // Ignore Circuit Breaker
             final String fieldName = fieldType.name();
             if (BINARY_INDEX_FIELD_NAMES.contains(fieldName)) {

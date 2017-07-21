@@ -251,7 +251,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject()
                 .field(fieldName, queryBuilder)
                 .endObject().bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         assertThat(doc.rootDoc().getFields(fieldType.queryTermsField.name()).length, equalTo(1));
         assertThat(doc.rootDoc().getFields(fieldType.queryTermsField.name())[0].binaryValue().utf8ToString(), equalTo("field\0value"));
@@ -269,7 +269,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject()
                 .field(fieldName, queryBuilder)
                 .endObject().bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
         assertThat(doc.rootDoc().getFields(fieldType.extractionResultField.name()).length, equalTo(1));
         assertThat(doc.rootDoc().getFields(fieldType.extractionResultField.name())[0].stringValue(),
                 equalTo(EXTRACTION_FAILED));
@@ -294,7 +294,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                     XContentFactory.jsonBuilder().startObject()
                     .field(fieldName, query)
                     .endObject().bytes(),
-                    XContentType.JSON));
+                    XContentType.JSON, 0));
             BytesRef qbSource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
             assertQueryBuilder(qbSource, query);
         }
@@ -309,7 +309,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject()
                 .field(fieldName, queryBuilder)
                 .endObject().bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
         BytesRef qbSource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
         QueryShardContext shardContext = indexService.newQueryShardContext(
             randomInt(20), null, () -> {
@@ -329,7 +329,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                     .startObject()
                     .field(fieldName, termQuery("unmapped_field", "value"))
                     .endObject().bytes(),
-                    XContentType.JSON));
+                    XContentType.JSON, 0));
         });
         assertThat(exception.getCause(), instanceOf(QueryShardException.class));
         assertThat(exception.getCause().getMessage(), equalTo("No field mapping can be found for the field with name [unmapped_field]"));
@@ -343,7 +343,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject()
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
         assertThat(doc.rootDoc().getFields(fieldType.queryBuilderField.name()).length, equalTo(0));
 
         try {
@@ -352,7 +352,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                     .startObject()
                     .nullField(fieldName)
                     .endObject().bytes(),
-                    XContentType.JSON));
+                    XContentType.JSON, 0));
         } catch (MapperParsingException e) {
             assertThat(e.getDetailedMessage(), containsString("query malformed, must start with start_object"));
         }
@@ -389,7 +389,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                         .field("query_field1", queryBuilder)
                         .field("query_field2", queryBuilder)
                         .endObject().bytes(),
-                        XContentType.JSON));
+                        XContentType.JSON, 0));
         assertThat(doc.rootDoc().getFields().size(), equalTo(12)); // also includes all other meta fields
         BytesRef queryBuilderAsBytes = doc.rootDoc().getField("query_field1.query_builder_field").binaryValue();
         assertQueryBuilder(queryBuilderAsBytes, queryBuilder);
@@ -419,7 +419,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 jsonBuilder().startObject().startObject("object_field")
                             .field("query_field", queryBuilder)
                         .endObject().endObject().bytes(),
-                        XContentType.JSON));
+                        XContentType.JSON, 0));
         assertThat(doc.rootDoc().getFields().size(), equalTo(9)); // also includes all other meta fields
         BytesRef queryBuilderAsBytes = doc.rootDoc().getField("object_field.query_field.query_builder_field").binaryValue();
         assertQueryBuilder(queryBuilderAsBytes, queryBuilder);
@@ -430,7 +430,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                                 .startObject().field("query_field", queryBuilder).endObject()
                             .endArray()
                         .endObject().bytes(),
-                        XContentType.JSON));
+                        XContentType.JSON, 0));
         assertThat(doc.rootDoc().getFields().size(), equalTo(9)); // also includes all other meta fields
         queryBuilderAsBytes = doc.rootDoc().getField("object_field.query_field.query_builder_field").binaryValue();
         assertQueryBuilder(queryBuilderAsBytes, queryBuilder);
@@ -443,7 +443,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                                         .startObject().field("query_field", queryBuilder).endObject()
                                     .endArray()
                                 .endObject().bytes(),
-                                XContentType.JSON));
+                                XContentType.JSON, 0));
                 }
         );
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
@@ -516,7 +516,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 XContentFactory.jsonBuilder().startObject()
                         .rawField(fieldName, new BytesArray(query.string()), query.contentType())
                         .endObject().bytes(),
-                        XContentType.JSON));
+                        XContentType.JSON, 0));
         BytesRef querySource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
         Map<String, Object> parsedQuery = XContentHelper.convertToMap(new BytesArray(querySource), true).v2();
         assertEquals(Script.DEFAULT_SCRIPT_LANG, XContentMapValues.extractValue("script.script.lang", parsedQuery));
@@ -544,7 +544,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 XContentFactory.jsonBuilder().startObject()
                         .rawField(fieldName, new BytesArray(query.string()), query.contentType())
                         .endObject().bytes(),
-                        XContentType.JSON));
+                        XContentType.JSON, 0));
         querySource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
         parsedQuery = XContentHelper.convertToMap(new BytesArray(querySource), true).v2();
         assertEquals(Script.DEFAULT_SCRIPT_LANG,

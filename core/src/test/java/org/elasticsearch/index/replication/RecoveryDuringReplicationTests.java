@@ -180,7 +180,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     VersionType.EXTERNAL,
                     randomNonNegativeLong(),
                     false,
-                    SourceToParse.source("index", "type", "replica", new BytesArray("{}"), XContentType.JSON),
+                    SourceToParse.source("index", "type", "replica", new BytesArray("{}"), XContentType.JSON, 0),
                     mapping -> {});
             shards.promoteReplicaToPrimary(promotedReplica);
             oldPrimary.close("demoted", randomBoolean());
@@ -194,7 +194,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 promotedReplica.applyIndexOperationOnPrimary(
                         Versions.MATCH_ANY,
                         VersionType.INTERNAL,
-                        SourceToParse.source("index", "type", "primary", new BytesArray("{}"), XContentType.JSON),
+                        SourceToParse.source("index", "type", "primary", new BytesArray("{}"), XContentType.JSON, 0),
                         randomNonNegativeLong(),
                         false,
                         mapping -> {

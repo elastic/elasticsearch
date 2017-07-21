@@ -79,7 +79,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
                 .startObject()
                 .field("field", "value")
                 .endObject().bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertNotNull(fields);
         assertEquals(Arrays.toString(fields), 1, fields.length);

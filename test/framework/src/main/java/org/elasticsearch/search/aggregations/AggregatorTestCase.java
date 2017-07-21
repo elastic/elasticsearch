@@ -196,7 +196,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             when(queryShardContext.fieldMapper(fieldType.name())).thenReturn(fieldType);
             when(queryShardContext.getForField(fieldType)).then(invocation -> fieldType.fielddataBuilder().build(
                     mapperService.getIndexSettings(), fieldType, new IndexFieldDataCache.None(), circuitBreakerService,
-                    mapperService));
+                    mapperService, 0));
         }
         NestedScope nestedScope = new NestedScope();
         when(queryShardContext.isFilter()).thenCallRealMethod();

@@ -48,6 +48,10 @@ can be customised when a mapping type is created.
 
     All fields in the document which contain non-null values.
 
+<<mapping-shard-field,`_shard`>>::
+
+    A field that stores the shard id of the shard that the document was indexed into.
+
 [float]
 === Routing meta-field
 
@@ -61,6 +65,10 @@ can be customised when a mapping type is created.
 <<mapping-meta-field,`_meta`>>::
 
     Application specific metadata.
+
+<<mapping-seq-no-field,`_seq_no`>>::
+
+    An internal field that stores a sequence number.
 
 
 include::fields/all-field.asciidoc[]
@@ -81,3 +89,6 @@ include::fields/type-field.asciidoc[]
 
 include::fields/uid-field.asciidoc[]
 
+include::fields/shard-field.asciidoc[]
+
+include::fields/seq-no-field.asciidoc[]

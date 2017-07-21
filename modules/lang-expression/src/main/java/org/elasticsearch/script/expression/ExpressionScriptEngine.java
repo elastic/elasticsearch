@@ -186,7 +186,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
                         throw new ParseException("Field [" + fieldname + "] does not exist in mappings", 5);
                     }
 
-                    IndexFieldData<?> fieldData = lookup.doc().fieldDataService().getForField(fieldType);
+                    IndexFieldData<?> fieldData = lookup.doc().fieldDataService().getForField(fieldType, -1);
 
                     // delegate valuesource creation based on field's type
                     // there are three types of "fields" to expressions, and each one has a different "api" of variables and methods.

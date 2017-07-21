@@ -49,7 +49,8 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private int docId = -1;
 
-    LeafDocLookup(MapperService mapperService, IndexFieldDataService fieldDataService, @Nullable String[] types, LeafReaderContext reader) {
+    LeafDocLookup(MapperService mapperService, IndexFieldDataService fieldDataService,
+            @Nullable String[] types, LeafReaderContext reader) {
         this.mapperService = mapperService;
         this.fieldDataService = fieldDataService;
         this.types = types;
@@ -83,7 +84,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
             scriptValues = AccessController.doPrivileged(new PrivilegedAction<ScriptDocValues<?>>() {
                 @Override
                 public ScriptDocValues<?> run() {
-                    return fieldDataService.getForField(fieldType).load(reader).getScriptValues();
+                    return fieldDataService.getForField(fieldType, -1).load(reader).getScriptValues();
                 }
             });
             localCacheFieldData.put(fieldName, scriptValues);

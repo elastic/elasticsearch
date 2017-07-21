@@ -52,7 +52,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         builder = JsonXContent.contentBuilder();
         builder.startObject().field("s", "hello").field("l", 1).endObject();
         ParsedDocument parsedDoc = docMapper.parse(SourceToParse.source("test", "person", "1", builder.bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
         client().admin().indices().preparePutMapping("test").setType("person")
             .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
@@ -75,7 +75,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = index.mapperService().documentMapper("person");
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
         ParsedDocument parsedDoc = docMapper.parse(SourceToParse.source("test", "person", "1", new BytesArray(json), 
-                XContentType.JSON));
+                XContentType.JSON, 0));
         client().admin().indices().preparePutMapping("test").setType("person")
             .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
         docMapper = index.mapperService().documentMapper("person");
@@ -134,7 +134,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = index.mapperService().documentMapper("person");
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
         ParsedDocument parsedDoc = docMapper.parse(SourceToParse.source("test", "person", "1", new BytesArray(json), 
-                XContentType.JSON));
+                XContentType.JSON, 0));
         client().admin().indices().preparePutMapping("test").setType("person")
             .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
         docMapper = index.mapperService().documentMapper("person");

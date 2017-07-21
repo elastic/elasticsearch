@@ -115,7 +115,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             .field(getToField(), getTo(type))
             .endObject()
             .endObject().bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -146,7 +146,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             .field(getToField(), getTo(type))
             .endObject()
             .endObject().bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -170,7 +170,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             .field(getToField(), getTo(type))
             .endObject()
             .endObject().bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -196,7 +196,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             .field(getToField(), getTo(type))
             .endObject()
             .endObject().bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(3, fields.length);
@@ -235,7 +235,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             .field(getToField(), getTo(type))
             .endObject()
             .endObject().bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -258,7 +258,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             .field(getToField(), "10")
             .endObject()
             .endObject().bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
         assertThat(e.getCause().getMessage(), anyOf(containsString("passed as String"),
             containsString("failed to parse date"), containsString("is not an IP string literal")));
@@ -284,7 +284,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             .nullField(getToField())
             .endObject()
             .endObject().bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
         assertEquals(3, doc.rootDoc().getFields("field").length);
         IndexableField[] fields = doc.rootDoc().getFields("field");
         IndexableField storedField = fields[2];
@@ -299,7 +299,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             .nullField(getToField())
             .endObject()
             .endObject().bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
 
         fields = doc.rootDoc().getFields("field");
         assertEquals(3, fields.length);
@@ -343,7 +343,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             .startObject("field")
             .endObject()
             .endObject().bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(3, fields.length);

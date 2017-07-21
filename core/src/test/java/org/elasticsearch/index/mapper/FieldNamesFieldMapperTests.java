@@ -97,9 +97,9 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
-        assertFieldNames(set("a", "a.keyword", "b", "b.c", "_id", "_version", "_seq_no", "_primary_term", "_source"), doc);
+        assertFieldNames(set("a", "a.keyword", "b", "b.c", "_id", "_version", "_seq_no", "_primary_term", "_source", "_shard"), doc);
     }
 
     public void testExplicitEnabled() throws Exception {
@@ -115,9 +115,9 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             .field("field", "value")
             .endObject()
             .bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
 
-        assertFieldNames(set("field", "field.keyword", "_id", "_version", "_seq_no", "_primary_term", "_source"), doc);
+        assertFieldNames(set("field", "field.keyword", "_id", "_version", "_seq_no", "_primary_term", "_source", "_shard"), doc);
     }
 
     public void testDisabled() throws Exception {
@@ -133,7 +133,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             .field("field", "value")
             .endObject()
             .bytes(),
-            XContentType.JSON));
+            XContentType.JSON, 0));
 
         assertNull(doc.rootDoc().get("_field_names"));
     }
@@ -249,7 +249,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         ParsedDocument parsedDocument = mapper.parse(SourceToParse.source("index", "type", "id", new BytesArray("{}"),
-                XContentType.JSON));
+                XContentType.JSON, 0));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(FieldNamesFieldMapper.NAME);
         boolean found = false;
         for (IndexableField f : fields) {

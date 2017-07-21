@@ -1,0 +1,11 @@
+[[mapping-shard-field]]
+=== `_shard` field
+
+Each document stores the shard id that it went into at index time. This is
+typically useful for stable pagination when using `_shard` and either `_doc`
+or <<mapping-seq-no-field,`_seq_no`>> as tie-breakers.
+
+NOTE: This field was introduced in 6.0. As a consequence, 5.x indices do not
+know its value and behave as if the shard id was the current shard, which might
+be different from the shard that the document was initially indexed into in
+the case of <<indices-shrink-index,shrunken>> indices.

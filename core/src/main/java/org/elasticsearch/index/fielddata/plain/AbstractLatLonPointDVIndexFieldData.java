@@ -82,7 +82,7 @@ public abstract class AbstractLatLonPointDVIndexFieldData extends DocValuesIndex
     public static class Builder implements IndexFieldData.Builder {
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                                       CircuitBreakerService breakerService, MapperService mapperService) {
+                                       CircuitBreakerService breakerService, MapperService mapperService, int shardId) {
             // ignore breaker
             return new LatLonPointDVIndexFieldData(indexSettings.getIndex(), fieldType.name());
         }

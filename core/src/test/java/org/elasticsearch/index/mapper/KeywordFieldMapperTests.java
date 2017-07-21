@@ -90,7 +90,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "1234")
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -127,7 +127,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "elk")
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -137,7 +137,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "elasticsearch")
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
@@ -156,7 +156,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .nullField("field")
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -171,7 +171,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject()
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
@@ -181,7 +181,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .nullField("field")
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -202,7 +202,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "1234")
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -223,7 +223,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "1234")
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -245,7 +245,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "1234")
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -267,7 +267,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "1234")
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -308,7 +308,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "1234")
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -330,7 +330,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .field("field", "AbC")
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
+                XContentType.JSON, 0));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);

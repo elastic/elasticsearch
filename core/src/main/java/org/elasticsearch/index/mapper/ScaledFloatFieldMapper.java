@@ -264,10 +264,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             return new IndexFieldData.Builder() {
                 @Override
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                        CircuitBreakerService breakerService, MapperService mapperService) {
+                        CircuitBreakerService breakerService, MapperService mapperService, int shardId) {
                     final IndexNumericFieldData scaledValues = (IndexNumericFieldData) new DocValuesIndexFieldData.Builder()
                             .numericType(IndexNumericFieldData.NumericType.LONG)
-                            .build(indexSettings, fieldType, cache, breakerService, mapperService);
+                            .build(indexSettings, fieldType, cache, breakerService, mapperService, shardId);
                     return new ScaledFloatIndexFieldData(scaledValues, scalingFactor);
                 }
             };

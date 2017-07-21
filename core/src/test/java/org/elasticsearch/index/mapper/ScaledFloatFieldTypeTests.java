@@ -152,7 +152,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
 
             // single-valued
             ft.setName("scaled_float1");
-            IndexNumericFieldData fielddata = (IndexNumericFieldData) ft.fielddataBuilder().build(indexSettings, ft, null, null, null);
+            IndexNumericFieldData fielddata = (IndexNumericFieldData) ft.fielddataBuilder().build(indexSettings, ft, null, null, null, 0);
             assertEquals(fielddata.getNumericType(), IndexNumericFieldData.NumericType.DOUBLE);
             AtomicNumericFieldData leafFieldData = fielddata.load(reader.leaves().get(0));
             SortedNumericDoubleValues values = leafFieldData.getDoubleValues();
@@ -162,7 +162,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
 
             // multi-valued
             ft.setName("scaled_float2");
-            fielddata = (IndexNumericFieldData) ft.fielddataBuilder().build(indexSettings, ft, null, null, null);
+            fielddata = (IndexNumericFieldData) ft.fielddataBuilder().build(indexSettings, ft, null, null, null, 0);
             leafFieldData = fielddata.load(reader.leaves().get(0));
             values = leafFieldData.getDoubleValues();
             assertTrue(values.advanceExact(0));

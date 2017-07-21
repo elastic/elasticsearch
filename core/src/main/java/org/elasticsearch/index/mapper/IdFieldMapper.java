@@ -164,8 +164,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
             return new IndexFieldData.Builder() {
                 @Override
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                        CircuitBreakerService breakerService, MapperService mapperService) {
-                    final IndexFieldData<?> fieldData = fieldDataBuilder.build(indexSettings, fieldType, cache, breakerService, mapperService);
+                        CircuitBreakerService breakerService, MapperService mapperService, int shardId) {
+                    final IndexFieldData<?> fieldData = fieldDataBuilder.build(indexSettings, fieldType, cache, breakerService, mapperService, shardId);
                     if (indexSettings.getIndexVersionCreated().before(Version.V_6_0_0_beta1)) {
                         // ids were indexed as utf-8
                         return fieldData;

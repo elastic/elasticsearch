@@ -490,14 +490,14 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 }
             }
             docMapper = mapperService.documentMapper(type);
-            doc = docMapper.parse(source(context.index().getName(), type, "_temp_id", document, documentXContentType));
+            doc = docMapper.parse(source(context.index().getName(), type, "_temp_id", document, documentXContentType, 0));
         } else {
             if (documentType == null) {
                 throw new IllegalArgumentException("[percolate] query is missing required [document_type] parameter");
             }
             DocumentMapperForType docMapperForType = mapperService.documentMapperWithAutoCreate(documentType);
             docMapper = docMapperForType.getDocumentMapper();
-            doc = docMapper.parse(source(context.index().getName(), documentType, "_temp_id", document, documentXContentType));
+            doc = docMapper.parse(source(context.index().getName(), documentType, "_temp_id", document, documentXContentType, 0));
         }
 
         FieldNameAnalyzer fieldNameAnalyzer = (FieldNameAnalyzer) docMapper.mappers().indexAnalyzer();
@@ -631,7 +631,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 IndexFieldDataCache cache = new IndexFieldDataCache.None();
                 CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
                 return (IFD) builder.build(shardContext.getIndexSettings(), fieldType, cache, circuitBreaker,
-                        shardContext.getMapperService());
+                        shardContext.getMapperService(), getShardId());
             }
         };
     }

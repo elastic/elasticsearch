@@ -61,7 +61,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
             .field("field", "value")
             .endObject()
             .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON, 0));
 
         boolean stored = false;
         boolean points = false;
@@ -82,7 +82,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
             .field("field", "value")
             .endObject()
             .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON, 0));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
@@ -96,7 +96,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
             .field("field", "value")
             .endObject()
             .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON, 0));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }

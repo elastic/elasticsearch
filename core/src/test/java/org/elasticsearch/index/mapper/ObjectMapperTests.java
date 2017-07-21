@@ -62,7 +62,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                 "      },\n" +
                 "      \"value\":\"value\"\n" +
                 "    }"),
-                    XContentType.JSON));
+                    XContentType.JSON, 0));
         });
         assertTrue(e.getMessage(), e.getMessage().contains("different type"));
     }

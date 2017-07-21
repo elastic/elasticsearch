@@ -46,7 +46,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("name.indexed"), nullValue());
 
         BytesReference json = XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject().bytes();
-        Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
+        Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON, 0)).rootDoc();
         IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
@@ -63,7 +63,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("name.not_indexed2"), nullValue());
         assertThat(docMapper.mappers().getMapper("name.not_indexed3"), nullValue());
 
-        doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
+        doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON, 0)).rootDoc();
         f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
@@ -102,7 +102,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("name.indexed"), nullValue());
 
         BytesReference json = XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject().bytes();
-        Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
+        Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON, 0)).rootDoc();
         IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
@@ -120,7 +120,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("name.not_indexed2"), nullValue());
         assertThat(docMapper.mappers().getMapper("name.not_indexed3"), nullValue());
 
-        doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
+        doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON, 0)).rootDoc();
         f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");

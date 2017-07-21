@@ -62,14 +62,14 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
 
         // Doc without join
         ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "0",
-            XContentFactory.jsonBuilder().startObject().endObject().bytes(), XContentType.JSON));
+            XContentFactory.jsonBuilder().startObject().endObject().bytes(), XContentType.JSON, 0));
         assertNull(doc.rootDoc().getBinaryValue("join_field"));
 
         // Doc parent
         doc = docMapper.parse(SourceToParse.source("test", "type", "1",
             XContentFactory.jsonBuilder().startObject()
                 .field("join_field", "parent")
-                .endObject().bytes(), XContentType.JSON));
+                .endObject().bytes(), XContentType.JSON, 0));
         assertEquals("1", doc.rootDoc().getBinaryValue("join_field#parent").utf8ToString());
         assertEquals("parent", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
 
@@ -80,7 +80,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                     .field("name", "child")
                     .field("parent", "1")
                 .endObject()
-                .endObject().bytes(), XContentType.JSON).routing("1"));
+                .endObject().bytes(), XContentType.JSON, 0).routing("1"));
         assertEquals("1", doc.rootDoc().getBinaryValue("join_field#parent").utf8ToString());
         assertEquals("child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
 
@@ -89,7 +89,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             () -> docMapper.parse(SourceToParse.source("test", "type", "1",
                 XContentFactory.jsonBuilder().startObject()
                     .field("join_field", "unknown")
-                    .endObject().bytes(), XContentType.JSON)));
+                    .endObject().bytes(), XContentType.JSON, 0)));
         assertThat(exc.getRootCause().getMessage(), containsString("unknown join name [unknown] for field [join_field]"));
     }
 
@@ -113,7 +113,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                 .field("name", "child")
                 .field("parent", 1)
                 .endObject()
-                .endObject().bytes(), XContentType.JSON).routing("1"));
+                .endObject().bytes(), XContentType.JSON, 0).routing("1"));
         assertEquals("1", doc.rootDoc().getBinaryValue("join_field#parent").utf8ToString());
         assertEquals("child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
         doc = docMapper.parse(SourceToParse.source("test", "type", "2",
@@ -122,7 +122,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                 .field("name", "child")
                 .field("parent", 1.0)
                 .endObject()
-                .endObject().bytes(), XContentType.JSON).routing("1"));
+                .endObject().bytes(), XContentType.JSON, 0).routing("1"));
         assertEquals("1.0", doc.rootDoc().getBinaryValue("join_field#parent").utf8ToString());
         assertEquals("child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
     }
@@ -146,7 +146,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
 
         // Doc without join
         ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "0",
-            XContentFactory.jsonBuilder().startObject().endObject().bytes(), XContentType.JSON));
+            XContentFactory.jsonBuilder().startObject().endObject().bytes(), XContentType.JSON, 0));
         assertNull(doc.rootDoc().getBinaryValue("join_field"));
 
         // Doc parent
@@ -154,7 +154,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             XContentFactory.jsonBuilder()
                 .startObject()
                     .field("join_field", "parent")
-                .endObject().bytes(), XContentType.JSON));
+                .endObject().bytes(), XContentType.JSON, 0));
         assertEquals("1", doc.rootDoc().getBinaryValue("join_field#parent").utf8ToString());
         assertEquals("parent", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
 
@@ -165,7 +165,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                     .field("name", "child")
                     .field("parent", "1")
                 .endObject()
-                .endObject().bytes(), XContentType.JSON).routing("1"));
+                .endObject().bytes(), XContentType.JSON, 0).routing("1"));
         assertEquals("1", doc.rootDoc().getBinaryValue("join_field#parent").utf8ToString());
         assertEquals("2", doc.rootDoc().getBinaryValue("join_field#child").utf8ToString());
         assertEquals("child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
@@ -175,7 +175,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             () -> docMapper.parse(SourceToParse.source("test", "type", "2",
                 XContentFactory.jsonBuilder().startObject()
                     .field("join_field", "child")
-                    .endObject().bytes(), XContentType.JSON).routing("1")));
+                    .endObject().bytes(), XContentType.JSON, 0).routing("1")));
         assertThat(exc.getRootCause().getMessage(), containsString("[parent] is missing for join field [join_field]"));
 
         // Doc child missing routing
@@ -186,7 +186,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                     .field("name", "child")
                     .field("parent", "1")
                     .endObject()
-                    .endObject().bytes(), XContentType.JSON)));
+                    .endObject().bytes(), XContentType.JSON, 0)));
         assertThat(exc.getRootCause().getMessage(), containsString("[routing] is missing for join field [join_field]"));
 
         // Doc grand_child
@@ -196,7 +196,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                     .field("name", "grand_child")
                     .field("parent", "2")
                 .endObject()
-                .endObject().bytes(), XContentType.JSON).routing("1"));
+                .endObject().bytes(), XContentType.JSON, 0).routing("1"));
         assertEquals("2", doc.rootDoc().getBinaryValue("join_field#child").utf8ToString());
         assertEquals("grand_child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
 
@@ -205,7 +205,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             () -> docMapper.parse(SourceToParse.source("test", "type", "1",
                 XContentFactory.jsonBuilder().startObject()
                     .field("join_field", "unknown")
-                    .endObject().bytes(), XContentType.JSON)));
+                    .endObject().bytes(), XContentType.JSON, 0)));
         assertThat(exc.getRootCause().getMessage(), containsString("unknown join name [unknown] for field [join_field]"));
     }
 

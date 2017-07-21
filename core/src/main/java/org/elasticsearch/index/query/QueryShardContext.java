@@ -157,7 +157,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType mapper) {
-        return indexFieldDataService.getForField(mapper);
+        return indexFieldDataService.getForField(mapper, shardId);
     }
 
     public void addNamedQuery(String name, Query query) {

@@ -238,15 +238,6 @@ public class AggregatorFactories {
         return pipelineAggregatorFactories.size();
     }
 
-    public void validate() {
-        for (AggregatorFactory<?> factory : factories) {
-            factory.validate();
-        }
-        for (PipelineAggregationBuilder factory : pipelineAggregatorFactories) {
-            factory.validate(parent, factories, pipelineAggregatorFactories);
-        }
-    }
-
     public static class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();
         private final List<AggregationBuilder> aggregationBuilders = new ArrayList<>();
@@ -330,7 +321,8 @@ public class AggregatorFactories {
             if (skipResolveOrder) {
                 orderedpipelineAggregators = new ArrayList<>(pipelineAggregatorBuilders);
             } else {
-                orderedpipelineAggregators = resolvePipelineAggregatorOrder(this.pipelineAggregatorBuilders, this.aggregationBuilders);
+                orderedpipelineAggregators = resolvePipelineAggregatorOrder(this.pipelineAggregatorBuilders, this.aggregationBuilders,
+                        parent);
             }
             AggregatorFactory<?>[] aggFactories = new AggregatorFactory<?>[aggregationBuilders.size()];
             for (int i = 0; i < aggregationBuilders.size(); i++) {
@@ -340,7 +332,8 @@ public class AggregatorFactories {
         }
 
         private List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder(
-                List<PipelineAggregationBuilder> pipelineAggregatorBuilders, List<AggregationBuilder> aggBuilders) {
+                List<PipelineAggregationBuilder> pipelineAggregatorBuilders, List<AggregationBuilder> aggBuilders,
+                AggregatorFactory<?> parent) {
             Map<String, PipelineAggregationBuilder> pipelineAggregatorBuildersMap = new HashMap<>();
             for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders) {
                 pipelineAggregatorBuildersMap.put(builder.getName(), builder);
@@ -354,6 +347,7 @@ public class AggregatorFactories {
             Set<PipelineAggregationBuilder> temporarilyMarked = new HashSet<>();
             while (!unmarkedBuilders.isEmpty()) {
                 PipelineAggregationBuilder builder = unmarkedBuilders.get(0);
+                builder.validate(parent, aggBuilders, pipelineAggregatorBuilders);
                 resolvePipelineAggregatorOrder(aggBuildersMap, pipelineAggregatorBuildersMap, orderedPipelineAggregatorrs, unmarkedBuilders,
                         temporarilyMarked, builder);
             }

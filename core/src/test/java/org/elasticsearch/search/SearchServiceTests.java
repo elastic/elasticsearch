@@ -281,8 +281,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) {
-            if (queryShardContext.convertToShardContext() != null) {
+        protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+            if (queryRewriteContext.convertToShardContext() != null) {
                 throw new IllegalStateException("Fail on rewrite phase");
             }
             return this;

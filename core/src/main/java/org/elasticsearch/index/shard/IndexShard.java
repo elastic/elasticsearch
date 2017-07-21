@@ -477,7 +477,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  */
                                 getEngine().restoreLocalCheckpointFromTranslog();
                                 getEngine().fillSeqNoGaps(newPrimaryTerm);
-                                updateLocalCheckpointForShard(currentRouting.allocationId().getId(),
+                                getEngine().seqNoService().updateLocalCheckpointForShard(currentRouting.allocationId().getId(),
                                     getEngine().seqNoService().getLocalCheckpoint());
                                 primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
                                     @Override
@@ -1661,6 +1661,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void updateLocalCheckpointForShard(final String allocationId, final long checkpoint) {
         verifyPrimary();
+        verifyNotClosed();
         getEngine().seqNoService().updateLocalCheckpointForShard(allocationId, checkpoint);
     }
 

@@ -64,8 +64,7 @@ public abstract class ESSelector implements Closeable {
     }
 
     /**
-     * Starts this selector. The selector will run until {@link #close()} or {@link #close(boolean)} is
-     * called.
+     * Starts this selector. The selector will run until {@link #close()} is called.
      */
     public void runLoop() {
         if (runLock.tryLock()) {
@@ -156,16 +155,8 @@ public abstract class ESSelector implements Closeable {
 
     @Override
     public void close() throws IOException {
-        close(false);
-    }
-
-    public void close(boolean shouldInterrupt) throws IOException {
         if (isClosed.compareAndSet(false, true)) {
-            if (shouldInterrupt && thread != null) {
-                thread.interrupt();
-            } else {
-                wakeup();
-            }
+            wakeup();
             runLock.lock(); // wait for the shutdown to complete
         }
     }

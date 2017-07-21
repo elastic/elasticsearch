@@ -1239,6 +1239,9 @@ public class IndicesService extends AbstractLifecycleComponent
         return new AliasFilter(ShardSearchRequest.parseAliasFilter(filterParser, indexMetaData, aliases), aliases);
     }
 
+    /**
+     * Returns a new {@link QueryRewriteContext} with the given <tt>now</tt> provider
+     */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
         return new QueryRewriteContext(xContentRegistry, client, nowInMillis);
     }

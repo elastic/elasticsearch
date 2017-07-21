@@ -84,8 +84,10 @@ public class MainActionTests extends ESTestCase {
                 "\"number\":\"" + Version.CURRENT.toString() + "\"," +
                 "\"build_hash\":\"" + Build.CURRENT.shortHash() + "\"," +
                 "\"build_date\":\"" + Build.CURRENT.date() + "\"," +
-                "\"build_snapshot\":" + Build.CURRENT.isSnapshot() +
-                ",\"lucene_version\":\"" + Version.CURRENT.luceneVersion.toString() +
+                "\"build_snapshot\":" + Build.CURRENT.isSnapshot() + "," +
+                "\"lucene_version\":\"" + Version.CURRENT.luceneVersion.toString() + "\"," +
+                "\"minimum_wire_compatibility_version\":\"" + Version.CURRENT.minimumCompatibilityVersion().toString() + "\"," +
+                "\"minimum_index_compatibility_version\":\"" + Version.CURRENT.minimumIndexCompatibilityVersion().toString() +
                 "\"}," +
                 "\"tagline\":\"You Know, for Search\"}";
 

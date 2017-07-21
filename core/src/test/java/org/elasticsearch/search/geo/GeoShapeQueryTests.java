@@ -220,10 +220,9 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         client().prepareIndex("shapes", "shape_type", "Big_Rectangle").setSource(jsonBuilder().startObject()
             .field("shape", shape).endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client().prepareSearch("test").setTypes("type1")
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().prepareSearch("test").setTypes("type1")
             .setQuery(geoIntersectionQuery("location", "Big_Rectangle", "shape_type")).get());
-        assertThat(e.getRootCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(e.getRootCause().getMessage(), containsString("source disabled"));
+        assertThat(e.getMessage(), containsString("source disabled"));
     }
 
     public void testReusableBuilder() throws IOException {

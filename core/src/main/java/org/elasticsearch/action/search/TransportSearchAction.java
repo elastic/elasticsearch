@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -178,28 +179,39 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final long relativeStartNanos = System.nanoTime();
         final SearchTimeProvider timeProvider =
                 new SearchTimeProvider(absoluteStartMillis, relativeStartNanos, System::nanoTime);
-
-
-        final ClusterState clusterState = clusterService.state();
-        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(searchRequest.indicesOptions(),
-            searchRequest.indices(), idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
-        OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        if (remoteClusterIndices.isEmpty()) {
-            executeSearch((SearchTask)task, timeProvider, searchRequest, localIndices, remoteClusterIndices, Collections.emptyList(),
-                (clusterName, nodeId) -> null, clusterState, Collections.emptyMap(), listener, clusterState.getNodes()
-                    .getDataNodes().size());
+        ActionListener<SearchSourceBuilder> rewriteListener = ActionListener.wrap(source -> {
+            if (source != searchRequest.source()) {
+                // only set it if it changed - we don't allow null values to be set but it might be already null be we want to catch
+                // situations when it possible due to a bug changes to null
+                searchRequest.source(source);
+            }
+            final ClusterState clusterState = clusterService.state();
+            final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(searchRequest.indicesOptions(),
+                searchRequest.indices(), idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
+            OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            if (remoteClusterIndices.isEmpty()) {
+                executeSearch((SearchTask)task, timeProvider, searchRequest, localIndices, remoteClusterIndices, Collections.emptyList(),
+                    (clusterName, nodeId) -> null, clusterState, Collections.emptyMap(), listener, clusterState.getNodes()
+                        .getDataNodes().size());
+            } else {
+                remoteClusterService.collectSearchShards(searchRequest.indicesOptions(), searchRequest.preference(),
+                    searchRequest.routing(), remoteClusterIndices, ActionListener.wrap((searchShardsResponses) -> {
+                        List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
+                        Map<String, AliasFilter> remoteAliasFilters = new HashMap<>();
+                        BiFunction<String, String, DiscoveryNode> clusterNodeLookup = processRemoteShards(searchShardsResponses,
+                            remoteClusterIndices, remoteShardIterators, remoteAliasFilters);
+                        int numNodesInvovled = searchShardsResponses.values().stream().mapToInt(r -> r.getNodes().length).sum()
+                            + clusterState.getNodes().getDataNodes().size();
+                        executeSearch((SearchTask) task, timeProvider, searchRequest, localIndices, remoteClusterIndices,
+                            remoteShardIterators, clusterNodeLookup, clusterState, remoteAliasFilters, listener, numNodesInvovled);
+                    }, listener::onFailure));
+            }
+        }, listener::onFailure);
+        if (searchRequest.source() == null) {
+            rewriteListener.onResponse(searchRequest.source());
         } else {
-            remoteClusterService.collectSearchShards(searchRequest.indicesOptions(), searchRequest.preference(), searchRequest.routing(),
-                remoteClusterIndices, ActionListener.wrap((searchShardsResponses) -> {
-                    List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
-                    Map<String, AliasFilter> remoteAliasFilters = new HashMap<>();
-                    BiFunction<String, String, DiscoveryNode> clusterNodeLookup = processRemoteShards(searchShardsResponses,
-                        remoteClusterIndices, remoteShardIterators, remoteAliasFilters);
-                    int numNodesInvovled = searchShardsResponses.values().stream().mapToInt(r -> r.getNodes().length).sum()
-                        + clusterState.getNodes().getDataNodes().size();
-                    executeSearch((SearchTask) task, timeProvider, searchRequest, localIndices, remoteClusterIndices, remoteShardIterators,
-                        clusterNodeLookup, clusterState, remoteAliasFilters, listener, numNodesInvovled);
-                }, listener::onFailure));
+            Rewriteable.rewriteAndFetch(searchRequest.source(), searchService.getRewriteContext(timeProvider::getAbsoluteStartMillis),
+                rewriteListener);
         }
     }
 

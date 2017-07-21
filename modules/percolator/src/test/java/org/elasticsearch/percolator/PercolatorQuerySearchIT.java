@@ -19,9 +19,7 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -280,12 +278,11 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh().get();
 
         logger.info("percolating empty doc with source disabled");
-        Throwable e = expectThrows(SearchPhaseExecutionException.class, () -> {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("query", "test", "type", "1", null, null, null))
                 .get();
-        }).getRootCause();
-        assertThat(e, instanceOf(IllegalArgumentException.class));
+        });
         assertThat(e.getMessage(), containsString("source disabled"));
     }
 
@@ -650,9 +647,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         item = response.getResponses()[5];
         assertThat(item.getResponse(), nullValue());
         assertThat(item.getFailureMessage(), notNullValue());
-        assertThat(item.getFailureMessage(), equalTo("all shards failed"));
-        assertThat(ExceptionsHelper.unwrapCause(item.getFailure().getCause()).getMessage(),
-            containsString("[test/type/6] couldn't be found"));
+        assertThat(item.getFailureMessage(), containsString("[test/type/6] couldn't be found"));
     }
 
 }

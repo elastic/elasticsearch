@@ -74,7 +74,7 @@ public abstract class EventHandler {
         assert closeFuture.isDone() : "Should always be done as we are on the selector thread";
         IOException closeException = closeFuture.getCloseException();
         if (closeException != null) {
-            logger.trace("exception while closing channel", closeException);
+            logger.debug("exception while closing channel", closeException);
         }
     }
 }

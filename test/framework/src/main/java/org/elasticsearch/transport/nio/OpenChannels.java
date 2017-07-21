@@ -124,7 +124,7 @@ public class OpenChannels implements Releasable {
             try {
                 future.get();
             } catch (Exception e) {
-                logger.trace("exception while closing channels", e);
+                logger.debug("exception while closing channels", e);
             }
         }
     }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -55,7 +56,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      */
     protected ShardId shardId;
 
-    long primaryTerm;
+    private long primaryTerm;
 
     protected TimeValue timeout = DEFAULT_TIMEOUT;
     protected String index;
@@ -170,13 +171,25 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         return routedBasedOnClusterVersion;
     }
 
-    /** returns the primary term active at the time the operation was performed on the primary shard */
-    public long primaryTerm() {
+    /**
+     * Returns the primary term active at the time the operation was performed on the primary shard.
+     * This method should not be used anymore, as its functionality has moved to ConcreteShardRequest.
+     * It is purely here for interoperability with ES v5.5 and below.
+     */
+    @Deprecated
+    long primaryTerm() {
         return primaryTerm;
     }
 
-    /** marks the primary term in which the operation was performed */
-    public void primaryTerm(long term) {
+    /**
+     * marks the primary term in which the operation was performed
+     * This method should not be used anymore, as its functionality has moved to ConcreteShardRequest.
+     * It is purely here for interoperability with ES v5.5 and below.
+     */
+    @Deprecated
+    void primaryTerm(long term) {
+        assert term == 0L || primaryTerm == 0L || primaryTerm == term :
+            "primary term should only be set once on a request, was " + primaryTerm + " now set to "  + term;
         primaryTerm = term;
     }
 
@@ -201,7 +214,11 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         timeout = new TimeValue(in);
         index = in.readString();
         routedBasedOnClusterVersion = in.readVLong();
-        primaryTerm = in.readVLong();
+        if (in.getVersion().before(Version.V_5_6_0_UNRELEASED)) {
+            primaryTerm = in.readVLong();
+        } else {
+            primaryTerm = 0L;
+        }
     }
 
     @Override
@@ -217,7 +234,9 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         timeout.writeTo(out);
         out.writeString(index);
         out.writeVLong(routedBasedOnClusterVersion);
-        out.writeVLong(primaryTerm);
+        if (out.getVersion().before(Version.V_5_6_0_UNRELEASED)) {
+            out.writeVLong(primaryTerm);
+        }
     }
 
     @Override

@@ -113,7 +113,6 @@ public class ReplicationOperation<
         primaryResult = primary.perform(request);
         final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
         if (replicaRequest != null) {
-            assert replicaRequest.primaryTerm() > 0 : "replicaRequest doesn't have a primary term";
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}] op [{}] completed on primary for request [{}]", primaryId, opType, request);
             }
@@ -146,7 +145,7 @@ public class ReplicationOperation<
             for (String allocationId : Sets.difference(inSyncAllocationIds, availableAllocationIds)) {
                 // mark copy as stale
                 pendingActions.incrementAndGet();
-                replicasProxy.markShardCopyAsStale(replicaRequest.shardId(), allocationId, replicaRequest.primaryTerm(),
+                replicasProxy.markShardCopyAsStale(replicaRequest.shardId(), allocationId,
                     ReplicationOperation.this::decPendingAndFinishIfNeeded,
                     ReplicationOperation.this::onPrimaryDemoted,
                     throwable -> decPendingAndFinishIfNeeded()
@@ -210,7 +209,7 @@ public class ReplicationOperation<
                     logger.warn(
                         (org.apache.logging.log4j.util.Supplier<?>)
                             () -> new ParameterizedMessage("[{}] {}", shard.shardId(), message), replicaException);
-                    replicasProxy.failShard(shard, replicaRequest.primaryTerm(), message, replicaException,
+                    replicasProxy.failShard(shard, message, replicaException,
                         ReplicationOperation.this::decPendingAndFinishIfNeeded,
                         ReplicationOperation.this::onPrimaryDemoted,
                         throwable -> decPendingAndFinishIfNeeded()
@@ -337,7 +336,6 @@ public class ReplicationOperation<
          * @return the request to send to the repicas
          */
         PrimaryResultT perform(Request request) throws Exception;
-
     }
 
     public interface Replicas<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> {
@@ -349,12 +347,12 @@ public class ReplicationOperation<
          * @param replicaRequest operation to peform
          * @param listener       a callback to call once the operation has been complicated, either successfully or with an error.
          */
-        void performOn(ShardRouting replica, ReplicaRequest replicaRequest, ActionListener<TransportResponse.Empty> listener);
+        void performOn(ShardRouting replica, ReplicaRequest replicaRequest,
+                       ActionListener<TransportResponse.Empty> listener);
 
         /**
          * Fail the specified shard, removing it from the current set of active shards
          * @param replica          shard to fail
-         * @param primaryTerm      the primary term of the primary shard when requesting the failure
          * @param message          a (short) description of the reason
          * @param exception        the original exception which caused the ReplicationOperation to request the shard to be failed
          * @param onSuccess        a callback to call when the shard has been successfully removed from the active set.
@@ -362,7 +360,7 @@ public class ReplicationOperation<
 *                         by the master.
          * @param onIgnoredFailure a callback to call when failing a shard has failed, but it that failure can be safely ignored and the
          */
-        void failShard(ShardRouting replica, long primaryTerm, String message, Exception exception, Runnable onSuccess,
+        void failShard(ShardRouting replica, String message, Exception exception, Runnable onSuccess,
                        Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure);
 
         /**
@@ -370,13 +368,12 @@ public class ReplicationOperation<
          *
          * @param shardId          shard id
          * @param allocationId     allocation id to remove from the set of in-sync allocation ids
-         * @param primaryTerm      the primary term of the primary shard when requesting the failure
          * @param onSuccess        a callback to call when the allocation id has been successfully removed from the in-sync set.
          * @param onPrimaryDemoted a callback to call when the request failed because the current primary was already demoted
          *                         by the master.
          * @param onIgnoredFailure a callback to call when the request failed, but the failure can be safely ignored.
          */
-        void markShardCopyAsStale(ShardId shardId, String allocationId, long primaryTerm, Runnable onSuccess,
+        void markShardCopyAsStale(ShardId shardId, String allocationId, Runnable onSuccess,
                                   Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure);
     }
 

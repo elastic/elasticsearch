@@ -1,0 +1,30 @@
+[[release-notes-5.5.1]]
+== 5.5.1 Release Notes
+
+See https://www.elastic.co/blog/multi-data-path-bug-in-elasticsearch-5-3-0[Multi data path bug in Elasticsearch 5.3.0].
+
+Also see <<breaking-changes-5.5>>.
+
+
+[[bug-5.5.1]]
+[float]
+=== Bug fixes
+
+Aliases::
+* mget with an alias shouldn't ignore alias routing {pull}25697[#25697] (issue: {issue}25696[#25696])
+
+Engine::
+* Engine - Do not store operations that are not index into lucene in the translog (5.x only) {pull}25592[#25592]
+
+Internal::
+* Fix BytesReferenceStreamInput#skip with offset {pull}25634[#25634]
+
+Packaging::
+* Stop disabling explicit GC {pull}25759[#25759]
+* Avoid failing install if system-sysctl is masked {pull}25657[#25657] (issue: {issue}24234[#24234])
+* Get short path name for native controllers {pull}25344[#25344]
+
+Query DSL::
+* WrapperQueryBuilder should also rewrite the parsed query {pull}25480[#25480]
+
+

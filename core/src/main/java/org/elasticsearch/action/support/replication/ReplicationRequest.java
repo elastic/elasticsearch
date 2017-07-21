@@ -174,7 +174,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     /**
      * Returns the primary term active at the time the operation was performed on the primary shard.
      * This method should not be used anymore, as its functionality has moved to ConcreteShardRequest.
-     * It is purely here for interoperability with < v5.6 nodes.
+     * It is purely here for interoperability with ES v5.5 and below.
      */
     @Deprecated
     long primaryTerm() {
@@ -184,7 +184,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     /**
      * marks the primary term in which the operation was performed
      * This method should not be used anymore, as its functionality has moved to ConcreteShardRequest.
-     * It is purely here for interoperability with < v5.6 nodes.
+     * It is purely here for interoperability with ES v5.5 and below.
      */
     @Deprecated
     void primaryTerm(long term) {

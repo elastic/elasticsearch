@@ -324,7 +324,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
             skippedShards = in.readVInt();
         }
     }
@@ -343,7 +343,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
 
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
-        if(out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+        if(out.getVersion().onOrAfter(Version.V_5_6_0)) {
             out.writeVInt(skippedShards);
         }
     }

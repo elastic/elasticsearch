@@ -20,6 +20,8 @@
 package org.apache.lucene.search.uhighlight;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -62,6 +64,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     public static final char MULTIVAL_SEP_CHAR = (char) 0;
     private static final Snippet[] EMPTY_SNIPPET = new Snippet[0];
 
+    private final OffsetSource offsetSource;
     private final String fieldValue;
     private final PassageFormatter passageFormatter;
     private final BreakIterator breakIterator;
@@ -71,24 +74,27 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
      *
-     * @param analyzer the analyzer used for the field at index time, used for multi term queries internally
+     * @param analyzer the analyzer used for the field at index time, used for multi term queries internally.
      * @param passageFormatter our own {@link CustomPassageFormatter}
-     *                    which generates snippets in forms of {@link Snippet} objects
+     *                    which generates snippets in forms of {@link Snippet} objects.
+     * @param offsetSource the {@link OffsetSource} to used for offsets retrieval.
      * @param breakIteratorLocale the {@link Locale} to use for dividing text into passages.
-     *                    If null {@link Locale#ROOT} is used
+     *                    If null {@link Locale#ROOT} is used.
      * @param breakIterator the {@link BreakIterator} to use for dividing text into passages.
      *                    If null {@link BreakIterator#getSentenceInstance(Locale)} is used.
-     * @param fieldValue the original field values delimited by MULTIVAL_SEP_CHAR
-     * @param noMatchSize The size of the text that should be returned when no highlighting can be performed
+     * @param fieldValue the original field values delimited by MULTIVAL_SEP_CHAR.
+     * @param noMatchSize The size of the text that should be returned when no highlighting can be performed.
      */
     public CustomUnifiedHighlighter(IndexSearcher searcher,
                                     Analyzer analyzer,
+                                    OffsetSource offsetSource,
                                     PassageFormatter passageFormatter,
                                     @Nullable Locale breakIteratorLocale,
                                     @Nullable BreakIterator breakIterator,
                                     String fieldValue,
                                     int noMatchSize) {
         super(searcher, analyzer);
+        this.offsetSource = offsetSource;
         this.breakIterator = breakIterator;
         this.breakIteratorLocale = breakIteratorLocale == null ? Locale.ROOT : breakIteratorLocale;
         this.passageFormatter = passageFormatter;
@@ -213,4 +219,16 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             return null;
         }
     }
+
+    /**
+     * Forces the offset source for this highlighter
+     */
+    @Override
+    protected OffsetSource getOffsetSource(String field) {
+        if (offsetSource == null) {
+            return super.getOffsetSource(field);
+        }
+        return offsetSource;
+    }
+
 }

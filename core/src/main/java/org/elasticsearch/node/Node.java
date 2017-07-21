@@ -29,6 +29,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.TransportAction;
@@ -423,8 +424,9 @@ public class Node implements Closeable {
             final Transport transport = networkModule.getTransportSupplier().get();
             final TransportService transportService = newTransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings());
-            final SearchTransportService searchTransportService =  new SearchTransportService(settings,
-                transportService);
+            final ResponseCollectorService responseCollectorService = new ResponseCollectorService(this.settings, clusterService);
+            final SearchTransportService searchTransportService =  new SearchTransportService(settings, transportService,
+                SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
             final Consumer<Binder> httpBind;
             final HttpServerTransport httpServerTransport;
             if (networkModule.isHttpEnabled()) {
@@ -469,7 +471,8 @@ public class Node implements Closeable {
                     b.bind(MetaStateService.class).toInstance(metaStateService);
                     b.bind(IndicesService.class).toInstance(indicesService);
                     b.bind(SearchService.class).toInstance(newSearchService(clusterService, indicesService,
-                        threadPool, scriptModule.getScriptService(), bigArrays, searchModule.getFetchPhase()));
+                        threadPool, scriptModule.getScriptService(), bigArrays, searchModule.getFetchPhase(),
+                        responseCollectorService));
                     b.bind(SearchTransportService.class).toInstance(searchTransportService);
                     b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(settings, bigArrays,
                             scriptModule.getScriptService()));
@@ -485,7 +488,7 @@ public class Node implements Closeable {
                         RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
                         processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
                         b.bind(PeerRecoverySourceService.class).toInstance(new PeerRecoverySourceService(settings, transportService,
-                                indicesService, recoverySettings, clusterService));
+                                indicesService, recoverySettings));
                         b.bind(PeerRecoveryTargetService.class).toInstance(new PeerRecoveryTargetService(settings, threadPool,
                                 transportService, recoverySettings, clusterService));
                     }
@@ -897,8 +900,9 @@ public class Node implements Closeable {
      */
     protected SearchService newSearchService(ClusterService clusterService, IndicesService indicesService,
                                              ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays,
-                                             FetchPhase fetchPhase) {
-        return new SearchService(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase);
+                                             FetchPhase fetchPhase, ResponseCollectorService responseCollectorService) {
+        return new SearchService(clusterService, indicesService, threadPool,
+            scriptService, bigArrays, fetchPhase, responseCollectorService);
     }
 
     /**

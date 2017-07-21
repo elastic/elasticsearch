@@ -56,6 +56,22 @@
 * The `percolate` query's `document_type` has been deprecated. From 6.0 and later
   it is no longer required to specify the `document_type` parameter.
 
+* The `split_on_whitespace` parameter for the `query_string` query has been removed.
+  If provided, it will be ignored and issue a deprecation warning.
+  The `query_string` query now splits on logical operator only.
+
+* The `use_dismax` parameter for the `query_string` query has been removed.
+  If provided, it will be ignored and issue a deprecation warning.
+  The `tie_breaker` parameter must be used instead.
+
+* The `auto_generate_phrase_queries` parameter for the `query_string` query has been removed,
+  use an explicit quoted query instead.
+  If provided, it will be ignored and issue a deprecation warning.
+
+* The `index` parameter in the terms filter, used to look up terms in a dedicated index is
+  now mandatory. Previously, the index defaulted to the index the query was executed on. Now this index
+  must be explicitly set in the request.
+
 ==== Search shards API
 
 The search shards API no longer accepts the `type` url parameter, which didn't
@@ -102,7 +118,7 @@ for the `random_score` function. If you really need access to the id of
 documents for sorting, aggregations or search scripts, the recommendation is
 to duplicate the id as a field in the document.
 
-==== Highlighers
+==== Highlighters
 
 The `unified` highlighter is the new default choice for highlighter.
 The offset strategy for each field is picked internally by this highlighter depending on the

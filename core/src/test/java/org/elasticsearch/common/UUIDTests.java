@@ -26,7 +26,7 @@ import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.IndexWriterConfig.OpenMode;
+import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -121,7 +121,7 @@ public class UUIDTests extends ESTestCase {
         // Low number so that the test runs quickly, but the results are more interesting with larger numbers
         // of indexed documents
         assertThat(testCompression(500000, 10000, 3, logger), Matchers.lessThan(12d)); // ~10.8 in practice
-        assertThat(testCompression(500000, 1000, 3, logger), Matchers.lessThan(13d)); // ~11.5 in practice
+        assertThat(testCompression(500000, 1000, 3, logger), Matchers.lessThan(14d)); // ~11.5 in practice
         assertThat(testCompression(500000, 100, 3, logger), Matchers.lessThan(21d)); // ~19.5 in practice
     }
 
@@ -150,7 +150,9 @@ public class UUIDTests extends ESTestCase {
         // Avoid randomization which will slow down things without improving
         // the quality of this test
         Directory dir = newFSDirectory(createTempDir());
-        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig().setOpenMode(OpenMode.CREATE));
+        IndexWriterConfig config = new IndexWriterConfig()
+                .setMergeScheduler(new SerialMergeScheduler()); // for reproducibility
+        IndexWriter w = new IndexWriter(dir, config);
         Document doc = new Document();
         StringField id = new StringField("_id", "", Store.NO);
         doc.add(id);

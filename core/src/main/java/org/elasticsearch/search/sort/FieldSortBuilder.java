@@ -32,6 +32,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
@@ -333,5 +334,17 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)) , ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORT_MODE);
         PARSER.declareObject(FieldSortBuilder::setNestedFilter, (p, c) -> SortBuilder.parseNestedFilter(p), NESTED_FILTER_FIELD);
+    }
+
+    @Override
+    public SortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        if (nestedFilter == null) {
+            return this;
+        }
+        QueryBuilder rewrite = nestedFilter.rewrite(ctx);
+        if (nestedFilter == rewrite) {
+            return this;
+        }
+        return new FieldSortBuilder(this).setNestedFilter(rewrite);
     }
 }

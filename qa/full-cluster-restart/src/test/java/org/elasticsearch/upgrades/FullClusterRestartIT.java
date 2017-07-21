@@ -149,6 +149,17 @@ public class FullClusterRestartIT extends ESRestTestCase {
         } else {
             count = countOfIndexedRandomDocuments();
         }
+
+        Map<String, String> params = new HashMap<>();
+        params.put("timeout", "2m");
+        params.put("wait_for_status", "green");
+        params.put("wait_for_no_relocating_shards", "true");
+        params.put("wait_for_events", "languid");
+        Map<String, Object> healthRsp = toMap(client().performRequest("GET", "/_cluster/health/" + index, params));
+        logger.info("health api response: {}", healthRsp);
+        assertEquals("green", healthRsp.get("status"));
+        assertFalse((Boolean) healthRsp.get("timed_out"));
+
         assertBasicSearchWorks(count);
         assertAllSearchWorks(count);
         assertBasicAggregationWorks();

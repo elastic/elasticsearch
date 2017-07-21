@@ -60,7 +60,7 @@ index and re-runs the original query criteria through Lucene's query execution
 planner to get access to low-level match information for the current document.
 This is repeated for every field and every document that needs to be highlighted.
 If you want to highlight a lot of fields in a lot of documents with complex
-queries, we recommend using one of the other highlighters.
+queries, we recommend using the `unified` highlighter on `postings` or `term_vector` fields.
 
 [[fast-vector-highlighter]]
 ==== Fast vector highlighter
@@ -68,8 +68,7 @@ The `fvh` highlighter uses the Lucene Fast Vector highlighter.
 This highlighter can be used on fields with `term_vector` set to
 `with_positions_offsets` in the mapping. The fast vector highlighter:
 
-* Is faster especially for large fields (> `1MB`)
-* Can be customized with  a <<boundary-scanners,`boundary_scanner`>>. 
+* Can be customized with  a <<boundary-scanners,`boundary_scanner`>>.
 * Requires setting `term_vector` to `with_positions_offsets` which
   increases the size of the index
 * Can combine matches from multiple fields into one result.  See
@@ -95,12 +94,11 @@ disk space than using `term_vectors`.
 * Term vectors. If `term_vector` information is provided by setting 
 `term_vector` to `with_positions_offsets` in the mapping, the `unified`
 highlighter automatically uses the `term_vector` to highlight the field.
-Term vector highlighting is faster for highlighting multi-term queries like
-`prefix` or `wildcard` because it can access the dictionary of terms for
-each document, but it can be slower than using the postings list. The `fvh`
-highlighter always uses term vectors.
+It's fast especially for large fields (> `1MB`) and for highlighting multi-term queries like
+`prefix` or `wildcard` because it can access the dictionary of terms for each document.
+The `fvh` highlighter always uses term vectors.
 
-* Plain highlighting. This mode is used when there is no other alternative.
+* Plain highlighting. This mode is used by the `unified` when there is no other alternative.
 It creates a tiny in-memory index and re-runs the original query criteria through
 Lucene's query execution planner to get access to low-level match information on
 the current document. This is repeated for every field and every document that

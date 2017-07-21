@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -346,7 +347,9 @@ public class IndexShardTests extends IndexShardTestCase {
                         ShardRoutingState.STARTED,
                         replicaRouting.allocationId());
         indexShard.updateShardState(primaryRouting, indexShard.getPrimaryTerm() + 1, (shard, listener) -> {},
-            0L, Collections.singleton(primaryRouting.allocationId().getId()), Collections.emptySet(), Collections.emptySet());
+            0L, Collections.singleton(primaryRouting.allocationId().getId()),
+            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build(),
+            Collections.emptySet());
 
         final int delayedOperations = scaledRandomIntBetween(1, 64);
         final CyclicBarrier delayedOperationsBarrier = new CyclicBarrier(1 + delayedOperations);
@@ -421,7 +424,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         ShardRoutingState.STARTED,
                         replicaRouting.allocationId());
         indexShard.updateShardState(primaryRouting, indexShard.getPrimaryTerm() + 1, (shard, listener) -> {},
-            0L, Collections.singleton(primaryRouting.allocationId().getId()), Collections.emptySet(), Collections.emptySet());
+            0L, Collections.singleton(primaryRouting.allocationId().getId()),
+            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build(), Collections.emptySet());
 
         /*
          * This operation completing means that the delay operation executed as part of increasing the primary term has completed and the
@@ -463,7 +467,9 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardRouting primaryRouting = TestShardRouting.newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), null,
                 true, ShardRoutingState.STARTED, replicaRouting.allocationId());
             indexShard.updateShardState(primaryRouting, indexShard.getPrimaryTerm() + 1, (shard, listener) -> {}, 0L,
-                Collections.singleton(indexShard.routingEntry().allocationId().getId()), Collections.emptySet(), Collections.emptySet());
+                Collections.singleton(indexShard.routingEntry().allocationId().getId()),
+                new IndexShardRoutingTable.Builder(indexShard.shardId()).addShard(primaryRouting).build(),
+                Collections.emptySet());
         } else {
             indexShard = newStartedShard(true);
         }
@@ -744,7 +750,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 (s, r) -> resyncLatch.countDown(),
                 1L,
                 Collections.singleton(newRouting.allocationId().getId()),
-                Collections.emptySet(),
+                new IndexShardRoutingTable.Builder(newRouting.shardId()).addShard(newRouting).build(),
                 Collections.emptySet());
         resyncLatch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(maxSeqNo));
@@ -1405,7 +1411,7 @@ public class IndexShardTests extends IndexShardTestCase {
         for (int i = 0; i < totalOps; i++) {
             indexDoc(primarySource, "test", Integer.toString(i));
         }
-        IndexShardTestCase.updateRoutingEntry(primarySource, primarySource.routingEntry().relocate("n2", -1));
+        IndexShardTestCase.updateRoutingEntry(primarySource, primarySource.routingEntry().relocate(randomAlphaOfLength(10), -1));
         final IndexShard primaryTarget = newShard(primarySource.routingEntry().getTargetRelocatingShard());
         updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetaData());
         recoverReplica(primaryTarget, primarySource);

@@ -518,12 +518,12 @@ public class QueryAnalyzerTests extends ESTestCase {
 
     public void testFunctionScoreQuery() {
         TermQuery termQuery = new TermQuery(new Term("_field", "_value"));
-        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(termQuery, new RandomScoreFunction());
+        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(termQuery, new RandomScoreFunction(0, 0, null));
         Result result = analyze(functionScoreQuery);
         assertThat(result.verified, is(true));
         assertTermsEqual(result.terms, new Term("_field", "_value"));
 
-        functionScoreQuery = new FunctionScoreQuery(termQuery, new RandomScoreFunction(), 1f, null, 10f);
+        functionScoreQuery = new FunctionScoreQuery(termQuery, new RandomScoreFunction(0, 0, null), 1f, null, 10f);
         result = analyze(functionScoreQuery);
         assertThat(result.verified, is(false));
         assertTermsEqual(result.terms, new Term("_field", "_value"));

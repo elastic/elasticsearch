@@ -30,7 +30,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -80,7 +79,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -1418,7 +1416,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(version0Response.value1, equalTo(1));
     }
 
-    public void testMockFailToSendNoConnectRule() throws IOException {
+    public void testMockFailToSendNoConnectRule() throws Exception {
         serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC,
             (request, channel) -> {
                 assertThat("moshe", equalTo(request.message));
@@ -1461,6 +1459,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(((ConnectTransportException)cause).node(), equalTo(nodeA));
         }
 
+        // wait for the transport to process the sending failure and disconnect from node
+        assertBusy(() -> assertFalse(serviceB.nodeConnected(nodeA)));
+
+        // now try to connect again and see that it fails
         try {
             serviceB.connectToNode(nodeA);
             fail("exception should be thrown");

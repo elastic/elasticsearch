@@ -161,8 +161,6 @@ class NodeInfo {
         env.put('CONF_DIR', confDir)
         if (Version.fromString(nodeVersion).major == 5) {
             args.addAll("-E", "path.conf=${confDir}")
-        } else {
-            args.addAll("--path.conf", "${confDir}")
         }
         if (!System.properties.containsKey("tests.es.path.data")) {
             args.addAll("-E", "path.data=${-> dataDir.toString()}")

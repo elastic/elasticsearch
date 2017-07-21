@@ -159,7 +159,8 @@ task verifyVersions {
  * after the backport of the backcompat code is complete.
  */
 allprojects {
-  ext.bwc_tests_enabled = true
+  // disabled in preparation of merging #25822 & #25824
+  ext.bwc_tests_enabled = false
 }
 
 task verifyBwcTestsEnabled {

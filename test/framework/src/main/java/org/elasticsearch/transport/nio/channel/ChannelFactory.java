@@ -114,8 +114,8 @@ public class ChannelFactory {
 
         SocketChannel openNioChannel(InetSocketAddress remoteAddress) throws IOException {
             SocketChannel socketChannel = SocketChannel.open();
-            configureSocketChannel(socketChannel);
             try {
+                configureSocketChannel(socketChannel);
                 PrivilegedSocketAccess.connect(socketChannel, remoteAddress);
             } catch (IOException e) {
                 closeRawChannel(socketChannel, e);
@@ -135,8 +135,8 @@ public class ChannelFactory {
             ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
             serverSocketChannel.configureBlocking(false);
             ServerSocket socket = serverSocketChannel.socket();
-            socket.setReuseAddress(tcpReusedAddress);
             try {
+                socket.setReuseAddress(tcpReusedAddress);
                 serverSocketChannel.bind(address);
             } catch (IOException e) {
                 closeRawChannel(serverSocketChannel, e);

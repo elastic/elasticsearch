@@ -46,12 +46,12 @@ public abstract class ESSelector implements Closeable {
 
     final Selector selector;
     final ConcurrentLinkedQueue<NioChannel> channelsToClose = new ConcurrentLinkedQueue<>();
-    final Set<NioChannel> registeredChannels = Collections.newSetFromMap(new ConcurrentHashMap<NioChannel, Boolean>());
 
     private final EventHandler eventHandler;
     private final ReentrantLock runLock = new ReentrantLock();
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final PlainActionFuture<Boolean> isRunningFuture = PlainActionFuture.newFuture();
+    private final Set<NioChannel> registeredChannels = Collections.newSetFromMap(new ConcurrentHashMap<NioChannel, Boolean>());
     private volatile Thread thread;
 
     ESSelector(EventHandler eventHandler) throws IOException {
@@ -77,9 +77,15 @@ public abstract class ESSelector implements Closeable {
                 }
             } finally {
                 try {
-                    cleanup();
+                    cleanupAndCloseChannels();
                 } finally {
-                    runLock.unlock();
+                    try {
+                        selector.close();
+                    } catch (IOException e) {
+                        eventHandler.closeSelectorException(e);
+                    } finally {
+                        runLock.unlock();
+                    }
                 }
             }
         } else {
@@ -102,6 +108,12 @@ public abstract class ESSelector implements Closeable {
         }
     }
 
+    void cleanupAndCloseChannels() {
+        cleanup();
+        channelsToClose.addAll(registeredChannels);
+        closePendingChannels();
+    }
+
     /**
      * Should implement the specific select logic. This will be called once per {@link #singleLoop()}
      *
@@ -111,6 +123,11 @@ public abstract class ESSelector implements Closeable {
      */
     abstract void doSelect(int timeout) throws IOException, ClosedSelectorException;
 
+    /**
+     * Called once as the selector is being closed.
+     */
+    abstract void cleanup();
+
     void setThread() {
         thread = Thread.currentThread();
     }
@@ -119,13 +136,22 @@ public abstract class ESSelector implements Closeable {
         return Thread.currentThread() == thread;
     }
 
-    public void wakeup() {
-        // TODO: Do I need the wakeup optimizations that some other libraries use?
+    void wakeup() {
+        // TODO: Do we need the wakeup optimizations that some other libraries use?
         selector.wakeup();
     }
 
     public Set<NioChannel> getRegisteredChannels() {
         return registeredChannels;
+    }
+
+    public void addRegisteredChannel(NioChannel channel) {
+        assert registeredChannels.contains(channel) == false : "Should only register channel once";
+        registeredChannels.add(channel);
+    }
+
+    public void removeRegisteredChannel(NioChannel channel) {
+        registeredChannels.remove(channel);
     }
 
     @Override
@@ -135,7 +161,6 @@ public abstract class ESSelector implements Closeable {
 
     public void close(boolean shouldInterrupt) throws IOException {
         if (isClosed.compareAndSet(false, true)) {
-            selector.close();
             if (shouldInterrupt && thread != null) {
                 thread.interrupt();
             } else {
@@ -146,23 +171,11 @@ public abstract class ESSelector implements Closeable {
     }
 
     public void queueChannelClose(NioChannel channel) {
+        assert channel.getSelector() == this : "Must schedule a channel for closure with its selector";
         channelsToClose.offer(channel);
         ensureSelectorOpenForEnqueuing(channelsToClose, channel);
         wakeup();
     }
-
-    void closePendingChannels() {
-        NioChannel channel;
-        while ((channel = channelsToClose.poll()) != null) {
-            closeChannel(channel);
-        }
-    }
-
-
-    /**
-     * Called once as the selector is being closed.
-     */
-    abstract void cleanup();
 
     public Selector rawSelector() {
         return selector;
@@ -198,18 +211,17 @@ public abstract class ESSelector implements Closeable {
      * @param <O> the object type
      */
     <O> void ensureSelectorOpenForEnqueuing(ConcurrentLinkedQueue<O> queue, O objectAdded) {
-        if (isClosed.get() && isOnCurrentThread() == false) {
+        if (isOpen() == false && isOnCurrentThread() == false) {
             if (queue.remove(objectAdded)) {
                 throw new IllegalStateException("selector is already closed");
             }
         }
     }
 
-    private void closeChannel(NioChannel channel) {
-        try {
+    private void closePendingChannels() {
+        NioChannel channel;
+        while ((channel = channelsToClose.poll()) != null) {
             eventHandler.handleClose(channel);
-        } finally {
-            registeredChannels.remove(channel);
         }
     }
 }

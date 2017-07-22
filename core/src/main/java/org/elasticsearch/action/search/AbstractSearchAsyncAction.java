@@ -316,8 +316,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     protected void skipShard(SearchShardIterator iterator) {
-        super.skipShard(iterator);
         successfulOps.incrementAndGet();
         skippedOps.incrementAndGet();
+        super.skipShard(iterator);
     }
 }

@@ -94,9 +94,8 @@ public class NioTransport extends TcpTransport<NioChannel> {
     @Override
     protected NioServerSocketChannel bind(String name, InetSocketAddress address) throws IOException {
         ChannelFactory channelFactory = this.profileToChannelFactory.get(name);
-        NioServerSocketChannel serverSocketChannel = channelFactory.openNioServerSocketChannel(name, address);
-        acceptors.get(++acceptorNumber % NioTransport.NIO_ACCEPTOR_COUNT.get(settings)).registerServerChannel(serverSocketChannel);
-        return serverSocketChannel;
+        AcceptingSelector selector = acceptors.get(++acceptorNumber % NioTransport.NIO_ACCEPTOR_COUNT.get(settings));
+        return channelFactory.openNioServerSocketChannel(name, address, selector);
     }
 
     @Override
@@ -104,9 +103,14 @@ public class NioTransport extends TcpTransport<NioChannel> {
         ArrayList<CloseFuture> futures = new ArrayList<>(channels.size());
         for (final NioChannel channel : channels) {
             if (channel != null && channel.isOpen()) {
+                // We do not need to wait for the close operation to complete. If the close operation fails due
+                // to an IOException, the selector's handler will log the exception. Additionally, in the case
+                // of transport shutdown, where we do want to ensure that all channels to finished closing, the
+                // NioShutdown class will block on close.
                 futures.add(channel.closeAsync());
             }
         }
+
         if (blocking == false) {
             return;
         }
@@ -173,27 +177,29 @@ public class NioTransport extends TcpTransport<NioChannel> {
                     AcceptingSelector acceptor = new AcceptingSelector(eventHandler);
                     acceptors.add(acceptor);
                 }
+
+                client = createClient();
+
+                for (SocketSelector selector : socketSelectors) {
+                    if (selector.isRunning() == false) {
+                        ThreadFactory threadFactory = daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX);
+                        threadFactory.newThread(selector::runLoop).start();
+                        selector.isRunningFuture().actionGet();
+                    }
+                }
+
+                for (AcceptingSelector acceptor : acceptors) {
+                    if (acceptor.isRunning() == false) {
+                        ThreadFactory threadFactory = daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX);
+                        threadFactory.newThread(acceptor::runLoop).start();
+                        acceptor.isRunningFuture().actionGet();
+                    }
+                }
+
                 // loop through all profiles and start them up, special handling for default one
                 for (ProfileSettings profileSettings : profileSettings) {
                     profileToChannelFactory.putIfAbsent(profileSettings.profileName, new ChannelFactory(profileSettings, tcpReadHandler));
                     bindServer(profileSettings);
-                }
-            }
-            client = createClient();
-
-            for (SocketSelector selector : socketSelectors) {
-                if (selector.isRunning() == false) {
-                    ThreadFactory threadFactory = daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX);
-                    threadFactory.newThread(selector::runLoop).start();
-                    selector.isRunningFuture().actionGet();
-                }
-            }
-
-            for (AcceptingSelector acceptor : acceptors) {
-                if (acceptor.isRunning() == false) {
-                    ThreadFactory threadFactory = daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX);
-                    threadFactory.newThread(acceptor::runLoop).start();
-                    acceptor.isRunningFuture().actionGet();
                 }
             }
 

@@ -207,30 +207,40 @@ public class QueryStringIT extends ESIntegTestCase {
         assertHitCount(resp, 3L);
     }
 
-    public void testExplicitAllFieldsRequested() throws Exception {
-        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index-with-all.json");
-        prepareCreate("test2").setSource(indexBody, XContentType.JSON).get();
-        ensureGreen("test2");
+    public void testAllFields() throws Exception {
+        String indexBodyWithAll = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index-with-all.json");
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+
+        // Defaults to index.query.default_field=_all
+        prepareCreate("test_1").setSource(indexBodyWithAll, XContentType.JSON).get();
+        Settings.Builder settings = Settings.builder().put("index.query.default_field", "*");
+        prepareCreate("test_2").setSource(indexBody, XContentType.JSON).setSettings(settings).get();
+        ensureGreen("test_1","test_2");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test2", "doc", "1").setSource("f1", "foo", "f2", "eggplant"));
+        reqs.add(client().prepareIndex("test_1", "doc", "1").setSource("f1", "foo", "f2", "eggplant"));
+        reqs.add(client().prepareIndex("test_2", "doc", "1").setSource("f1", "foo", "f2", "eggplant"));
         indexRandom(true, false, reqs);
 
-        SearchResponse resp = client().prepareSearch("test2").setQuery(
-                queryStringQuery("foo eggplant").defaultOperator(Operator.AND)).get();
+        SearchResponse resp = client().prepareSearch("test_1").setQuery(
+            queryStringQuery("foo eggplant").defaultOperator(Operator.AND)).get();
         assertHitCount(resp, 0L);
 
-        resp = client().prepareSearch("test2").setQuery(
-                queryStringQuery("foo eggplant").defaultOperator(Operator.OR).useAllFields(true)).get();
+        resp = client().prepareSearch("test_2").setQuery(
+            queryStringQuery("foo eggplant").defaultOperator(Operator.AND)).get();
+        assertHitCount(resp, 0L);
+
+        resp = client().prepareSearch("test_1").setQuery(
+            queryStringQuery("foo eggplant").defaultOperator(Operator.OR)).get();
         assertHits(resp.getHits(), "1");
         assertHitCount(resp, 1L);
 
-        Exception e = expectThrows(Exception.class, () ->
-                client().prepareSearch("test2").setQuery(
-                        queryStringQuery("blah").field("f1").useAllFields(true)).get());
-        assertThat(ExceptionsHelper.detailedMessage(e),
-                containsString("cannot use [all_fields] parameter in conjunction with [default_field] or [fields]"));
+        resp = client().prepareSearch("test_2").setQuery(
+            queryStringQuery("foo eggplant").defaultOperator(Operator.OR)).get();
+        assertHits(resp.getHits(), "1");
+        assertHitCount(resp, 1L);
     }
+
 
     @LuceneTestCase.AwaitsFix(bugUrl="currently can't perform phrase queries on fields that don't support positions")
     public void testPhraseQueryOnFieldWithNoPositions() throws Exception {

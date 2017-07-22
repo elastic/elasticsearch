@@ -67,8 +67,7 @@ public class MockTransportClient extends TransportClient {
                 plugins.add(NioTransportPlugin.class);
                 return plugins;
             }
-        } else {
-            throw new IllegalArgumentException("Unexpected transport type: " + transportType);
         }
+        return plugins;
     }
 }

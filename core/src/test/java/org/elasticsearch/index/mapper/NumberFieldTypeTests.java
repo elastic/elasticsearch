@@ -355,35 +355,35 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testParseOutOfRangeValues() throws IOException {
-        final List<Tuple<NumberType, Object, String>> inputs = Arrays.asList(
-            new Tuple<>(NumberType.BYTE, "128", "Value out of range"),
-            new Tuple<>(NumberType.SHORT, "32768", "Value out of range"),
-            new Tuple<>(NumberType.INTEGER, "2147483648", "For input string"),
-            new Tuple<>(NumberType.LONG, "9223372036854775808", "For input string"),
+        final List<Triple<NumberType, Object, String>> inputs = Arrays.asList(
+            Triple.of(NumberType.BYTE, "128", "Value out of range"),
+            Triple.of(NumberType.SHORT, "32768", "Value out of range"),
+            Triple.of(NumberType.INTEGER, "2147483648", "For input string"),
+            Triple.of(NumberType.LONG, "9223372036854775808", "For input string"),
 
-            new Tuple<>(NumberType.BYTE, 128, "is out of range for a byte"),
-            new Tuple<>(NumberType.SHORT, 32768, "is out of range for a short"),
-            new Tuple<>(NumberType.INTEGER, 2147483648L, "is out of range for an integer"),
-            new Tuple<>(NumberType.LONG, new BigInteger("92233720368547758080"), " is out of range for a long"),
+            Triple.of(NumberType.BYTE, 128, "is out of range for a byte"),
+            Triple.of(NumberType.SHORT, 32768, "is out of range for a short"),
+            Triple.of(NumberType.INTEGER, 2147483648L, "is out of range for an integer"),
+            Triple.of(NumberType.LONG, new BigInteger("92233720368547758080"), " is out of range for a long"),
 
-            new Tuple<>(NumberType.HALF_FLOAT, "65504.1", "[half_float] supports only finite values"),
-            new Tuple<>(NumberType.FLOAT, "3.4028235E39", "[float] supports only finite values"),
-            new Tuple<>(NumberType.DOUBLE, "1.7976931348623157E309", "[double] supports only finite values"),
+            Triple.of(NumberType.HALF_FLOAT, "65504.1", "[half_float] supports only finite values"),
+            Triple.of(NumberType.FLOAT, "3.4028235E39", "[float] supports only finite values"),
+            Triple.of(NumberType.DOUBLE, "1.7976931348623157E309", "[double] supports only finite values"),
 
-            new Tuple<>(NumberType.HALF_FLOAT, 65504.1, "[half_float] supports only finite values"),
-            new Tuple<>(NumberType.FLOAT, 3.4028235E39, "[float] supports only finite values"),
-            new Tuple<>(NumberType.DOUBLE, new BigDecimal("1.7976931348623157E309"), "[double] supports only finite values"),
+            Triple.of(NumberType.HALF_FLOAT, 65504.1, "[half_float] supports only finite values"),
+            Triple.of(NumberType.FLOAT, 3.4028235E39, "[float] supports only finite values"),
+            Triple.of(NumberType.DOUBLE, new BigDecimal("1.7976931348623157E309"), "[double] supports only finite values"),
 
-            new Tuple<>(NumberType.HALF_FLOAT, Float.NaN, "[half_float] supports only finite values"),
-            new Tuple<>(NumberType.FLOAT, Float.NaN, "[float] supports only finite values"),
-            new Tuple<>(NumberType.DOUBLE, Double.NaN, "[double] supports only finite values"),
+            Triple.of(NumberType.HALF_FLOAT, Float.NaN, "[half_float] supports only finite values"),
+            Triple.of(NumberType.FLOAT, Float.NaN, "[float] supports only finite values"),
+            Triple.of(NumberType.DOUBLE, Double.NaN, "[double] supports only finite values"),
 
-            new Tuple<>(NumberType.HALF_FLOAT, Float.POSITIVE_INFINITY, "[half_float] supports only finite values"),
-            new Tuple<>(NumberType.FLOAT, Float.POSITIVE_INFINITY, "[float] supports only finite values"),
-            new Tuple<>(NumberType.DOUBLE, Double.POSITIVE_INFINITY, "[double] supports only finite values")
+            Triple.of(NumberType.HALF_FLOAT, Float.POSITIVE_INFINITY, "[half_float] supports only finite values"),
+            Triple.of(NumberType.FLOAT, Float.POSITIVE_INFINITY, "[float] supports only finite values"),
+            Triple.of(NumberType.DOUBLE, Double.POSITIVE_INFINITY, "[double] supports only finite values")
         );
 
-        for (Tuple<NumberType, Object, String> item: inputs) {
+        for (Triple<NumberType, Object, String> item: inputs) {
             try {
                 item.type.parse(item.value, false);
                 fail("Parsing exception expected for [" + item.type + "] with value [" + item.value + "]");
@@ -394,15 +394,20 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         }
     }
 
-    private static class Tuple<K,V,E> {
+    private static class Triple<K,V,M> {
+
         final K type;
         final V value;
-        final E message;
+        final M message;
 
-        Tuple(K type, V value, E message) {
-            this.type = type;
-            this.value = value;
-            this.message = message;
+        static <K,V,M> Triple<K,V,M> of(K t, V v, M m) {
+            return new Triple<>(t, v, m);
+        }
+
+        Triple(K t, V v, M m) {
+            type = t;
+            value = v;
+            message = m;
         }
     }
 }

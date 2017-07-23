@@ -251,7 +251,7 @@ public class NumberFieldMapper extends FieldMapper {
                         || value > 65504
                         || !Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value)))
                     ) {
-                    throw new IllegalArgumentException("[half_float] supports only finite values, but [" + value + "] given");
+                    throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + value + "]");
                 }
             }
         },
@@ -341,7 +341,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             private void validateParsed(Float value) {
                 if (value.isInfinite() || value.isNaN()) {
-                    throw new IllegalArgumentException("[float] supports only finite values, but [" + value + "] given");
+                    throw new IllegalArgumentException("[float] supports only finite values, but got [" + value + "]");
                 }
             }
         },
@@ -431,7 +431,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             private void validateParsed(Double value) {
                 if (value.isInfinite() || value.isNaN()) {
-                    throw new IllegalArgumentException("[double] supports only finite values, but [" + value + "] given");
+                    throw new IllegalArgumentException("[double] supports only finite values, but got [" + value + "]");
                 }
             }
         },

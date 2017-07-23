@@ -27,12 +27,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.List;
 import java.util.Arrays;
 import java.util.HashSet;
-
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -320,27 +317,27 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         }
     }
 
-    public void testOutOfRangeValuesFromRequest() throws IOException {
-        final List<Tuple<String, Object, String>> inputs = Arrays.asList(
-            new Tuple<>("half_float", "65504.1", "[half_float] supports only finite values"),
-            new Tuple<>("float", "3.4028235E39", "[float] supports only finite values"),
-            new Tuple<>("double", "1.7976931348623157E309", "[double] supports only finite values"),
+    public void testOutOfRangeValues() throws IOException {
+        final List<Triple<String, Object, String>> inputs = Arrays.asList(
+            Triple.of("byte", "128", "is out of range for a byte"),
+            Triple.of("short", "32768", "is out of range for a short"),
+            Triple.of("integer", "2147483648", "For input string"),
+            Triple.of("long", "92233720368547758080", "For input string"),
 
-            new Tuple<>("byte", "128", "is out of range for a byte"),
-            new Tuple<>("short", "32768", "is out of range for a short"),
-            new Tuple<>("integer", "2147483648", "For input string"),
-            new Tuple<>("long", "92233720368547758080", "For input string"),
+            Triple.of("half_float", "65504.1", "[half_float] supports only finite values"),
+            Triple.of("float", "3.4028235E39", "[float] supports only finite values"),
+            Triple.of("double", "1.7976931348623157E309", "[double] supports only finite values"),
 
-            new Tuple<>("half_float", Float.NaN, "[half_float] supports only finite values"),
-            new Tuple<>("float", Float.NaN, "[float] supports only finite values"),
-            new Tuple<>("double", Double.NaN, "[double] supports only finite values"),
+            Triple.of("half_float", Float.NaN, "[half_float] supports only finite values"),
+            Triple.of("float", Float.NaN, "[float] supports only finite values"),
+            Triple.of("double", Double.NaN, "[double] supports only finite values"),
 
-            new Tuple<>("half_float", Float.POSITIVE_INFINITY, "[half_float] supports only finite values"),
-            new Tuple<>("float", Float.POSITIVE_INFINITY, "[float] supports only finite values"),
-            new Tuple<>("double", Double.POSITIVE_INFINITY, "[double] supports only finite values")
+            Triple.of("half_float", Float.POSITIVE_INFINITY, "[half_float] supports only finite values"),
+            Triple.of("float", Float.POSITIVE_INFINITY, "[float] supports only finite values"),
+            Triple.of("double", Double.POSITIVE_INFINITY, "[double] supports only finite values")
         );
 
-        for(Tuple<String, Object, String> item: inputs) {
+        for(Triple<String, Object, String> item: inputs) {
             try {
                 parseRequest(item.type, createIndexRequest(item.value));
                 fail("Mapper parsing exception expected for [" + item.type + "] with value [" + item.value + "]");
@@ -351,15 +348,20 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         }
     }
 
-    private static class Tuple<K,V,E> {
+    private static class Triple<K,V,M> {
+
         final K type;
         final V value;
-        final E message;
+        final M message;
 
-        Tuple(K type, V value, E message) {
-            this.type = type;
-            this.value = value;
-            this.message = message;
+        static <K,V,M> Triple<K,V,M> of(K t, V v, M m) {
+            return new Triple<>(t, v, m);
+        }
+
+        Triple(K t, V v, M m) {
+            type = t;
+            value = v;
+            message = m;
         }
     }
 

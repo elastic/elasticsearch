@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.search.internal.SearchContext;
@@ -141,6 +142,63 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         assertThat(fuzzyQuery.getTerm(), equalTo(new Term(STRING_FIELD_NAME, "sh")));
         assertThat(fuzzyQuery.getMaxEdits(), equalTo(Fuzziness.AUTO.asDistance("sh")));
         assertThat(fuzzyQuery.getPrefixLength(), equalTo(1));
+    }
+
+    public void testToQueryWithStringFieldDefinedWrongFuzziness() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+            "    \"fuzzy\":{\n" +
+            "        \"" + STRING_FIELD_NAME + "\":{\n" +
+            "            \"value\":\"sh\",\n" +
+            "            \"fuzziness\": \"AUTO:2\",\n" +
+            "            \"prefix_length\":1,\n" +
+            "            \"boost\":2.0\n" +
+            "        }\n" +
+            "    }\n" +
+            "}";
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parseQuery(query).toQuery(createShardContext()));
+        String msg = "Auto fuzziness wrongly configured";
+        assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
+
+        String query2 = "{\n" +
+            "    \"fuzzy\":{\n" +
+            "        \"" + STRING_FIELD_NAME + "\":{\n" +
+            "            \"value\":\"sh\",\n" +
+            "            \"fuzziness\": \"AUTO:-1,6\",\n" +
+            "            \"prefix_length\":1,\n" +
+            "            \"boost\":2.0\n" +
+            "        }\n" +
+            "    }\n" +
+            "}";
+        e = expectThrows(ElasticsearchParseException.class, () -> parseQuery(query2).toQuery(createShardContext()));
+        assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
+
+        String query3 = "{\n" +
+            "    \"fuzzy\":{\n" +
+            "        \"" + STRING_FIELD_NAME + "\":{\n" +
+            "            \"value\":\"sh\",\n" +
+            "            \"fuzziness\": \"AUTO:1,\",\n" +
+            "            \"prefix_length\":1,\n" +
+            "            \"boost\":2.0\n" +
+            "        }\n" +
+            "    }\n" +
+            "}";
+        e = expectThrows(ElasticsearchParseException.class, () -> parseQuery(query3).toQuery(createShardContext()));
+        assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
+
+        String query4 = "{\n" +
+            "    \"fuzzy\":{\n" +
+            "        \"" + STRING_FIELD_NAME + "\":{\n" +
+            "            \"value\":\"sh\",\n" +
+            "            \"fuzziness\": \"AUTO:,5\",\n" +
+            "            \"prefix_length\":1,\n" +
+            "            \"boost\":2.0\n" +
+            "        }\n" +
+            "    }\n" +
+            "}";
+        e = expectThrows(ElasticsearchParseException.class, () -> parseQuery(query4).toQuery(createShardContext()));
+        msg = "failed to parse [AUTO:,5] as a \"auto:int,int\"";
+        assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
     }
 
     public void testToQueryWithNumericField() throws IOException {

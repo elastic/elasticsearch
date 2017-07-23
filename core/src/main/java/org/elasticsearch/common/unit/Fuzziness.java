@@ -44,12 +44,12 @@ public final class Fuzziness implements ToXContent, Writeable {
     public static final Fuzziness TWO = new Fuzziness(2);
     public static final Fuzziness AUTO = new Fuzziness("AUTO");
     public static final ParseField FIELD = new ParseField(X_FIELD_NAME);
-
-    private final String fuzziness;
-    private int lowDistance;
-    private int highDistance;
     private static final int DEFAULT_LOW_DISTANCE = 2;
     private static final int DEFAULT_HIGH_DISTANCE = 5;
+
+    private final String fuzziness;
+    private int lowDistance = DEFAULT_LOW_DISTANCE;
+    private int highDistance = DEFAULT_HIGH_DISTANCE;
 
     private Fuzziness(int fuzziness) {
         if (fuzziness != 0 && fuzziness != 1 && fuzziness != 2) {
@@ -63,17 +63,19 @@ public final class Fuzziness implements ToXContent, Writeable {
             throw new IllegalArgumentException("fuzziness can't be null!");
         }
         this.fuzziness = fuzziness.toUpperCase(Locale.ROOT);
-        lowDistance = DEFAULT_LOW_DISTANCE;
-        highDistance = DEFAULT_HIGH_DISTANCE;
     }
 
-    private Fuzziness(String fuzziness, int limit1, int limit2) {
+    private Fuzziness(String fuzziness, int lowDistance, int highDistance) {
         if (fuzziness == null) {
             throw new IllegalArgumentException("fuzziness can't be null!");
         }
+        if (lowDistance < 0 || highDistance < 0 || lowDistance >= highDistance ) {
+            throw new IllegalArgumentException("fuzziness wrongly configured, must be: lowDistance > 0, highDistance" +
+                " > 0 and lowDistance < highDistance ");
+        }
         this.fuzziness = fuzziness.toUpperCase(Locale.ROOT);
-        this.lowDistance = limit1;
-        this.highDistance = limit2;
+        this.lowDistance = lowDistance;
+        this.highDistance = highDistance;
     }
 
     /**
@@ -116,9 +118,10 @@ public final class Fuzziness implements ToXContent, Writeable {
                 final String fuzziness = parser.text();
                 if (AUTO.asString().equalsIgnoreCase(fuzziness)) {
                     return AUTO;
-                } else if (fuzziness.toUpperCase().startsWith(AUTO.asString() + ":")) {
+                }
+                else if (fuzziness.toUpperCase(Locale.ROOT).startsWith(AUTO.asString() + ":")) {
                     String[] fuzzinessLimit = fuzziness.substring(AUTO.asString().length() + 1).split(",");
-                    if (fuzzinessLimit.length == 1) {
+                    if (fuzzinessLimit.length == 2) {
                         try {
                             int lowerLimit = Integer.parseInt(fuzzinessLimit[0]);
                             int highLimit = Integer.parseInt(fuzzinessLimit[1]);

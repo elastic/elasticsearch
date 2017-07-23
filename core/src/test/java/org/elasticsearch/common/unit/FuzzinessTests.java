@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.unit;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -90,23 +91,26 @@ public class FuzzinessTests extends ESTestCase {
             }
             {
                 XContentBuilder json;
-                if (randomBoolean()) {
+                boolean defaultAutoFuzziness = randomBoolean();
+                if (defaultAutoFuzziness) {
                     json = Fuzziness.AUTO.toXContent(jsonBuilder().startObject(), null).endObject();
                 } else {
                     String auto = randomBoolean() ? "AUTO" : "auto";
-                    if (randomBoolean()){
-                        auto += ":" + randomIntBetween(0, 3) + "," + randomIntBetween(3, 10);
+                    if (randomBoolean()) {
+                        auto += ":" + randomIntBetween(1, 3) + "," + randomIntBetween(4, 10);
                     }
                     json = jsonBuilder().startObject()
-                            .field(Fuzziness.X_FIELD_NAME, auto)
-                            .endObject();
+                        .field(Fuzziness.X_FIELD_NAME, auto)
+                        .endObject();
                 }
                 XContentParser parser = createParser(json);
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
                 Fuzziness parse = Fuzziness.parse(parser);
-                assertThat(parse, sameInstance(Fuzziness.AUTO));
+                if (defaultAutoFuzziness) {
+                    assertThat(parse, sameInstance(Fuzziness.AUTO));
+                }
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
             }
         }

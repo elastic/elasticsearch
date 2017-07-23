@@ -50,20 +50,19 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final boolean serverSideEncryption;
 
-    private final String serverSideEncryptionKey;
+    private final String sseAwsKeyId;
 
     private final CannedAccessControlList cannedACL;
 
     private final StorageClass storageClass;
 
-    S3BlobStore(Settings settings, AmazonS3 client, String bucket,
-                boolean serverSideEncryption, String serverSideEncryptionKey,
+    S3BlobStore(Settings settings, AmazonS3 client, String bucket, boolean serverSideEncryption, String sseAwsKeyId,
                 ByteSizeValue bufferSize, String cannedACL, String storageClass) {
         super(settings);
         this.client = client;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
-        this.serverSideEncryptionKey = serverSideEncryptionKey;
+        this.sseAwsKeyId = sseAwsKeyId;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
@@ -76,7 +75,7 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
         SocketAccess.doPrivilegedVoid(() -> {
             if (client.doesBucketExist(bucket) == false) {
                 throw new IllegalArgumentException("The bucket [" + bucket + "] does not exist. Please create it before " +
-                    " creating an s3 snapshot repository backed by it.");
+                                                  " creating an s3 snapshot repository backed by it.");
             }
         });
     }
@@ -102,13 +101,14 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
         return bufferSize.bytesAsInt();
     }
 
-    public String serverSideEncryptionKey() {
-        return serverSideEncryptionKey;
+    public boolean sseAwsKeyIsEmpty() {
+        if (sseAwsKeyId == null || sseAwsKeyId.trim().isEmpty()) {
+            return true;
+        }
+        return false;
     }
 
-    public SSEAwsKeyManagementParams getSSEAwsKey() {
-        return new SSEAwsKeyManagementParams(serverSideEncryptionKey);
-    }
+    public SSEAwsKeyManagementParams getSSEAwsKey() { return new SSEAwsKeyManagementParams(sseAwsKeyId); }
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {

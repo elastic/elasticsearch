@@ -27,6 +27,7 @@ import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PartETag;
 import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.s3.model.SSEAwsKeyManagementParams;
 import com.amazonaws.services.s3.model.PutObjectResult;
 import com.amazonaws.services.s3.model.SSEAwsKeyManagementParams;
 import com.amazonaws.services.s3.model.UploadPartRequest;
@@ -74,8 +75,8 @@ class DefaultS3OutputStream extends S3OutputStream {
     private List<PartETag> multiparts;
 
     DefaultS3OutputStream(S3BlobStore blobStore, String bucketName, String blobName, int
-            bufferSizeInBytes, boolean serverSideEncryption, String serverSideEncryptionKey) {
-        super(blobStore, bucketName, blobName, bufferSizeInBytes, serverSideEncryption, serverSideEncryptionKey);
+        bufferSizeInBytes, boolean serverSideEncryption) {
+        super(blobStore, bucketName, blobName, bufferSizeInBytes, serverSideEncryption);
     }
 
     @Override
@@ -132,11 +133,10 @@ class DefaultS3OutputStream extends S3OutputStream {
                 .withCannedAcl(blobStore.getCannedACL());
 
         if (serverSideEncryption) {
-            if (blobStore.serverSideEncryptionKey().isEmpty()) {
+            if (blobStore.sseAwsKeyIsEmpty()) {
                 md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
             } else {
-                putRequest.setSSEAwsKeyManagementParams(new
-                    SSEAwsKeyManagementParams(blobStore.serverSideEncryptionKey()));
+                putRequest.setSSEAwsKeyManagementParams(blobStore.getSSEAwsKey());
             }
         }
 
@@ -160,10 +160,10 @@ class DefaultS3OutputStream extends S3OutputStream {
 
         if (serverSideEncryption) {
             ObjectMetadata md = new ObjectMetadata();
-            if (blobStore.serverSideEncryptionKey().isEmpty()) {
+            if (blobStore.sseAwsKeyIsEmpty()) {
                 md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
             } else {
-                request.setSSEAwsKeyManagementParams(new SSEAwsKeyManagementParams(blobStore.serverSideEncryptionKey()));
+                request.setSSEAwsKeyManagementParams(blobStore.getSSEAwsKey());
             }
             request.setObjectMetadata(md);
         }

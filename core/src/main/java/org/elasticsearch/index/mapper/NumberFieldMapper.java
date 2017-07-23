@@ -162,12 +162,25 @@ public class NumberFieldMapper extends FieldMapper {
         HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
             @Override
             Float parse(Object value, boolean coerce) {
-                return (Float) FLOAT.parse(value, false);
+                final Float result;
+
+                if (value instanceof Number) {
+                    result = ((Number) value).floatValue();
+                } else {
+                    if (value instanceof BytesRef) {
+                        value = ((BytesRef) value).utf8ToString();
+                    }
+                    result = Float.parseFloat(value.toString());
+                }
+                validateParsed(result);
+                return result;
             }
 
             @Override
             Float parse(XContentParser parser, boolean coerce) throws IOException {
-                return parser.floatValue(coerce);
+                Float parsed = parser.floatValue(coerce);
+                validateParsed(parsed);
+                return parsed;
             }
 
             @Override
@@ -216,19 +229,6 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            void validateParsed(Number value) {
-                float val = value.floatValue();
-
-                if (
-                    !Float.isFinite(val)
-                    || !Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(val)))
-                    || val > 65504
-                    ) {
-                    throw new IllegalArgumentException("[half_float] supports only finite values");
-                }
-            }
-
-            @Override
             public List<Field> createFields(String name, Number value,
                                             boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
@@ -244,22 +244,39 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return fields;
             }
+
+            private void validateParsed(Float value) {
+                if (
+                    value.isNaN() || value.isInfinite()
+                        || value > 65504
+                        || !Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value)))
+                    ) {
+                    throw new IllegalArgumentException("[half_float] supports only finite values, but [" + value + "] given");
+                }
+            }
         },
         FLOAT("float", NumericType.FLOAT) {
             @Override
             Float parse(Object value, boolean coerce) {
+                final Float result;
+
                 if (value instanceof Number) {
-                    return ((Number) value).floatValue();
+                    result = ((Number) value).floatValue();
+                } else {
+                    if (value instanceof BytesRef) {
+                        value = ((BytesRef) value).utf8ToString();
+                    }
+                    result = Float.parseFloat(value.toString());
                 }
-                if (value instanceof BytesRef) {
-                    value = ((BytesRef) value).utf8ToString();
-                }
-                return Float.parseFloat(value.toString());
+                validateParsed(result);
+                return result;
             }
 
             @Override
             Float parse(XContentParser parser, boolean coerce) throws IOException {
-                return parser.floatValue(coerce);
+                Float parsed = parser.floatValue(coerce);
+                validateParsed(parsed);
+                return parsed;
             }
 
             @Override
@@ -306,13 +323,6 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            void validateParsed(Number value) {
-                if (!Float.isFinite(value.floatValue())) {
-                    throw new IllegalArgumentException("[float] supports only finite values");
-                }
-            }
-
-            @Override
             public List<Field> createFields(String name, Number value,
                                             boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
@@ -328,22 +338,35 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return fields;
             }
+
+            private void validateParsed(Float value) {
+                if (value.isInfinite() || value.isNaN()) {
+                    throw new IllegalArgumentException("[float] supports only finite values, but [" + value + "] given");
+                }
+            }
         },
         DOUBLE("double", NumericType.DOUBLE) {
             @Override
             Double parse(Object value, boolean coerce) {
+                final Double result;
+
                 if (value instanceof Number) {
-                    return ((Number) value).doubleValue();
+                    result = ((Number) value).doubleValue();
+                } else {
+                    if (value instanceof BytesRef) {
+                        value = ((BytesRef) value).utf8ToString();
+                    }
+                    result = Double.parseDouble(value.toString());
                 }
-                if (value instanceof BytesRef) {
-                    value = ((BytesRef) value).utf8ToString();
-                }
-                return Double.parseDouble(value.toString());
+                validateParsed(result);
+                return result;
             }
 
             @Override
             Double parse(XContentParser parser, boolean coerce) throws IOException {
-                return parser.doubleValue(coerce);
+                Double parsed = parser.doubleValue(coerce);
+                validateParsed(parsed);
+                return parsed;
             }
 
             @Override
@@ -390,13 +413,6 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            void validateParsed(Number value) {
-                if (!Double.isFinite(value.doubleValue())) {
-                    throw new IllegalArgumentException("[double] supports only finite values, but got [" + value.toString() + "]");
-                }
-            }
-
-            @Override
             public List<Field> createFields(String name, Number value,
                                             boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
@@ -411,6 +427,12 @@ public class NumberFieldMapper extends FieldMapper {
                     fields.add(new StoredField(name, value.doubleValue()));
                 }
                 return fields;
+            }
+
+            private void validateParsed(Double value) {
+                if (value.isInfinite() || value.isNaN()) {
+                    throw new IllegalArgumentException("[double] supports only finite values, but [" + value + "] given");
+                }
             }
         },
         BYTE("byte", NumericType.BYTE) {
@@ -778,12 +800,6 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         /**
-         * @throws IllegalArgumentException if value is not finite for this type
-         */
-        void validateParsed(Number value) {
-        }
-
-        /**
          * Returns true if the object is a number and has a decimal part
          */
         boolean hasDecimalPart(Object number) {
@@ -981,8 +997,6 @@ public class NumberFieldMapper extends FieldMapper {
         if (numericValue == null) {
             numericValue = fieldType().type.parse(value, coerce.value());
         }
-
-        fieldType().type.validateParsed(numericValue);
 
         if (includeInAll) {
             context.allEntries().addText(fieldType().name(), value.toString(), fieldType().boost());

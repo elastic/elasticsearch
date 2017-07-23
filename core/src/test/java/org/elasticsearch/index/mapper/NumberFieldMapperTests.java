@@ -21,16 +21,15 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
+import java.math.BigInteger;
+import java.util.*;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -318,22 +317,91 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         }
     }
 
-    public void testOutOfRangeValue() {
-        final Map<String, String> outOfRangeValues = new HashMap<>();
-        outOfRangeValues.put("float", new BigDecimal("3.4028235E39").toString());
-        outOfRangeValues.put("double", new BigDecimal("1.7976931348623157E309").toString());
-        outOfRangeValues.put("half_float", new BigDecimal("65504.1").toString());
+    public void testOutOfRangeValuesFromRequest() throws IOException {
+        final List<Tuple<String, Object, String>> inputs = Arrays.asList(
+            new Tuple<>("half_float", "65504.1", "[half_float] supports only finite values"),
+            new Tuple<>("float", "3.4028235E39", "[float] supports only finite values"),
+            new Tuple<>("double", "1.7976931348623157E309", "[double] supports only finite values"),
 
-        outOfRangeValues.forEach((type, value) -> {
+            new Tuple<>("byte", "128", "is out of range for a byte"),
+            new Tuple<>("short", "32768", "is out of range for a short"),
+            new Tuple<>("integer", "2147483648", "For input string"),
+            new Tuple<>("long", "92233720368547758080", "For input string"),
+
+            new Tuple<>("half_float", Float.NaN, "[half_float] supports only finite values"),
+            new Tuple<>("float", Float.NaN, "[float] supports only finite values"),
+            new Tuple<>("double", Double.NaN, "[double] supports only finite values"),
+
+            new Tuple<>("half_float", Float.POSITIVE_INFINITY, "[half_float] supports only finite values"),
+            new Tuple<>("float", Float.POSITIVE_INFINITY, "[float] supports only finite values"),
+            new Tuple<>("double", Double.POSITIVE_INFINITY, "[double] supports only finite values")
+        );
+
+        for(Tuple<String, Object, String> item: inputs) {
             try {
-                createDocumentMapper(type).parse(createIndexRequest(value));
-                fail("Mapper parsing exception expected for [" + type + "]");
+                parseRequest(item.type, createIndexRequest(item.value));
+                fail("Mapper parsing exception expected for [" + item.type + "] with value [" + item.value + "]");
             } catch (MapperParsingException e) {
-                assertThat(e.getCause().getMessage(), containsString("[" + type + "] supports only finite values"));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+                assertThat("Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
+                    e.getCause().getMessage(), containsString(item.message));
             }
-        });
+        }
+    }
+
+    public void testOutOfRangeValuesFromObject() throws IOException {
+        final List<Tuple<NumberFieldMapper.NumberType, Object, String>> inputs = Arrays.asList(
+            new Tuple<>(NumberFieldMapper.NumberType.BYTE, "128", "Value out of range"),
+            new Tuple<>(NumberFieldMapper.NumberType.SHORT, "32768", "Value out of range"),
+            new Tuple<>(NumberFieldMapper.NumberType.INTEGER, "2147483648", "For input string"),
+            new Tuple<>(NumberFieldMapper.NumberType.LONG, "9223372036854775808", "For input string"),
+
+            new Tuple<>(NumberFieldMapper.NumberType.BYTE, 128, "is out of range for a byte"),
+            new Tuple<>(NumberFieldMapper.NumberType.SHORT, 32768, "is out of range for a short"),
+            new Tuple<>(NumberFieldMapper.NumberType.INTEGER, 2147483648L, "is out of range for an integer"),
+            new Tuple<>(NumberFieldMapper.NumberType.LONG, new BigInteger("92233720368547758080"), " is out of range for a long"),
+
+            new Tuple<>(NumberFieldMapper.NumberType.HALF_FLOAT, "65504.1", "[half_float] supports only finite values"),
+            new Tuple<>(NumberFieldMapper.NumberType.FLOAT, "3.4028235E39", "[float] supports only finite values"),
+            new Tuple<>(NumberFieldMapper.NumberType.DOUBLE, "1.7976931348623157E309", "[double] supports only finite values"),
+
+            new Tuple<>(NumberFieldMapper.NumberType.HALF_FLOAT, 65504.1, "[half_float] supports only finite values"),
+            new Tuple<>(NumberFieldMapper.NumberType.FLOAT, 3.4028235E39, "[float] supports only finite values"),
+            new Tuple<>(NumberFieldMapper.NumberType.DOUBLE, new BigDecimal("1.7976931348623157E309"), "[double] supports only finite values"),
+
+            new Tuple<>(NumberFieldMapper.NumberType.HALF_FLOAT, Float.NaN, "[half_float] supports only finite values"),
+            new Tuple<>(NumberFieldMapper.NumberType.FLOAT, Float.NaN, "[float] supports only finite values"),
+            new Tuple<>(NumberFieldMapper.NumberType.DOUBLE, Double.NaN, "[double] supports only finite values"),
+
+            new Tuple<>(NumberFieldMapper.NumberType.HALF_FLOAT, Float.POSITIVE_INFINITY, "[half_float] supports only finite values"),
+            new Tuple<>(NumberFieldMapper.NumberType.FLOAT, Float.POSITIVE_INFINITY, "[float] supports only finite values"),
+            new Tuple<>(NumberFieldMapper.NumberType.DOUBLE, Double.POSITIVE_INFINITY, "[double] supports only finite values")
+        );
+
+        for (Tuple<NumberFieldMapper.NumberType, Object, String> item: inputs) {
+            try {
+                item.type.parse(item.value, false);
+                fail("Mapper parsing exception expected for [" + item.type + "] with value [" + item.value + "]");
+            } catch (IllegalArgumentException e) {
+                assertThat("Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
+                    e.getMessage(), containsString(item.message));
+            }
+        }
+    }
+
+    private static class Tuple<K,V,E> {
+        final K type;
+        final V value;
+        final E message;
+
+        Tuple(K type, V value, E message) {
+            this.type = type;
+            this.value = value;
+            this.message = message;
+        }
+    }
+
+    private void parseRequest(String type, BytesReference content) throws IOException {
+        createDocumentMapper(type).parse(SourceToParse.source("test", "type", "1", content, XContentType.JSON));
     }
 
     private DocumentMapper createDocumentMapper(String type) throws IOException {
@@ -352,12 +420,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         return parser.parse("type", new CompressedXContent(mapping));
     }
 
-    private SourceToParse createIndexRequest(String value) throws IOException {
-        return SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                    .field("field", value)
-                .endObject()
-                .bytes(),
-            XContentType.JSON);
+    private BytesReference createIndexRequest(Object value) throws IOException {
+        return XContentFactory.jsonBuilder().startObject().field("field", value).endObject().bytes();
     }
 }

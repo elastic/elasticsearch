@@ -21,7 +21,6 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
-import com.amazonaws.regions.Region;
 import com.amazonaws.services.s3.AbstractAmazonS3;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CopyObjectRequest;
@@ -61,6 +60,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     // in ESBlobStoreContainerTestCase.java, the maximum
     // length of the input data is 100 bytes
     private byte[] byteCounter = new byte[100];
+
 
     MockAmazonS3(int mockSocketPort) {
         this.mockSocketPort = mockSocketPort;

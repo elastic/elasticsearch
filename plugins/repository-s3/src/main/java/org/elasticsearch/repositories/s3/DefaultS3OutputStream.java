@@ -27,9 +27,7 @@ import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PartETag;
 import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.SSEAwsKeyManagementParams;
 import com.amazonaws.services.s3.model.PutObjectResult;
-import com.amazonaws.services.s3.model.SSEAwsKeyManagementParams;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
 import com.amazonaws.util.Base64;
@@ -74,8 +72,7 @@ class DefaultS3OutputStream extends S3OutputStream {
     private int multipartChunks;
     private List<PartETag> multiparts;
 
-    DefaultS3OutputStream(S3BlobStore blobStore, String bucketName, String blobName, int
-        bufferSizeInBytes, boolean serverSideEncryption) {
+    DefaultS3OutputStream(S3BlobStore blobStore, String bucketName, String blobName, int bufferSizeInBytes, boolean serverSideEncryption) {
         super(blobStore, bucketName, blobName, bufferSizeInBytes, serverSideEncryption);
     }
 
@@ -139,7 +136,6 @@ class DefaultS3OutputStream extends S3OutputStream {
                 putRequest.setSSEAwsKeyManagementParams(blobStore.getSSEAwsKey());
             }
         }
-
         blobStore.client().putObject(putRequest);
     }
 

@@ -162,13 +162,12 @@ class S3Repository extends BlobStoreRepository {
         String storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
         String cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
 
-        logger.debug("using bucket [{}], chunk_size [{}], server_side_encryption [{}]," +
-                "aws_kms_key [{}], buffer_size [{}], cannedACL [{}], storageClass [{}]",
-            bucket, chunkSize, serverSideEncryption, sseAwsKeyId, bufferSize, cannedACL, storageClass);
+        logger.debug("using bucket [{}], chunk_size [{}], server_side_encryption [{}], " +
+            "buffer_size [{}], cannedACL [{}], storageClass [{}]",
+            bucket, chunkSize, serverSideEncryption, bufferSize, cannedACL, storageClass);
 
         AmazonS3 client = s3Service.client(metadata.settings());
-        blobStore = new S3BlobStore(settings, client, bucket, serverSideEncryption,
-            sseAwsKeyId, bufferSize, cannedACL, storageClass);
+        blobStore = new S3BlobStore(settings, client, bucket, serverSideEncryption, sseAwsKeyId, bufferSize, cannedACL, storageClass);
 
         String basePath = BASE_PATH_SETTING.get(metadata.settings());
         if (Strings.hasLength(basePath)) {

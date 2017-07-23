@@ -75,7 +75,7 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
         SocketAccess.doPrivilegedVoid(() -> {
             if (client.doesBucketExist(bucket) == false) {
                 throw new IllegalArgumentException("The bucket [" + bucket + "] does not exist. Please create it before " +
-                                                  " creating an s3 snapshot repository backed by it.");
+                                                   " creating an s3 snapshot repository backed by it.");
             }
         });
     }
@@ -164,9 +164,7 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
         return cannedACL;
     }
 
-    public StorageClass getStorageClass() {
-        return storageClass;
-    }
+    public StorageClass getStorageClass() { return storageClass; }
 
     public static StorageClass initStorageClass(String storageClass) {
         if (storageClass == null || storageClass.equals("")) {

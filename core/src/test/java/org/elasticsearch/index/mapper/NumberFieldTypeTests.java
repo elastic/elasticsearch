@@ -43,8 +43,13 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.Supplier;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class NumberFieldTypeTests extends FieldTypeTestCase {
 
@@ -266,8 +271,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         IndexSearcher searcher = newSearcher(reader);
         final int numQueries = 1000;
         for (int i = 0; i < numQueries; ++i) {
-            float l = (randomFloat() * 2 - 1) * 70000;
-            float u = (randomFloat() * 2 - 1) * 70000;
+            float l = (randomFloat() * 2 - 1) * 65504;
+            float u = (randomFloat() * 2 - 1) * 65504;
             boolean includeLower = randomBoolean();
             boolean includeUpper = randomBoolean();
             Query floatQ = NumberFieldMapper.NumberType.FLOAT.rangeQuery("float", l, u, includeLower, includeUpper, false);
@@ -347,5 +352,57 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         }
         reader.close();
         dir.close();
+    }
+
+    public void testParseOutOfRangeValues() throws IOException {
+        final List<Tuple<NumberType, Object, String>> inputs = Arrays.asList(
+            new Tuple<>(NumberType.BYTE, "128", "Value out of range"),
+            new Tuple<>(NumberType.SHORT, "32768", "Value out of range"),
+            new Tuple<>(NumberType.INTEGER, "2147483648", "For input string"),
+            new Tuple<>(NumberType.LONG, "9223372036854775808", "For input string"),
+
+            new Tuple<>(NumberType.BYTE, 128, "is out of range for a byte"),
+            new Tuple<>(NumberType.SHORT, 32768, "is out of range for a short"),
+            new Tuple<>(NumberType.INTEGER, 2147483648L, "is out of range for an integer"),
+            new Tuple<>(NumberType.LONG, new BigInteger("92233720368547758080"), " is out of range for a long"),
+
+            new Tuple<>(NumberType.HALF_FLOAT, "65504.1", "[half_float] supports only finite values"),
+            new Tuple<>(NumberType.FLOAT, "3.4028235E39", "[float] supports only finite values"),
+            new Tuple<>(NumberType.DOUBLE, "1.7976931348623157E309", "[double] supports only finite values"),
+
+            new Tuple<>(NumberType.HALF_FLOAT, 65504.1, "[half_float] supports only finite values"),
+            new Tuple<>(NumberType.FLOAT, 3.4028235E39, "[float] supports only finite values"),
+            new Tuple<>(NumberType.DOUBLE, new BigDecimal("1.7976931348623157E309"), "[double] supports only finite values"),
+
+            new Tuple<>(NumberType.HALF_FLOAT, Float.NaN, "[half_float] supports only finite values"),
+            new Tuple<>(NumberType.FLOAT, Float.NaN, "[float] supports only finite values"),
+            new Tuple<>(NumberType.DOUBLE, Double.NaN, "[double] supports only finite values"),
+
+            new Tuple<>(NumberType.HALF_FLOAT, Float.POSITIVE_INFINITY, "[half_float] supports only finite values"),
+            new Tuple<>(NumberType.FLOAT, Float.POSITIVE_INFINITY, "[float] supports only finite values"),
+            new Tuple<>(NumberType.DOUBLE, Double.POSITIVE_INFINITY, "[double] supports only finite values")
+        );
+
+        for (Tuple<NumberType, Object, String> item: inputs) {
+            try {
+                item.type.parse(item.value, false);
+                fail("Parsing exception expected for [" + item.type + "] with value [" + item.value + "]");
+            } catch (IllegalArgumentException e) {
+                assertThat("Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
+                    e.getMessage(), containsString(item.message));
+            }
+        }
+    }
+
+    private static class Tuple<K,V,E> {
+        final K type;
+        final V value;
+        final E message;
+
+        Tuple(K type, V value, E message) {
+            this.type = type;
+            this.value = value;
+            this.message = message;
+        }
     }
 }

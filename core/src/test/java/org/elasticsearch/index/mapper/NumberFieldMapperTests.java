@@ -29,7 +29,10 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.*;
+import java.util.List;
+import java.util.Arrays;
+import java.util.HashSet;
+
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -344,46 +347,6 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             } catch (MapperParsingException e) {
                 assertThat("Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
                     e.getCause().getMessage(), containsString(item.message));
-            }
-        }
-    }
-
-    public void testOutOfRangeValuesFromObject() throws IOException {
-        final List<Tuple<NumberFieldMapper.NumberType, Object, String>> inputs = Arrays.asList(
-            new Tuple<>(NumberFieldMapper.NumberType.BYTE, "128", "Value out of range"),
-            new Tuple<>(NumberFieldMapper.NumberType.SHORT, "32768", "Value out of range"),
-            new Tuple<>(NumberFieldMapper.NumberType.INTEGER, "2147483648", "For input string"),
-            new Tuple<>(NumberFieldMapper.NumberType.LONG, "9223372036854775808", "For input string"),
-
-            new Tuple<>(NumberFieldMapper.NumberType.BYTE, 128, "is out of range for a byte"),
-            new Tuple<>(NumberFieldMapper.NumberType.SHORT, 32768, "is out of range for a short"),
-            new Tuple<>(NumberFieldMapper.NumberType.INTEGER, 2147483648L, "is out of range for an integer"),
-            new Tuple<>(NumberFieldMapper.NumberType.LONG, new BigInteger("92233720368547758080"), " is out of range for a long"),
-
-            new Tuple<>(NumberFieldMapper.NumberType.HALF_FLOAT, "65504.1", "[half_float] supports only finite values"),
-            new Tuple<>(NumberFieldMapper.NumberType.FLOAT, "3.4028235E39", "[float] supports only finite values"),
-            new Tuple<>(NumberFieldMapper.NumberType.DOUBLE, "1.7976931348623157E309", "[double] supports only finite values"),
-
-            new Tuple<>(NumberFieldMapper.NumberType.HALF_FLOAT, 65504.1, "[half_float] supports only finite values"),
-            new Tuple<>(NumberFieldMapper.NumberType.FLOAT, 3.4028235E39, "[float] supports only finite values"),
-            new Tuple<>(NumberFieldMapper.NumberType.DOUBLE, new BigDecimal("1.7976931348623157E309"), "[double] supports only finite values"),
-
-            new Tuple<>(NumberFieldMapper.NumberType.HALF_FLOAT, Float.NaN, "[half_float] supports only finite values"),
-            new Tuple<>(NumberFieldMapper.NumberType.FLOAT, Float.NaN, "[float] supports only finite values"),
-            new Tuple<>(NumberFieldMapper.NumberType.DOUBLE, Double.NaN, "[double] supports only finite values"),
-
-            new Tuple<>(NumberFieldMapper.NumberType.HALF_FLOAT, Float.POSITIVE_INFINITY, "[half_float] supports only finite values"),
-            new Tuple<>(NumberFieldMapper.NumberType.FLOAT, Float.POSITIVE_INFINITY, "[float] supports only finite values"),
-            new Tuple<>(NumberFieldMapper.NumberType.DOUBLE, Double.POSITIVE_INFINITY, "[double] supports only finite values")
-        );
-
-        for (Tuple<NumberFieldMapper.NumberType, Object, String> item: inputs) {
-            try {
-                item.type.parse(item.value, false);
-                fail("Mapper parsing exception expected for [" + item.type + "] with value [" + item.value + "]");
-            } catch (IllegalArgumentException e) {
-                assertThat("Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
-                    e.getMessage(), containsString(item.message));
             }
         }
     }

@@ -820,7 +820,7 @@ public class Strings {
             try {
                 XContentBuilder builder = createBuilder(pretty, human);
                 builder.startObject();
-                builder.field("error", e.getMessage());
+                builder.field("error", "error building toString out of XContent: " + e.getMessage());
                 builder.field("stack_trace", ExceptionsHelper.stackTrace(e));
                 builder.endObject();
                 return builder.string();

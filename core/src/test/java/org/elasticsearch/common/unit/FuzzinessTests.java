@@ -91,8 +91,8 @@ public class FuzzinessTests extends ESTestCase {
             }
             {
                 XContentBuilder json;
-                boolean defaultAutoFuzziness = randomBoolean();
-                if (defaultAutoFuzziness) {
+                boolean isDefaultAutoFuzzinessTested = randomBoolean();
+                if (isDefaultAutoFuzzinessTested) {
                     json = Fuzziness.AUTO.toXContent(jsonBuilder().startObject(), null).endObject();
                 } else {
                     String auto = randomBoolean() ? "AUTO" : "auto";
@@ -108,7 +108,7 @@ public class FuzzinessTests extends ESTestCase {
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
                 Fuzziness parse = Fuzziness.parse(parser);
-                if (defaultAutoFuzziness) {
+                if (isDefaultAutoFuzzinessTested) {
                     assertThat(parse, sameInstance(Fuzziness.AUTO));
                 }
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));

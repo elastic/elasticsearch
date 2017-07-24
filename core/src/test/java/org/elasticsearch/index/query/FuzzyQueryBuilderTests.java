@@ -146,7 +146,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
 
     public void testToQueryWithStringFieldDefinedWrongFuzziness() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        String query = "{\n" +
+        String queryMissingFuzzinessUpLimit = "{\n" +
             "    \"fuzzy\":{\n" +
             "        \"" + STRING_FIELD_NAME + "\":{\n" +
             "            \"value\":\"sh\",\n" +
@@ -156,11 +156,11 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             "        }\n" +
             "    }\n" +
             "}";
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parseQuery(query).toQuery(createShardContext()));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parseQuery(queryMissingFuzzinessUpLimit).toQuery(createShardContext()));
         String msg = "Auto fuzziness wrongly configured";
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
-        String query2 = "{\n" +
+        String queryHavingNegativeFuzzinessLowLimit = "{\n" +
             "    \"fuzzy\":{\n" +
             "        \"" + STRING_FIELD_NAME + "\":{\n" +
             "            \"value\":\"sh\",\n" +
@@ -170,10 +170,10 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             "        }\n" +
             "    }\n" +
             "}";
-        e = expectThrows(ElasticsearchParseException.class, () -> parseQuery(query2).toQuery(createShardContext()));
+        e = expectThrows(ElasticsearchParseException.class, () -> parseQuery(queryHavingNegativeFuzzinessLowLimit).toQuery(createShardContext()));
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
-        String query3 = "{\n" +
+        String queryMissingFuzzinessUpLimit2 = "{\n" +
             "    \"fuzzy\":{\n" +
             "        \"" + STRING_FIELD_NAME + "\":{\n" +
             "            \"value\":\"sh\",\n" +
@@ -183,10 +183,10 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             "        }\n" +
             "    }\n" +
             "}";
-        e = expectThrows(ElasticsearchParseException.class, () -> parseQuery(query3).toQuery(createShardContext()));
+        e = expectThrows(ElasticsearchParseException.class, () -> parseQuery(queryMissingFuzzinessUpLimit2).toQuery(createShardContext()));
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
-        String query4 = "{\n" +
+        String queryMissingFuzzinessLowLimit = "{\n" +
             "    \"fuzzy\":{\n" +
             "        \"" + STRING_FIELD_NAME + "\":{\n" +
             "            \"value\":\"sh\",\n" +
@@ -196,7 +196,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             "        }\n" +
             "    }\n" +
             "}";
-        e = expectThrows(ElasticsearchParseException.class, () -> parseQuery(query4).toQuery(createShardContext()));
+        e = expectThrows(ElasticsearchParseException.class, () -> parseQuery(queryMissingFuzzinessLowLimit).toQuery(createShardContext()));
         msg = "failed to parse [AUTO:,5] as a \"auto:int,int\"";
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
     }

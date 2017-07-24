@@ -78,8 +78,30 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         this.chunkSize = chunkSize;
     }
 
-    public void resync(IndexShard indexShard, ActionListener<ResyncTask> listener) throws IOException {
-        try (Translog.View view = indexShard.acquireTranslogView()) {
+    public void resync(IndexShard indexShard, ActionListener<ResyncTask> listener) {
+        final Translog.View view = indexShard.acquireTranslogView();
+        ActionListener<ResyncTask> wrappedListener = new ActionListener<ResyncTask>() {
+            @Override
+            public void onResponse(ResyncTask resyncTask) {
+                try {
+                    view.close();
+                } catch (IOException e) {
+                    onFailure(e);
+                }
+                listener.onResponse(resyncTask);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    view.close();
+                } catch (IOException inner) {
+                    e.addSuppressed(inner);
+                }
+                listener.onFailure(e);
+            }
+        };
+        try {
             final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
             Translog.Snapshot snapshot = view.snapshot(startingSeqNo);
             ShardId shardId = indexShard.shardId();
@@ -105,7 +127,9 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             };
 
             resync(shardId, indexShard.routingEntry().allocationId().getId(), indexShard.getPrimaryTerm(), wrappedSnapshot,
-                startingSeqNo, listener);
+                startingSeqNo, wrappedListener);
+        } catch (Exception e) {
+            wrappedListener.onFailure(e);
         }
     }
 

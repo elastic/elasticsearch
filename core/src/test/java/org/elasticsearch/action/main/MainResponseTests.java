@@ -23,6 +23,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -38,6 +39,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MainResponseTests extends ESTestCase {
 
@@ -49,6 +51,20 @@ public class MainResponseTests extends ESTestCase {
         Version version = VersionUtils.randomVersion(random());
         boolean available = randomBoolean();
         return new MainResponse(nodeName, version, clusterName, clusterUuid , build, available);
+    }
+
+    public void testSerialization() throws IOException {
+        final MainResponse mainResponse = createTestItem();
+        BytesStreamOutput streamOutput = new BytesStreamOutput();
+        mainResponse.writeTo(streamOutput);
+        final MainResponse serialized = new MainResponse();
+        serialized.readFrom(streamOutput.bytes().streamInput());
+
+        assertThat(serialized.getNodeName(), equalTo(mainResponse.getNodeName()));
+        assertThat(serialized.getClusterName(), equalTo(mainResponse.getClusterName()));
+        assertThat(serialized.getBuild(), equalTo(mainResponse.getBuild()));
+        assertThat(serialized.isAvailable(), equalTo(mainResponse.isAvailable()));
+        assertThat(serialized.getVersion(), equalTo(mainResponse.getVersion()));
     }
 
     public void testFromXContent() throws IOException {
@@ -74,20 +90,21 @@ public class MainResponseTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        Build build = new Build("buildHash", "2016-11-15".toString(), true);
+        String clusterUUID = randomAlphaOfLengthBetween(10, 20);
+        Build build = new Build(Build.CURRENT.shortHash(), Build.CURRENT.date(), Build.CURRENT.isSnapshot());
         Version version = Version.CURRENT;
-        MainResponse response = new MainResponse("nodeName", version, new ClusterName("clusterName"), "clusterUuid", build, true);
+        MainResponse response = new MainResponse("nodeName", version, new ClusterName("clusterName"), clusterUUID, build, true);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{"
                 + "\"name\":\"nodeName\","
                 + "\"cluster_name\":\"clusterName\","
-                + "\"cluster_uuid\":\"clusterUuid\","
+                + "\"cluster_uuid\":\"" + clusterUUID + "\","
                 + "\"version\":{"
                     + "\"number\":\"" + version.toString() + "\","
-                    + "\"build_hash\":\"buildHash\","
-                    + "\"build_date\":\"2016-11-15\","
-                    + "\"build_snapshot\":true,"
+                    + "\"build_hash\":\"" + Build.CURRENT.shortHash() + "\","
+                    + "\"build_date\":\"" + Build.CURRENT.date() + "\","
+                    + "\"build_snapshot\":" + Build.CURRENT.isSnapshot() + ","
                     + "\"lucene_version\":\"" + version.luceneVersion.toString() + "\","
                     + "\"minimum_wire_compatibility_version\":\"" + version.minimumCompatibilityVersion().toString() + "\","
                     + "\"minimum_index_compatibility_version\":\"" + version.minimumIndexCompatibilityVersion().toString() + "\"},"

@@ -188,14 +188,14 @@ track the data and only smooth out small scale fluctuations:
 
 [[movavg_10window]]
 .Moving average with window of size 10
-image::images/pipeline_movavg/movavg_10window.png[]
+image::../../images/pipeline_movavg/movavg_10window.png[]
 
 In contrast, a `simple` moving average with larger window (`"window": 100`) will smooth out all higher-frequency fluctuations,
 leaving only low-frequency, long term trends.  It also tends to "lag" behind the actual data by a substantial amount:
 
 [[movavg_100window]]
 .Moving average with window of size 100
-image::images/pipeline_movavg/movavg_100window.png[]
+image::../../images/pipeline_movavg/movavg_100window.png[]
 
 
 ==== Linear
@@ -241,7 +241,7 @@ will closely track the data and only smooth out small scale fluctuations:
 
 [[linear_10window]]
 .Linear moving average with window of size 10
-image::images/pipeline_movavg/linear_10window.png[]
+image::../../images/pipeline_movavg/linear_10window.png[]
 
 In contrast, a `linear` moving average with larger window (`"window": 100`) will smooth out all higher-frequency fluctuations,
 leaving only low-frequency, long term trends.  It also tends to "lag" behind the actual data by a substantial amount,
@@ -249,7 +249,7 @@ although typically less than the `simple` model:
 
 [[linear_100window]]
 .Linear moving average with window of size 100
-image::images/pipeline_movavg/linear_100window.png[]
+image::../../images/pipeline_movavg/linear_100window.png[]
 
 ==== EWMA (Exponentially Weighted)
 
@@ -299,11 +299,11 @@ POST /_search
 
 [[single_0.2alpha]]
 .EWMA with window of size 10, alpha = 0.2
-image::images/pipeline_movavg/single_0.2alpha.png[]
+image::../../images/pipeline_movavg/single_0.2alpha.png[]
 
 [[single_0.7alpha]]
 .EWMA with window of size 10, alpha = 0.7
-image::images/pipeline_movavg/single_0.7alpha.png[]
+image::../../images/pipeline_movavg/single_0.7alpha.png[]
 
 ==== Holt-Linear
 
@@ -363,11 +363,11 @@ values emphasize short-term trends.  This will become more apparently when you a
 
 [[double_0.2beta]]
 .Holt-Linear moving average with window of size 100, alpha = 0.5, beta = 0.2
-image::images/pipeline_movavg/double_0.2beta.png[]
+image::../../images/pipeline_movavg/double_0.2beta.png[]
 
 [[double_0.7beta]]
 .Holt-Linear moving average with window of size 100, alpha = 0.5, beta = 0.7
-image::images/pipeline_movavg/double_0.7beta.png[]
+image::../../images/pipeline_movavg/double_0.7beta.png[]
 
 ==== Holt-Winters
 
@@ -394,7 +394,7 @@ does not backcast.
 
 [[holt_winters_cold_start]]
 .Holt-Winters showing a "cold" start where no values are emitted
-image::images/pipeline_movavg/triple_untruncated.png[]
+image::../../images/pipeline_movavg/triple_untruncated.png[]
 
 Because the "cold start" obscures what the moving average looks like, the rest of the Holt-Winters images are truncated
 to not show the "cold start".  Just be aware this will always be present at the beginning of your moving averages!
@@ -450,7 +450,7 @@ POST /_search
 
 [[holt_winters_add]]
 .Holt-Winters moving average with window of size 120, alpha = 0.5, beta = 0.7, gamma = 0.3, period = 30
-image::images/pipeline_movavg/triple.png[]
+image::../../images/pipeline_movavg/triple.png[]
 
 ===== Multiplicative Holt-Winters
 
@@ -556,7 +556,7 @@ of the last value in the series, producing a flat:
 
 [[simple_prediction]]
 .Simple moving average with window of size 10, predict = 50
-image::images/pipeline_movavg/simple_prediction.png[]
+image::../../images/pipeline_movavg/simple_prediction.png[]
 
 In contrast, the `holt` model can extrapolate based on local or global constant trends.  If we set a high `beta`
 value, we can extrapolate based on local constant trends (in this case the predictions head down, because the data at the end
@@ -564,21 +564,21 @@ of the series was heading in a downward direction):
 
 [[double_prediction_local]]
 .Holt-Linear moving average with window of size 100, predict = 20, alpha = 0.5, beta = 0.8
-image::images/pipeline_movavg/double_prediction_local.png[]
+image::../../images/pipeline_movavg/double_prediction_local.png[]
 
 In contrast, if we choose a small `beta`, the predictions are based on the global constant trend.  In this series, the
 global trend is slightly positive, so the prediction makes a sharp u-turn and begins a positive slope:
 
 [[double_prediction_global]]
 .Double Exponential moving average with window of size 100, predict = 20, alpha = 0.5, beta = 0.1
-image::images/pipeline_movavg/double_prediction_global.png[]
+image::../../images/pipeline_movavg/double_prediction_global.png[]
 
 The `holt_winters` model has the potential to deliver the best predictions, since it also incorporates seasonal
 fluctuations into the model:
 
 [[holt_winters_prediction_global]]
 .Holt-Winters moving average with window of size 120, predict = 25, alpha = 0.8, beta = 0.2, gamma = 0.7, period = 30
-image::images/pipeline_movavg/triple_prediction.png[]
+image::../../images/pipeline_movavg/triple_prediction.png[]
 
 [[movavg-minimizer]]
 ==== Minimization

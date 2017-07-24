@@ -289,7 +289,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
         builder.startObject(CONTENT_TYPE);
         builder.field("type", parentType);
-        if (includeDefaults || fieldType().eagerGlobalOrdinals() != defaultFieldType.eagerGlobalOrdinals()) {
+        if (includeDefaults || fieldType().eagerGlobalOrdinals() == false) {
             builder.field("eager_global_ordinals", fieldType().eagerGlobalOrdinals());
         }
         builder.endObject();

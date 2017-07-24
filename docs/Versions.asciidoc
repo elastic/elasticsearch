@@ -2,7 +2,7 @@
 :major-version:         6.x
 :lucene_version:        7.0.0-SNAPSHOT
 :lucene_version_path:   7_0_0
-:branch:                master
+:branch:                6.0
 :jdk:                   1.8.0_131
 
 //////////

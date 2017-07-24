@@ -409,9 +409,12 @@ class BuildPlugin implements Plugin<Project> {
         project.afterEvaluate {
             // fail on all javac warnings
             project.tasks.withType(JavaCompile) {
-                options.fork = true
-                options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
-                options.forkOptions.memoryMaximumSize = "1g"
+                File gradleJavaHome = Jvm.current().javaHome
+                if (new File(project.javaHome).canonicalPath != gradleJavaHome.canonicalPath) {
+                    options.fork = true
+                    options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
+                    options.forkOptions.memoryMaximumSize = "1g"
+                }
                 if (project.targetCompatibility >= JavaVersion.VERSION_1_8) {
                     // compile with compact 3 profile by default
                     // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
@@ -439,9 +442,12 @@ class BuildPlugin implements Plugin<Project> {
                     // hack until gradle supports java 9's new "--release" arg
                     assert minimumJava == JavaVersion.VERSION_1_8
                     options.compilerArgs << '--release' << '8'
-                    doFirst{
-                        sourceCompatibility = null
-                        targetCompatibility = null
+                    if (GradleVersion.current().getBaseVersion() < GradleVersion.version("4.1")) {
+                        // this hack is not needed anymore since Gradle 4.1, see https://github.com/gradle/gradle/pull/2474
+                        doFirst {
+                            sourceCompatibility = null
+                            targetCompatibility = null
+                        }
                     }
                 }
             }

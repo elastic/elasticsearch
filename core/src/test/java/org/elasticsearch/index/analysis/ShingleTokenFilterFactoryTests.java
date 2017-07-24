@@ -84,14 +84,15 @@ public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
 
     public void testDisableGraph() throws IOException {
         ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
+        TokenFilterFactory shingle = analysis.tokenFilter.get("shingle");
         TokenFilterFactory shingleFiller = analysis.tokenFilter.get("shingle_filler");
         TokenFilterFactory shingleInverse = analysis.tokenFilter.get("shingle_inverse");
 
         String source = "hello world";
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
-        try (TokenStream stream = shingleFiller.create(tokenizer)) {
-            // This config uses different size of shingles so graph analysis is disabled
+        try (TokenStream stream = shingle.create(tokenizer)) {
+            // The default config outputs unigram so graph analysis is disabled
             assertTrue(stream.hasAttribute(DisableGraphAttribute.class));
         }
 
@@ -100,6 +101,13 @@ public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
         try (TokenStream stream = shingleInverse.create(tokenizer)) {
             // This config uses a single size of shingles so graph analysis is enabled
             assertFalse(stream.hasAttribute(DisableGraphAttribute.class));
+        }
+
+        tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader(source));
+        try (TokenStream stream = shingleFiller.create(tokenizer)) {
+            // This config uses a single size of shingles so graph analysis is enabled
+            assertTrue(stream.hasAttribute(DisableGraphAttribute.class));
         }
     }
 }

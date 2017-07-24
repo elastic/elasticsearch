@@ -42,6 +42,7 @@ import org.apache.lucene.analysis.fr.FrenchAnalyzer;
 import org.apache.lucene.analysis.hi.HindiNormalizationFilter;
 import org.apache.lucene.analysis.in.IndicNormalizationFilter;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
+import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
 import org.apache.lucene.analysis.miscellaneous.LengthFilter;
 import org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilter;
@@ -341,7 +342,15 @@ public enum PreBuiltTokenFilters {
     SHINGLE(CachingStrategy.ONE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            return new ShingleFilter(tokenStream);
+            final TokenStream filter = new ShingleFilter(tokenStream);
+            /**
+             * We disable the graph analysis on this token stream
+             * because it produces shingles of different size.
+             * Graph analysis on such token stream is useless and dangerous as it may create too many paths
+             * since shingles of different size are not aligned in terms of positions.
+             */
+            filter.addAttribute(DisableGraphAttribute.class);
+            return filter;
         }
     },
 

@@ -39,8 +39,6 @@ import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.ssl.SSLService;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-
 import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -132,10 +130,6 @@ public class HttpExporter extends Exporter {
      * ES level timeout used when checking and writing pipelines (used to speed up tests)
      */
     public static final String PIPELINE_CHECK_TIMEOUT_SETTING = "index.pipeline.master_timeout";
-    /**
-     * ES level timeout used when checking and writing aliases (used to speed up tests)
-     */
-    public static final String ALIAS_TIMEOUT_SETTING = "index.alias.master_timeout";
 
     /**
      * Minimum supported version of the remote monitoring cluster.
@@ -328,10 +322,6 @@ public class HttpExporter extends Exporter {
         configureTemplateResources(config, resolvers, resourceOwnerName, resources);
         // load the pipeline (this will get added to as the monitoring API version increases)
         configurePipelineResources(config, resourceOwnerName, resources);
-
-        // alias .marvel-es-1-* indices
-        resources.add(new BackwardsCompatibilityAliasesResource(resourceOwnerName,
-                      config.settings().getAsTime(ALIAS_TIMEOUT_SETTING, timeValueSeconds(30))));
 
         // load the watches for cluster alerts if Watcher is available
         configureClusterAlertsResources(config, resourceOwnerName, resources);

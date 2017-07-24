@@ -44,7 +44,7 @@ public class ReservedRolesStore {
                         RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*").privileges("manage", "read", "index", "delete")
                                 .build() }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("monitoring_user", new RoleDescriptor("monitoring_user", null, new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices(".marvel-es-*", ".monitoring-*").privileges("read").build() },
+                        RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("read").build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("remote_monitoring_agent", new RoleDescriptor("remote_monitoring_agent",
                         new String[] {
@@ -54,7 +54,7 @@ public class ReservedRolesStore {
                             "cluster:admin/xpack/watcher/watch/delete",
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
-                            RoleDescriptor.IndicesPrivileges.builder().indices(".marvel-es-*", ".monitoring-*").privileges("all").build() },
+                            RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("all").build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("ingest_admin", new RoleDescriptor("ingest_admin", new String[] { "manage_index_templates", "manage_pipeline" },
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))

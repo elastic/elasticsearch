@@ -39,11 +39,8 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
  * 3) The *actual* jar that will be used by clients. This has no classifier, contains the rest client src and
  *    `org.elasticsearch.client`. This jar is the only actual output artifact of this job.
  */
-plugins {
-  id "com.github.johnrengelman.shadow" version "2.0.1"
-}
-
 apply plugin: 'elasticsearch.build'
+apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'ru.vyarus.animalsniffer'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
@@ -109,6 +106,18 @@ if (isIdea == false && isEclipse == false) {
   }
 }
 
+if (isEclipse) {
+  // in eclipse the project is under a fake root, we need to change around the source sets
+  sourceSets {
+    if (project.path == ":client:rest") {
+      main.java.srcDirs = ['java']
+      //main.resources.srcDirs = ['resources']
+    } else {
+      test.java.srcDirs = ['java']
+      test.resources.srcDirs = ['resources']
+    }
+  }
+}
 // adds a dependency to compile, so the -deps jar is built first
 sourceSets.main.output.dir(shadedSrcDir, builtBy: 'shadeDeps')
 
@@ -122,7 +131,12 @@ dependencies {
 
   compile shadeDeps.outputs.files
 
-  testCompile "org.elasticsearch.client:test:${version}"
+  if (isEclipse == false || project.path == ":client:rest-tests") {
+    testCompile("org.elasticsearch.client:test:${version}") {
+      // tests use the locally compiled version of core
+      exclude group: 'org.elasticsearch', module: 'elasticsearch'
+    }
+  }
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
   testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
@@ -130,6 +144,14 @@ dependencies {
   testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
   testCompile "org.codehaus.mojo:animal-sniffer-annotations:1.15"
   signature "org.codehaus.mojo.signature:java17:1.0@signature"
+}
+
+// Set the exported=true for the generated rest client deps since it is used by other projects in eclipse.
+// https://docs.gradle.org/3.3/userguide/eclipse_plugin.html#sec:eclipse_modify_domain_objects
+eclipse.classpath.file {
+    whenMerged { classpath ->
+        classpath.entries.findAll { entry -> entry.path.contains("elasticsearch-rest-client") }*.exported = true
+    }
 }
 
 dependencyLicenses.dependencies = project.configurations.shade

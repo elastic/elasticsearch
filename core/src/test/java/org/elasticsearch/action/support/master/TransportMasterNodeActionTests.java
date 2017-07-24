@@ -299,19 +299,33 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
     public void testDelegateToFailingMaster() throws ExecutionException, InterruptedException {
         boolean failsWithConnectTransportException = randomBoolean();
+        boolean rejoinSameMaster = failsWithConnectTransportException && randomBoolean();
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(failsWithConnectTransportException ? 60 : 0));
         setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool).execute(request, listener);
 
-        assertThat(transport.capturedRequests().length, equalTo(1));
-        CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests.length, equalTo(1));
+        CapturingTransport.CapturedRequest capturedRequest = capturedRequests[0];
         assertTrue(capturedRequest.node.isMasterNode());
         assertThat(capturedRequest.request, equalTo(request));
         assertThat(capturedRequest.action, equalTo("testAction"));
 
-        if (failsWithConnectTransportException) {
+        if (rejoinSameMaster) {
+            transport.handleRemoteError(capturedRequest.requestId, new ConnectTransportException(remoteNode, "Fake error"));
+            assertFalse(listener.isDone());
+            // reset the same state to increment a version simulating a join of an existing node
+            setState(clusterService, clusterService.state());
+            assertFalse(listener.isDone());
+            capturedRequests = transport.getCapturedRequestsAndClear();
+            assertThat(capturedRequests.length, equalTo(1));
+            capturedRequest = capturedRequests[0];
+            assertTrue(capturedRequest.node.isMasterNode());
+            assertThat(capturedRequest.request, equalTo(request));
+            assertThat(capturedRequest.action, equalTo("testAction"));
+        } else if (failsWithConnectTransportException) {
             transport.handleRemoteError(capturedRequest.requestId, new ConnectTransportException(remoteNode, "Fake error"));
             assertFalse(listener.isDone());
             setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));

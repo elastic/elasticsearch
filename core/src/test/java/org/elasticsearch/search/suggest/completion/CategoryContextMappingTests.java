@@ -23,6 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,11 +33,14 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.CompletionFieldMapper.CompletionFieldType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.search.suggest.completion.context.CategoryContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
@@ -699,8 +703,20 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
     public void testParsingContextFromDocument() throws Exception {
         CategoryContextMapping mapping = ContextBuilder.category("cat").field("category").build();
         ParseContext.Document document = new ParseContext.Document();
-        document.add(new StringField("category", "category1", Field.Store.NO));
+
+        KeywordFieldMapper.KeywordFieldType keyword = new KeywordFieldMapper.KeywordFieldType();
+        keyword.setName("category");
+        document.add(new Field(keyword.name(), new BytesRef("category1"), keyword));
         Set<CharSequence> context = mapping.parseContext(document);
+        assertThat(context.size(), equalTo(1));
+        assertTrue(context.contains("category1"));
+
+
+        document = new ParseContext.Document();
+        TextFieldMapper.TextFieldType text = new TextFieldMapper.TextFieldType();
+        text.setName("category");
+        document.add(new Field(text.name(), "category1", text));
+        context = mapping.parseContext(document);
         assertThat(context.size(), equalTo(1));
         assertTrue(context.contains("category1"));
     }

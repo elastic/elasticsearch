@@ -21,22 +21,23 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
 
 /**
  * The rest client is a shaded jar. It contains the source of the rest client, as well as all the dependencies,
- * shaded to the `internal.` package. 3 artifacts come out of this build process.
+ * shaded to the `org.elasticsearch.client` package. 3 artifacts come out of this build process. The shading process only
+ * modifies the imports and class names and locations. It does not do any processing on the files. The classes used to
+ * interact with the rest client are no different from the dependencies in the shade configuration, besides in name.
  *
- * 1) The original jar contents, using the `internal.` packages, but without the `internal.` code also in the jar.
- *    The reason this jar was not overwritten was because gradle knows what its inputs and outputs are for a given task
- *    and we should not alter that by overwriting the original jar. What we do is add a `nodeps` classifier to it instead.
- *    This jar is removed from the output artifacts in cli, and retained in IDE builds.
- * 2) A jar that contains *only* the `internal.` dependencies. This is a jar that is built before the src is compiled.
- *    This jar is only used by the rest client so its compilable. There exists a chicken-egg situation where the src
- *    needs compilation and depends on `internal.` classes, so an intermediary jar needs to exist to satisfy the compile.
- *    The `deps` classifier is added to this jar. This jar is removed from the output artifacts in cli, and retained in
- *    IDE builds.
- * 3) The *actual* jar that will be used by clients. This has no classifier, contains the rest client src and `internal.`.
- *    This jar is the only actual output artifact of this job.
+ * IDEs do not like removing artifacts and changing configurations on the fly, so the bits that make the build use the
+ * actual shaded jar (3) are only executed on the cli. Tests run in an IDE rely on the deps (1) and nodeps (2) jars.
  *
- *  The IDE does not like removing artifacts and changing configurations on the fly, so the bits that make the build
- *  use the actual shaded jar (3) are only executed on the cli. Tests run in an IDE rely on the -nodeps (1) and deps (2) jars.
+ * 1) A jar that contains *only* the `org.elasticsearch.client` dependencies. This is a jar that is built before the src
+ *    is compiled. This jar is only used by the rest client so its compilable. There exists a chicken-egg situation where
+ *    the src needs compilation and depends on `org.elasticsearch.client` classes, so an intermediary jar needs to exist
+ *    to satisfy the compile. The `deps` classifier is added to this jar.
+ * 2) The original src/ contents, using the `org.elasticsearch.client` packages, but without the `org.elasticsearch.client`
+ *    code also in the jar. The reason this jar was not overwritten was because gradle knows what its inputs and outputs
+ *    are for a given task and we should not alter that by overwriting the original jar. What we do is add a `nodeps`
+ *    classifier to it instead.
+ * 3) The *actual* jar that will be used by clients. This has no classifier, contains the rest client src and
+ *    `org.elasticsearch.client`. This jar is the only actual output artifact of this job.
  */
 plugins {
   id "com.github.johnrengelman.shadow" version "2.0.1"
@@ -91,12 +92,11 @@ shadowJar {
 }
 
 jar {
-  // rename the default jar because we are removing the classifier from the shadowJar, which is a null classifier
+  // move the default jar to another classifier so the jar with the shaded dependencies can have the empty classifier
   classifier = 'nodeps'
 }
 
 // Mangle this build so it outputs the correct artifacts
-
 // readds the shadowJar output (the actual uber jar) but only from the cli
 if (isIdea == false && isEclipse == false) {
   // removes the -nodeps jar

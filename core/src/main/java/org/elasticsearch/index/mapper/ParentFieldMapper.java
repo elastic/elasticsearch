@@ -78,6 +78,8 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
         public Builder(String documentType) {
             super(Defaults.NAME, new ParentFieldType(Defaults.FIELD_TYPE, documentType), Defaults.FIELD_TYPE);
+            // Defaults to true
+            eagerGlobalOrdinals(true);
             this.documentType = documentType;
             builder = this;
         }

@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.elasticsearch.client.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.logging.log4j.Logger;
-import org.apache.http.Header;
-import org.apache.http.HttpHost;
-import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.UsernamePasswordCredentials;
-import org.apache.http.client.CredentialsProvider;
-import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.auth.AuthScope;
+import org.elasticsearch.client.http.auth.UsernamePasswordCredentials;
+import org.elasticsearch.client.http.client.CredentialsProvider;
+import org.elasticsearch.client.http.impl.client.BasicCredentialsProvider;
+import org.elasticsearch.client.http.message.BasicHeader;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;

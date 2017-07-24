@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
+import org.elasticsearch.client.http.message.BasicHeader;
+import org.elasticsearch.client.http.util.EntityUtils;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.ResponseException;

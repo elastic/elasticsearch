@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.integration;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.StatusLine;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.StatusLine;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
+import org.elasticsearch.client.http.message.BasicHeader;
+import org.elasticsearch.client.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.notification.jira;
 
-import org.apache.http.HttpStatus;
+import org.elasticsearch.client.http.HttpStatus;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;

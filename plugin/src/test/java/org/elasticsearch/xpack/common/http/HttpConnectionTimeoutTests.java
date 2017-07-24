@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.common.http;
 
-import org.apache.http.conn.ConnectTimeoutException;
+import org.elasticsearch.client.http.conn.ConnectTimeoutException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;

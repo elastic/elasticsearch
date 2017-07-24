@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action;
 
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;

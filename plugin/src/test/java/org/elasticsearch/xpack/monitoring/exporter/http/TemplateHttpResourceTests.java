@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 

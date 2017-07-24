@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.transforms;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
+import org.elasticsearch.client.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;

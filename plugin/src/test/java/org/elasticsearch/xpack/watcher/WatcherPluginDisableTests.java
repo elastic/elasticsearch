@@ -9,7 +9,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
-import org.apache.http.HttpStatus;
+import org.elasticsearch.client.http.HttpStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.support.AutoCreateIndex;

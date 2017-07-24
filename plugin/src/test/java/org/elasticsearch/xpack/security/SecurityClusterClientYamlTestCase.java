@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;

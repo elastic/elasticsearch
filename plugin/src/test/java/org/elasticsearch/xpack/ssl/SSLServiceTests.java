@@ -5,17 +5,17 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.conn.ssl.DefaultHostnameVerifier;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.HttpResponse;
+import org.elasticsearch.client.http.client.methods.HttpGet;
+import org.elasticsearch.client.http.concurrent.FutureCallback;
+import org.elasticsearch.client.http.conn.ssl.DefaultHostnameVerifier;
+import org.elasticsearch.client.http.conn.ssl.NoopHostnameVerifier;
+import org.elasticsearch.client.http.impl.client.CloseableHttpClient;
+import org.elasticsearch.client.http.impl.client.HttpClients;
+import org.elasticsearch.client.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.elasticsearch.client.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.elasticsearch.client.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;

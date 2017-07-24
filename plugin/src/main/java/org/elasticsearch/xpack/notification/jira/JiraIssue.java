@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.notification.jira;
 
-import org.apache.http.HttpStatus;
+import org.elasticsearch.client.http.HttpStatus;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;

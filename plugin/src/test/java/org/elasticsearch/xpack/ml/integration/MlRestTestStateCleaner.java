@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.http.HttpStatus;
+import org.elasticsearch.client.http.HttpStatus;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.client.Response;

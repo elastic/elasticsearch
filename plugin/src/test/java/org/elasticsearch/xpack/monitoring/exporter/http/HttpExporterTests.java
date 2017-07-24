@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
+import org.elasticsearch.client.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.sniff.Sniffer;

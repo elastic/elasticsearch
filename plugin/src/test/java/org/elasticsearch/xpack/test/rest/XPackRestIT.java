@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.test.rest;
 
-import org.apache.http.HttpStatus;
+import org.elasticsearch.client.http.HttpStatus;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;

@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.integration;
 
-import org.apache.http.Header;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
+import org.elasticsearch.client.http.message.BasicHeader;
+import org.elasticsearch.client.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;

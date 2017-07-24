@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.elasticsearch.client.http.conn.ssl.NoopHostnameVerifier;
+import org.elasticsearch.client.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.lucene.util.SetOnce;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.elasticsearch.ElasticsearchException;

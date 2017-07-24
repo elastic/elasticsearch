@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.example.realm;
 
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.http.message.BasicHeader;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;

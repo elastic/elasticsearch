@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import java.util.Map;
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;

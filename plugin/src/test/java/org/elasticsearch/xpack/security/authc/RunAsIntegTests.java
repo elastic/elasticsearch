@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;

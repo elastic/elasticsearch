@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
-import org.apache.http.Header;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.impl.client.CloseableHttpClient;
+import org.elasticsearch.client.http.impl.client.HttpClients;
+import org.elasticsearch.client.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;

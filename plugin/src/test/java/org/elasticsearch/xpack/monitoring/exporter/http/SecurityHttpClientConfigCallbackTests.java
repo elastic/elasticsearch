@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import org.apache.http.client.CredentialsProvider;
-import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.elasticsearch.client.http.client.CredentialsProvider;
+import org.elasticsearch.client.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.elasticsearch.client.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.mockito.Mockito.mock;

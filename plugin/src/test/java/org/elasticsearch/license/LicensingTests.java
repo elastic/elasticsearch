@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.license;
 
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;

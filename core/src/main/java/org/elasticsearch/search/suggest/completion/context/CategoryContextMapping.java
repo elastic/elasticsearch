@@ -21,6 +21,7 @@ package org.elasticsearch.search.suggest.completion.context;
 
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.ElasticsearchParseException;
@@ -140,13 +141,16 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
             IndexableField[] fields = document.getFields(fieldName);
             values = new HashSet<>(fields.length);
             for (IndexableField field : fields) {
-                if (field.fieldType() instanceof KeywordFieldMapper.KeywordFieldType) {
+                if (field instanceof SortedDocValuesField ||
+                        field instanceof SortedSetDocValuesField ||
+                        field instanceof StoredField) {
+                    // Ignore doc values and stored fields
+                } else if (field.fieldType() instanceof KeywordFieldMapper.KeywordFieldType) {
                     values.add(field.binaryValue().utf8ToString());
                 } else if (field.fieldType() instanceof StringFieldType) {
                     values.add(field.stringValue());
                 } else {
-                    // ignore doc_values field
-                    assert field.fieldType() instanceof SortedDocValuesField || field.fieldType() instanceof SortedSetDocValuesField;
+                    throw new IllegalArgumentException("Failed to parse context field [" + fieldName + "], only keyword and text fields are accepted");
                 }
             }
         }

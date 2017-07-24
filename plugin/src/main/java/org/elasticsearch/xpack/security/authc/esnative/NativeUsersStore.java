@@ -43,10 +43,8 @@ import org.elasticsearch.xpack.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.security.authc.AuthenticationResult;
-import org.elasticsearch.xpack.security.authc.ContainerSettings;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.User.Fields;
@@ -69,24 +67,21 @@ import java.util.function.Consumer;
  */
 public class NativeUsersStore extends AbstractComponent {
 
-    static final String INDEX_TYPE = "doc";
-    private static final String USER_DOC_TYPE = "user";
-    static final String RESERVED_USER_TYPE = "reserved-user";
+    public static final String INDEX_TYPE = "doc";
+    static final String USER_DOC_TYPE = "user";
+    public static final String RESERVED_USER_TYPE = "reserved-user";
 
     private final Hasher hasher = Hasher.BCRYPT;
     private final InternalClient client;
     private final boolean isTribeNode;
 
     private volatile SecurityLifecycleService securityLifecycleService;
-    private final ContainerSettings containerSettings;
 
-    public NativeUsersStore(Settings settings, InternalClient client, SecurityLifecycleService securityLifecycleService,
-                            ContainerSettings containerSettings) {
+    public NativeUsersStore(Settings settings, InternalClient client, SecurityLifecycleService securityLifecycleService) {
         super(settings);
         this.client = client;
         this.isTribeNode = XPackPlugin.isTribeNode(settings);
         this.securityLifecycleService = securityLifecycleService;
-        this.containerSettings = containerSettings;
     }
 
     /**
@@ -119,7 +114,8 @@ public class NativeUsersStore extends AbstractComponent {
         } else {
             if (securityLifecycleService.isSecurityIndexOutOfDate()) {
                 listener.onFailure(new IllegalStateException(
-                    "Security index is not on the current version - please upgrade with the upgrade api"));
+                    "Security index is not on the current version - the native realm will not be operational " +
+                    "until the upgrade API is run on the security index"));
                 return;
             }
             try {
@@ -155,7 +151,8 @@ public class NativeUsersStore extends AbstractComponent {
     private void getUserAndPassword(final String user, final ActionListener<UserAndPassword> listener) {
         if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         }
         try {
@@ -202,7 +199,8 @@ public class NativeUsersStore extends AbstractComponent {
             return;
         } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("password cannot be changed as user service cannot write until template and " +
@@ -254,7 +252,8 @@ public class NativeUsersStore extends AbstractComponent {
     private void createReservedUser(String username, char[] passwordHash, RefreshPolicy refresh, ActionListener<Void> listener) {
         if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         }
         securityLifecycleService.createIndexIfNeededThenExecute(listener, () ->
@@ -287,7 +286,8 @@ public class NativeUsersStore extends AbstractComponent {
             return;
         } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("user cannot be created or changed as the user service cannot write until " +
@@ -389,7 +389,8 @@ public class NativeUsersStore extends AbstractComponent {
             return;
         } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("enabled status cannot be changed as user service cannot write until template " +
@@ -476,7 +477,8 @@ public class NativeUsersStore extends AbstractComponent {
             return;
         } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("user cannot be deleted as user service cannot write until template and " +
@@ -516,7 +518,7 @@ public class NativeUsersStore extends AbstractComponent {
     void verifyPassword(String username, final SecureString password, ActionListener<AuthenticationResult> listener) {
         getUserAndPassword(username, ActionListener.wrap((userAndPassword) -> {
             if (userAndPassword == null || userAndPassword.passwordHash() == null) {
-                listener.onResponse(null);
+                listener.onResponse(AuthenticationResult.notHandled());
             } else if (hasher.verify(password, userAndPassword.passwordHash())) {
                 listener.onResponse(AuthenticationResult.success(userAndPassword.user()));
             } else {
@@ -531,7 +533,8 @@ public class NativeUsersStore extends AbstractComponent {
             return;
         } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         }
         client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(RESERVED_USER_TYPE, username))
@@ -546,8 +549,6 @@ public class NativeUsersStore extends AbstractComponent {
                                 listener.onFailure(new IllegalStateException("password hash must not be null!"));
                             } else if (enabled == null) {
                                 listener.onFailure(new IllegalStateException("enabled must not be null!"));
-                            } else if (password.isEmpty() && containerSettings.inContainer() && username.equals(ElasticUser.NAME)) {
-                                listener.onResponse(new ReservedUserInfo(containerSettings.getPasswordHash(), enabled, false));
                             } else if (password.isEmpty()) {
                                 listener.onResponse(new ReservedUserInfo(ReservedRealm.EMPTY_PASSWORD_HASH, enabled, true));
                             } else {
@@ -577,7 +578,8 @@ public class NativeUsersStore extends AbstractComponent {
     void getAllReservedUserInfo(ActionListener<Map<String, ReservedUserInfo>> listener) {
         if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         }
         client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
@@ -603,12 +605,6 @@ public class NativeUsersStore extends AbstractComponent {
                             } else if (enabled == null) {
                                 listener.onFailure(new IllegalStateException("enabled must not be null!"));
                                 return;
-                            } else if (password.isEmpty() && containerSettings.inContainer() &&
-                                    ElasticUser.NAME.equals(searchHit.getId())) {
-                                char[] passwordHash = containerSettings.getPasswordHash();
-                                userInfos.put(searchHit.getId(), new ReservedUserInfo(passwordHash, enabled, false));
-                            } else if (password.isEmpty()) {
-                                userInfos.put(username, new ReservedUserInfo(ReservedRealm.EMPTY_PASSWORD_HASH, enabled, true));
                             } else {
                                 userInfos.put(username, new ReservedUserInfo(password.toCharArray(), enabled, false));
                             }

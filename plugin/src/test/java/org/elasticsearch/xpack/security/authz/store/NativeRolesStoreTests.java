@@ -187,7 +187,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         final AtomicBoolean methodCalled = new AtomicBoolean(false);
         final SecurityLifecycleService securityLifecycleService =
             new SecurityLifecycleService(Settings.EMPTY, clusterService, threadPool, internalClient,
-                                         licenseState, mock(IndexAuditTrail.class));
+                                         mock(IndexAuditTrail.class));
         final NativeRolesStore rolesStore = new NativeRolesStore(Settings.EMPTY, internalClient, licenseState, securityLifecycleService) {
             @Override
             void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {

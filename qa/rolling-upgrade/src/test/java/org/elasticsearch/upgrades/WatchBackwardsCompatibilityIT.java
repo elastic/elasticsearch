@@ -5,15 +5,17 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.apache.http.HttpHost;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.util.EntityUtils;
+import com.google.common.base.Charsets;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
+import org.elasticsearch.client.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -25,10 +27,14 @@ import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,8 +47,10 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
 
@@ -92,7 +100,9 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
                 for (String key : mappings.keySet()) {
                     String templateVersion = objectPath.evaluate(mappingsPath + "." + key + "" +
                             "._meta.security-version");
-                    assertEquals(masterTemplateVersion, templateVersion);
+                    final Version mVersion = Version.fromString(masterTemplateVersion);
+                    final Version tVersion = Version.fromString(templateVersion);
+                    assertTrue(mVersion.onOrBefore(tVersion));
                 }
             } catch (Exception e) {
                 throw new AssertionError("failed to get cluster state", e);
@@ -125,9 +135,44 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
     }
 
     public void testWatcherRestart() throws Exception {
-        executeAgainstAllNodes(client -> {
+        // TODO we should be able to run this against any node, once the bwc serialization issues are fixed
+        executeAgainstMasterNode(client -> {
             assertOK(client.performRequest("POST", "/_xpack/watcher/_stop"));
+            assertBusy(() -> {
+                try (InputStream is = client.performRequest("GET", "_xpack/watcher/stats").getEntity().getContent()) {
+                    // TODO once the serialization fix is in here, we can check for concrete fields if the run against a 5.x or a 6.x node
+                    // using a checkedbiconsumer, that provides info against which node the request runs
+                    String responseBody = Streams.copyToString(new InputStreamReader(is, Charsets.UTF_8));
+                    assertThat(responseBody, not(containsString("\"watcher_state\":\"starting\"")));
+                    assertThat(responseBody, not(containsString("\"watcher_state\":\"started\"")));
+                    assertThat(responseBody, not(containsString("\"watcher_state\":\"stopping\"")));
+                }
+            });
+        });
+
+        // TODO remove this again, as the upgrade API should take care of this
+        // currently the triggered watches index is not checked by the upgrade API, resulting in an existing index
+        // that has not configured the `index.format: 6`, resulting in watcher not starting
+        Map<String, String> params = new HashMap<>();
+        params.put("error_trace", "true");
+        params.put("ignore", "404");
+        client().performRequest("DELETE", ".triggered_watches", params);
+
+        executeUpgradeIfNeeded();
+
+        // TODO we should be able to run this against any node, once the bwc serialization issues are fixed
+        executeAgainstMasterNode(client -> {
             assertOK(client.performRequest("POST", "/_xpack/watcher/_start"));
+            assertBusy(() -> {
+                try (InputStream is = client.performRequest("GET", "_xpack/watcher/stats").getEntity().getContent()) {
+                    // TODO once the serialization fix is in here, we can check for concrete fields if the run against a 5.x or a 6.x node
+                    // using a checkedbiconsumer, that provides info against which node the request runs
+                    String responseBody = Streams.copyToString(new InputStreamReader(is, Charsets.UTF_8));
+                    assertThat(responseBody, not(containsString("\"watcher_state\":\"starting\"")));
+                    assertThat(responseBody, not(containsString("\"watcher_state\":\"stopping\"")));
+                    assertThat(responseBody, not(containsString("\"watcher_state\":\"stopped\"")));
+                }
+            });
         });
     }
 
@@ -144,7 +189,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
                 ContentType.APPLICATION_JSON);
 
         // execute upgrade if new nodes are in the cluster
-        executeUpgradeIfClusterHasNewNode();
+        executeUpgradeIfNeeded();
 
         executeAgainstAllNodes(client -> {
             Map<String, String> params = Collections.singletonMap("error_trace", "true");
@@ -156,24 +201,45 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         });
     }
 
-    public void executeUpgradeIfClusterHasNewNode()
-            throws IOException {
-        HttpHost[] newHosts = nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new);
-        if (newHosts.length > 0) {
-            try (RestClient client = buildClient(restClientSettings(), newHosts)) {
-                logger.info("checking that upgrade procedure on the new cluster is required, hosts [{}]", Arrays.asList(newHosts));
+    public void executeUpgradeIfNeeded() throws IOException {
+        // if new nodes exists, this is a mixed cluster
+        boolean only6xNodes = nodes.getBWCVersion().major >= 6;
+        final List<Node> nodesToQuery = only6xNodes ? nodes.getBWCNodes() : nodes.getNewNodes();
+        final HttpHost[] httpHosts = nodesToQuery.stream().map(Node::getPublishAddress).toArray(HttpHost[]::new);
+        if (httpHosts.length > 0) {
+            try (RestClient client = buildClient(restClientSettings(), httpHosts)) {
+                logger.info("checking that upgrade procedure on the new cluster is required, hosts [{}]", Arrays.asList(httpHosts));
                 Map<String, String> params = Collections.singletonMap("error_trace", "true");
-                Map<String, Object> response = toMap(client().performRequest("GET", "_xpack/migration/assistance", params));
-                String action = ObjectPath.evaluate(response, "indices.\\.watches.action_required");
-                logger.info("migration assistance response [{}]", action);
-                if ("upgrade".equals(action)) {
+                Response assistanceResponse = client().performRequest("GET", "_xpack/migration/assistance", params);
+                String assistanceResponseData = EntityUtils.toString(assistanceResponse.getEntity());
+                logger.info("Assistance response is: [{}]", assistanceResponseData);
+                Map<String, Object> response = toMap(assistanceResponseData);
+                String watchIndexUpgradeRequired = ObjectPath.evaluate(response, "indices.\\.watches.action_required");
+                String triggeredWatchIndexUpgradeRequired = ObjectPath.evaluate(response, "indices.\\.triggered_watches.action_required");
+                if ("upgrade".equals(watchIndexUpgradeRequired) || "upgrade".equals(triggeredWatchIndexUpgradeRequired)) {
                     client.performRequest("POST", "_xpack/migration/upgrade/.watches", params);
                 }
             }
         }
     }
 
-    public void executeAgainstAllNodes(CheckedConsumer<RestClient, IOException> consumer)
+    private void executeAgainstRandomNode(CheckedConsumer<RestClient, Exception> consumer) throws Exception {
+        List<Node> nodes = new ArrayList<>(this.nodes.values());
+        nodes.sort(Comparator.comparing(Node::getId));
+        Node node = randomFrom(nodes);
+
+        try (RestClient client = buildClient(restClientSettings(), new HttpHost[] { node.getPublishAddress() })) {
+            consumer.accept(client);
+        }
+    }
+
+    private void executeAgainstMasterNode(CheckedConsumer<RestClient, Exception> consumer) throws Exception {
+        try (RestClient client = buildClient(restClientSettings(), new HttpHost[] { this.nodes.getMaster().publishAddress })) {
+            consumer.accept(client);
+        }
+    }
+
+    private void executeAgainstAllNodes(CheckedConsumer<RestClient, IOException> consumer)
             throws IOException {
         HttpHost[] newHosts = nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new);
         HttpHost[] bwcHosts = nodes.getBWCNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new);
@@ -309,7 +375,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         }
     }
 
-    static Map<String, Object> toMap(Response response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
+    static Map<String, Object> toMap(String response) throws IOException {
+        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
     }
 }

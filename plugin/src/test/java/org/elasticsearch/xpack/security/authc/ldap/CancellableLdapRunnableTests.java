@@ -5,17 +5,18 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm.CancellableLdapRunnable;
 import org.elasticsearch.xpack.security.user.User;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -25,10 +26,10 @@ public class CancellableLdapRunnableTests extends ESTestCase {
         AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
         final CancellableLdapRunnable runnable =
                 new CancellableLdapRunnable(ActionListener.wrap(user -> {
-            throw new AssertionError("onResponse should not be called");
-        }, exceptionAtomicReference::set), () -> {
-            throw new AssertionError("runnable should not be executed");
-        }, logger);
+                    throw new AssertionError("onResponse should not be called");
+                }, exceptionAtomicReference::set), e -> null, () -> {
+                    throw new AssertionError("runnable should not be executed");
+                }, logger);
 
         runnable.maybeTimeout();
         runnable.run();
@@ -45,10 +46,10 @@ public class CancellableLdapRunnableTests extends ESTestCase {
                 new CancellableLdapRunnable(ActionListener.wrap(user -> {
                     listenerCalled.set(true);
                     throw new AssertionError("onResponse should not be called");
-        }, e -> {
+                }, e -> {
                     listenerCalled.set(true);
                     throw new AssertionError("onFailure should not be called");
-        }), () -> ran.set(ran.get() == false), logger);
+                }), e -> null, () -> ran.set(ran.get() == false), logger);
 
         runnable.run();
         assertTrue(ran.get());
@@ -63,10 +64,10 @@ public class CancellableLdapRunnableTests extends ESTestCase {
         AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
         final CancellableLdapRunnable runnable =
                 new CancellableLdapRunnable(ActionListener.wrap(user -> {
-            throw new AssertionError("onResponse should not be called");
-        }, exceptionAtomicReference::set), () -> {
-            throw new AssertionError("runnable should not be executed");
-        }, logger);
+                    throw new AssertionError("onResponse should not be called");
+                }, exceptionAtomicReference::set), e -> null, () -> {
+                    throw new AssertionError("runnable should not be executed");
+                }, logger);
 
         final Exception e = new RuntimeException("foo");
         runnable.onRejection(e);
@@ -84,7 +85,7 @@ public class CancellableLdapRunnableTests extends ESTestCase {
         }, e -> {
             throw new AssertionError("onFailure should not be executed");
         });
-        final CancellableLdapRunnable runnable = new CancellableLdapRunnable(listener, () -> {
+        final CancellableLdapRunnable runnable = new CancellableLdapRunnable(listener, e -> null, () -> {
             runningLatch.countDown();
             try {
                 timeoutCalledLatch.await();
@@ -102,4 +103,20 @@ public class CancellableLdapRunnableTests extends ESTestCase {
         listenerCalledLatch.await();
         t.join();
     }
+
+    public void testExceptionInRunnable() {
+        AtomicReference<String> resultRef = new AtomicReference<>();
+        final ActionListener<String> listener = ActionListener.wrap(resultRef::set, e -> {
+            throw new AssertionError("onFailure should not be executed");
+        });
+        String defaultValue = randomAlphaOfLengthBetween(2, 10);
+        final CancellableLdapRunnable<String> runnable = new CancellableLdapRunnable<>(listener, e -> defaultValue,
+                () -> {
+                    throw new RuntimeException("runnable intentionally failed");
+                }, logger);
+
+        runnable.run();
+        assertThat(resultRef.get(), equalTo(defaultValue));
+    }
+
 }

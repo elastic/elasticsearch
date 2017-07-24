@@ -106,7 +106,8 @@ public class NativeRolesStore extends AbstractComponent {
                     listener::onFailure));
         } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         } else {
             try {
@@ -139,7 +140,8 @@ public class NativeRolesStore extends AbstractComponent {
             return;
         } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("role cannot be deleted as service cannot write until template and " +
@@ -191,7 +193,8 @@ public class NativeRolesStore extends AbstractComponent {
     void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
         if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         }
         try {
@@ -236,7 +239,8 @@ public class NativeRolesStore extends AbstractComponent {
         } else {
             if (securityLifecycleService.isSecurityIndexOutOfDate()) {
                 listener.onFailure(new IllegalStateException(
-                    "Security index is not on the current version - please upgrade with the upgrade api"));
+                    "Security index is not on the current version - the native realm will not be operational until " +
+                    "the upgrade API is run on the security index"));
                 return;
             }
             client.prepareMultiSearch()
@@ -321,7 +325,8 @@ public class NativeRolesStore extends AbstractComponent {
     private void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
         if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         }
         try {

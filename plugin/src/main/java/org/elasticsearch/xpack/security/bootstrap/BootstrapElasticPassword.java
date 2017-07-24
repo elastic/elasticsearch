@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
@@ -38,11 +39,11 @@ public final class BootstrapElasticPassword {
     private final SecurityLifecycleService lifecycleService;
     private final boolean reservedRealmDisabled;
 
-    public BootstrapElasticPassword(Settings settings, Logger logger, ClusterService clusterService, ReservedRealm reservedRealm,
+    public BootstrapElasticPassword(Settings settings, ClusterService clusterService, ReservedRealm reservedRealm,
                                     SecurityLifecycleService lifecycleService) {
         this.reservedRealmDisabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings) == false;
         this.settings = settings;
-        this.logger = logger;
+        this.logger = Loggers.getLogger(BootstrapElasticPassword.class, settings);
         this.clusterService = clusterService;
         this.reservedRealm = reservedRealm;
         this.lifecycleService = lifecycleService;
@@ -98,7 +99,9 @@ public final class BootstrapElasticPassword {
                     @Override
                     public void onResponse(Boolean passwordSet) {
                         cleanup();
-                        if (passwordSet == false) {
+                        if (passwordSet) {
+                            logger.info("elastic password was bootstrapped successfully");
+                        } else {
                             logger.warn("elastic password was not bootstrapped because its password was already set");
                         }
                         semaphore.release();

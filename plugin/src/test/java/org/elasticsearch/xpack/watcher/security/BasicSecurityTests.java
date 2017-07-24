@@ -43,7 +43,8 @@ public class BasicSecurityTests extends AbstractWatcherIntegrationTestCase {
         String basicAuth = basicAuthHeaderValue("transport_client", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
         WatcherClient watcherClient = watcherClient().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuth));
         Exception e = expectThrows(Exception.class, () -> watcherClient.prepareWatcherStats().get());
-        assertThat(e.getMessage(), equalTo("action [cluster:monitor/xpack/watcher/stats] is unauthorized for user [transport_client]"));
+        assertThat(e.getMessage(),
+                   equalTo("action [cluster:monitor/xpack/watcher/stats/dist] is unauthorized for user [transport_client]"));
     }
 
     public void testWatcherMonitorRole() throws Exception {
@@ -54,7 +55,7 @@ public class BasicSecurityTests extends AbstractWatcherIntegrationTestCase {
                     .get();
             fail("authentication failure should have occurred");
         } catch (Exception e) {
-            assertThat(e.getMessage(), equalTo("action [cluster:monitor/xpack/watcher/stats] is unauthorized for user [test]"));
+            assertThat(e.getMessage(), equalTo("action [cluster:monitor/xpack/watcher/stats/dist] is unauthorized for user [test]"));
         }
 
         try {

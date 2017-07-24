@@ -5,42 +5,25 @@
  */
 package org.elasticsearch.license;
 
-import org.apache.http.message.BasicHeader;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.client.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -51,26 +34,17 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.TestXPackTransportClient;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
-import org.elasticsearch.xpack.template.TemplateUtils;
 import org.junit.Before;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -266,62 +240,6 @@ public class LicensingTests extends SecurityIntegTestCase {
         } catch (NoNodeAvailableException e) {
             // expected
         }
-    }
-
-    public void testNativeRealmMigratorWorksUnderBasicLicense() throws Exception {
-        final String internalSecurityIndex = IndexLifecycleManager.INTERNAL_SECURITY_INDEX;
-        final String aliasedIndex = SecurityLifecycleService.SECURITY_INDEX_NAME;
-        final String reservedUserType = "doc";
-        final String securityVersionField = "security-version";
-        final String oldVersionThatRequiresMigration = Version.V_5_0_2.toString();
-        final String expectedVersionAfterMigration = Version.CURRENT.toString();
-
-        final Client client = internalCluster().transportClient();
-        final String template = TemplateUtils.loadTemplate("/" + SecurityLifecycleService.SECURITY_TEMPLATE_NAME + ".json",
-                oldVersionThatRequiresMigration, Pattern.quote("${security.template.version}"));
-
-        PutIndexTemplateRequest putTemplateRequest = client.admin().indices()
-                .preparePutTemplate(SecurityLifecycleService.SECURITY_TEMPLATE_NAME)
-                .setSource(new BytesArray(template.getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
-                .request();
-        final PutIndexTemplateResponse putTemplateResponse = client.admin().indices().putTemplate(putTemplateRequest).actionGet();
-        assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
-
-        final CreateIndexRequest createIndexRequest = client.admin().indices().prepareCreate(internalSecurityIndex).request();
-        final CreateIndexResponse createIndexResponse = client.admin().indices().create(createIndexRequest).actionGet();
-        assertThat(createIndexResponse.isAcknowledged(), equalTo(true));
-
-        final Map<String, Object> templateMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, template, false);
-        final Map<String, Object> mappings = (Map<String, Object>) templateMap.get("mappings");
-        final Map<String, Object> reservedUserMapping = (Map<String, Object>) mappings.get(reservedUserType);
-
-        final PutMappingRequest putMappingRequest = client.admin().indices()
-                .preparePutMapping(internalSecurityIndex).setSource(reservedUserMapping).setType(reservedUserType).request();
-
-        final PutMappingResponse putMappingResponse = client.admin().indices().putMapping(putMappingRequest).actionGet();
-        assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
-
-        final GetMappingsRequest getMappingsRequest = client.admin().indices().prepareGetMappings(internalSecurityIndex).request();
-        logger.info("Waiting for '{}' in mapping meta-data of index '{}' to equal '{}'",
-                securityVersionField, aliasedIndex, expectedVersionAfterMigration);
-        final boolean upgradeOk = awaitBusy(() -> {
-            final GetMappingsResponse getMappingsResponse = client.admin().indices().getMappings(getMappingsRequest).actionGet();
-            final MappingMetaData metaData = getMappingsResponse.mappings().get(internalSecurityIndex).get(reservedUserType);
-            try {
-                Map<String, Object> meta = (Map<String, Object>) metaData.sourceAsMap().get("_meta");
-                return meta != null && expectedVersionAfterMigration.equals(meta.get(securityVersionField));
-            } catch (ElasticsearchParseException e) {
-                return false;
-            }
-        }, 3, TimeUnit.SECONDS);
-        assertThat("Update of " + securityVersionField + " did not happen within allowed time limit", upgradeOk, equalTo(true));
-
-        logger.info("Update of {}/{} complete, checking that logstash_system user exists", aliasedIndex, securityVersionField);
-        final String logstashUser = "reserved-user-logstash_system";
-        final GetRequest getRequest = client.prepareGet(aliasedIndex, reservedUserType, logstashUser).setRefresh(true).request();
-        final GetResponse getResponse = client.get(getRequest).actionGet();
-        assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getFields(), equalTo(Collections.emptyMap()));
     }
 
     private static void assertElasticsearchSecurityException(ThrowingRunnable runnable) {

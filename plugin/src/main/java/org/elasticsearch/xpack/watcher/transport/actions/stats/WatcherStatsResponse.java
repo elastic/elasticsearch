@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -41,63 +40,14 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-//        if (out.getVersion().after(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            super.writeTo(out);
-            out.writeBoolean(watcherMetaData.manuallyStopped());
-            /*
-        } else {
-            // BWC layer for older versions, this is not considered exact
-            // this mimics the behaviour of 5.x
-            out.writeLong(getNodes().stream().mapToLong(Node::getWatchesCount).sum());
-            out.writeLong(getNodes().stream().mapToLong(Node::getThreadPoolQueueSize).sum());
-            out.writeLong(getNodes().stream().mapToLong(Node::getThreadPoolMaxSize).sum());
-            // byte, watcher state, cannot be exact, just pick the first
-            out.writeByte(getNodes().get(0).getWatcherState().getId());
-
-            out.writeString(Version.CURRENT.toString()); // version
-            out.writeString(XPackBuild.CURRENT.shortHash()); // hash
-            out.writeString(XPackBuild.CURRENT.shortHash()); // short hash
-            out.writeString(XPackBuild.CURRENT.date()); // date
-
-            List<WatchExecutionSnapshot> snapshots = getNodes().stream().map(Node::getSnapshots)
-                    .flatMap(List::stream)
-                    .collect(Collectors.toList());
-            if (snapshots != null) {
-                out.writeBoolean(true);
-                out.writeVInt(snapshots.size());
-                for (WatchExecutionSnapshot snapshot : snapshots) {
-                    snapshot.writeTo(out);
-                }
-            } else {
-                out.writeBoolean(false);
-            }
-
-            List<QueuedWatch> queuedWatches = getNodes().stream().map(Node::getQueuedWatches)
-                    .flatMap(List::stream)
-                    .collect(Collectors.toList());
-            if (queuedWatches != null) {
-                out.writeBoolean(true);
-                out.writeVInt(queuedWatches.size());
-                for (QueuedWatch pending : queuedWatches) {
-                    pending.writeTo(out);
-                }
-            } else {
-                out.writeBoolean(false);
-            }
-
-            watcherMetaData.writeTo(out);
-        }
-        */
+        super.writeTo(out);
+        out.writeBoolean(watcherMetaData.manuallyStopped());
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            super.readFrom(in);
-            watcherMetaData = new WatcherMetaData(in.readBoolean());
-        } else {
-            // TODO what to do here? create another BWC helping stuff here...
-        }
+        super.readFrom(in);
+        watcherMetaData = new WatcherMetaData(in.readBoolean());
     }
 
     @Override

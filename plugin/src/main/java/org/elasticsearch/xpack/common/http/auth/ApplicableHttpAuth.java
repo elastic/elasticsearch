@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.common.http.auth;
 
-import org.apache.http.auth.AuthScope;
-import org.apache.http.client.CredentialsProvider;
+import org.elasticsearch.client.http.auth.AuthScope;
+import org.elasticsearch.client.http.client.CredentialsProvider;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 

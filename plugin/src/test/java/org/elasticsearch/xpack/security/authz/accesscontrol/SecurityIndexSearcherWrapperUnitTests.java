@@ -679,14 +679,14 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
-        QueryRewriteContext context = new QueryRewriteContext(null, null, scriptService, xContentRegistry(), client, null,
+        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), client,
                 () -> nowInMillis);
         QueryBuilder queryBuilder1 = new TermsQueryBuilder("field", "val1", "val2");
-        SecurityIndexSearcherWrapper.failIfQueryUsesClient(scriptService, queryBuilder1, context);
+        SecurityIndexSearcherWrapper.failIfQueryUsesClient(queryBuilder1, context);
 
         QueryBuilder queryBuilder2 = new TermsQueryBuilder("field", new TermsLookup("_index", "_type", "_id", "_path"));
         Exception e = expectThrows(IllegalStateException.class,
-                () -> SecurityIndexSearcherWrapper.failIfQueryUsesClient(scriptService, queryBuilder2, context));
+                () -> SecurityIndexSearcherWrapper.failIfQueryUsesClient(queryBuilder2, context));
         assertThat(e.getMessage(), equalTo("role queries are not allowed to execute additional requests"));
     }
 

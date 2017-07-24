@@ -4,40 +4,46 @@
 To secure a cluster, you must install {xpack} on every node in the
 cluster. Basic authentication is enabled by default--to communicate
 with the cluster, you must specify a username and password.
-Unless you <<anonymous-access, enable anonymous access>>, all
+Unless you {xpack-ref}/anonymous-access.html[enable anonymous access], all
 requests that don't include a user name and password are rejected.
 
 {security} provides a built-in `elastic` superuser you can use
 to start setting things up. This `elastic` user has full access
-to the cluster, including all indices and data, so make sure
-you change the default password and protect the `elastic` user
-credentials accordingly.
+to the cluster, including all indices and data, so the `elastic` user
+does not have a password set by default.
+
+In order for the `elastic` user to be usable, its <<bootstrap-elastic-passwords,password must be bootstrapped>>
+by at least one of the nodes in your cluster. The bootstrap password is intended
+to be a temporary password to help you setup your cluster. The `elastic` user password
+will be changed during the setup process.
 
 To get started with {security}:
 
-. <<installing-xpack, Install X-Pack>> and start Elasticsearch and Kibana.
+. <<installing-xpack, Install X-Pack>>.
 
-. Change the passwords of the built in `kibana`, `logstash_system` and `elastic` users:
+. On at least one of the nodes in your cluster, set the "bootstrap.password" secure setting in the keystore.
 +
 --
 [source,shell]
-----------------------------------------------------------
-curl -XPUT -u elastic 'localhost:9200/_xpack/security/user/elastic/_password' -H "Content-Type: application/json" -d '{
-  "password" : "elasticpassword"
-}'
+--------------------------------------------------
+bin/elasticsearch-keystore create
+bin/elasticsearch-keystore add "bootstrap.password"
+--------------------------------------------------
 
-curl -XPUT -u elastic 'localhost:9200/_xpack/security/user/kibana/_password' -H "Content-Type: application/json" -d '{
-  "password" : "kibanapassword"
-}'
+--
 
-curl -XPUT -u elastic 'localhost:9200/_xpack/security/user/logstash_system/_password' -H "Content-Type: application/json" -d '{
-  "password" : "logstashpassword"
-}'
-----------------------------------------------------------
-// NOTCONSOLE
+.  Start Elasticsearch and Kibana. The Elasticsearch node with the "bootstrap.password" setting will use that
+setting to set the `elastic` user password on node startup.
 
-NOTE: By default, the `elastic` user does not have a password set. Until its password is set, the `elastic` user will only be
-allowed to submit change password rest requests from localhost.
+
+. Set the passwords of the built in `elastic`, `kibana`, and `logstash_system` users using the provided setup
+passwords tool. In "auto" mode this tool will randomly generate passwords and print them to the console.
++
+--
+[source,shell]
+--------------------------------------------------
+bin/x-pack/setup-passwords auto
+--------------------------------------------------
 
 --
 
@@ -89,19 +95,19 @@ xpack.security.audit.enabled: true
 By default, events are logged to a dedicated `elasticsearch-access.log` file in
 `ES_HOME/logs`. You can also store the events in an Elasticsearch index for
 easier analysis and control what events are logged. For more information, see
-<<auditing, Configuring Auditing>>.
+{xpack-ref}/auditing.html[Configuring Auditing].
 --
 
 [[moving-on]]
 IMPORTANT:  Once you get these basic security measures in place, we strongly
             recommend that you secure communications to and from nodes by
-            configuring your cluster to use <<ssl-tls, SSL/TLS encryption>>.
+            configuring your cluster to use {xpack-ref}/ssl-tls.html[SSL/TLS encryption].
             Nodes that do not have encryption enabled send passwords in plain
             text!
 
 Depending on your security requirements, you might also want to:
 
-* Integrate with <<ldap-realm, LDAP>> or <<active-directory-realm, Active Directory>>,
-or <<pki-realm, require certificates>> for authentication.
-* Use <<ip-filtering, IP Filtering>> to allow or deny requests from particular
+* Integrate with {xpack-ref}/ldap-realm.html[LDAP] or {xpack-ref}/active-directory-realm.html[Active Directory],
+or {xpack-ref}/pki-realm.html[require certificates] for authentication.
+* Use {xpack-ref}/ip-filtering.html[IP Filtering] to allow or deny requests from particular
 IP addresses or address ranges.

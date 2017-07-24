@@ -5,17 +5,17 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.conn.ssl.DefaultHostnameVerifier;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.HttpResponse;
+import org.elasticsearch.client.http.client.methods.HttpGet;
+import org.elasticsearch.client.http.concurrent.FutureCallback;
+import org.elasticsearch.client.http.conn.ssl.DefaultHostnameVerifier;
+import org.elasticsearch.client.http.conn.ssl.NoopHostnameVerifier;
+import org.elasticsearch.client.http.impl.client.CloseableHttpClient;
+import org.elasticsearch.client.http.impl.client.HttpClients;
+import org.elasticsearch.client.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.elasticsearch.client.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.elasticsearch.client.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
@@ -34,10 +34,13 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.X509ExtendedTrustManager;
+import java.net.Socket;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -45,6 +48,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -405,6 +409,25 @@ public class SSLServiceTests extends ESTestCase {
         } else {
             assertThat(verifier.getValue(), sameInstance(NoopHostnameVerifier.INSTANCE));
         }
+    }
+
+    public void testEmptyTrustManager() throws Exception {
+        X509ExtendedTrustManager trustManager = new SSLService.EmptyX509TrustManager();
+        assertThat(trustManager.getAcceptedIssuers(), emptyArray());
+        final String message = "no certificates are trusted";
+        CertificateException ce =
+                expectThrows(CertificateException.class, () -> trustManager.checkClientTrusted(null, null, (Socket) null));
+        assertEquals(message, ce.getMessage());
+        ce = expectThrows(CertificateException.class, () -> trustManager.checkClientTrusted(null, null, (SSLEngine) null));
+        assertEquals(message, ce.getMessage());
+        ce = expectThrows(CertificateException.class, () -> trustManager.checkClientTrusted(null, null));
+        assertEquals(message, ce.getMessage());
+        ce = expectThrows(CertificateException.class, () -> trustManager.checkServerTrusted(null, null, (Socket) null));
+        assertEquals(message, ce.getMessage());
+        ce = expectThrows(CertificateException.class, () -> trustManager.checkServerTrusted(null, null, (SSLEngine) null));
+        assertEquals(message, ce.getMessage());
+        ce = expectThrows(CertificateException.class, () -> trustManager.checkServerTrusted(null, null));
+        assertEquals(message, ce.getMessage());
     }
 
     @Network

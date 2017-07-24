@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.integration;
 
-import org.apache.http.message.BasicHeader;
-import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.http.message.BasicHeader;
+import org.elasticsearch.client.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Response;

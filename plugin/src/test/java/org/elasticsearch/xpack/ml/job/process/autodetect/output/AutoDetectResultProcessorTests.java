@@ -68,7 +68,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
                 new ModelSizeStats.Builder(JOB_ID).build(), flushListener);
     }
 
-    public void testProcess() {
+    public void testProcess() throws TimeoutException {
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
         @SuppressWarnings("unchecked")
         Iterator<AutodetectResult> iterator = mock(Iterator.class);
@@ -77,6 +77,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         AutodetectProcess process = mock(AutodetectProcess.class);
         when(process.readAutodetectResults()).thenReturn(iterator);
         processorUnderTest.process(process);
+        processorUnderTest.awaitCompletion();
         verify(renormalizer, times(1)).waitUntilIdle();
         assertEquals(0, processorUnderTest.completionLatch.getCount());
     }
@@ -364,11 +365,11 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         assertEquals(0, processorUnderTest.completionLatch.getCount());
         assertEquals(1, processorUnderTest.updateModelSnapshotIdSemaphore.availablePermits());
 
-        verify(persister, never()).commitResultWrites(JOB_ID);
-        verify(persister, never()).commitStateWrites(JOB_ID);
+        verify(persister, times(1)).commitResultWrites(JOB_ID);
+        verify(persister, times(1)).commitStateWrites(JOB_ID);
         verify(renormalizer, never()).renormalize(any());
         verify(renormalizer).shutdown();
-        verify(renormalizer, never()).waitUntilIdle();
+        verify(renormalizer, times(1)).waitUntilIdle();
         verify(flushListener, times(1)).clear();
     }
 }

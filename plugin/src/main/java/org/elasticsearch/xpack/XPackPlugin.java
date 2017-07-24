@@ -285,8 +285,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         try {
             components.addAll(security.createComponents(internalClient, threadPool, clusterService, resourceWatcherService,
                     extensionsService.getExtensions()));
-        } catch (Exception e) {
-            throw new Error("security initialization failed", e);
+        } catch (final Exception e) {
+            throw new IllegalStateException("security initialization failed", e);
         }
         components.addAll(monitoring.createComponents(internalClient, threadPool, clusterService, licenseService, sslService));
 
@@ -383,6 +383,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         settings.addAll(machineLearning.getSettings());
         settings.addAll(licensing.getSettings());
         settings.addAll(XPackSettings.getAllSettings());
+
+        settings.add(LicenseService.SELF_GENERATED_LICENSE_TYPE);
 
         // we add the `xpack.version` setting to all internal indices
         settings.add(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
@@ -519,7 +521,11 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
-        return watcher.getIndexTemplateMetaDataUpgrader();
+        return templates -> {
+            templates = watcher.getIndexTemplateMetaDataUpgrader().apply(templates);
+            templates = security.getIndexTemplateMetaDataUpgrader().apply(templates);
+            return templates;
+        };
     }
 
     public void onIndexModule(IndexModule module) {

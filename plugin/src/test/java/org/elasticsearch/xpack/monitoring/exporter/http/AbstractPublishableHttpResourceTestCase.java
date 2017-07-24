@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import java.util.HashMap;
-import org.apache.http.HttpEntity;
-import org.apache.http.RequestLine;
-import org.apache.http.StatusLine;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.RequestLine;
+import org.elasticsearch.client.http.StatusLine;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;

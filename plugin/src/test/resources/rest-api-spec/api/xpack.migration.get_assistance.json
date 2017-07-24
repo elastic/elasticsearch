@@ -1,5 +1,6 @@
 {
   "xpack.migration.get_assistance": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api-assistance.html",
     "methods": [ "GET" ],
     "url": {
       "path": "/_xpack/migration/assistance",

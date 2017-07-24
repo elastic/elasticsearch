@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ssl;
 
 import javax.security.auth.x500.X500Principal;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Reader;
 import java.net.InetAddress;
 import java.net.URI;
@@ -16,7 +17,9 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
+import java.security.Key;
 import java.security.KeyPair;
+import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
@@ -41,9 +44,7 @@ import org.apache.lucene.util.IOUtils;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.ASN1String;
-import org.bouncycastle.asn1.BERTags;
 import org.bouncycastle.asn1.DEROctetString;
-import org.bouncycastle.asn1.DERSequence;
 import org.bouncycastle.asn1.pkcs.Attribute;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.x509.Extension;
@@ -69,10 +70,12 @@ import org.elasticsearch.xpack.ssl.CertificateTool.Name;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
+import static org.elasticsearch.test.TestMatchers.pathExists;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Unit tests for the tool used to simplify SSL certificate generation
@@ -262,9 +265,10 @@ public class CertificateToolTests extends ESTestCase {
 
         final boolean generatedCa = randomBoolean();
         final char[] keyPassword = randomBoolean() ? SecuritySettingsSource.TEST_PASSWORD.toCharArray() : null;
+        final char[] pkcs12Password =  randomBoolean() ? randomAlphaOfLengthBetween(1, 12).toCharArray() : null;
         assertFalse(Files.exists(outputFile));
         CAInfo caInfo = new CAInfo(caCert, keyPair.getPrivate(), generatedCa, keyPassword);
-        CertificateTool.generateAndWriteSignedCertificates(outputFile, certInfos, caInfo, keysize, days);
+        CertificateTool.generateAndWriteSignedCertificates(outputFile, certInfos, caInfo, keysize, days, pkcs12Password);
         assertTrue(Files.exists(outputFile));
 
         Set<PosixFilePermission> perms = Files.getPosixFilePermissions(outputFile);
@@ -315,6 +319,7 @@ public class CertificateToolTests extends ESTestCase {
             final Path cert = zipRoot.resolve(filename + "/" + filename + ".crt");
             assertTrue(Files.exists(cert));
             assertTrue(Files.exists(zipRoot.resolve(filename + "/" + filename + ".key")));
+            final Path p12 = zipRoot.resolve(filename + "/" + filename + ".p12");
             try (Reader reader = Files.newBufferedReader(cert)) {
                 X509Certificate certificate = readX509Certificate(reader);
                 assertEquals(certInfo.name.x500Principal.toString(), certificate.getSubjectX500Principal().getName());
@@ -326,6 +331,20 @@ public class CertificateToolTests extends ESTestCase {
                     GeneralNames subjAltNames =
                             GeneralNames.fromExtensions(x509CertHolder.getExtensions(), Extension.subjectAlternativeName);
                     assertSubjAltNames(subjAltNames, certInfo);
+                }
+                if (pkcs12Password != null) {
+                    assertThat(p12, pathExists(p12));
+                    try (InputStream in = Files.newInputStream(p12)) {
+                        final KeyStore ks = KeyStore.getInstance("PKCS12");
+                        ks.load(in, pkcs12Password);
+                        final Certificate p12Certificate = ks.getCertificate(certInfo.name.originalName);
+                        assertThat("Certificate " + certInfo.name, p12Certificate, notNullValue());
+                        assertThat(p12Certificate, equalTo(certificate));
+                        final Key key = ks.getKey(certInfo.name.originalName, pkcs12Password);
+                        assertThat(key, notNullValue());
+                    }
+                } else {
+                    assertThat(p12, not(pathExists(p12)));
                 }
             }
         }

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.history;
 
-import org.apache.http.HttpStatus;
+import org.elasticsearch.client.http.HttpStatus;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.index.IndexRequest;

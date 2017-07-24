@@ -16,10 +16,12 @@ see <<managing-native-users, Managing Native Users>>.
 
 {security} provides built-in user credentials to help you get up and running.
 These users have a fixed set of privileges and cannot be authenticated until their
-passwords have been set. The exception is the `elastic` user which can be authenticated
-from a localhost rest request with an empty password. Until a password is set, the elastic
-user is only authorized to perform change password requests.
-Please read <<reset-built-in-user-passwords,Reset Built-in User Passwords>> below.
+passwords have been set. In order to set these passwords, the `elastic` user must
+have its password bootstrapped. To bootstrap the password, please read
+<<bootstrap-elastic-passwords,Bootstrap Elastic Password>> below.
+
+Once the `elastic` user has its password bootstrapped,
+this user can be used to <<set-built-in-user-passwords,set all of the built-in user passwords>>.
 
 .{security} Built-in Users
 |========
@@ -46,13 +48,71 @@ be disabled individually, using the
 {ref}/security-api-users.html[user management API].
 
 [float]
-[[reset-built-in-user-passwords]]
-==== Reset Built-in User Passwords
+[[bootstrap-elastic-passwords]]
+==== Bootstrap Elastic Password
+The `elastic` user can have its password bootstrapped by placing a password
+in the keystore of at least one node. At startup, that node will pull the
+password out of the keystore and set the `elastic` password to that value. The
+password will only be set if the `elastic` user password has not already been set.
+
+As the `elastic` user is stored in the native realm, the password will be
+synced to all the nodes in a cluster. It is safe to bootstrap the password with
+multiple nodes as long as the password is the same. If different passwords are
+set with different nodes, it is unpredictable which password will be bootstrapped.
+
+Specifically, the setting for the bootstrap password is "bootstrap.password". If
+the keystore has not been created before, it must be created first.
+
+[source,shell]
+--------------------------------------------------
+bin/elasticsearch-keystore create
+bin/elasticsearch-keystore add "bootstrap.password"
+--------------------------------------------------
+
+After running the "add" command, you will be prompted to enter your password.
+
+The bootstrap password is only intended to be a transient password used to help you
+set all the built-in user passwords. As the password will remain accessible in the
+keystore on the machine, the `elastic` user's password should be changed to a different
+password when you <set-built-in-user-passwords,set all the built-in passwords>.
+
+[float]
+[[set-built-in-user-passwords]]
+==== Set Built-in User Passwords
 [IMPORTANT]
 =============================================================================
 You must set the passwords for all built-in users.
-You can update passwords from the *Management > Users* UI in Kibana or with the
-{ref}/security-api-users.html#security-api-reset-user-password[Reset Password API]:
+You can update passwords from the *Management > Users* UI in Kibana, using the
+setup-passwords tool, or with the security user api.
+
+The setup-passwords tool is a command line tool that is provided to assist with
+setup. When it is run, it will use the `elastic` user bootstrap password to execute
+api requests that will change the passwords of the `elastic`, `kibana`, and
+`logstash_system` users. In "auto" mode the passwords will be generated randomly and
+printed to the console.
+
+[source,shell]
+--------------------------------------------------
+bin/x-pack/setup-passwords auto
+--------------------------------------------------
+
+There is also an "interactive" mode that will prompt you to manually enter passwords.
+
+[source,shell]
+--------------------------------------------------
+bin/x-pack/setup-passwords interactive
+--------------------------------------------------
+
+If the node is not listening at "http://localhost:9200", you will need to pass the url parameter
+to tell the tool where to submit the requests.
+
+[source,shell]
+--------------------------------------------------
+bin/x-pack/setup-passwords auto -u "http://localhost:9201"
+--------------------------------------------------
+
+The {ref}/security-api-users.html#security-api-reset-user-password[Reset Password API] can
+also be used to change the passwords manually.
 
 [source,js]
 ---------------------------------------------------------------------

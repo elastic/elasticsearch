@@ -10,10 +10,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
@@ -253,11 +249,6 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             }
         }
 
-        if (null != prepareAddAliasesTo2xIndices(clusterState)) {
-            logger.debug("old monitoring indexes exist without aliases, waiting for them to get new aliases");
-            return false;
-        }
-
         logger.trace("monitoring index templates and pipelines are installed, service can start");
 
         // everything is setup
@@ -324,38 +315,6 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             } else {
                 logger.trace("all pipelines found");
             }
-        }
-
-        IndicesAliasesRequest addAliasesTo2xIndices = prepareAddAliasesTo2xIndices(clusterState);
-        if (addAliasesTo2xIndices == null) {
-            logger.trace("there are no 2.x monitoring indices or they have all the aliases they need");
-        } else {
-            final List<String> monitoringIndices2x =  addAliasesTo2xIndices.getAliasActions().stream()
-                    .flatMap((a) -> Arrays.stream(a.indices()))
-                    .collect(Collectors.toList());
-            logger.debug("there are 2.x monitoring indices {} and they are missing some aliases to make them compatible with 5.x",
-                    monitoringIndices2x);
-            asyncActions.add(() -> client.execute(IndicesAliasesAction.INSTANCE, addAliasesTo2xIndices,
-                    new ActionListener<IndicesAliasesResponse>() {
-                        @Override
-                        public void onResponse(IndicesAliasesResponse response) {
-                            responseReceived(pendingResponses, true, null);
-                            if (response.isAcknowledged()) {
-                                logger.info("Added modern aliases to 2.x monitoring indices {}", monitoringIndices2x);
-                            } else {
-                                logger.info("Unable to add modern aliases to 2.x monitoring indices {}, response not acknowledged.",
-                                        monitoringIndices2x);
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            responseReceived(pendingResponses, false, null);
-                            logger.error((Supplier<?>)
-                                    () -> new ParameterizedMessage("Unable to add modern aliases to 2.x monitoring indices {}",
-                                            monitoringIndices2x), e);
-                        }
-                    }));
         }
 
         // avoid constantly trying to setup Watcher, which requires a lot of overhead and avoid attempting to setup during a cluster state
@@ -612,23 +571,6 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 logger.error("failed to delete indices", e);
             }
         });
-    }
-
-    private IndicesAliasesRequest prepareAddAliasesTo2xIndices(ClusterState clusterState) {
-        IndicesAliasesRequest request = null;
-        for (IndexMetaData index : clusterState.metaData()) {
-            String name = index.getIndex().getName();
-            if (name.startsWith(".marvel-es-1-")) {
-                // we add a suffix so that it will not collide with today's monitoring index following an upgrade
-                String alias = ".monitoring-es-2-" + name.substring(".marvel-es-1-".length()) + "-alias";
-                if (index.getAliases().containsKey(alias)) continue;
-                if (request == null) {
-                    request = new IndicesAliasesRequest();
-                }
-                request.addAliasAction(AliasActions.add().index(name).alias(alias));
-            }
-        }
-        return request;
     }
 
     enum State {

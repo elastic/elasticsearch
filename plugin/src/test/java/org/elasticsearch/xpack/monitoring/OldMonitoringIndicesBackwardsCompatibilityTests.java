@@ -178,7 +178,7 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
             logger.info("--> Waiting for indices deletion");
             CountDown retries = new CountDown(10);
             assertBusy(() -> {
-                String[] indices = new String[]{".marvel-*", ".monitoring-*"};
+                String[] indices = new String[]{".monitoring-*"};
                 IndicesExistsResponse existsResponse = client().admin().indices().prepareExists(indices).get();
                 if (existsResponse.isExists()) {
                     assertAcked(client().admin().indices().prepareDelete(indices));

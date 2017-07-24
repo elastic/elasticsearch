@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import org.apache.http.client.config.RequestConfig;
+import org.elasticsearch.client.http.client.config.RequestConfig;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 

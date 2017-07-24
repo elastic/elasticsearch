@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -77,10 +76,8 @@ public class SecurityActionFilterTests extends ESTestCase {
                 new ClusterSettings(settings, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING)));
         ClusterState state = mock(ClusterState.class);
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("id1",
-                        new TransportAddress(TransportAddress.META_ADDRESS, randomIntBetween(49000, 65500)), Version.CURRENT))
-                .add(new DiscoveryNode("id2",
-                        new TransportAddress(TransportAddress.META_ADDRESS, randomIntBetween(49000, 65500)), Version.V_5_4_0))
+                .add(new DiscoveryNode("id1", buildNewFakeTransportAddress(), Version.CURRENT))
+                .add(new DiscoveryNode("id2", buildNewFakeTransportAddress(), Version.V_5_4_0))
                 .build();
         when(state.nodes()).thenReturn(nodes);
 

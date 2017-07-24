@@ -7,12 +7,10 @@ package org.elasticsearch.xpack.monitoring.exporter.local;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
-import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -60,7 +58,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.monitoring.MonitoredSystem.BEATS;
 import static org.elasticsearch.xpack.monitoring.MonitoredSystem.KIBANA;
 import static org.elasticsearch.xpack.monitoring.MonitoredSystem.LOGSTASH;
-import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.greaterThan;
@@ -90,15 +87,6 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                             .setSource("title", "This is a random document");
                 }
                 indexRandom(true, indexRequestBuilders);
-            }
-
-            if (randomBoolean()) {
-                // create some marvel indices to check if aliases are correctly created
-                final int oldies = randomIntBetween(1, 5);
-                for (int i = 0; i < oldies; i++) {
-                    assertAcked(client().admin().indices().prepareCreate(".marvel-es-1-2014.12." + i)
-                            .setSettings("number_of_shards", 1, "number_of_replicas", 0).get());
-                }
             }
 
             Settings.Builder exporterSettings = Settings.builder()
@@ -134,7 +122,6 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
 
                 checkMonitoringTemplates();
                 checkMonitoringPipelines();
-                checkMonitoringAliases();
                 checkMonitoringDocs();
             }
 
@@ -194,7 +181,6 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
 
             checkMonitoringTemplates();
             checkMonitoringPipelines();
-            checkMonitoringAliases();
             checkMonitoringWatches();
             checkMonitoringDocs();
         } finally {
@@ -267,23 +253,6 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
 
         assertEquals("Missing expected pipelines", expectedPipelines, pipelines);
         assertTrue("monitoring ingest pipeline not found", response.isFound());
-    }
-
-    /**
-     * Checks that the local exporter correctly added aliases to indices created with previous
-     * Marvel versions.
-     */
-    private void checkMonitoringAliases() {
-        GetIndexResponse response =
-                client().admin().indices().prepareGetIndex().setIndices(".marvel-es-1-*").get();
-        for (String index : response.getIndices()) {
-            List<AliasMetaData> aliases = response.getAliases().get(index);
-            assertEquals("marvel index should have at least 1 alias: " + index, 1, aliases.size());
-
-            String indexDate = index.substring(".marvel-es-1-".length());
-            String expectedAlias = ".monitoring-es-" + OLD_TEMPLATE_VERSION + "-" + indexDate + "-alias";
-            assertEquals(expectedAlias, aliases.get(0).getAlias());
-        }
     }
 
     /**

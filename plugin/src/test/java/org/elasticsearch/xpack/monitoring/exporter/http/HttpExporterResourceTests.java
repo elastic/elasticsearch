@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.StatusLine;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.StatusLine;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -67,7 +67,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
      */
     private final int EXPECTED_TEMPLATES = 5 + (createOldTemplates ? OLD_TEMPLATE_IDS.length : 0);
     private final int EXPECTED_PIPELINES = PIPELINE_IDS.length;
-    private final int EXPECTED_WATCHES = 4;
+    private final int EXPECTED_WATCHES = ClusterAlertsUtil.WATCH_IDS.length;
 
     private final RestClient client = mock(RestClient.class);
     private final Response versionResponse = mock(Response.class);
@@ -343,7 +343,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         whenSuccessfulPutTemplates(unsuccessfulGetTemplates);
         whenGetPipelines(successfulGetPipelines, unsuccessfulGetPipelines);
         whenSuccessfulPutPipelines(unsuccessfulGetPipelines);
-        whenSuccessfulBackwardsCompatibilityAliases();
 
         // there's only one check
         when(client.performRequest(eq("GET"), eq("/_xpack"), anyMapOf(String.class, String.class))).thenThrow(exception);
@@ -358,7 +357,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyPutTemplates(unsuccessfulGetTemplates);
         verifyGetPipelines(EXPECTED_PIPELINES);
         verifyPutPipelines(unsuccessfulGetPipelines);
-        verifyBackwardsCompatibilityAliases();
         verifyWatcherCheck();
         verifyNoMoreInteractions(client);
     }
@@ -378,7 +376,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         whenSuccessfulPutTemplates(unsuccessfulGetTemplates);
         whenGetPipelines(successfulGetPipelines, unsuccessfulGetPipelines);
         whenSuccessfulPutPipelines(unsuccessfulGetPipelines);
-        whenSuccessfulBackwardsCompatibilityAliases();
         whenWatcherCanBeUsed(validLicense);
 
         // failure in the middle of various watches being checked/published; suggests a node dropped
@@ -435,7 +432,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyPutTemplates(unsuccessfulGetTemplates);
         verifyGetPipelines(EXPECTED_PIPELINES);
         verifyPutPipelines(unsuccessfulGetPipelines);
-        verifyBackwardsCompatibilityAliases();
         verifyWatcherCheck();
         if (validLicense) {
             verifyGetWatches(expectedGets);
@@ -461,7 +457,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         whenSuccessfulPutTemplates(unsuccessfulGetTemplates);
         whenGetPipelines(successfulGetPipelines, unsuccessfulGetPipelines);
         whenSuccessfulPutPipelines(unsuccessfulGetPipelines);
-        whenSuccessfulBackwardsCompatibilityAliases();
         // license needs to be valid, otherwise we'll do DELETEs, which are tested earlier
         whenWatcherCanBeUsed(true);
 
@@ -511,7 +506,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyPutTemplates(unsuccessfulGetTemplates);
         verifyGetPipelines(EXPECTED_PIPELINES);
         verifyPutPipelines(unsuccessfulGetPipelines);
-        verifyBackwardsCompatibilityAliases();
         verifyWatcherCheck();
         verifyGetWatches(expectedGets);
         verifyPutWatches(expectedPuts);
@@ -542,7 +536,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         } else {
             whenWatcherCannotBeUsed();
         }
-        whenSuccessfulBackwardsCompatibilityAliases();
 
         assertTrue(resources.isDirty());
 
@@ -564,7 +557,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
                 verifyDeleteWatches(EXPECTED_WATCHES);
             }
         }
-        verifyBackwardsCompatibilityAliases();
         verifyNoMoreInteractions(client);
     }
 
@@ -590,7 +582,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         whenSuccessfulPutTemplates(unsuccessfulGetTemplates);
         whenGetPipelines(successfulGetPipelines, unsuccessfulGetPipelines);
         whenSuccessfulPutPipelines(1);
-        whenSuccessfulBackwardsCompatibilityAliases();
 
         assertTrue(resources.isDirty());
 
@@ -603,7 +594,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyPutTemplates(unsuccessfulGetTemplates);
         verifyGetPipelines(EXPECTED_PIPELINES);
         verifyPutPipelines(unsuccessfulGetPipelines);
-        verifyBackwardsCompatibilityAliases();
         verifyNoMoreInteractions(client);
     }
 
@@ -877,23 +867,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
                     .thenReturn(successfulDeletes.get(0), successfulDeletes.subList(1, successful).toArray(new Response[successful - 1]));
         }
     }
-
-    private void whenSuccessfulBackwardsCompatibilityAliases() throws IOException {
-        // Just return no indexes so we won't have to mock adding aliases
-
-        final Response response = mock(Response.class);
-        final StatusLine statusLine = mock(StatusLine.class);
-
-        when(response.getStatusLine()).thenReturn(statusLine);
-        when(statusLine.getStatusCode()).thenReturn(RestStatus.OK.getStatus());
-        when(response.getEntity()).thenReturn(new StringEntity("{}", ContentType.APPLICATION_JSON));
-
-        when(client.performRequest(eq("GET"),
-                    startsWith("/.marvel-es-1-*"),
-                    anyMapOf(String.class, String.class)))
-                .thenReturn(response);
-    }
-
     private void verifyVersionCheck() throws IOException {
         verify(client).performRequest(eq("GET"), eq("/"), anyMapOf(String.class, String.class));
     }
@@ -941,10 +914,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
                                                      startsWith("/_xpack/watcher/watch/"),      // endpoint
                                                      anyMapOf(String.class, String.class), // parameters (e.g., timeout)
                                                      any(HttpEntity.class));               // raw template
-    }
-
-    private void verifyBackwardsCompatibilityAliases() throws IOException {
-        verify(client).performRequest(eq("GET"), startsWith("/.marvel-es-1-*"), anyMapOf(String.class, String.class));
     }
 
     private ClusterService mockClusterService(final ClusterState state) {

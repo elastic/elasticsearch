@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.support;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -21,12 +20,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -42,10 +36,8 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -57,13 +49,9 @@ import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import static org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE;
-import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.NULL_MIGRATOR;
 import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.TEMPLATE_VERSION_PATTERN;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -74,18 +62,13 @@ public class IndexLifecycleManagerTests extends ESTestCase {
     public static final String INDEX_NAME = "IndexLifecycleManagerTests";
     private static final String TEMPLATE_NAME = "IndexLifecycleManagerTests-template";
     private IndexLifecycleManager manager;
-    private IndexLifecycleManager.IndexDataMigrator migrator;
     private Map<Action<?, ?, ?>, Map<ActionRequest, ActionListener<?>>> actions;
-    private ThreadPool threadPool;
-    private ClusterService clusterService;
 
     @Before
     public void setUpManager() {
         final Client mockClient = mock(Client.class);
-        threadPool = mock(ThreadPool.class);
+        final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-
-        clusterService = mock(ClusterService.class);
 
         actions = new LinkedHashMap<>();
         final InternalClient client = new InternalClient(Settings.EMPTY, threadPool, mockClient) {
@@ -100,11 +83,7 @@ public class IndexLifecycleManagerTests extends ESTestCase {
                 actions.put(action, map);
             }
         };
-        migrator = NULL_MIGRATOR;
-        manager = new IndexLifecycleManager(Settings.EMPTY, client, clusterService, threadPool, INDEX_NAME, TEMPLATE_NAME,
-                // Wrap the migrator in a lambda so that individual tests can override the migrator implementation.
-                (previousVersion, listener) -> migrator.performUpgrade(previousVersion, listener)
-        );
+        manager = new IndexLifecycleManager(Settings.EMPTY, client, INDEX_NAME, TEMPLATE_NAME);
     }
 
     public void testIndexWithUpToDateMappingAndTemplate() throws IOException {
@@ -114,7 +93,9 @@ public class IndexLifecycleManagerTests extends ESTestCase {
         markShardsAvailable(clusterStateBuilder);
         manager.clusterChanged(event(clusterStateBuilder));
 
-        assertCompleteState(false);
+        assertThat(manager.indexExists(), Matchers.equalTo(true));
+        assertThat(manager.isAvailable(), Matchers.equalTo(true));
+        assertThat(manager.isWritable(), Matchers.equalTo(true));
     }
 
     public void testIndexWithoutPrimaryShards() throws IOException {
@@ -139,109 +120,6 @@ public class IndexLifecycleManagerTests extends ESTestCase {
 
     private ClusterChangedEvent event(ClusterState.Builder clusterStateBuilder) {
         return new ClusterChangedEvent("test-event", clusterStateBuilder.build(), EMPTY_CLUSTER_STATE);
-    }
-
-    public void testIndexLifecycleWithOldMappingVersion() throws IOException {
-        assertInitialState();
-
-        AtomicReference<ActionListener<Boolean>> migrationListenerRef = new AtomicReference<>(null);
-        migrator = (version, listener) -> migrationListenerRef.set(listener);
-
-        ClusterState.Builder clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME + "-v512");
-        markShardsAvailable(clusterStateBuilder);
-        manager.clusterChanged(event(clusterStateBuilder));
-
-        assertTemplateAndMappingOutOfDate(true, false, IndexLifecycleManager.UpgradeState.IN_PROGRESS);
-
-        actions.get(PutIndexTemplateAction.INSTANCE).values().forEach(
-                l -> ((ActionListener<PutIndexTemplateResponse>) l).onResponse(new PutIndexTemplateResponse(true) {
-                })
-        );
-
-        assertTemplateAndMappingOutOfDate(false, false, IndexLifecycleManager.UpgradeState.IN_PROGRESS);
-
-        migrationListenerRef.get().onResponse(true);
-
-        assertTemplateAndMappingOutOfDate(false, true, IndexLifecycleManager.UpgradeState.COMPLETE);
-
-        actions.get(PutMappingAction.INSTANCE).values().forEach(
-                l -> ((ActionListener<PutMappingResponse>) l).onResponse(new PutMappingResponse(true) {
-                })
-        );
-
-        assertTemplateAndMappingOutOfDate(false, false, IndexLifecycleManager.UpgradeState.COMPLETE);
-
-        clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME);
-        markShardsAvailable(clusterStateBuilder);
-        manager.clusterChanged(event(clusterStateBuilder));
-
-        assertCompleteState(true);
-    }
-
-    public void testRetryDataMigration() throws IOException {
-        assertInitialState();
-
-        AtomicReference<ActionListener<Boolean>> migrationListenerRef = new AtomicReference<>(null);
-        migrator = (version, listener) -> migrationListenerRef.set(listener);
-
-        ClusterState.Builder clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME + "-v512");
-        markShardsAvailable(clusterStateBuilder);
-        manager.clusterChanged(event(clusterStateBuilder));
-
-        assertTemplateAndMappingOutOfDate(true, false, IndexLifecycleManager.UpgradeState.IN_PROGRESS);
-
-        actions.get(PutIndexTemplateAction.INSTANCE).values().forEach(
-                l -> ((ActionListener<PutIndexTemplateResponse>) l).onResponse(new PutIndexTemplateResponse(true) {
-                })
-        );
-        actions.get(PutIndexTemplateAction.INSTANCE).clear();
-
-        clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME, TEMPLATE_NAME + "-v512");
-        markShardsAvailable(clusterStateBuilder);
-        when(clusterService.state()).thenReturn(clusterStateBuilder.build());
-
-        assertTemplateAndMappingOutOfDate(false, false, IndexLifecycleManager.UpgradeState.IN_PROGRESS);
-
-        AtomicReference<Runnable> scheduled = new AtomicReference<>(null);
-        when(threadPool.schedule(any(TimeValue.class), Mockito.eq(ThreadPool.Names.SAME), any(Runnable.class))).thenAnswer(invocation -> {
-            final Runnable runnable = (Runnable) invocation.getArguments()[2];
-            scheduled.set(runnable);
-            return null;
-        });
-
-
-        migrationListenerRef.get().onFailure(new RuntimeException("Migration Failed #1"));
-        assertTemplateAndMappingOutOfDate(false, false, IndexLifecycleManager.UpgradeState.FAILED);
-        assertThat(scheduled.get(), notNullValue());
-
-        scheduled.get().run();
-        assertTemplateAndMappingOutOfDate(false, false, IndexLifecycleManager.UpgradeState.IN_PROGRESS);
-        scheduled.set(null);
-
-        migrationListenerRef.get().onFailure(new RuntimeException("Migration Failed #2"));
-        assertTemplateAndMappingOutOfDate(false, false, IndexLifecycleManager.UpgradeState.FAILED);
-        assertThat(scheduled.get(), notNullValue());
-
-        actions.getOrDefault(PutIndexTemplateAction.INSTANCE, Collections.emptyMap()).clear();
-        scheduled.get().run();
-        assertTemplateAndMappingOutOfDate(false, false, IndexLifecycleManager.UpgradeState.IN_PROGRESS);
-        scheduled.set(null);
-
-        migrationListenerRef.get().onResponse(false);
-        assertTemplateAndMappingOutOfDate(false, true, IndexLifecycleManager.UpgradeState.COMPLETE);
-
-        actions.get(PutMappingAction.INSTANCE).values().forEach(
-                l -> ((ActionListener<PutMappingResponse>) l).onResponse(new PutMappingResponse(true) {
-                })
-        );
-
-        assertTemplateAndMappingOutOfDate(false, false, IndexLifecycleManager.UpgradeState.COMPLETE);
-
-        clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME);
-        markShardsAvailable(clusterStateBuilder);
-        manager.clusterChanged(event(clusterStateBuilder));
-
-        assertCompleteState(true);
     }
 
     public void testIndexHealthChangeListeners() throws Exception {
@@ -328,85 +206,13 @@ public class IndexLifecycleManagerTests extends ESTestCase {
     private void assertInitialState() {
         assertThat(manager.indexExists(), Matchers.equalTo(false));
         assertThat(manager.isAvailable(), Matchers.equalTo(false));
-
-        assertThat(manager.isTemplateUpToDate(), Matchers.equalTo(false));
-        assertThat(manager.isTemplateCreationPending(), Matchers.equalTo(false));
-
-        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(false));
-        assertThat(manager.getMappingVersion(), Matchers.nullValue());
-        assertThat(manager.isMappingUpdatePending(), Matchers.equalTo(false));
-
-        assertThat(manager.getMigrationState(), Matchers.equalTo(IndexLifecycleManager.UpgradeState.NOT_STARTED));
         assertThat(manager.isWritable(), Matchers.equalTo(false));
     }
 
     private void assertIndexUpToDateButNotAvailable() {
         assertThat(manager.indexExists(), Matchers.equalTo(true));
         assertThat(manager.isAvailable(), Matchers.equalTo(false));
-
-        assertThat(manager.isTemplateUpToDate(), Matchers.equalTo(true));
-        assertThat(manager.isTemplateCreationPending(), Matchers.equalTo(false));
-
-        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
-        assertThat(manager.getMappingVersion(), Matchers.equalTo(Version.CURRENT));
-        assertThat(manager.isMappingUpdatePending(), Matchers.equalTo(false));
-
         assertThat(manager.isWritable(), Matchers.equalTo(true));
-        assertThat(manager.getMigrationState(), Matchers.equalTo(IndexLifecycleManager.UpgradeState.NOT_STARTED));
-    }
-
-    private void assertTemplateAndMappingOutOfDate(boolean templateUpdatePending, boolean mappingUpdatePending,
-                                                   IndexLifecycleManager.UpgradeState migrationState) {
-        assertThat(manager.indexExists(), Matchers.equalTo(true));
-        assertThat(manager.isAvailable(), Matchers.equalTo(true));
-
-        assertThat(manager.isTemplateUpToDate(), Matchers.equalTo(!templateUpdatePending));
-        assertThat(manager.isTemplateCreationPending(), Matchers.equalTo(templateUpdatePending));
-
-        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(false));
-        assertThat(manager.getMappingVersion(), Matchers.equalTo(Version.V_5_1_2));
-        assertThat(manager.isMappingUpdatePending(), Matchers.equalTo(mappingUpdatePending));
-
-        assertThat(manager.isWritable(), Matchers.equalTo(false));
-        assertThat(manager.getMigrationState(), Matchers.equalTo(migrationState));
-
-        if (templateUpdatePending) {
-            final Map<ActionRequest, ActionListener<?>> requests = actions.get(PutIndexTemplateAction.INSTANCE);
-            assertThat(requests, notNullValue());
-            assertThat(requests.size(), Matchers.equalTo(1));
-            final ActionRequest request = requests.keySet().iterator().next();
-            assertThat(request, Matchers.instanceOf(PutIndexTemplateRequest.class));
-            assertThat(((PutIndexTemplateRequest) request).name(), Matchers.equalTo(TEMPLATE_NAME));
-        }
-
-        if (mappingUpdatePending) {
-            final Map<ActionRequest, ActionListener<?>> requests = actions.get(PutMappingAction.INSTANCE);
-            assertThat(requests, notNullValue());
-            assertThat(requests.size(), Matchers.equalTo(1));
-            final ActionRequest request = requests.keySet().iterator().next();
-            assertThat(request, Matchers.instanceOf(PutMappingRequest.class));
-            assertThat(((PutMappingRequest) request).indices(), Matchers.arrayContainingInAnyOrder(INDEX_NAME));
-            assertThat(((PutMappingRequest) request).type(), Matchers.equalTo("doc"));
-        }
-    }
-
-    private void assertCompleteState(boolean expectMigration) {
-        assertThat(manager.indexExists(), Matchers.equalTo(true));
-        assertThat(manager.isAvailable(), Matchers.equalTo(true));
-
-        assertThat(manager.isTemplateUpToDate(), Matchers.equalTo(true));
-        assertThat(manager.isTemplateCreationPending(), Matchers.equalTo(false));
-
-        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
-        assertThat(manager.getMappingVersion(), Matchers.equalTo(Version.CURRENT));
-        assertThat(manager.isMappingUpdatePending(), Matchers.equalTo(false));
-
-        assertThat(manager.isWritable(), Matchers.equalTo(true));
-        if (expectMigration) {
-            assertThat(manager.getMigrationState(), Matchers.equalTo(IndexLifecycleManager.UpgradeState.COMPLETE));
-        } else {
-            assertThat(manager.getMigrationState(), Matchers.equalTo(IndexLifecycleManager.UpgradeState.NOT_STARTED));
-        }
     }
 
     public static ClusterState.Builder createClusterState(String indexName, String templateName) throws IOException {

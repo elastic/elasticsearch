@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.LogstashSystemUser;
@@ -42,7 +41,6 @@ public class SetupPasswordToolTests extends CommandTestCase {
     private final String ep = "elastic-password";
     private final String kp = "kibana-password";
     private final String lp = "logstash-password";
-    private final String bp = "beats-password";
     private CommandLineHttpClient httpClient;
     private KeyStoreWrapper keyStore;
 
@@ -58,8 +56,6 @@ public class SetupPasswordToolTests extends CommandTestCase {
         terminal.addSecretInput(kp);
         terminal.addSecretInput(lp);
         terminal.addSecretInput(lp);
-        terminal.addSecretInput(bp);
-        terminal.addSecretInput(bp);
     }
 
     @Override
@@ -79,7 +75,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         inOrder.verify(httpClient).postURL(eq("PUT"), eq(elasticUrl), eq(ElasticUser.NAME), eq(bootstrapPassword),
                 passwordCaptor.capture());
 
-        String[] users = {KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME};
+        String[] users = {KibanaUser.NAME, LogstashSystemUser.NAME};
         SecureString newPassword = new SecureString(parsePassword(passwordCaptor.getValue()).toCharArray());
         for (String user : users) {
             String urlWithRoute = "http://localhost:9200/_xpack/security/user/" + user + "/_password";
@@ -98,7 +94,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         inOrder.verify(httpClient).postURL(eq("PUT"), eq(elasticUrl), eq(ElasticUser.NAME), eq(bootstrapPassword),
                 passwordCaptor.capture());
 
-        String[] users = {KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME};
+        String[] users = {KibanaUser.NAME, LogstashSystemUser.NAME};
         SecureString newPassword = new SecureString(parsePassword(passwordCaptor.getValue()).toCharArray());
         for (String user : users) {
             String urlWithRoute = url + "/_xpack/security/user/" + user + "/_password";
@@ -120,8 +116,6 @@ public class SetupPasswordToolTests extends CommandTestCase {
         inOrder.verify(httpClient).postURL(eq("PUT"), eq(kibanaUrl), eq(ElasticUser.NAME), eq(newPassword), contains(kp));
         String logstashUrl = "http://localhost:9200/_xpack/security/user/" + LogstashSystemUser.NAME + "/_password";
         inOrder.verify(httpClient).postURL(eq("PUT"), eq(logstashUrl), eq(ElasticUser.NAME), eq(newPassword), contains(lp));
-        String beatsUrl = "http://localhost:9200/_xpack/security/user/" + BeatsSystemUser.NAME + "/_password";
-        inOrder.verify(httpClient).postURL(eq("PUT"), eq(beatsUrl), eq(ElasticUser.NAME), eq(newPassword), contains(bp));
     }
 
     public void testInteractivePasswordsNotMatching() throws Exception {

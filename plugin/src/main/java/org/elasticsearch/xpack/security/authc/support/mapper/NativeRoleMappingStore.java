@@ -98,7 +98,8 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
     void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
         if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         }
         final QueryBuilder query = QueryBuilders.termQuery(DOC_TYPE_FIELD, DOC_TYPE_ROLE_MAPPING);
@@ -153,7 +154,8 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
             listener.onFailure(new UnsupportedOperationException("role-mappings may not be modified using a tribe node"));
         } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
         } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("role-mappings cannot be modified until template and mappings are up to date"));
         } else {
@@ -198,7 +200,8 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
     private void innerDeleteMapping(DeleteRoleMappingRequest request, ActionListener<Boolean> listener) throws IOException {
         if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
             return;
         }
         client.prepareDelete(SECURITY_INDEX_NAME, SECURITY_GENERIC_TYPE, getIdForName(request.getName()))

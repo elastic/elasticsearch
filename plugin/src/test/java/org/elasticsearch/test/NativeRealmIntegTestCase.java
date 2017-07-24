@@ -6,17 +6,16 @@
 package org.elasticsearch.test;
 
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.nio.entity.NStringEntity;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.message.BasicHeader;
+import org.elasticsearch.client.http.nio.entity.NStringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.LogstashSystemUser;
@@ -74,7 +73,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
         logger.info("setting up reserved passwords for test");
         SecureString defaultPassword = new SecureString("".toCharArray());
 
-        for (String username : Arrays.asList(KibanaUser.NAME, BeatsSystemUser.NAME, LogstashSystemUser.NAME)) {
+        for (String username : Arrays.asList(KibanaUser.NAME, LogstashSystemUser.NAME)) {
             String payload = "{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}";
             HttpEntity entity = new NStringEntity(payload, ContentType.APPLICATION_JSON);
             BasicHeader authHeader = new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,

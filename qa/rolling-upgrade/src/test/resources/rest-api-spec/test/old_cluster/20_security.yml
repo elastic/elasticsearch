@@ -1,5 +1,6 @@
 ---
-"Create user and role":
+"Verify native store security actions":
+  # create native user and role
   - do:
      xpack.security.put_user:
        username: "native_user"
@@ -45,11 +46,6 @@
         index: ".security"
         wait_for_active_shards: 2 # 1 primary and 1 replica since we have two nodes
 
----
-"default password migration":
-  - skip:
-      version: " - 5.1.1"
-      reason: "the rest enabled action trips an assertion. see https://github.com/elastic/x-pack/pull/4443"
   # Check that enabling a user in old cluster will not prevent the user from having a "default password" in the new cluster.
   # See: org.elasticsearch.xpack.security.authc.esnative.NativeRealmMigrator.doConvertDefaultPasswords
   - do:
@@ -78,3 +74,10 @@
         username: "logstash_system"
   - match: { logstash_system.enabled: true }
 
+  # run the upgrade API once all the old cluster actions are done,
+  # prior to moving to the mixed cluster
+  - do:
+      headers:
+        Authorization: "Basic ZWxhc3RpYzpjaGFuZ2VtZQ=="   # corresponds to elastic:changeme
+      xpack.migration.upgrade:
+        index: ".security"

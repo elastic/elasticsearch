@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.common.http;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.apache.http.client.ClientProtocolException;
+import org.elasticsearch.client.http.client.ClientProtocolException;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.MockSecureSettings;

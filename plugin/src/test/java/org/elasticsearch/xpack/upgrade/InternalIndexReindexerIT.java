@@ -81,7 +81,7 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
         BulkByScrollResponse response = future.actionGet();
         assertThat(response.getCreated(), equalTo(2L));
 
-        SearchResponse searchResponse = client().prepareSearch("test_v123").get();
+        SearchResponse searchResponse = client().prepareSearch("test-123").get();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(2));
         for (SearchHit hit : searchResponse.getHits().getHits()) {
@@ -92,7 +92,7 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
 
         GetAliasesResponse aliasesResponse = client().admin().indices().prepareGetAliases("test").get();
         assertThat(aliasesResponse.getAliases().size(), equalTo(1));
-        List<AliasMetaData> testAlias = aliasesResponse.getAliases().get("test_v123");
+        List<AliasMetaData> testAlias = aliasesResponse.getAliases().get("test-123");
         assertNotNull(testAlias);
         assertThat(testAlias.size(), equalTo(1));
         assertThat(testAlias.get(0).alias(), equalTo("test"));
@@ -100,7 +100,7 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
 
     public void testTargetIndexExists() throws Exception {
         createTestIndex("test");
-        createTestIndex("test_v123");
+        createTestIndex("test-123");
         InternalIndexReindexer reindexer = createIndexReindexer(123, script("add_bar"), Strings.EMPTY_ARRAY);
         PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
         reindexer.upgrade(new TaskId("abc", 123), "test", clusterState(), future);
@@ -113,14 +113,14 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
     public void testTargetIndexExistsAsAlias() throws Exception {
         createTestIndex("test");
         createTestIndex("test-foo");
-        client().admin().indices().prepareAliases().addAlias("test-foo", "test_v123").get();
+        client().admin().indices().prepareAliases().addAlias("test-foo", "test-123").get();
         InternalIndexReindexer reindexer = createIndexReindexer(123, script("add_bar"), Strings.EMPTY_ARRAY);
         PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
         reindexer.upgrade(new TaskId("abc", 123), "test", clusterState(), future);
         assertThrows(future, InvalidIndexNameException.class);
 
         // Make sure that the index is not marked as read-only
-        client().prepareIndex("test_v123", "doc").setSource("foo", "bar").get();
+        client().prepareIndex("test-123", "doc").setSource("foo", "bar").get();
     }
 
     public void testSourceIndexIsReadonly() throws Exception {

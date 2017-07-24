@@ -50,6 +50,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
@@ -137,7 +138,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                             .createParser(queryShardContext.getXContentRegistry(), templateResult)) {
                         QueryBuilder queryBuilder = queryShardContext.parseInnerQueryBuilder(parser);
                         verifyRoleQuery(queryBuilder);
-                        failIfQueryUsesClient(scriptService, queryBuilder, queryShardContext);
+                        failIfQueryUsesClient(queryBuilder, queryShardContext);
                         ParsedQuery parsedQuery = queryShardContext.toFilter(queryBuilder);
                         filter.add(parsedQuery.query(), SHOULD);
                     }
@@ -348,18 +349,13 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
      * the DLS query until the get thread pool has been exhausted:
      * https://github.com/elastic/x-plugins/issues/3145
      */
-    static void failIfQueryUsesClient(ScriptService scriptService, QueryBuilder queryBuilder, QueryRewriteContext original)
+    static void failIfQueryUsesClient(QueryBuilder queryBuilder, QueryRewriteContext original)
             throws IOException {
-        Client client = new FilterClient(original.getClient()) {
-            @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse,
-                    RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>
-            void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
-                throw new IllegalStateException("role queries are not allowed to execute additional requests");
-            }
-        };
-        QueryRewriteContext copy = new QueryRewriteContext(original.getIndexSettings(), original.getMapperService(), scriptService,
-                original.getXContentRegistry(), client, original.getIndexReader(), original::nowInMillis);
-        queryBuilder.rewrite(copy);
+        QueryRewriteContext copy = new QueryRewriteContext(
+                original.getXContentRegistry(), null, original::nowInMillis);
+        Rewriteable.rewrite(queryBuilder, copy);
+        if (copy.hasAsyncActions()) {
+            throw new IllegalStateException("role queries are not allowed to execute additional requests");
+        }
     }
 }

@@ -7,16 +7,8 @@ package org.elasticsearch.test;
 
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.entity.ContentType;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.nio.entity.NStringEntity;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
@@ -29,10 +21,8 @@ import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -87,16 +77,14 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
 
     @After
     public void removeSecurityIndex() {
-        client().admin().indices().prepareDelete(INTERNAL_SECURITY_INDEX).get();
-        cluster2.client().admin().indices().prepareDelete(INTERNAL_SECURITY_INDEX).get();
+        if (client().admin().indices().prepareExists(INTERNAL_SECURITY_INDEX).get().isExists()) {
+            client().admin().indices().prepareDelete(INTERNAL_SECURITY_INDEX).get();
+        }
+        if (cluster2.client().admin().indices().prepareExists(INTERNAL_SECURITY_INDEX).get().isExists()) {
+            cluster2.client().admin().indices().prepareDelete(INTERNAL_SECURITY_INDEX).get();
+        }
         securityClient(client()).prepareClearRealmCache().get();
         securityClient(cluster2.client()).prepareClearRealmCache().get();
-    }
-
-    @Before
-    public void addSecurityIndex() throws IOException {
-        client().admin().indices().prepareCreate(INTERNAL_SECURITY_INDEX).get();
-        cluster2.client().admin().indices().prepareCreate(INTERNAL_SECURITY_INDEX).get();
     }
 
     @Override

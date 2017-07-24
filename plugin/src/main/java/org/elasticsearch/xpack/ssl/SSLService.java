@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.elasticsearch.client.http.conn.ssl.NoopHostnameVerifier;
+import org.elasticsearch.client.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.lucene.util.SetOnce;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.elasticsearch.ElasticsearchException;
@@ -813,30 +813,36 @@ public class SSLService extends AbstractComponent {
     /**
      * This is an empty trust manager that is used in case a loaded trust manager is null
      */
-    private static final class EmptyX509TrustManager extends X509ExtendedTrustManager {
+    static final class EmptyX509TrustManager extends X509ExtendedTrustManager {
 
         @Override
         public void checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
+            throw new CertificateException("no certificates are trusted");
         }
 
         @Override
         public void checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
+            throw new CertificateException("no certificates are trusted");
         }
 
         @Override
         public void checkClientTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
+            throw new CertificateException("no certificates are trusted");
         }
 
         @Override
         public void checkServerTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
+            throw new CertificateException("no certificates are trusted");
         }
 
         @Override
         public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+            throw new CertificateException("no certificates are trusted");
         }
 
         @Override
         public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+            throw new CertificateException("no certificates are trusted");
         }
 
         @Override

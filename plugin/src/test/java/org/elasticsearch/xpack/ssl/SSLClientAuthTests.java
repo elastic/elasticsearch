@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
-import org.apache.http.ssl.SSLContexts;
-import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.http.conn.ssl.NoopHostnameVerifier;
+import org.elasticsearch.client.http.message.BasicHeader;
+import org.elasticsearch.client.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.elasticsearch.client.http.ssl.SSLContexts;
+import org.elasticsearch.client.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Response;

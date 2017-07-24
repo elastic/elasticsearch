@@ -106,6 +106,7 @@ cluster:admin/xpack/watcher/watch/ack
 cluster:admin/xpack/watcher/watch/activate
 cluster:monitor/xpack/watcher/watch/get
 cluster:monitor/xpack/watcher/stats
+cluster:monitor/xpack/watcher/stats/dist
 internal:indices/admin/upgrade
 cluster:admin/ingest/pipeline/delete
 cluster:admin/ingest/pipeline/get

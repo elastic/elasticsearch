@@ -142,7 +142,7 @@
     }
   },
   "actions": {
-    "trigger_alert": {
+    "add_to_alerts_index": {
       "index": {
         "index": ".monitoring-alerts-6",
         "doc_type": "doc",

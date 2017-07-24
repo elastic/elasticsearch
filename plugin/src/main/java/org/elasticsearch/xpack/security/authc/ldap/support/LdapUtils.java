@@ -224,10 +224,10 @@ public final class LdapUtils {
         boolean searching = false;
         LDAPConnection ldapConnection = null;
         try {
-            ldapConnection = ldap.getConnection();
+            ldapConnection = privilegedConnect(ldap::getConnection);
             final LDAPConnection finalConnection = ldapConnection;
             LdapSearchResultListener ldapSearchResultListener = new LdapSearchResultListener(
-                    ldapConnection, ignoreReferralErrors,
+                    finalConnection, ignoreReferralErrors,
                     ActionListener.wrap(
                             searchResult -> {
                                 IOUtils.closeWhileHandlingException(
@@ -523,8 +523,8 @@ public final class LdapUtils {
 
         // in order to follow the referral we need to open a new connection and we do so using the
         // referral connector on the ldap connection
-        final LDAPConnection referralConn = ldapConnection.getReferralConnector()
-                .getReferralConnection(referralURL, ldapConnection);
+        final LDAPConnection referralConn =
+                privilegedConnect(() -> ldapConnection.getReferralConnector().getReferralConnection(referralURL, ldapConnection));
         final LdapSearchResultListener ldapListener = new LdapSearchResultListener(
                 referralConn, ignoreErrors,
                 ActionListener.wrap(

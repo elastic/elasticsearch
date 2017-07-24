@@ -19,12 +19,11 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
-import org.elasticsearch.xpack.security.authc.esnative.NativeRealmMigrator;
 import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -47,6 +46,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
 
     public static final String SECURITY_INDEX_NAME = ".security";
     public static final String SECURITY_TEMPLATE_NAME = "security-index-template";
+    public static final String NEW_SECURITY_INDEX_NAME = SECURITY_INDEX_NAME + "-" + IndexLifecycleManager.NEW_INDEX_VERSION;
 
     private static final Version MIN_READ_VERSION = Version.V_5_0_0;
 
@@ -58,21 +58,12 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
 
     public SecurityLifecycleService(Settings settings, ClusterService clusterService,
                                     ThreadPool threadPool, InternalClient client,
-                                    XPackLicenseState licenseState,
                                     @Nullable IndexAuditTrail indexAuditTrail) {
-        this(settings, clusterService, threadPool, client,
-                new NativeRealmMigrator(settings, licenseState, client), indexAuditTrail);
-    }
-
-    // package private for testing
-    SecurityLifecycleService(Settings settings, ClusterService clusterService, ThreadPool threadPool, InternalClient client,
-                             NativeRealmMigrator migrator, @Nullable IndexAuditTrail indexAuditTrail) {
         super(settings);
         this.settings = settings;
         this.threadPool = threadPool;
         this.indexAuditTrail = indexAuditTrail;
-        this.securityIndex = new IndexLifecycleManager(settings, client, clusterService, threadPool, SECURITY_INDEX_NAME,
-                SECURITY_TEMPLATE_NAME, migrator);
+        this.securityIndex = new IndexLifecycleManager(settings, client, SECURITY_INDEX_NAME, SECURITY_TEMPLATE_NAME);
         clusterService.addListener(this);
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
@@ -188,7 +179,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
     }
 
     public static List<String> indexNames() {
-        return Collections.singletonList(SECURITY_INDEX_NAME);
+        return Collections.unmodifiableList(Arrays.asList(SECURITY_INDEX_NAME, NEW_SECURITY_INDEX_NAME));
     }
 
     /**
@@ -200,7 +191,8 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
             securityIndex.createIndexIfNeededThenExecute(listener, andThen);
         } else {
             listener.onFailure(new IllegalStateException(
-                "Security index is not on the current version - please upgrade with the upgrade api"));
+                "Security index is not on the current version - the native realm will not be operational until " +
+                "the upgrade API is run on the security index"));
         }
     }
 

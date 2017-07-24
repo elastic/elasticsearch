@@ -62,7 +62,7 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
         assertThat(licenseState.activeUpdates.size(), equalTo(0));
     }
 
-    public void testTrialLicenseGeneration() throws Exception {
+    public void testSelfGeneratedLicenseGeneration() throws Exception {
         DiscoveryNode master = new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         ClusterState oldState = ClusterState.builder(new ClusterName("a"))
                 .nodes(DiscoveryNodes.builder().masterNodeId(master.getId()).add(master)).build();
@@ -76,6 +76,7 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
         LicensesMetaData licenseMetaData = stateWithLicense.metaData().custom(LicensesMetaData.TYPE);
         assertNotNull(licenseMetaData);
         assertNotNull(licenseMetaData.getLicense());
-        assertEquals(clock.millis() + LicenseService.TRIAL_LICENSE_DURATION.millis(), licenseMetaData.getLicense().expiryDate());
+        assertEquals(licenseType, licenseMetaData.getLicense().type());
+        assertEquals(clock.millis() + LicenseService.SELF_GENERATED_LICENSE_DURATION.millis(), licenseMetaData.getLicense().expiryDate());
     }
 }

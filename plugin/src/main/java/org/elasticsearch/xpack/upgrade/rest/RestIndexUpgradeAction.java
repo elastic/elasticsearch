@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.upgrade.rest;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +22,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.tasks.LoggingTaskListener;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction.Request;
 
@@ -54,41 +57,63 @@ public class RestIndexUpgradeAction extends BaseRestHandler {
         params.put(BulkByScrollTask.Status.INCLUDE_CREATED, Boolean.toString(true));
         params.put(BulkByScrollTask.Status.INCLUDE_UPDATED, Boolean.toString(true));
 
-        return channel -> client.execute(IndexUpgradeAction.INSTANCE, upgradeRequest,
-                new RestBuilderListener<BulkByScrollResponse>(channel) {
+        if (request.paramAsBoolean("wait_for_completion", true)) {
+            return channel -> client.execute(IndexUpgradeAction.INSTANCE, upgradeRequest,
+                    new RestBuilderListener<BulkByScrollResponse>(channel) {
 
-                    @Override
-                    public RestResponse buildResponse(BulkByScrollResponse response, XContentBuilder builder) throws Exception {
-                        builder.startObject();
-                        response.toXContent(builder, new ToXContent.DelegatingMapParams(params, channel.request()));
-                        builder.endObject();
-                        return new BytesRestResponse(getStatus(response), builder);
-                    }
-
-                    private RestStatus getStatus(BulkByScrollResponse response) {
-                        /*
-                         * Return the highest numbered rest status under the assumption that higher numbered statuses are "more error"
-                         * and thus more interesting to the user.
-                         */
-                        RestStatus status = RestStatus.OK;
-                        if (response.isTimedOut()) {
-                            status = RestStatus.REQUEST_TIMEOUT;
+                        @Override
+                        public RestResponse buildResponse(BulkByScrollResponse response, XContentBuilder builder) throws Exception {
+                            builder.startObject();
+                            response.toXContent(builder, new ToXContent.DelegatingMapParams(params, channel.request()));
+                            builder.endObject();
+                            return new BytesRestResponse(getStatus(response), builder);
                         }
-                        for (BulkItemResponse.Failure failure : response.getBulkFailures()) {
-                            if (failure.getStatus().getStatus() > status.getStatus()) {
-                                status = failure.getStatus();
+
+                        private RestStatus getStatus(BulkByScrollResponse response) {
+                            /*
+                             * Return the highest numbered rest status under the assumption that higher numbered statuses are "more error"
+                             * and thus more interesting to the user.
+                             */
+                            RestStatus status = RestStatus.OK;
+                            if (response.isTimedOut()) {
+                                status = RestStatus.REQUEST_TIMEOUT;
                             }
-                        }
-                        for (ScrollableHitSource.SearchFailure failure : response.getSearchFailures()) {
-                            RestStatus failureStatus = ExceptionsHelper.status(failure.getReason());
-                            if (failureStatus.getStatus() > status.getStatus()) {
-                                status = failureStatus;
+                            for (BulkItemResponse.Failure failure : response.getBulkFailures()) {
+                                if (failure.getStatus().getStatus() > status.getStatus()) {
+                                    status = failure.getStatus();
+                                }
                             }
+                            for (ScrollableHitSource.SearchFailure failure : response.getSearchFailures()) {
+                                RestStatus failureStatus = ExceptionsHelper.status(failure.getReason());
+                                if (failureStatus.getStatus() > status.getStatus()) {
+                                    status = failureStatus;
+                                }
+                            }
+                            return status;
                         }
-                        return status;
-                    }
 
-                });
+                    });
+        } else {
+            upgradeRequest.setShouldStoreResult(true);
+
+            /*
+             * Validating before forking to make sure we can catch the issues earlier
+             */
+            ActionRequestValidationException validationException = upgradeRequest.validate();
+            if (validationException != null) {
+                throw validationException;
+            }
+            Task task = client.executeLocally(IndexUpgradeAction.INSTANCE, upgradeRequest, LoggingTaskListener.instance());
+            // Send task description id instead of waiting for the message
+            return channel -> {
+                try (XContentBuilder builder = channel.newBuilder()) {
+                    builder.startObject();
+                    builder.field("task", client.getLocalNodeId() + ":" + task.getId());
+                    builder.endObject();
+                    channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+                }
+            };
+        }
     }
 }
 

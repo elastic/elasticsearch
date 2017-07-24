@@ -136,6 +136,8 @@ import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.put.TransportPutWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.service.TransportWatcherServiceAction;
 import org.elasticsearch.xpack.watcher.transport.actions.service.WatcherServiceAction;
+import org.elasticsearch.xpack.watcher.transport.actions.stats.OldTransportWatcherStatsAction;
+import org.elasticsearch.xpack.watcher.transport.actions.stats.OldWatcherStatsAction;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.TransportWatcherStatsAction;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
@@ -413,6 +415,8 @@ public class Watcher implements ActionPlugin {
                 new ActionHandler<>(DeleteWatchAction.INSTANCE, TransportDeleteWatchAction.class),
                 new ActionHandler<>(GetWatchAction.INSTANCE, TransportGetWatchAction.class),
                 new ActionHandler<>(WatcherStatsAction.INSTANCE, TransportWatcherStatsAction.class),
+                new ActionHandler<>(OldWatcherStatsAction.INSTANCE,
+                        OldTransportWatcherStatsAction.class),
                 new ActionHandler<>(AckWatchAction.INSTANCE, TransportAckWatchAction.class),
                 new ActionHandler<>(ActivateWatchAction.INSTANCE, TransportActivateWatchAction.class),
                 new ActionHandler<>(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class),

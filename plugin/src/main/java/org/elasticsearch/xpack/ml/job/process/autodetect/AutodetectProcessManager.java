@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -56,6 +57,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -96,7 +98,8 @@ public class AutodetectProcessManager extends AbstractComponent {
     private final JobResultsPersister jobResultsPersister;
     private final JobDataCountsPersister jobDataCountsPersister;
 
-    private final ConcurrentMap<Long, AutodetectCommunicator> autoDetectCommunicatorByJob;
+    private final ConcurrentMap<Long, AutodetectCommunicator> autoDetectCommunicatorByOpenJob = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, AutodetectCommunicator> autoDetectCommunicatorByClosingJob = new ConcurrentHashMap<>();
 
     private final int maxAllowedRunningJobs;
 
@@ -120,39 +123,49 @@ public class AutodetectProcessManager extends AbstractComponent {
         this.jobProvider = jobProvider;
         this.jobResultsPersister = jobResultsPersister;
         this.jobDataCountsPersister = jobDataCountsPersister;
-        this.autoDetectCommunicatorByJob = new ConcurrentHashMap<>();
         this.auditor = auditor;
     }
 
     public synchronized void closeAllJobsOnThisNode(String reason) throws IOException {
-        int numJobs = autoDetectCommunicatorByJob.size();
+        int numJobs = autoDetectCommunicatorByOpenJob.size();
         if (numJobs != 0) {
             logger.info("Closing [{}] jobs, because [{}]", numJobs, reason);
 
-            for (AutodetectCommunicator communicator : autoDetectCommunicatorByJob.values()) {
+            for (AutodetectCommunicator communicator : autoDetectCommunicatorByOpenJob.values()) {
                 closeJob(communicator.getJobTask(), false, reason);
             }
         }
     }
 
     public void killProcess(JobTask jobTask, boolean awaitCompletion, String reason) {
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.remove(jobTask.getAllocationId());
+        String extraInfo;
+        AutodetectCommunicator communicator = autoDetectCommunicatorByOpenJob.remove(jobTask.getAllocationId());
+        if (communicator == null) {
+            extraInfo = " while closing";
+            // if there isn't an open job, check for a closing job
+            communicator = autoDetectCommunicatorByClosingJob.remove(jobTask.getAllocationId());
+        } else {
+            extraInfo = "";
+        }
         if (communicator != null) {
             if (reason == null) {
-                logger.info("Killing job [{}]", jobTask.getJobId());
+                logger.info("Killing job [{}]{}", jobTask.getJobId(), extraInfo);
             } else {
-                logger.info("Killing job [{}], because [{}]", jobTask.getJobId(), reason);
+                logger.info("Killing job [{}]{}, because [{}]", jobTask.getJobId(), extraInfo, reason);
             }
             killProcess(communicator, jobTask.getJobId(), awaitCompletion, true);
         }
     }
 
     public void killAllProcessesOnThisNode() {
-        Iterator<AutodetectCommunicator> iter = autoDetectCommunicatorByJob.values().iterator();
-        while (iter.hasNext()) {
-            AutodetectCommunicator communicator = iter.next();
-            iter.remove();
-            killProcess(communicator, communicator.getJobTask().getJobId(), false, false);
+        // first kill open jobs, then closing jobs
+        for (Iterator<AutodetectCommunicator> iter : Arrays.asList(autoDetectCommunicatorByOpenJob.values().iterator(),
+                autoDetectCommunicatorByClosingJob.values().iterator())) {
+            while (iter.hasNext()) {
+                AutodetectCommunicator communicator = iter.next();
+                iter.remove();
+                killProcess(communicator, communicator.getJobTask().getJobId(), false, false);
+            }
         }
     }
 
@@ -163,7 +176,6 @@ public class AutodetectProcessManager extends AbstractComponent {
             logger.error("[{}] Failed to kill autodetect process for job", jobId);
         }
     }
-
 
     /**
      * Passes data to the native process.
@@ -186,7 +198,7 @@ public class AutodetectProcessManager extends AbstractComponent {
      */
     public void processData(JobTask jobTask, InputStream input, XContentType xContentType,
                             DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobTask.getAllocationId());
+        AutodetectCommunicator communicator = autoDetectCommunicatorByOpenJob.get(jobTask.getAllocationId());
         if (communicator == null) {
             throw ExceptionsHelper.conflictStatusException("Cannot process data because job [" + jobTask.getJobId() + "] is not open");
         }
@@ -204,7 +216,7 @@ public class AutodetectProcessManager extends AbstractComponent {
      */
     public void flushJob(JobTask jobTask, FlushJobParams params, ActionListener<FlushAcknowledgement> handler) {
         logger.debug("Flushing job {}", jobTask.getJobId());
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobTask.getAllocationId());
+        AutodetectCommunicator communicator = autoDetectCommunicatorByOpenJob.get(jobTask.getAllocationId());
         if (communicator == null) {
             String message = String.format(Locale.ROOT, "Cannot flush because job [%s] is not open", jobTask.getJobId());
             logger.debug(message);
@@ -225,7 +237,7 @@ public class AutodetectProcessManager extends AbstractComponent {
 
     public void writeUpdateProcessMessage(JobTask jobTask, List<JobUpdate.DetectorUpdate> updates, ModelPlotConfig config,
                                           Consumer<Exception> handler) {
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobTask.getAllocationId());
+        AutodetectCommunicator communicator = autoDetectCommunicatorByOpenJob.get(jobTask.getAllocationId());
         if (communicator == null) {
             String message = "Cannot process update model debug config because job [" + jobTask.getJobId() + "] is not open";
             logger.debug(message);
@@ -263,7 +275,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                 @Override
                 protected void doRun() throws Exception {
                     try {
-                        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.computeIfAbsent(jobTask.getAllocationId(),
+                        AutodetectCommunicator communicator = autoDetectCommunicatorByOpenJob.computeIfAbsent(jobTask.getAllocationId(),
                                 id -> create(jobTask, params, handler));
                         communicator.init(params.modelSnapshot());
                         setJobState(jobTask, JobState.OPENED);
@@ -271,7 +283,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                         // No need to log here as the persistent task framework will log it
                         try {
                             // Don't leave a partially initialised process hanging around
-                            AutodetectCommunicator communicator = autoDetectCommunicatorByJob.remove(jobTask.getAllocationId());
+                            AutodetectCommunicator communicator = autoDetectCommunicatorByOpenJob.remove(jobTask.getAllocationId());
                             if (communicator != null) {
                                 communicator.killProcess(false, false);
                             }
@@ -288,7 +300,12 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     AutodetectCommunicator create(JobTask jobTask, AutodetectParams autodetectParams, Consumer<Exception> handler) {
-        if (autoDetectCommunicatorByJob.size() == maxAllowedRunningJobs) {
+        // Closing jobs can still be using some or all threads in MachineLearning.AUTODETECT_THREAD_POOL_NAME
+        // that an open job uses, so include them too when considering if enough threads are available.
+        // There's a slight possibility that the same key is in both sets, hence it's not sufficient to simply
+        // add the two map sizes.
+        int currentRunningJobs = Sets.union(autoDetectCommunicatorByOpenJob.keySet(), autoDetectCommunicatorByClosingJob.keySet()).size();
+        if (currentRunningJobs >= maxAllowedRunningJobs) {
             throw new ElasticsearchStatusException("max running job capacity [" + maxAllowedRunningJobs + "] reached",
                     RestStatus.TOO_MANY_REQUESTS);
         }
@@ -368,45 +385,58 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     /**
-     * Stop the running job and mark it as finished.<br>
+     * Stop the running job and mark it as finished.
      *
-     * @param jobTask   The job to stop
+     * @param jobTask The job to stop
      * @param restart Whether the job should be restarted by persistent tasks
      * @param reason  The reason for closing the job
      */
     public void closeJob(JobTask jobTask, boolean restart, String reason) {
-        logger.debug("Attempting to close job [{}], because [{}]", jobTask.getJobId(), reason);
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.remove(jobTask.getAllocationId());
+        String jobId = jobTask.getJobId();
+        long allocationId = jobTask.getAllocationId();
+        logger.debug("Attempting to close job [{}], because [{}]", jobId, reason);
+        // don't remove the communicator immediately, because we need to ensure it's in the
+        // map of closing communicators before it's removed from the map of running ones
+        AutodetectCommunicator communicator = autoDetectCommunicatorByOpenJob.get(allocationId);
         if (communicator == null) {
-            logger.debug("Cannot close: no active autodetect process for job {}", jobTask.getJobId());
+            logger.debug("Cannot close: no active autodetect process for job [{}]", jobId);
+            return;
+        }
+        // keep a record of the job, so that it can still be killed while closing
+        autoDetectCommunicatorByClosingJob.putIfAbsent(allocationId, communicator);
+        communicator = autoDetectCommunicatorByOpenJob.remove(allocationId);
+        if (communicator == null) {
+            // if we get here a simultaneous close request beat us to the remove() call
+            logger.debug("Already closing autodetect process for job [{}]", jobId);
             return;
         }
 
         if (reason == null) {
-            logger.info("Closing job [{}]", jobTask.getJobId());
+            logger.info("Closing job [{}]", jobId);
         } else {
-            logger.info("Closing job [{}], because [{}]", jobTask.getJobId(), reason);
+            logger.info("Closing job [{}], because [{}]", jobId, reason);
         }
 
         try {
             communicator.close(restart, reason);
+            autoDetectCommunicatorByClosingJob.remove(allocationId);
         } catch (Exception e) {
-            logger.warn("Exception closing stopped process input stream", e);
+            logger.warn("[" + jobId + "] Exception closing autodetect process", e);
             setJobState(jobTask, JobState.FAILED);
-            throw ExceptionsHelper.serverError("Exception closing stopped process input stream", e);
+            throw ExceptionsHelper.serverError("Exception closing autodetect process", e);
         }
     }
 
     int numberOfOpenJobs() {
-        return autoDetectCommunicatorByJob.size();
+        return autoDetectCommunicatorByOpenJob.size();
     }
 
     boolean jobHasActiveAutodetectProcess(JobTask jobTask) {
-        return autoDetectCommunicatorByJob.get(jobTask.getAllocationId()) != null;
+        return autoDetectCommunicatorByOpenJob.get(jobTask.getAllocationId()) != null;
     }
 
     public Optional<Duration> jobOpenTime(JobTask jobTask) {
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobTask.getAllocationId());
+        AutodetectCommunicator communicator = autoDetectCommunicatorByOpenJob.get(jobTask.getAllocationId());
         if (communicator == null) {
             return Optional.empty();
         }
@@ -452,7 +482,7 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     public Optional<Tuple<DataCounts, ModelSizeStats>> getStatistics(JobTask jobTask) {
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobTask.getAllocationId());
+        AutodetectCommunicator communicator = autoDetectCommunicatorByOpenJob.get(jobTask.getAllocationId());
         if (communicator == null) {
             return Optional.empty();
         }
@@ -523,7 +553,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                         try {
                             runnable.run();
                         } catch (Exception e) {
-                            logger.error("error handeling job operation", e);
+                            logger.error("error handling job operation", e);
                         }
                     }
                 }

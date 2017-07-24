@@ -37,3 +37,25 @@ setup:
   - do:
       catch: /illegal_state_exception/
       xpack.migration.upgrade: { index: test1 }
+
+---
+"Upgrade test - wait_for_completion:false":
+
+  - do:
+      xpack.migration.upgrade:
+        index: test1
+        wait_for_completion: false
+
+  - match: {task: '/.+:\d+/'}
+  - set: {task: task}
+
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task
+  - is_false: node_failures
+  - is_true: task
+  - match: {completed: true}
+  - is_true: error
+  - match: {error.type: "illegal_state_exception"}
+  - match: {error.reason: "Index [test1] cannot be upgraded"}

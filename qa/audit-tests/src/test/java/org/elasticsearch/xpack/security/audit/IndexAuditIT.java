@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.security.audit;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.http.message.BasicHeader;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;

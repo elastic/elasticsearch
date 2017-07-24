@@ -5,8 +5,9 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -74,7 +75,9 @@ public abstract class SecurityClusterClientYamlTestCase extends ESClientYamlSuit
                 for (String key : mappings.keySet()) {
                     String templatePath = mappingsPath + "." + key + "._meta.security-version";
                     String templateVersion = objectPath.evaluate(templatePath);
-                    assertEquals(masterTemplateVersion, templateVersion);
+                    final Version mVersion = Version.fromString(masterTemplateVersion);
+                    final Version tVersion = Version.fromString(templateVersion);
+                    assertTrue(mVersion.onOrBefore(tVersion));
                 }
             } catch (Exception e) {
                 throw new AssertionError("failed to get cluster state", e);

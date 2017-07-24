@@ -18,20 +18,20 @@ import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
-import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Transport;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import static org.elasticsearch.xpack.ssl.CertUtils.generateSignedCertificate;
@@ -53,7 +53,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     private static final int KEYSIZE = 1024;
 
     private static final int RESOURCE_RELOAD_MILLIS = 3;
-    private static final int WAIT_RELOAD_MILLIS = 25;
+    private static final TimeValue MAX_WAIT_RELOAD = TimeValue.timeValueSeconds(1);
 
     private static Path configPath;
     private static Settings nodeSSL;
@@ -157,22 +157,25 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2007")
     public void testRestrictionsAreReloaded() throws Exception {
         writeRestrictions("*");
-        try {
-            tryConnect(untrustedCert);
-        } catch (SSLHandshakeException | SocketException ex) {
-            fail("handshake should have been successful, but failed with " + ex);
-        }
+        assertBusy(() -> {
+            try {
+                tryConnect(untrustedCert);
+            } catch (SSLHandshakeException | SocketException ex) {
+                fail("handshake should have been successful, but failed with " + ex);
+            }
+        }, MAX_WAIT_RELOAD.millis(), TimeUnit.MILLISECONDS);
+
         writeRestrictions("*.trusted");
-        Thread.sleep(WAIT_RELOAD_MILLIS);
-        try {
-            tryConnect(untrustedCert);
-            fail("handshake should have failed, but was successful");
-        } catch (SSLHandshakeException | SocketException ex) {
-            // expected
-        }
+        assertBusy(() -> {
+            try {
+                tryConnect(untrustedCert);
+                fail("handshake should have failed, but was successful");
+            } catch (SSLHandshakeException | SocketException ex) {
+                // expected
+            }
+        }, MAX_WAIT_RELOAD.millis(), TimeUnit.MILLISECONDS);
     }
 
     private void tryConnect(CertificateInfo certificate) throws Exception {

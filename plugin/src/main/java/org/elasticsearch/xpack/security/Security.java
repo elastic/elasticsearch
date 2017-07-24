@@ -5,27 +5,9 @@
  */
 package org.elasticsearch.xpack.security;
 
-import java.io.IOException;
-import java.security.GeneralSecurityException;
-import java.time.Clock;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -33,6 +15,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
@@ -57,6 +40,10 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
@@ -124,7 +111,6 @@ import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.ContainerSettings;
 import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.elasticsearch.xpack.security.authc.Realm;
@@ -149,7 +135,6 @@ import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.bootstrap.BootstrapElasticPassword;
-import org.elasticsearch.xpack.security.bootstrap.ContainerPasswordBootstrapCheck;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
@@ -168,6 +153,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestHasPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
+import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
@@ -176,12 +162,34 @@ import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.ssl.SSLBootstrapCheck;
 import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.template.TemplateUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
+import java.time.Clock;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_TEMPLATE_NAME;
 
 public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
 
@@ -310,14 +318,12 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         this.auditTrailService.set(auditTrailService);
 
         final SecurityLifecycleService securityLifecycleService =
-                new SecurityLifecycleService(settings, clusterService, threadPool, client, licenseState, indexAuditTrail);
+                new SecurityLifecycleService(settings, clusterService, threadPool, client, indexAuditTrail);
         final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, securityLifecycleService);
         components.add(tokenService);
 
-        final ContainerSettings containerSettings = ContainerSettings.parseAndCreate();
-
         // realms construction
-        final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityLifecycleService, containerSettings);
+        final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityLifecycleService);
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityLifecycleService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore,
@@ -388,7 +394,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(), authzService, licenseState,
                 sslService, securityContext.get(), destructiveOperations));
 
-        BootstrapElasticPassword bootstrapElasticPassword = new BootstrapElasticPassword(settings, logger, clusterService, reservedRealm,
+        BootstrapElasticPassword bootstrapElasticPassword = new BootstrapElasticPassword(settings, clusterService, reservedRealm,
                 securityLifecycleService);
         bootstrapElasticPassword.initiatePasswordBootstrap();
 
@@ -502,8 +508,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
                     new SSLBootstrapCheck(sslService, settings, env),
                     new TokenPassphraseBootstrapCheck(settings),
                     new TokenSSLBootstrapCheck(settings),
-                    new PkiRealmBootstrapCheck(settings, sslService),
-                    new ContainerPasswordBootstrapCheck()
+                    new PkiRealmBootstrapCheck(settings, sslService)
             );
             checks.addAll(InternalRealms.getBootstrapChecks(settings));
             return checks;
@@ -856,5 +861,22 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
                     new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool"));
         }
         return Collections.emptyList();
+    }
+
+    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+        return templates -> {
+            final byte[] securityTemplate = TemplateUtils.loadTemplate("/" + SECURITY_TEMPLATE_NAME + ".json",
+                Version.CURRENT.toString(), IndexLifecycleManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
+            final XContent xContent = XContentFactory.xContent(XContentType.JSON);
+
+            try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, securityTemplate)) {
+                templates.put(SECURITY_TEMPLATE_NAME, IndexTemplateMetaData.Builder.fromXContent(parser, SECURITY_TEMPLATE_NAME));
+            } catch (IOException e) {
+                // TODO: should we handle this with a thrown exception?
+                logger.error("Error loading security template [{}] as part of metadata upgrading", SECURITY_TEMPLATE_NAME);
+            }
+
+            return templates;
+        };
     }
 }

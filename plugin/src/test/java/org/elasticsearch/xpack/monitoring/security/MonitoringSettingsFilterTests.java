@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.monitoring.security;
 
-import org.apache.http.Header;
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;

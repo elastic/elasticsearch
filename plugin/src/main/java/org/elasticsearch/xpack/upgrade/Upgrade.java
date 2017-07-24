@@ -12,6 +12,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -19,20 +23,26 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.support.Hasher;
+import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction;
 import org.elasticsearch.xpack.upgrade.rest.RestIndexUpgradeAction;
@@ -46,9 +56,16 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.INDEX_TYPE;
+import static org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.RESERVED_USER_TYPE;
 
 public class Upgrade implements ActionPlugin {
 
@@ -65,6 +82,7 @@ public class Upgrade implements ActionPlugin {
         this.settings = settings;
         this.upgradeCheckFactories = new ArrayList<>();
         upgradeCheckFactories.add(getWatcherUpgradeCheckFactory(settings));
+        upgradeCheckFactories.add(getSecurityUpgradeCheckFactory(settings));
     }
 
     public Collection<Object> createComponents(InternalClient internalClient, ClusterService clusterService, ThreadPool threadPool,
@@ -101,6 +119,104 @@ public class Upgrade implements ActionPlugin {
      */
     public static boolean checkInternalIndexFormat(IndexMetaData indexMetaData) {
         return indexMetaData.getSettings().getAsInt(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), 0) == EXPECTED_INDEX_FORMAT_VERSION;
+    }
+
+    static BiFunction<InternalClient, ClusterService, IndexUpgradeCheck> getSecurityUpgradeCheckFactory(Settings settings) {
+        return (internalClient, clusterService) ->
+               new IndexUpgradeCheck<Void>("security",
+                    settings,
+                    indexMetaData -> {
+                        if (".security".equals(indexMetaData.getIndex().getName())
+                                || indexMetaData.getAliases().containsKey(".security")) {
+
+                            if (checkInternalIndexFormat(indexMetaData)) {
+                                return UpgradeActionRequired.UP_TO_DATE;
+                            } else {
+                                return UpgradeActionRequired.UPGRADE;
+                            }
+                        } else {
+                            return UpgradeActionRequired.NOT_APPLICABLE;
+                        }
+                    },
+                    internalClient,
+                    clusterService,
+                    new String[] { "user", "reserved-user", "role", "doc" },
+                    new Script(ScriptType.INLINE, "painless",
+                        "ctx._source.type = ctx._type;\n" +
+                        "if (!ctx._type.equals(\"doc\")) {\n" +
+                        "   ctx._id = ctx._type + \"-\" + ctx._id;\n" +
+                        "   ctx._type = \"doc\";" +
+                        "}\n",
+                        new HashMap<>()),
+                        listener -> listener.onResponse(null),
+                        (success, listener) -> postSecurityUpgrade(internalClient, listener));
+    }
+
+    private static void postSecurityUpgrade(Client client, ActionListener<TransportResponse.Empty> listener) {
+        // update passwords to the new style, if they are in the old default password mechanism
+        client.prepareSearch(SECURITY_INDEX_NAME)
+              .setQuery(QueryBuilders.termQuery(User.Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE))
+              .setFetchSource(true)
+              .execute(ActionListener.wrap(searchResponse -> {
+                  assert searchResponse.getHits().getTotalHits() <= 10 :
+                     "there are more than 10 reserved users we need to change this to retrieve them all!";
+                  Set<String> toConvert = new HashSet<>();
+                  for (SearchHit searchHit : searchResponse.getHits()) {
+                      Map<String, Object> sourceMap = searchHit.getSourceAsMap();
+                      if (hasOldStyleDefaultPassword(sourceMap)) {
+                          toConvert.add(searchHit.getId());
+                      }
+                  }
+
+                  if (toConvert.isEmpty()) {
+                      listener.onResponse(TransportResponse.Empty.INSTANCE);
+                  } else {
+                      final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+                      for (final String id : toConvert) {
+                          final UpdateRequest updateRequest = new UpdateRequest(SECURITY_INDEX_NAME,
+                                INDEX_TYPE, RESERVED_USER_TYPE + "-" + id);
+                          updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                                       .doc(User.Fields.PASSWORD.getPreferredName(), "",
+                                            User.Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE);
+                          bulkRequestBuilder.add(updateRequest);
+                      }
+                      bulkRequestBuilder.execute(new ActionListener<BulkResponse>() {
+                          @Override
+                          public void onResponse(BulkResponse bulkItemResponses) {
+                              if (bulkItemResponses.hasFailures()) {
+                                  final String msg = "failed to update old style reserved user passwords: " +
+                                                     bulkItemResponses.buildFailureMessage();
+                                  listener.onFailure(new ElasticsearchException(msg));
+                              } else {
+                                  listener.onResponse(TransportResponse.Empty.INSTANCE);
+                              }
+                          }
+
+                          @Override
+                          public void onFailure(Exception e) {
+                              listener.onFailure(e);
+                          }
+                      });
+                  }
+              }, listener::onFailure));
+    }
+
+    /**
+     * Determines whether the supplied source as a {@link Map} has its password explicitly set to be the default password
+     */
+    private static boolean hasOldStyleDefaultPassword(Map<String, Object> userSource) {
+        // TODO we should store the hash as something other than a string... bytes?
+        final String passwordHash = (String) userSource.get(User.Fields.PASSWORD.getPreferredName());
+        if (passwordHash == null) {
+            throw new IllegalStateException("passwordHash should never be null");
+        } else if (passwordHash.isEmpty()) {
+            // we know empty is the new style
+            return false;
+        }
+
+        try (SecureString secureString = new SecureString(passwordHash.toCharArray())) {
+            return Hasher.BCRYPT.verify(ReservedRealm.EMPTY_PASSWORD_TEXT, secureString.getChars());
+        }
     }
 
     static BiFunction<InternalClient, ClusterService, IndexUpgradeCheck> getWatcherUpgradeCheckFactory(Settings settings) {

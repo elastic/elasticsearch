@@ -12,6 +12,7 @@ directly to configure and access {xpack} features.
 * <<ml-apis, Machine Learning APIs>>
 * <<security-api,Security APIs>>
 * <<watcher-api, Watcher APIs>>
+* <<migration-api, Migration APIs>>
 --
 
 
@@ -20,4 +21,5 @@ include::graph/explore.asciidoc[]
 include::ml-api.asciidoc[]
 include::security.asciidoc[]
 include::watcher.asciidoc[]
+include::migration.asciidoc[]
 include::defs.asciidoc[]

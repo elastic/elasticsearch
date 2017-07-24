@@ -62,6 +62,11 @@ public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkB
 
         private String index = null;
 
+        /**
+         * Should this task store its result?
+         */
+        private boolean shouldStoreResult;
+
         // for serialization
         public Request() {
 
@@ -94,6 +99,18 @@ public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkB
             return UPGRADE_INDEX_OPTIONS;
         }
 
+        /**
+         * Should this task store its result after it has finished?
+         */
+        public Request setShouldStoreResult(boolean shouldStoreResult) {
+            this.shouldStoreResult = shouldStoreResult;
+            return this;
+        }
+
+        @Override
+        public boolean getShouldStoreResult() {
+            return shouldStoreResult;
+        }
 
         @Override
         public ActionRequestValidationException validate() {

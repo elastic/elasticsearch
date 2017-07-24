@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.common.http.auth.basic;
 
-import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.UsernamePasswordCredentials;
-import org.apache.http.client.CredentialsProvider;
+import org.elasticsearch.client.http.auth.AuthScope;
+import org.elasticsearch.client.http.auth.UsernamePasswordCredentials;
+import org.elasticsearch.client.http.client.CredentialsProvider;
 import org.elasticsearch.xpack.common.http.auth.ApplicableHttpAuth;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 

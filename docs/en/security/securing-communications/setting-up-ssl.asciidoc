@@ -162,6 +162,7 @@ keys. The CSRs should be provided to the CA in order to obtain the signed
 certificates. The signed certificates will need to be in PEM format in order to
 be used.
 
+[[certgen-silent]]
 ===== Using `certgen` in Silent Mode
 
 `certgen` supports a silent mode of operation to enable easier batch operations. In order
@@ -206,6 +207,57 @@ bin/x-pack/certgen -in instances.yml <1>
 <1> Generates a CA certificate and private key in addition to certificates and private keys for the instances
 contained in the YAML file. The other options to the tool can be specified in addition to the `-in` option. For all of the available
 options, run `bin/x-pack/certgen -h`.
+
+[[certgen-options]]
+===== Command Line Options for `certgen`
+
+`-out <file>`::
+The path to the output file (`.zip`) that should be generated.
+
+`-in <file>`::
+Input file for running in <<certgen-silent, silent mode>>.
+
+`-csr`::
+Operate in <<generating-csr, Certificate Signing Request>> mode.
+
+`-cert <file>`::
+This option causes `certgen` to generate new instances certificates and keys
+using an existing CA certificate (provided in the `file` argument).
++
+_Not available in `-csr` mode._
+
+`-key <file>`::
+Provides the _private-key_ file for the CA certificate.
++
+_Required whenever the `-cert` option is used._
+
+`-pass <password>`::
+Specifies the password for the CA private key.
+If the `-key` option is provided, then this is the password for the existing
+private key file.
+Otherwise, it is the password that should be applied to the generated CA key.
++
+_Not available in `-csr` mode._
+
+`-p12 <password>`::
+Generate a PKCS#12 (`.p12` or `.pfx`) container file for each of the instance
+certificates and keys.
+The generate file is protected by the supplied password (which may be blank).
++
+_Not available in `-csr` mode._
+
+`-dn <name>`::
+The _Distinguished Name_ that should be used for the generated CA certificate.
++
+_Not available in `-csr` mode, or with `-cert`._
+
+`-keysize <bits>`::
+The number of bits to be used in generates RSA keys (default `2048`).
+
+`-days <n>`::
+The number of days for which generated keys should be valid (default `1095`).
++
+_Not available in `-csr` mode._
 
 [[enable-ssl]]
 ==== Enabling SSL in the Node Configuration

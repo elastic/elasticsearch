@@ -50,8 +50,8 @@ public class FuzzinessTests extends ESTestCase {
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_NUMBER));
-                Fuzziness parse = Fuzziness.parse(parser);
-                assertThat(parse.asFloat(), equalTo(floatValue));
+                Fuzziness fuzziness = Fuzziness.parse(parser);
+                assertThat(fuzziness.asFloat(), equalTo(floatValue));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
             }
             {
@@ -68,21 +68,21 @@ public class FuzzinessTests extends ESTestCase {
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
                 assertThat(parser.nextToken(), anyOf(equalTo(XContentParser.Token.VALUE_NUMBER), equalTo(XContentParser.Token.VALUE_STRING)));
-                Fuzziness parse = Fuzziness.parse(parser);
+                Fuzziness fuzziness = Fuzziness.parse(parser);
                 if (value.intValue() >= 1) {
-                    assertThat(parse.asDistance(), equalTo(Math.min(2, value.intValue())));
+                    assertThat(fuzziness.asDistance(), equalTo(Math.min(2, value.intValue())));
                 }
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
                 if (intValue.equals(value)) {
                     switch (intValue) {
                         case 1:
-                            assertThat(parse, sameInstance(Fuzziness.ONE));
+                            assertThat(fuzziness, sameInstance(Fuzziness.ONE));
                             break;
                         case 2:
-                            assertThat(parse, sameInstance(Fuzziness.TWO));
+                            assertThat(fuzziness, sameInstance(Fuzziness.TWO));
                             break;
                         case 0:
-                            assertThat(parse, sameInstance(Fuzziness.ZERO));
+                            assertThat(fuzziness, sameInstance(Fuzziness.ZERO));
                             break;
                         default:
                             break;
@@ -107,9 +107,9 @@ public class FuzzinessTests extends ESTestCase {
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
-                Fuzziness parse = Fuzziness.parse(parser);
+                Fuzziness fuzziness = Fuzziness.parse(parser);
                 if (isDefaultAutoFuzzinessTested) {
-                    assertThat(parse, sameInstance(Fuzziness.AUTO));
+                    assertThat(fuzziness, sameInstance(Fuzziness.AUTO));
                 }
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
             }

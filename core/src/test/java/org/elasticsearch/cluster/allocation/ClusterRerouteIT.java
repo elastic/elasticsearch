@@ -27,16 +27,19 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
-import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.Allocation;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.Rebalance;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -63,6 +66,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -263,45 +267,59 @@ public class ClusterRerouteIT extends ESIntegTestCase {
     }
 
     public void testRerouteExplain() {
-        Settings commonSettings = Settings.builder().build();
-
-        logger.info("--> starting a node");
-        String node_1 = internalCluster().startNode(commonSettings);
+        final Settings settings = Settings.builder()
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name())
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.name())
+            .build();
+        final String nodeName1 = internalCluster().startNode(settings);
 
         assertThat(cluster().size(), equalTo(1));
-        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("1").execute().actionGet();
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("1")
+            .execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
-        logger.info("--> create an index with 1 shard");
-        client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
-                .execute().actionGet();
+        final String indexName = "fake_index";
+        client().admin().indices().prepareCreate(indexName).setWaitForActiveShards(ActiveShardCount.NONE)
+            .setSettings(Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1))
+            .execute().actionGet();
 
-        ensureGreen("test");
+        AllocationCommand command = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
+        ClusterRerouteResponse response = client().admin().cluster().prepareReroute()
+            .setExplain(randomBoolean())
+            .add(command)
+            .execute().actionGet();
 
-        logger.info("--> disable allocation");
-        Settings newSettings = Settings.builder()
-                .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name())
-                .build();
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(newSettings).execute().actionGet();
+        List<RerouteExplanation> explanations = response.getExplanations().explanations();
+        assertThat(explanations.size(), equalTo(1));
+        RerouteExplanation explanation = explanations.get(0);
+        assertThat(explanation.command(), equalTo(command));
+        assertThat(explanation.decisions().type(), equalTo(Decision.Type.YES));
+        assertThat(explanation.warnings().size(), equalTo(1));
+        assertThat(explanation.warnings().get(0), containsString("Allocating an empty primary"));
 
-        logger.info("--> starting a second node");
-        String node_2 = internalCluster().startNode(commonSettings);
+
+        final String nodeName2 = internalCluster().startNode(settings);
+
         assertThat(cluster().size(), equalTo(2));
         healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
-        logger.info("--> try to move the shard from node1 to node2");
-        MoveAllocationCommand cmd = new MoveAllocationCommand("test", 0, node_1, node_2);
-        ClusterRerouteResponse resp = client().admin().cluster().prepareReroute().add(cmd).setExplain(true).execute().actionGet();
-        RoutingExplanations e = resp.getExplanations();
-        assertThat(e.explanations().size(), equalTo(1));
-        RerouteExplanation explanation = e.explanations().get(0);
-        assertThat(explanation.command().name(), equalTo(cmd.name()));
-        assertThat(((MoveAllocationCommand)explanation.command()).shardId(), equalTo(cmd.shardId()));
-        assertThat(((MoveAllocationCommand)explanation.command()).fromNode(), equalTo(cmd.fromNode()));
-        assertThat(((MoveAllocationCommand)explanation.command()).toNode(), equalTo(cmd.toNode()));
+        ensureYellow(indexName);
+
+        command = new AllocateReplicaAllocationCommand(indexName, 0, nodeName2);
+        response = client().admin().cluster().prepareReroute()
+            .setExplain(randomBoolean())
+            .add(command)
+            .execute().actionGet();
+
+        explanations = response.getExplanations().explanations();
+        assertThat(explanations.size(), equalTo(1));
+        explanation = explanations.get(0);
+        assertThat(explanation.command(), equalTo(command));
         assertThat(explanation.decisions().type(), equalTo(Decision.Type.YES));
+        assertThat(explanation.warnings().size(), equalTo(0));
     }
 
     public void testClusterRerouteWithBlocks() throws Exception {

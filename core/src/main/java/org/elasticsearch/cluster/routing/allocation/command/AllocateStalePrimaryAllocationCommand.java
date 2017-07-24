@@ -35,6 +35,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Allocates an unassigned stale primary shard to a specific node. Use with extreme care as this will result in data loss.
@@ -114,7 +115,8 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
 
         if (acceptDataLoss == false) {
             return explainOrThrowRejectedCommand(explain, allocation,
-                "allocating an empty primary for [" + index + "][" + shardId + "] can result in data loss. Please confirm by setting the accept_data_loss parameter to true");
+                "allocating a stale primary for [" + index + "][" + shardId + "] can result in data loss. " +
+                "Please confirm by setting the accept_data_loss parameter to true");
         }
 
         if (shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE) {
@@ -123,7 +125,12 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
         }
 
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting);
-        return new RerouteExplanation(this, allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders"));
+
+        Decision decision = allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders");
+        String warning = "Allocating a stale primary for [" + index + "][" + shardId + "] on node [" + node + "]. " +
+            "This action can cause data loss. If the old primary rejoins the cluster, its copy of this shard will be " +
+            "overwritten.";
+        return new RerouteExplanation(this, decision, Arrays.asList(warning));
     }
 
 }

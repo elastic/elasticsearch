@@ -38,6 +38,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Allocates an unassigned empty primary shard to a specific node. Use with extreme care as this will result in data loss.
@@ -129,6 +130,10 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
 
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, unassignedInfoToUpdate, StoreRecoverySource.EMPTY_STORE_INSTANCE);
 
-        return new RerouteExplanation(this, allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders"));
+        Decision decision = allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders");
+        String warning = "Allocating an empty primary for [" + index + "][" + shardId + "] on node [" + node + "]. " +
+            "This action can cause data loss. If the old primary rejoins the cluster, its copy of this shard will be " +
+            "deleted.";
+        return new RerouteExplanation(this, decision, Arrays.asList(warning));
     }
 }

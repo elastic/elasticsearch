@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -29,13 +30,16 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.AllocationService.CommandsResult;
 import org.elasticsearch.cluster.routing.allocation.command.AbstractAllocateAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -52,8 +56,11 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.util.Collections;
+import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -189,7 +196,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             allocation.reroute(clusterState, new AllocationCommands(new AllocateStalePrimaryAllocationCommand(index, shardId.id(), "node1", false)), false, false);
             fail("expected IllegalArgumentException when allocating stale primary with acceptDataLoss flag set to false");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("allocating an empty primary for " + shardId + " can result in data loss. Please confirm by setting the accept_data_loss parameter to true"));
+            assertThat(e.getMessage(), containsString("allocating a stale primary for " + shardId + " can result in data loss. Please confirm by setting the accept_data_loss parameter to true"));
         }
 
         logger.info("--> allocating empty primary with acceptDataLoss flag set to true");
@@ -472,6 +479,98 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).index(), equalTo("test"));
         assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).node(), equalTo("node5"));
         assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).allowPrimary(), equalTo(true));
+    }
+
+    private static void assertRerouteExplanation(RerouteExplanation actualExplanation,
+                                                 AllocationCommand expectedCommand,
+                                                 Decision.Type expectedDecision,
+                                                 List<String> expectedWarningSubstrings) {
+
+        assertThat(actualExplanation.command(), equalTo(expectedCommand));
+        assertThat(actualExplanation.decisions().type(), equalTo(expectedDecision));
+        assertThat(actualExplanation.warnings().size(), equalTo(expectedWarningSubstrings.size()));
+        for (int i = 0; i < expectedWarningSubstrings.size(); i++) {
+            String actualWarning = actualExplanation.warnings().get(i);
+            String expectedSubstring = expectedWarningSubstrings.get(i);
+            assertThat(actualWarning, containsString(expectedSubstring));
+        }
+    }
+
+    public void testRerouteExplanations() {
+        final String indexName = "fake_index";
+
+        AllocationService allocation = createAllocationService(Settings.builder()
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+            .build());
+
+        MetaData metaData = MetaData.builder()
+            .put(IndexMetaData.builder(indexName)
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .putInSyncAllocationIds(0, Collections.singleton("fake_insync_id"))) // todo test without
+            .build();
+
+        RoutingTable routingTable = RoutingTable.builder()
+            .addAsRecovery(metaData.index(indexName))
+            .build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(metaData)
+            .routingTable(routingTable)
+            .build();
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder()
+                .add(newNode("data1"))
+                .add(newNode("data2"))
+                .add(newNode("data3")))
+            .build();
+        clusterState = allocation.reroute(clusterState, "reroute");
+
+        AllocationCommand command;
+        String warning;
+        if (randomBoolean()) {
+            command = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, "data1", true);
+            warning = "Allocating an empty primary";
+        } else {
+            command = new AllocateStalePrimaryAllocationCommand(indexName, 0, "data1", true);
+            warning = "Allocating a stale primary";
+        }
+        CommandsResult result = allocation.reroute(clusterState, new AllocationCommands(command), false, false);
+        clusterState = result.getClusterState();
+
+        List<RerouteExplanation> explanations = result.explanations().explanations();
+        assertThat(explanations.size(), equalTo(1));
+        assertRerouteExplanation(explanations.get(0), command, Decision.Type.YES, singletonList(warning));
+
+        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+
+        command = new AllocateReplicaAllocationCommand(indexName, 0, "data2");
+        result = allocation.reroute(clusterState, new AllocationCommands(command), false, false);
+        clusterState = result.getClusterState();
+
+        explanations = result.explanations().explanations();
+        assertThat(explanations.size(), equalTo(1));
+        assertRerouteExplanation(explanations.get(0), command, Decision.Type.YES, emptyList());
+
+        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+
+        command = new MoveAllocationCommand(indexName, 0, "data2", "data3");
+        result = allocation.reroute(clusterState, new AllocationCommands(command), false, false);
+        clusterState = result.getClusterState();
+
+        explanations = result.explanations().explanations();
+        assertThat(explanations.size(), equalTo(1));
+        assertRerouteExplanation(explanations.get(0), command, Decision.Type.YES, emptyList());
+
+        command = new CancelAllocationCommand(indexName, 0, "data3", false);
+        result = allocation.reroute(clusterState, new AllocationCommands(command), false, false);
+        clusterState = result.getClusterState();
+
+        explanations = result.explanations().explanations();
+        assertThat(explanations.size(), equalTo(1));
+        assertRerouteExplanation(explanations.get(0), command, Decision.Type.YES, emptyList());
     }
 
     public void testXContent() throws Exception {

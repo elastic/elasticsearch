@@ -27,6 +27,10 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
 
 /**
  * Class encapsulating the explanation for a single {@link AllocationCommand}
@@ -36,10 +40,16 @@ public class RerouteExplanation implements ToXContent {
 
     private AllocationCommand command;
     private Decision decisions;
+    private List<String> warnings;
 
     public RerouteExplanation(AllocationCommand command, Decision decisions) {
+        this(command, decisions, emptyList());
+    }
+
+    public RerouteExplanation(AllocationCommand command, Decision decisions, List<String> warnings) {
         this.command = command;
         this.decisions = decisions;
+        this.warnings = unmodifiableList(warnings);
     }
 
     public AllocationCommand command() {
@@ -50,15 +60,23 @@ public class RerouteExplanation implements ToXContent {
         return this.decisions;
     }
 
+    public List<String> warnings() { return this.warnings; }
+
+    public boolean hasWarnings() {
+        return warnings().size() > 0;
+    }
+
     public static RerouteExplanation readFrom(StreamInput in) throws IOException {
         AllocationCommand command = in.readNamedWriteable(AllocationCommand.class);
         Decision decisions = Decision.readFrom(in);
-        return new RerouteExplanation(command, decisions);
+        List<String> warnings = in.readList(StreamInput::readString);
+        return new RerouteExplanation(command, decisions, warnings);
     }
 
     public static void writeTo(RerouteExplanation explanation, StreamOutput out) throws IOException {
         out.writeNamedWriteable(explanation.command);
         explanation.decisions.writeTo(out);
+        out.writeStringList(explanation.warnings);
     }
 
     @Override
@@ -69,6 +87,7 @@ public class RerouteExplanation implements ToXContent {
         builder.startArray("decisions");
         decisions.toXContent(builder, params);
         builder.endArray();
+        builder.field("warnings", warnings);
         builder.endObject();
         return builder;
     }

@@ -12,6 +12,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
@@ -108,8 +109,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
         DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
-                AggregationBuilders.histogram("time").interval(300000)));
+                AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time")));
 
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
                 dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class)),
@@ -126,8 +128,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         jobBuilder.setDataDescription(dataDescription);
         DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
         datafeedConfig.setChunkingConfig(ChunkingConfig.newOff());
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
-                AggregationBuilders.histogram("time").interval(300000)));
+                AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time")));
 
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
                 dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(AggregationDataExtractorFactory.class)),
@@ -143,8 +146,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
         DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
-                AggregationBuilders.histogram("time").interval(300000)));
+                AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time")));
         datafeedConfig.setChunkingConfig(ChunkingConfig.newAuto());
 
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(

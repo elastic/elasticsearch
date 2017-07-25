@@ -23,11 +23,18 @@ public final class Messages {
     public static final String DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY = "A job configured with datafeed cannot support latency";
     public static final String DATAFEED_NOT_FOUND = "No datafeed with id [{0}] exists";
     public static final String DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM =
-            "A top level date_histogram (or histogram) aggregation is required";
+            "A date_histogram (or histogram) aggregation is required";
+    public static final String DATAFEED_AGGREGATIONS_MAX_ONE_DATE_HISTOGRAM =
+            "Aggregations can only have 1 date_histogram or histogram aggregation";
+    public static final String DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM_NO_SIBLINGS =
+            "The date_histogram (or histogram) aggregation cannot have sibling aggregations";
     public static final String DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO =
             "Aggregation interval must be greater than 0";
     public static final String DATAFEED_AGGREGATIONS_INTERVAL_MUST_LESS_OR_EQUAL_TO_BUCKET_SPAN =
             "Aggregation interval [{0}] must be less than or equal to the bucket_span [{1}]";
+    public static final String DATAFEED_DATA_HISTOGRAM_MUST_HAVE_NESTED_MAX_AGGREGATION =
+            "Date histogram must have nested max aggregation for time_field [{0}]";
+    public static final String DATAFEED_MISSING_MAX_AGGREGATION_FOR_TIME_FIELD = "Missing max aggregation for time_field [{0}]";
 
     public static final String INCONSISTENT_ID =
             "Inconsistent {0}; ''{1}'' specified in the body differs from ''{2}'' specified as a URL argument";

@@ -14,7 +14,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.ExtractorUtils;
 
@@ -22,8 +21,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -53,14 +50,15 @@ class AggregationDataExtractor implements DataExtractor {
     private final AggregationDataExtractorContext context;
     private boolean hasNext;
     private boolean isCancelled;
-    private LinkedList<Histogram.Bucket> histogramBuckets;
+    private AggregationToJsonProcessor aggregationToJsonProcessor;
+    private ByteArrayOutputStream outputStream;
 
     AggregationDataExtractor(Client client, AggregationDataExtractorContext dataExtractorContext) {
         this.client = Objects.requireNonNull(client);
-        this.context = Objects.requireNonNull(dataExtractorContext);
-        this.hasNext = true;
-        this.isCancelled = false;
-        this.histogramBuckets = null;
+        context = Objects.requireNonNull(dataExtractorContext);
+        hasNext = true;
+        isCancelled = false;
+        outputStream = new ByteArrayOutputStream();
     }
 
     @Override
@@ -85,20 +83,30 @@ class AggregationDataExtractor implements DataExtractor {
         if (!hasNext()) {
             throw new NoSuchElementException();
         }
-        if (histogramBuckets == null) {
-            histogramBuckets = search();
+
+        if (aggregationToJsonProcessor == null) {
+            Aggregations aggs = search();
+            if (aggs == null) {
+                hasNext = false;
+                return Optional.empty();
+            }
+            initAggregationProcessor(aggs);
         }
+
         return Optional.ofNullable(processNextBatch());
     }
 
-    private LinkedList<Histogram.Bucket> search() throws IOException {
-        if (histogramBuckets != null) {
-            throw new IllegalStateException("search should only be performed once");
-        }
+    private Aggregations search() throws IOException {
         LOGGER.debug("[{}] Executing aggregated search", context.jobId);
+
         SearchResponse searchResponse = executeSearchRequest(buildSearchRequest());
         ExtractorUtils.checkSearchWasSuccessful(context.jobId, searchResponse);
-        return new LinkedList<>(getHistogramBuckets(searchResponse.getAggregations()));
+        return validateAggs(searchResponse.getAggregations());
+    }
+
+    private void initAggregationProcessor(Aggregations aggs) throws IOException {
+        aggregationToJsonProcessor = new AggregationToJsonProcessor(context.timeField, context.fields, context.includeDocCount);
+        aggregationToJsonProcessor.process(aggs);
     }
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
@@ -117,43 +125,26 @@ class AggregationDataExtractor implements DataExtractor {
         return searchRequestBuilder;
     }
 
-    private List<? extends Histogram.Bucket> getHistogramBuckets(@Nullable Aggregations aggs) {
+    private Aggregations validateAggs(@Nullable Aggregations aggs) {
         if (aggs == null) {
-            return Collections.emptyList();
+            return null;
         }
         List<Aggregation> aggsAsList = aggs.asList();
         if (aggsAsList.isEmpty()) {
-            return Collections.emptyList();
+            return null;
         }
         if (aggsAsList.size() > 1) {
             throw new IllegalArgumentException("Multiple top level aggregations not supported; found: "
                     + aggsAsList.stream().map(Aggregation::getName).collect(Collectors.toList()));
         }
 
-        Aggregation topAgg = aggsAsList.get(0);
-        if (topAgg instanceof Histogram) {
-            return ((Histogram) topAgg).getBuckets();
-        } else {
-            throw new IllegalArgumentException("Top level aggregation should be [histogram]");
-        }
+        return aggs;
     }
 
     private InputStream processNextBatch() throws IOException {
-        if (histogramBuckets.isEmpty()) {
-            hasNext = false;
-            return null;
-        }
+        outputStream.reset();
 
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        try (AggregationToJsonProcessor processor = new AggregationToJsonProcessor(
-                context.timeField, context.fields, context.includeDocCount, outputStream)) {
-            while (histogramBuckets.isEmpty() == false && processor.getKeyValueCount() < BATCH_KEY_VALUE_PAIRS) {
-                processor.process(histogramBuckets.removeFirst());
-            }
-            if (histogramBuckets.isEmpty()) {
-                hasNext = false;
-            }
-        }
+        hasNext = aggregationToJsonProcessor.writeDocs(BATCH_KEY_VALUE_PAIRS, outputStream);
         return new ByteArrayInputStream(outputStream.toByteArray());
     }
 }

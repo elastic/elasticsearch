@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
@@ -33,7 +35,7 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         Job job = builder.build(new Date());
         DatafeedConfig datafeedConfig = createValidDatafeedConfig().build();
 
-        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class,
+        ElasticsearchStatusException e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
                 () -> DatafeedJobValidator.validate(datafeedConfig, job));
 
         assertEquals(errorMessage, e.getMessage());
@@ -73,7 +75,7 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         Job job = builder.build(new Date());
         DatafeedConfig datafeedConfig = createValidDatafeedConfigWithAggs(1800.0).build();
 
-        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class,
+        ElasticsearchStatusException e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
                 () -> DatafeedJobValidator.validate(datafeedConfig, job));
 
         assertEquals(errorMessage, e.getMessage());
@@ -90,7 +92,7 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         Job job = builder.build(new Date());
         DatafeedConfig datafeedConfig = createValidDatafeedConfigWithAggs(1800.0).build();
 
-        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class,
+        ElasticsearchStatusException e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
                 () -> DatafeedJobValidator.validate(datafeedConfig, job));
 
         assertEquals(errorMessage, e.getMessage());
@@ -116,7 +118,7 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         Job job = builder.build(new Date());
         DatafeedConfig datafeedConfig = createValidDatafeedConfigWithAggs(1800001.0).build();
 
-        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class,
+        ElasticsearchStatusException e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
                 () -> DatafeedJobValidator.validate(datafeedConfig, job));
 
         assertEquals("Aggregation interval [1800001ms] must be less than or equal to the bucket_span [1800000ms]", e.getMessage());
@@ -139,7 +141,9 @@ public class DatafeedJobValidatorTests extends ESTestCase {
     }
 
     private static DatafeedConfig.Builder createValidDatafeedConfigWithAggs(double interval) throws IOException {
-        HistogramAggregationBuilder histogram = AggregationBuilders.histogram("time").interval(interval);
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
+        HistogramAggregationBuilder histogram =
+                AggregationBuilders.histogram("time").interval(interval).field("time").subAggregation(maxTime);
         DatafeedConfig.Builder datafeedConfig = createValidDatafeedConfig();
         datafeedConfig.setAggregations(new AggregatorFactories.Builder().addAggregator(histogram));
         return datafeedConfig;

@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
@@ -166,8 +167,9 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         DatafeedConfig datafeed = datafeedBuilder.build();
 
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeed.getId());
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         update.setAggregations(new AggregatorFactories.Builder().addAggregator(
-                AggregationBuilders.histogram("a").interval(300000)));
+                AggregationBuilders.histogram("a").interval(300000).field("time").subAggregation(maxTime)));
 
         DatafeedConfig updatedDatafeed = update.build().apply(datafeed);
 
@@ -175,6 +177,6 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         assertThat(updatedDatafeed.getTypes(), equalTo(Arrays.asList("t_1")));
         assertThat(updatedDatafeed.getAggregations(),
                 equalTo(new AggregatorFactories.Builder().addAggregator(
-                        AggregationBuilders.histogram("a").interval(300000))));
+                        AggregationBuilders.histogram("a").interval(300000).field("time").subAggregation(maxTime))));
     }
 }

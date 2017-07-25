@@ -25,6 +25,8 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ml.MlParserType;
 import org.elasticsearch.xpack.ml.job.config.Job;
@@ -219,32 +221,42 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     }
 
     /**
-     * Returns the top level histogram's interval as epoch millis.
-     * The method expects a valid top level aggregation to exist.
+     * Returns the histogram's interval as epoch millis.
      */
     public long getHistogramIntervalMillis() {
-        return getHistogramIntervalMillis(aggregations);
+        AggregationBuilder histogramAggregation = getHistogramAggregation(aggregations.getAggregatorFactories());
+        return getHistogramIntervalMillis(histogramAggregation);
     }
 
-    private static long getHistogramIntervalMillis(AggregatorFactories.Builder aggregations) {
-        AggregationBuilder topLevelAgg = getTopLevelAgg(aggregations);
-        if (topLevelAgg == null) {
-            throw new IllegalStateException("No aggregations exist");
-        }
-        if (topLevelAgg instanceof HistogramAggregationBuilder) {
-            return (long) ((HistogramAggregationBuilder) topLevelAgg).interval();
-        } else if (topLevelAgg instanceof DateHistogramAggregationBuilder) {
-            return validateAndGetDateHistogramInterval((DateHistogramAggregationBuilder) topLevelAgg);
+    private static long getHistogramIntervalMillis(AggregationBuilder histogramAggregation) {
+        if (histogramAggregation instanceof HistogramAggregationBuilder) {
+            return (long) ((HistogramAggregationBuilder) histogramAggregation).interval();
+        } else if (histogramAggregation instanceof DateHistogramAggregationBuilder) {
+            return validateAndGetDateHistogramInterval((DateHistogramAggregationBuilder) histogramAggregation);
         } else {
-            throw new IllegalStateException("Invalid top level aggregation [" + topLevelAgg.getName() + "]");
+            throw new IllegalStateException("Invalid histogram aggregation [" + histogramAggregation.getName() + "]");
         }
     }
 
-    private static AggregationBuilder getTopLevelAgg(AggregatorFactories.Builder aggregations) {
-        if (aggregations == null || aggregations.getAggregatorFactories().isEmpty()) {
-            return null;
+    static AggregationBuilder getHistogramAggregation(List<AggregationBuilder> aggregations) {
+        if (aggregations.isEmpty()) {
+            throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM));
         }
-        return aggregations.getAggregatorFactories().get(0);
+        if (aggregations.size() != 1) {
+            throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM_NO_SIBLINGS);
+        }
+
+        AggregationBuilder agg = aggregations.get(0);
+        if (isHistogram(agg)) {
+            return agg;
+        } else {
+            return getHistogramAggregation(agg.getSubAggregations());
+        }
+    }
+
+    private static boolean isHistogram(AggregationBuilder aggregationBuilder) {
+        return aggregationBuilder instanceof HistogramAggregationBuilder
+                || aggregationBuilder instanceof DateHistogramAggregationBuilder;
     }
 
     /**
@@ -545,7 +557,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                     chunkingConfig);
         }
 
-        private void validateAggregations() {
+        void validateAggregations() {
             if (aggregations == null) {
                 return;
             }
@@ -557,17 +569,45 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (aggregatorFactories.isEmpty()) {
                 throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
             }
-            AggregationBuilder topLevelAgg = aggregatorFactories.get(0);
-            if (topLevelAgg instanceof HistogramAggregationBuilder) {
-                if (((HistogramAggregationBuilder) topLevelAgg).interval() <= 0) {
-                    throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
+
+            AggregationBuilder histogramAggregation = getHistogramAggregation(aggregatorFactories);
+            checkNoMoreHistogramAggregations(histogramAggregation.getSubAggregations());
+            checkHistogramAggregationHasChildMaxTimeAgg(histogramAggregation);
+            checkHistogramIntervalIsPositive(histogramAggregation);
+        }
+
+        private static void checkNoMoreHistogramAggregations(List<AggregationBuilder> aggregations) {
+            for (AggregationBuilder agg : aggregations) {
+                if (isHistogram(agg)) {
+                    throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_MAX_ONE_DATE_HISTOGRAM);
                 }
-            } else if (topLevelAgg instanceof DateHistogramAggregationBuilder) {
-                if (validateAndGetDateHistogramInterval((DateHistogramAggregationBuilder) topLevelAgg) <= 0) {
-                    throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
+                checkNoMoreHistogramAggregations(agg.getSubAggregations());
+            }
+        }
+
+        static void checkHistogramAggregationHasChildMaxTimeAgg(AggregationBuilder histogramAggregation) {
+            String timeField = null;
+            if (histogramAggregation instanceof ValuesSourceAggregationBuilder) {
+                timeField = ((ValuesSourceAggregationBuilder) histogramAggregation).field();
+            }
+
+            for (AggregationBuilder agg : histogramAggregation.getSubAggregations()) {
+                if (agg instanceof MaxAggregationBuilder) {
+                    MaxAggregationBuilder maxAgg = (MaxAggregationBuilder)agg;
+                    if (maxAgg.field().equals(timeField)) {
+                        return;
+                    }
                 }
-            } else {
-                throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
+            }
+
+            throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.DATAFEED_DATA_HISTOGRAM_MUST_HAVE_NESTED_MAX_AGGREGATION, timeField));
+        }
+
+        private static void checkHistogramIntervalIsPositive(AggregationBuilder histogramAggregation) {
+            long interval = getHistogramIntervalMillis(histogramAggregation);
+            if (interval <= 0) {
+                throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
             }
         }
 
@@ -576,7 +616,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 if (aggregations == null) {
                     chunkingConfig = ChunkingConfig.newAuto();
                 } else {
-                    long histogramIntervalMillis = getHistogramIntervalMillis(aggregations);
+                    AggregationBuilder histogramAggregation = getHistogramAggregation(aggregations.getAggregatorFactories());
+                    long histogramIntervalMillis = getHistogramIntervalMillis(histogramAggregation);
                     chunkingConfig = ChunkingConfig.newManual(TimeValue.timeValueMillis(
                             DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis));
                 }

@@ -10,6 +10,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 public final class DatafeedJobValidator {
 
@@ -23,7 +24,7 @@ public final class DatafeedJobValidator {
     public static void validate(DatafeedConfig datafeedConfig, Job job) {
         AnalysisConfig analysisConfig = job.getAnalysisConfig();
         if (analysisConfig.getLatency() != null && analysisConfig.getLatency().seconds() > 0) {
-            throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY));
+            throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY));
         }
         if (datafeedConfig.hasAggregations()) {
             checkSummaryCountFieldNameIsSet(analysisConfig);
@@ -33,7 +34,7 @@ public final class DatafeedJobValidator {
 
     private static void checkSummaryCountFieldNameIsSet(AnalysisConfig analysisConfig) {
         if (Strings.isNullOrEmpty(analysisConfig.getSummaryCountFieldName())) {
-            throw new IllegalArgumentException(Messages.getMessage(
+            throw ExceptionsHelper.badRequestException(Messages.getMessage(
                     Messages.DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD));
         }
     }
@@ -42,7 +43,7 @@ public final class DatafeedJobValidator {
         long histogramIntervalMillis = datafeedConfig.getHistogramIntervalMillis();
         long bucketSpanMillis = analysisConfig.getBucketSpan().millis();
         if (histogramIntervalMillis > bucketSpanMillis) {
-            throw new IllegalArgumentException(Messages.getMessage(
+            throw ExceptionsHelper.badRequestException(Messages.getMessage(
                     Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_LESS_OR_EQUAL_TO_BUCKET_SPAN,
                     TimeValue.timeValueMillis(histogramIntervalMillis).getStringRep(),
                     TimeValue.timeValueMillis(bucketSpanMillis).getStringRep()));

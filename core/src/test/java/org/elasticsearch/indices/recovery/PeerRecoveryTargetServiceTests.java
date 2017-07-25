@@ -58,7 +58,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             final String index = replica.shardId().getIndexName();
             long seqNo = 0;
             for (int i = 0; i < docs; i++) {
-                replica.applyIndexOperationOnReplica(seqNo++, replica.getPrimaryTerm(), 1, VersionType.EXTERNAL,
+                replica.applyIndexOperationOnReplica(seqNo++, 1, VersionType.EXTERNAL,
                     IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                     SourceToParse.source(index, "type", "doc_" + i, new BytesArray("{}"), XContentType.JSON),
                     update -> {});

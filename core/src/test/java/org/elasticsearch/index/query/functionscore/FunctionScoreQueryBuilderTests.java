@@ -38,6 +38,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -191,6 +192,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 } else {
                     randomScoreFunctionBuilder.seed(randomAlphaOfLengthBetween(1, 10));
                 }
+                randomScoreFunctionBuilder.setField(SeqNoFieldMapper.NAME); // guaranteed to exist
             }
             functionBuilder = randomScoreFunctionBuilder;
             break;
@@ -270,14 +272,14 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((QueryBuilder) null));
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((ScoreFunctionBuilder<?>) null));
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((FilterFunctionBuilder[]) null));
-        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(null, randomFunction(123)));
+        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(null, randomFunction()));
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(matchAllQuery(), (ScoreFunctionBuilder<?>) null));
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(matchAllQuery(), (FilterFunctionBuilder[]) null));
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(null, new FilterFunctionBuilder[0]));
         expectThrows(IllegalArgumentException.class,
                 () -> new FunctionScoreQueryBuilder(matchAllQuery(), new FilterFunctionBuilder[] { null }));
         expectThrows(IllegalArgumentException.class, () -> new FilterFunctionBuilder((ScoreFunctionBuilder<?>) null));
-        expectThrows(IllegalArgumentException.class, () -> new FilterFunctionBuilder(null, randomFunction(123)));
+        expectThrows(IllegalArgumentException.class, () -> new FilterFunctionBuilder(null, randomFunction()));
         expectThrows(IllegalArgumentException.class, () -> new FilterFunctionBuilder(matchAllQuery(), null));
         FunctionScoreQueryBuilder builder = new FunctionScoreQueryBuilder(matchAllQuery());
         expectThrows(IllegalArgumentException.class, () -> builder.scoreMode(null));

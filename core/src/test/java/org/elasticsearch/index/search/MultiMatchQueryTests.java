@@ -27,6 +27,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
@@ -97,8 +98,8 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
             Query tq2 = new BoostQuery(new TermQuery(new Term("name.last", "banon")), 3);
             Query expected = new DisjunctionMaxQuery(
                 Arrays.asList(
-                    new TermQuery(new Term("foobar", "banon")),
-                    new DisjunctionMaxQuery(Arrays.asList(tq1, tq2), 0f)
+                    new MatchNoDocsQuery("unknown field foobar"),
+                    new DisjunctionMaxQuery(Arrays.asList(tq2, tq1), 0f)
                 ), 0f);
             assertEquals(expected, rewrittenQuery);
         }

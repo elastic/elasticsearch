@@ -85,6 +85,7 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -127,6 +128,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -1235,6 +1237,13 @@ public class IndicesService extends AbstractLifecycleComponent
         String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, expressions);
         IndexMetaData indexMetaData = state.metaData().index(index);
         return new AliasFilter(ShardSearchRequest.parseAliasFilter(filterParser, indexMetaData, aliases), aliases);
+    }
+
+    /**
+     * Returns a new {@link QueryRewriteContext} with the given <tt>now</tt> provider
+     */
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
+        return new QueryRewriteContext(xContentRegistry, client, nowInMillis);
     }
 
 }

@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MultiMatchQuery;
+import org.elasticsearch.index.search.QueryStringQueryParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -739,25 +740,8 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             }
         }
 
-        Map<String, Float> newFieldsBoosts = handleFieldsMatchPattern(context.getMapperService(), fieldsBoosts);
-
+        Map<String, Float> newFieldsBoosts = QueryStringQueryParser.resolveMappingFields(context, fieldsBoosts);
         return multiMatchQuery.parse(type, newFieldsBoosts, value, minimumShouldMatch);
-    }
-
-    private static Map<String, Float> handleFieldsMatchPattern(MapperService mapperService, Map<String, Float> fieldsBoosts) {
-        Map<String, Float> newFieldsBoosts = new TreeMap<>();
-        for (Map.Entry<String, Float> fieldBoost : fieldsBoosts.entrySet()) {
-            String fField = fieldBoost.getKey();
-            Float fBoost = fieldBoost.getValue();
-            if (Regex.isSimpleMatchPattern(fField)) {
-                for (String field : mapperService.simpleMatchToIndexNames(fField)) {
-                    newFieldsBoosts.put(field, fBoost);
-                }
-            } else {
-                newFieldsBoosts.put(fField, fBoost);
-            }
-        }
-        return newFieldsBoosts;
     }
 
     @Override

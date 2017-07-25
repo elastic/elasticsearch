@@ -104,12 +104,12 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                 }
             };
 
-            resync(shardId, indexShard.routingEntry().allocationId().getId(), wrappedSnapshot,
+            resync(shardId, indexShard.routingEntry().allocationId().getId(), indexShard.getPrimaryTerm(), wrappedSnapshot,
                 startingSeqNo, listener);
         }
     }
 
-    private void resync(final ShardId shardId, final String primaryAllocationId, final Translog.Snapshot snapshot,
+    private void resync(final ShardId shardId, final String primaryAllocationId, final long primaryTerm, final Translog.Snapshot snapshot,
                         long startingSeqNo, ActionListener<ResyncTask> listener) {
         ResyncRequest request = new ResyncRequest(shardId, primaryAllocationId);
         ResyncTask resyncTask = (ResyncTask) taskManager.register("transport", "resync", request); // it's not transport :-)
@@ -129,7 +129,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             }
         };
         try {
-            new SnapshotSender(logger, syncAction, resyncTask, shardId, primaryAllocationId, snapshot, chunkSize.bytesAsInt(),
+            new SnapshotSender(logger, syncAction, resyncTask, shardId, primaryAllocationId, primaryTerm, snapshot, chunkSize.bytesAsInt(),
                 startingSeqNo, wrappedListener).run();
         } catch (Exception e) {
             wrappedListener.onFailure(e);
@@ -137,7 +137,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
     }
 
     public interface SyncAction {
-        void sync(ResyncReplicationRequest request, Task parentTask, String primaryAllocationId,
+        void sync(ResyncReplicationRequest request, Task parentTask, String primaryAllocationId, long primaryTerm,
                   ActionListener<ResyncReplicationResponse> listener);
     }
 
@@ -146,6 +146,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         private final SyncAction syncAction;
         private final ResyncTask task; // to track progress
         private final String primaryAllocationId;
+        private final long primaryTerm;
         private final ShardId shardId;
         private final Translog.Snapshot snapshot;
         private final long startingSeqNo;
@@ -155,13 +156,14 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         private final AtomicInteger totalSkippedOps = new AtomicInteger();
         private AtomicBoolean closed = new AtomicBoolean();
 
-        SnapshotSender(Logger logger, SyncAction syncAction, ResyncTask task, ShardId shardId, String primaryAllocationId,
+        SnapshotSender(Logger logger, SyncAction syncAction, ResyncTask task, ShardId shardId, String primaryAllocationId, long primaryTerm,
                        Translog.Snapshot snapshot, int chunkSizeInBytes, long startingSeqNo, ActionListener<Void> listener) {
             this.logger = logger;
             this.syncAction = syncAction;
             this.task = task;
             this.shardId = shardId;
             this.primaryAllocationId = primaryAllocationId;
+            this.primaryTerm = primaryTerm;
             this.snapshot = snapshot;
             this.chunkSizeInBytes = chunkSizeInBytes;
             this.startingSeqNo = startingSeqNo;
@@ -213,7 +215,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                 ResyncReplicationRequest request = new ResyncReplicationRequest(shardId, operations);
                 logger.trace("{} sending batch of [{}][{}] (total sent: [{}], skipped: [{}])", shardId, operations.size(),
                     new ByteSizeValue(size), totalSentOps.get(), totalSkippedOps.get());
-                syncAction.sync(request, task, primaryAllocationId, this);
+                syncAction.sync(request, task, primaryAllocationId, primaryTerm, this);
             } else if (closed.compareAndSet(false, true)) {
                 logger.trace("{} resync completed (total sent: [{}], skipped: [{}])", shardId, totalSentOps.get(), totalSkippedOps.get());
                 listener.onResponse(null);

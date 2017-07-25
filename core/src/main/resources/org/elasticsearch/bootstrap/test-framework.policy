@@ -63,11 +63,27 @@ grant codeBase "${codebase.mocksocket-1.2.jar}" {
   permission java.net.SocketPermission "*", "accept,connect";
 };
 
-
 grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT.jar}" {
   // rest makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";
+  // rest client uses system properties which gets the default proxy
+  permission java.net.NetPermission "getProxySelector";
 };
+
+// IDEs need this because they do not play nicely with removing artifacts on projects,
+// so we keep it in here for IDE test support
+grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT-deps.jar}" {
+  // rest makes socket connections for rest tests
+  permission java.net.SocketPermission "*", "connect";
+};
+
+// IDEs need this because they do not play nicely with removing artifacts on projects,
+// so we keep it in here for IDE test support
+grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT-nodeps.jar}" {
+  // rest makes socket connections for rest tests
+  permission java.net.SocketPermission "*", "connect";
+};
+
 
 grant codeBase "${codebase.httpcore-nio-4.4.5.jar}" {
   // httpcore makes socket connections for rest tests
@@ -77,4 +93,6 @@ grant codeBase "${codebase.httpcore-nio-4.4.5.jar}" {
 grant codeBase "${codebase.httpasyncclient-4.1.2.jar}" {
   // httpasyncclient makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";
+  // rest client uses system properties which gets the default proxy
+  permission java.net.NetPermission "getProxySelector";
 };

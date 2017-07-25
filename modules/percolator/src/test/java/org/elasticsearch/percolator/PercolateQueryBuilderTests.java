@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.SearchContext;
@@ -163,7 +164,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         PercolateQueryBuilder pqb = doCreateTestQueryBuilder(true);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> pqb.toQuery(createShardContext()));
         assertThat(e.getMessage(), equalTo("query builder must be rewritten first"));
-        QueryBuilder rewrite = pqb.rewrite(createShardContext());
+        QueryBuilder rewrite = rewriteAndFetch(pqb, createShardContext());
         PercolateQueryBuilder geoShapeQueryBuilder =
             new PercolateQueryBuilder(pqb.getField(), pqb.getDocumentType(), documentSource, XContentType.JSON);
         assertEquals(geoShapeQueryBuilder, rewrite);
@@ -172,7 +173,8 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     public void testIndexedDocumentDoesNotExist() throws IOException {
         indexedDocumentExists = false;
         PercolateQueryBuilder pqb = doCreateTestQueryBuilder(true);
-        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> pqb.rewrite(createShardContext()));
+        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> rewriteAndFetch(pqb,
+            createShardContext()));
         String expectedString = "indexed document [" + indexedDocumentIndex + "/" + indexedDocumentType + "/" +
                 indexedDocumentId +  "] couldn't be found";
         assertThat(e.getMessage() , equalTo(expectedString));
@@ -286,5 +288,14 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     @Override
     protected boolean builderGeneratesCacheableQueries() {
         return false;
+    }
+
+    public void testSerializationFailsUnlessFetched() throws IOException {
+        QueryBuilder builder = doCreateTestQueryBuilder(true);
+        QueryBuilder queryBuilder = Rewriteable.rewrite(builder, createShardContext());
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> queryBuilder.writeTo(new BytesStreamOutput(10)));
+        assertEquals(ise.getMessage(), "supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
+        builder = rewriteAndFetch(builder, createShardContext());
+        builder.writeTo(new BytesStreamOutput(10));
     }
 }

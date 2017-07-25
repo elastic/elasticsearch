@@ -86,6 +86,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -693,14 +694,23 @@ public class InternalEngine extends Engine {
             // this allows to ignore the case where a document was found in the live version maps in
             // a delete state and return false for the created flag in favor of code simplicity
             final OpVsLuceneDocStatus opVsLucene;
-            if (index.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                opVsLucene = compareOpToLuceneDocBasedOnSeqNo(index);
-            } else {
+            if (index.seqNo() == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
                 // This can happen if the primary is still on an old node and send traffic without seq# or we recover from translog
                 // created by an old version.
                 assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) :
                     "index is newly created but op has no sequence numbers. op: " + index;
                 opVsLucene = compareOpToLuceneDocBasedOnVersions(index);
+            } else if (index.seqNo() <= seqNoService.getLocalCheckpoint()){
+                // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
+                // this can happen during recovery where older operations are sent from the translog that are already
+                // part of the lucene commit (either from a peer recovery or a local translog)
+                // or due to concurrent indexing & recovery. For the former it is important to skip lucene as the operation in
+                // question may have been deleted in an out of order op that is not replayed.
+                // See testRecoverFromStoreWithOutOfOrderDelete for an example of local recovery
+                // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
+                opVsLucene = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
+            } else {
+                opVsLucene = compareOpToLuceneDocBasedOnSeqNo(index);
             }
             if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
                 plan = IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
@@ -979,12 +989,21 @@ public class InternalEngine extends Engine {
         // this allows to ignore the case where a document was found in the live version maps in
         // a delete state and return true for the found flag in favor of code simplicity
         final OpVsLuceneDocStatus opVsLucene;
-        if (delete.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-            opVsLucene = compareOpToLuceneDocBasedOnSeqNo(delete);
-        } else {
+        if (delete.seqNo() == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
             assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) :
                 "index is newly created but op has no sequence numbers. op: " + delete;
             opVsLucene = compareOpToLuceneDocBasedOnVersions(delete);
+        } else if (delete.seqNo() <= seqNoService.getLocalCheckpoint()) {
+            // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
+            // this can happen during recovery where older operations are sent from the translog that are already
+            // part of the lucene commit (either from a peer recovery or a local translog)
+            // or due to concurrent indexing & recovery. For the former it is important to skip lucene as the operation in
+            // question may have been deleted in an out of order op that is not replayed.
+            // See testRecoverFromStoreWithOutOfOrderDelete for an example of local recovery
+            // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
+            opVsLucene = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
+        } else {
+            opVsLucene = compareOpToLuceneDocBasedOnSeqNo(delete);
         }
 
         final DeletionStrategy plan;
@@ -1582,7 +1601,7 @@ public class InternalEngine extends Engine {
      * is failed.
      */
     @Override
-    protected final void closeNoLock(String reason) {
+    protected final void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
@@ -1609,8 +1628,12 @@ public class InternalEngine extends Engine {
             } catch (Exception e) {
                 logger.warn("failed to rollback writer on close", e);
             } finally {
-                store.decRef();
-                logger.debug("engine closed [{}]", reason);
+                try {
+                    store.decRef();
+                    logger.debug("engine closed [{}]", reason);
+                } finally {
+                    closedLatch.countDown();
+                }
             }
         }
     }

@@ -506,9 +506,9 @@ Map<String, String> expansionsForDistribution(distributionType) {
     'project.version': version,
 
     'path.conf': [
-      'tar': '$ES_HOME/config',
-      'zip': '$ES_HOME/config',
-      'integ-test-zip': '$ES_HOME/config',
+      'tar': '"$ES_HOME"/config',
+      'zip': '"$ES_HOME"/config',
+      'integ-test-zip': '"$ES_HOME"/config',
       'def': '/etc/elasticsearch',
     ],
     'path.data': [
@@ -521,7 +521,12 @@ Map<String, String> expansionsForDistribution(distributionType) {
       'rpm': '/etc/sysconfig/elasticsearch',
       /* There isn't one of these files for tar or zip but its important to
         make an empty string here so the script can properly skip it. */
-      'def': '',
+      'def': 'if [ -z "$CONF_DIR" ]; then CONF_DIR="$ES_HOME"/config; done',
+    ],
+    'source.path.env': [
+       'deb': 'source /etc/default/elasticsearch',
+       'rpm': 'source /etc/sysconfig/elasticsearch',
+       'def': 'if [ -z "$CONF_DIR" ]; then CONF_DIR="$ES_HOME"/config; fi',
     ],
     'path.logs': [
       'deb': packagingPathLogs,

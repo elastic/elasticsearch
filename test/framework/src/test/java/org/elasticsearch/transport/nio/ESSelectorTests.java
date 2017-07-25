@@ -28,6 +28,7 @@ import java.nio.channels.ClosedSelectorException;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class ESSelectorTests extends ESTestCase {
 
@@ -43,7 +44,8 @@ public class ESSelectorTests extends ESTestCase {
 
     public void testQueueChannelForClosed() throws IOException {
         NioChannel channel = mock(NioChannel.class);
-        selector.registeredChannels.add(channel);
+        when(channel.getSelector()).thenReturn(selector);
+        selector.addRegisteredChannel(channel);
 
         selector.queueChannelClose(channel);
 
@@ -52,6 +54,8 @@ public class ESSelectorTests extends ESTestCase {
         selector.singleLoop();
 
         verify(handler).handleClose(channel);
+        // Will be called in the channel close method
+        selector.removeRegisteredChannel(channel);
 
         assertEquals(0, selector.getRegisteredChannels().size());
     }

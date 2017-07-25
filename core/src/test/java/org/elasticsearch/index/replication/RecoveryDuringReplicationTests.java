@@ -175,7 +175,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             // slip the extra document into the replica
             remainingReplica.applyIndexOperationOnReplica(
                     remainingReplica.getLocalCheckpoint() + 1,
-                    remainingReplica.getPrimaryTerm(),
                     1,
                     VersionType.EXTERNAL,
                     randomNonNegativeLong(),

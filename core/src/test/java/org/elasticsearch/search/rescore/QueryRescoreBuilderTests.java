@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
 import org.elasticsearch.test.ESTestCase;
@@ -150,7 +151,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
             int expectedWindowSize = rescoreBuilder.windowSize() == null ? QueryRescoreContext.DEFAULT_WINDOW_SIZE :
                 rescoreBuilder.windowSize().intValue();
             assertEquals(expectedWindowSize, rescoreContext.window());
-            Query expectedQuery = QueryBuilder.rewriteQuery(rescoreBuilder.getRescoreQuery(), mockShardContext).toQuery(mockShardContext);
+            Query expectedQuery = Rewriteable.rewrite(rescoreBuilder.getRescoreQuery(), mockShardContext).toQuery(mockShardContext);
             assertEquals(expectedQuery, rescoreContext.query());
             assertEquals(rescoreBuilder.getQueryWeight(), rescoreContext.queryWeight(), Float.MIN_VALUE);
             assertEquals(rescoreBuilder.getRescoreQueryWeight(), rescoreContext.rescoreQueryWeight(), Float.MIN_VALUE);

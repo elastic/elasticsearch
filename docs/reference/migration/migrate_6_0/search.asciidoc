@@ -58,7 +58,7 @@
 
 * The `split_on_whitespace` parameter for the `query_string` query has been removed.
   If provided, it will be ignored and issue a deprecation warning.
-  The `query_string` query now splits on logical operator only.
+  The `query_string` query now splits on operator only.
 
 * The `use_dismax` parameter for the `query_string` query has been removed.
   If provided, it will be ignored and issue a deprecation warning.
@@ -67,6 +67,10 @@
 * The `auto_generate_phrase_queries` parameter for the `query_string` query has been removed,
   use an explicit quoted query instead.
   If provided, it will be ignored and issue a deprecation warning.
+
+* The `all_fields` parameter for the `query_string` has been removed.
+  Set `default_field` to *` instead.
+  If provided, `default_field` will be automatically set to `*`
 
 * The `index` parameter in the terms filter, used to look up terms in a dedicated index is
   now mandatory. Previously, the index defaulted to the index the query was executed on. Now this index

@@ -52,6 +52,7 @@ import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.Suggest;
@@ -136,9 +137,23 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             sourceBuilder.query(QueryBuilders.termQuery("user", "kimchy")); // <2>
             sourceBuilder.from(0); // <3>
             sourceBuilder.size(5); // <4>
-            sourceBuilder.sort(new ScoreSortBuilder().order(SortOrder.ASC));
             sourceBuilder.timeout(new TimeValue(60, TimeUnit.SECONDS)); // <5>
             // end::search-source-basics
+
+            // tag::search-source-sorting
+            sourceBuilder.sort(new ScoreSortBuilder().order(SortOrder.DESC)); // <1>
+            sourceBuilder.sort(new FieldSortBuilder("_uid").order(SortOrder.ASC));  // <2>
+            // end::search-source-sorting
+
+            // tag::search-source-filtering-off
+            sourceBuilder.fetchSource(false);
+            // end::search-source-filtering-off
+            // tag::search-source-filtering-includes
+            String[] includeFields = new String[] {"title", "user", "innerObject.*"};
+            String[] excludeFields = new String[] {"_type"};
+            sourceBuilder.fetchSource(includeFields, excludeFields);
+            // end::search-source-filtering-includes
+            sourceBuilder.fetchSource(true);
 
             // tag::search-source-setter
             SearchRequest searchRequest = new SearchRequest();

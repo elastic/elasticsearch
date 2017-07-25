@@ -390,7 +390,7 @@ def generate_index(client, version, index_name):
     body['warmers'] = warmers
   client.indices.create(index=index_name, body=body)
   if parse_version(version) < parse_version("5.0.0-alpha1"):
-    health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
+    health = client.cluster.health(wait_for_status='green')
   else:
     health = client.cluster.health(wait_for_status='green', params={"wait_for_no_relocating_shards": "true"})
   assert health['timed_out'] == False, 'cluster health timed out %s' % health

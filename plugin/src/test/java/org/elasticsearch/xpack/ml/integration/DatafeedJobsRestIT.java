@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.Date;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -47,8 +49,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         return true;
     }
 
-    @Before
-    public void setUpData() throws Exception {
+    private void setupUser() throws IOException {
         String password = new String(SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING.getChars());
 
         // This user has admin rights on machine learning, but (importantly for the tests) no
@@ -60,7 +61,16 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
         client().performRequest("put", "_xpack/security/user/ml_admin", Collections.emptyMap(),
                 new StringEntity(user, ContentType.APPLICATION_JSON));
+    }
 
+    @Before
+    public void setUpData() throws Exception {
+        setupUser();
+        addAirlineData();
+        addNetworkData();
+    }
+
+    private void addAirlineData() throws IOException {
         String mappings = "{"
                 + "  \"mappings\": {"
                 + "    \"response\": {"
@@ -209,6 +219,49 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         // Ensure all data is searchable
         client().performRequest("post", "_refresh");
     }
+
+    private void addNetworkData() throws IOException {
+
+        // Create index with source = enabled, doc_values = enabled, stored = false + multi-field
+        String mappings = "{"
+                + "  \"mappings\": {"
+                + "    \"doc\": {"
+                + "      \"properties\": {"
+                + "        \"timestamp\": { \"type\":\"date\"},"
+                + "        \"host\": {"
+                + "          \"type\":\"text\","
+                + "          \"fields\":{"
+                + "            \"text\":{\"type\":\"text\"},"
+                + "            \"keyword\":{\"type\":\"keyword\"}"
+                + "           }"
+                + "         },"
+                + "        \"network_bytes_out\": { \"type\":\"long\"}"
+                + "      }"
+                + "    }"
+                + "  }"
+                + "}";
+        client().performRequest("put", "network-data", Collections.emptyMap(), new StringEntity(mappings, ContentType.APPLICATION_JSON));
+
+        String docTemplate = "{\"timestamp\":%d,\"host\":\"%s\",\"network_bytes_out\":%d}";
+        Date date = new Date(1464739200000L);
+        for (int i=0; i<120; i++) {
+            long byteCount = randomNonNegativeLong();
+            String jsonDoc = String.format(Locale.ROOT, docTemplate, date.getTime(), "hostA", byteCount);
+            client().performRequest("post", "network-data/doc", Collections.emptyMap(),
+                    new StringEntity(jsonDoc, ContentType.APPLICATION_JSON));
+
+            byteCount = randomNonNegativeLong();
+            jsonDoc = String.format(Locale.ROOT, docTemplate, date.getTime(), "hostB", byteCount);
+            client().performRequest("post", "network-data/doc", Collections.emptyMap(),
+                    new StringEntity(jsonDoc, ContentType.APPLICATION_JSON));
+
+            date = new Date(date.getTime() + 10_000);
+        }
+
+        // Ensure all data is searchable
+        client().performRequest("post", "_refresh");
+    }
+
 
     public void testLookbackOnlyWithMixedTypes() throws Exception {
         new LookbackOnlyTestHelper("test-lookback-only-with-mixed-types", "airline-data")
@@ -369,6 +422,72 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String jobStatsResponseAsString = responseEntityToString(jobStatsResponse);
         assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":4"));
         assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":4"));
+        assertThat(jobStatsResponseAsString, containsString("\"missing_field_count\":0"));
+    }
+
+    public void testLookbackUsingDerivativeAgg() throws Exception {
+        String jobId = "derivative-agg-network-job";
+        String job = "{\"analysis_config\" :{\"bucket_span\":\"300s\","
+                + "\"summary_count_field_name\":\"doc_count\","
+                + "\"detectors\":[{\"function\":\"mean\",\"field_name\":\"bytes-delta\",\"by_field_name\":\"hostname\"}]},"
+                + "\"data_description\" : {\"time_field\":\"timestamp\"}"
+                + "}";
+        client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(),
+                new StringEntity(job, ContentType.APPLICATION_JSON));
+
+        String datafeedId = "datafeed-" + jobId;
+        String aggregations =
+                 "{\"hostname\": {\"terms\" : {\"field\": \"host.keyword\", \"size\":10},"
+                    + "\"aggs\": {\"buckets\": {\"date_histogram\":{\"field\":\"timestamp\",\"interval\":\"60s\"},"
+                        + "\"aggs\": {\"timestamp\":{\"max\":{\"field\":\"timestamp\"}},"
+                            + "\"bytes-delta\":{\"derivative\":{\"buckets_path\":\"avg_bytes_out\"}},"
+                            + "\"avg_bytes_out\":{\"avg\":{\"field\":\"network_bytes_out\"}} }}}}}";
+        new DatafeedBuilder(datafeedId, jobId, "network-data", "doc").setAggregations(aggregations).build();
+
+        openJob(client(), jobId);
+
+        startDatafeedAndWaitUntilStopped(datafeedId);
+        waitUntilJobIsClosed(jobId);
+        Response jobStatsResponse = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
+        String jobStatsResponseAsString = responseEntityToString(jobStatsResponse);
+        assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":40"));
+        assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":40"));
+        assertThat(jobStatsResponseAsString, containsString("\"out_of_order_timestamp_count\":0"));
+        assertThat(jobStatsResponseAsString, containsString("\"bucket_count\":4"));
+        // The derivative agg won't have values for the first bucket of each host
+        assertThat(jobStatsResponseAsString, containsString("\"missing_field_count\":2"));
+    }
+
+    public void testLookbackWithPipelineBucketAgg() throws Exception {
+        String jobId = "pipeline-bucket-agg-job";
+        String job = "{\"analysis_config\" :{\"bucket_span\":\"1h\","
+                + "\"summary_count_field_name\":\"doc_count\","
+                + "\"detectors\":[{\"function\":\"mean\",\"field_name\":\"percentile95_airlines_count\"}]},"
+                + "\"data_description\" : {\"time_field\":\"time stamp\"}"
+                + "}";
+        client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(),
+                new StringEntity(job, ContentType.APPLICATION_JSON));
+
+        String datafeedId = "datafeed-" + jobId;
+        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":\"15m\"},"
+                + "\"aggregations\":{"
+                    + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
+                    + "\"airlines\":{\"terms\":{\"field\":\"airline.keyword\",\"size\":10}},"
+                    + "\"percentile95_airlines_count\":{\"percentiles_bucket\":" +
+                        "{\"buckets_path\":\"airlines._count\", \"percents\": [95]}}}}}";
+        new DatafeedBuilder(datafeedId, jobId, "airline-data", "response").setAggregations(aggregations).build();
+
+        openJob(client(), jobId);
+
+        startDatafeedAndWaitUntilStopped(datafeedId);
+        waitUntilJobIsClosed(jobId);
+        Response jobStatsResponse = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
+        String jobStatsResponseAsString = responseEntityToString(jobStatsResponse);
+        assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":2"));
+        assertThat(jobStatsResponseAsString, containsString("\"input_field_count\":4"));
+        assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":2"));
+        assertThat(jobStatsResponseAsString, containsString("\"processed_field_count\":4"));
+        assertThat(jobStatsResponseAsString, containsString("\"out_of_order_timestamp_count\":0"));
         assertThat(jobStatsResponseAsString, containsString("\"missing_field_count\":0"));
     }
 

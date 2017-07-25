@@ -17,10 +17,14 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -73,7 +77,8 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             long interval = randomNonNegativeLong();
             interval = interval > bucketSpanMillis ? bucketSpanMillis : interval;
             interval = interval <= 0 ? 1 : interval;
-            aggs.addAggregator(AggregationBuilders.dateHistogram("time").interval(interval));
+            MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
+            aggs.addAggregator(AggregationBuilders.dateHistogram("buckets").interval(interval).subAggregation(maxTime).field("time"));
             builder.setAggregations(aggs);
         }
         if (randomBoolean()) {
@@ -247,8 +252,9 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(Collections.singletonList("myIndex"));
         builder.setTypes(Collections.singletonList("myType"));
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         builder.setAggregations(new AggregatorFactories.Builder().addAggregator(
-                AggregationBuilders.dateHistogram("time").interval(300000)));
+                AggregationBuilders.dateHistogram("time").interval(300000).subAggregation(maxTime).field("time")));
         DatafeedConfig datafeedConfig = builder.build();
 
         assertThat(datafeedConfig.hasAggregations(), is(true));
@@ -262,25 +268,17 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::build);
 
-        assertThat(e.getMessage(), equalTo("A top level date_histogram (or histogram) aggregation is required"));
-    }
-
-    public void testBuild_GivenTopLevelAggIsTerms() {
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        builder.setIndices(Collections.singletonList("myIndex"));
-        builder.setTypes(Collections.singletonList("myType"));
-        builder.setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.terms("foo")));
-
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::build);
-
-        assertThat(e.getMessage(), equalTo("A top level date_histogram (or histogram) aggregation is required"));
+        assertThat(e.getMessage(), equalTo("A date_histogram (or histogram) aggregation is required"));
     }
 
     public void testBuild_GivenHistogramWithDefaultInterval() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(Collections.singletonList("myIndex"));
         builder.setTypes(Collections.singletonList("myType"));
-        builder.setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.histogram("time")));
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
+        builder.setAggregations(new AggregatorFactories.Builder().addAggregator(
+                AggregationBuilders.histogram("time").subAggregation(maxTime).field("time"))
+        );
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::build);
 
@@ -288,8 +286,9 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     public void testBuild_GivenDateHistogramWithInvalidTimeZone() {
-        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("time")
-                .interval(300000L).timeZone(DateTimeZone.forTimeZone(TimeZone.getTimeZone("EST")));
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
+        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("bucket").field("time")
+                .interval(300000L).timeZone(DateTimeZone.forTimeZone(TimeZone.getTimeZone("EST"))).subAggregation(maxTime);
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> createDatafeedWithDateHistogram(dateHistogram));
 
@@ -336,8 +335,91 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testChunkingConfig_GivenExplicitSetting() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(createDatafeedWithDateHistogram("30s"));
         builder.setChunkingConfig(ChunkingConfig.newAuto());
-
         assertThat(builder.build().getChunkingConfig(), equalTo(ChunkingConfig.newAuto()));
+    }
+
+    public void testCheckHistogramAggregationHasChildMaxTimeAgg() {
+        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("time_agg").field("max_time");
+
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> DatafeedConfig.Builder.checkHistogramAggregationHasChildMaxTimeAgg(dateHistogram));
+
+        assertThat(e.getMessage(), containsString("Date histogram must have nested max aggregation for time_field [max_time]"));
+    }
+
+    public void testValidateAggregations_GivenMulitpleHistogramAggs() {
+        DateHistogramAggregationBuilder nestedDateHistogram = AggregationBuilders.dateHistogram("nested_time");
+        AvgAggregationBuilder avg = AggregationBuilders.avg("avg").subAggregation(nestedDateHistogram);
+        TermsAggregationBuilder nestedTerms = AggregationBuilders.terms("nested_terms");
+
+        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("time");
+        AggregationBuilder histogramAggregationBuilder = DatafeedConfig.getHistogramAggregation(
+                new AggregatorFactories.Builder().addAggregator(dateHistogram).getAggregatorFactories());
+        assertEquals(dateHistogram, histogramAggregationBuilder);
+
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
+        dateHistogram.subAggregation(avg).subAggregation(nestedTerms).subAggregation(maxTime).field("time");
+        histogramAggregationBuilder = DatafeedConfig.getHistogramAggregation(
+                new AggregatorFactories.Builder().addAggregator(dateHistogram).getAggregatorFactories());
+        assertEquals(dateHistogram, histogramAggregationBuilder);
+
+        TermsAggregationBuilder toplevelTerms = AggregationBuilders.terms("top_level");
+        toplevelTerms.subAggregation(dateHistogram);
+
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("foo", "bar");
+        builder.setAggregations(new AggregatorFactories.Builder().addAggregator(toplevelTerms));
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> builder.validateAggregations());
+
+        assertEquals("Aggregations can only have 1 date_histogram or histogram aggregation", e.getMessage());
+    }
+
+    public void testGetHistogramAggregation_MissingHistogramAgg() {
+        TermsAggregationBuilder terms = AggregationBuilders.terms("top_level");
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> DatafeedConfig.getHistogramAggregation(
+                new AggregatorFactories.Builder().addAggregator(terms).getAggregatorFactories()));
+        assertEquals("A date_histogram (or histogram) aggregation is required", e.getMessage());
+    }
+
+    public void testGetHistogramAggregation_DateHistogramHasSibling() {
+        AvgAggregationBuilder avg = AggregationBuilders.avg("avg");
+        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("time");
+
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> DatafeedConfig.getHistogramAggregation(
+                        new AggregatorFactories.Builder().addAggregator(avg).addAggregator(dateHistogram).getAggregatorFactories()));
+        assertEquals("The date_histogram (or histogram) aggregation cannot have sibling aggregations", e.getMessage());
+
+        TermsAggregationBuilder terms = AggregationBuilders.terms("terms");
+        terms.subAggregation(dateHistogram);
+        terms.subAggregation(avg);
+        e = expectThrows(ElasticsearchException.class,
+                () -> DatafeedConfig.getHistogramAggregation(
+                        new AggregatorFactories.Builder().addAggregator(terms).getAggregatorFactories()));
+        assertEquals("The date_histogram (or histogram) aggregation cannot have sibling aggregations", e.getMessage());
+    }
+
+    public void testGetHistogramAggregation() {
+        AvgAggregationBuilder avg = AggregationBuilders.avg("avg");
+        TermsAggregationBuilder nestedTerms = AggregationBuilders.terms("nested_terms");
+
+        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("time");
+        AggregationBuilder histogramAggregationBuilder = DatafeedConfig.getHistogramAggregation(
+                new AggregatorFactories.Builder().addAggregator(dateHistogram).getAggregatorFactories());
+        assertEquals(dateHistogram, histogramAggregationBuilder);
+
+        dateHistogram.subAggregation(avg).subAggregation(nestedTerms);
+        histogramAggregationBuilder = DatafeedConfig.getHistogramAggregation(
+                new AggregatorFactories.Builder().addAggregator(dateHistogram).getAggregatorFactories());
+        assertEquals(dateHistogram, histogramAggregationBuilder);
+
+        TermsAggregationBuilder toplevelTerms = AggregationBuilders.terms("top_level");
+        toplevelTerms.subAggregation(dateHistogram);
+        histogramAggregationBuilder = DatafeedConfig.getHistogramAggregation(
+                new AggregatorFactories.Builder().addAggregator(toplevelTerms).getAggregatorFactories());
+
+        assertEquals(dateHistogram, histogramAggregationBuilder);
     }
 
     public static String randomValidDatafeedId() {
@@ -346,7 +428,8 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     private static DatafeedConfig createDatafeedWithDateHistogram(String interval) {
-        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("time");
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
+        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("buckets").subAggregation(maxTime).field("time");
         if (interval != null) {
             dateHistogram.dateHistogramInterval(new DateHistogramInterval(interval));
         }
@@ -354,7 +437,8 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     private static DatafeedConfig createDatafeedWithDateHistogram(Long interval) {
-        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("time");
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
+        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("buckets").subAggregation(maxTime).field("time");
         if (interval != null) {
             dateHistogram.interval(interval);
         }

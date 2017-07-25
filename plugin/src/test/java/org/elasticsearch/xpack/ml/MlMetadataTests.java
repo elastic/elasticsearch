@@ -13,11 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -33,7 +29,6 @@ import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.config.JobTests;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Date;
 
@@ -247,7 +242,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1.build(now), false);
 
-        expectThrows(IllegalArgumentException.class, () -> builder.putDatafeed(datafeedConfig1));
+        expectThrows(ElasticsearchStatusException.class, () -> builder.putDatafeed(datafeedConfig1));
     }
 
     public void testUpdateDatafeed() {

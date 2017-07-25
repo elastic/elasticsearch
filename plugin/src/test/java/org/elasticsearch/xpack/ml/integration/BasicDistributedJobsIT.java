@@ -16,6 +16,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
@@ -90,7 +92,12 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         assertTrue(putJobResponse.isAcknowledged());
         DatafeedConfig.Builder configBuilder = createDatafeedBuilder("data_feed_id", job.getId(), Collections.singletonList("*"));
-        configBuilder.setAggregations(AggregatorFactories.builder().addAggregator(AggregationBuilders.histogram("time").interval(300000)));
+
+        MaxAggregationBuilder maxAggregation = AggregationBuilders.max("time").field("time");
+        HistogramAggregationBuilder histogramAggregation = AggregationBuilders.histogram("time").interval(300000)
+                .subAggregation(maxAggregation).field("time");
+
+        configBuilder.setAggregations(AggregatorFactories.builder().addAggregator(histogramAggregation));
         configBuilder.setFrequency(TimeValue.timeValueMinutes(2));
         DatafeedConfig config = configBuilder.build();
         PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(config);

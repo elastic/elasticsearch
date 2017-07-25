@@ -1,0 +1,245 @@
+[[release-notes-5.6.0]]
+== 5.6.0 Release Notes
+
+See https://www.elastic.co/blog/multi-data-path-bug-in-elasticsearch-5-3-0[Multi data path bug in Elasticsearch 5.3.0].
+
+Also see <<breaking-changes-5.5>>.
+
+[[breaking-java-5.6.0]]
+[float]
+=== Breaking Java changes
+
+Java High Level REST Client::
+* Allow RestHighLevelClient to use plugins {pull}25024[#25024]
+
+Java REST Client::
+* Rename client artifacts {pull}25693[#25693] (issue: {issue}20248[#20248])
+
+
+
+[[deprecation-5.6.0]]
+[float]
+=== Deprecations
+
+Highlighting::
+* Postings highlighter deprecation {pull}25073[#25073]
+
+Indexed Scripts/Templates::
+* Scripting: Deprecate stored search template apis {pull}25437[#25437] (issue: {issue}24596[#24596])
+
+Query DSL::
+* Deprecate omitting terms lookup index name in 5.6 {pull}25755[#25755] (issue: {issue}25750[#25750])
+
+Scripting::
+* Scripting: Change keys for inline/stored scripts to source/id {pull}25127[#25127]
+
+Tribe Node::
+* Deprecate tribe service {pull}24598[#24598] (issue: {issue}24581[#24581])
+
+
+
+[[feature-5.6.0]]
+[float]
+=== New features
+
+Java High Level REST Client::
+* Backport high level REST client {pull}25086[#25086] (issues: {issue}22371[#22371], {issue}22680[#22680], {issue}23040[#23040], {issue}23187[#23187], {issue}23266[#23266], {issue}23312[#23312], {issue}23328[#23328], {issue}23350[#23350], {issue}23351[#23351], {issue}23373[#23373], {issue}24796[#24796], {issue}24938[#24938], {issue}25038[#25038])
+
+Parent/Child::
+* Typeless parent child backport {pull}25104[#25104]
+* Move parent_id query to the parent-join module {pull}25072[#25072] (issue: {issue}20257[#20257])
+* Introduce ParentJoinFieldMapper, a field mapper that creates parent/child relation within documents of the same index {pull}24978[#24978] (issue: {issue}20257[#20257])
+
+Upgrade API::
+* TemplateUpgraders should be called during rolling restart {pull}25263[#25263] (issues: {issue}24379[#24379], {issue}24680[#24680])
+
+
+
+[[enhancement-5.6.0]]
+[float]
+=== Enhancements
+
+Allocation::
+* Adjust status on bad allocation explain requests {pull}25503[#25503] (issue: {issue}25458[#25458])
+* Promote replica on the highest version node {pull}25277[#25277] (issue: {issue}10708[#10708])
+
+Analysis::
+* [analysis-icu] Allow setting unicodeSetFilter {pull}20814[#20814] (issue: {issue}20820[#20820])
+
+CAT API::
+* expand `/_cat/nodes` to return information about hard drive {pull}21775[#21775] (issue: {issue}21679[#21679])
+
+Cluster::
+* Validate a joining node's version with version of existing cluster nodes {pull}25808[#25808]
+
+Core::
+* Explicitly reject duplicate data paths {pull}25178[#25178]
+
+Highlighting::
+* Picks offset source for the unified highlighter directly from the es mapping {pull}25747[#25747] (issue: {issue}25699[#25699])
+
+Index APIs::
+* Create index request should return the index name {pull}25139[#25139] (issue: {issue}23044[#23044])
+
+Ingest::
+* Add Ingest-Processor specific Rest Endpoints & Add Grok endpoint {pull}25059[#25059] (issue: {issue}24725[#24725])
+* Port support for commercial GeoIP2 databases from Logstash. {pull}24889[#24889]
+* Allow removing multiple fields in ingest processor {pull}24750[#24750] (issue: {issue}24622[#24622])
+* Add target_field parameter to ingest processors {pull}24133[#24133] (issues: {issue}23228[#23228], {issue}23682[#23682])
+
+Internal::
+* "shard started" should show index and shard ID {pull}25157[#25157]
+* Break out clear scroll logic from TransportClearScrollAction {pull}25125[#25125] (issue: {issue}25094[#25094])
+* Add helper methods to TransportActionProxy to identify proxy actions and requests {pull}25124[#25124]
+* Add remote cluster infrastructure to fetch discovery nodes. {pull}25123[#25123] (issue: {issue}25094[#25094])
+* Disallow multiple parent-join fields per mapping {pull}25002[#25002]
+
+Java High Level REST Client::
+* [DOCS] restructure java clients docs pages {pull}25517[#25517]
+* Use SPI in High Level Rest Client to load XContent parsers {pull}25098[#25098] (issues: {issue}25024[#25024], {issue}25097[#25097])
+
+Java REST Client::
+* Shade external dependencies in the rest client jar {pull}25780[#25780] (issue: {issue}25208[#25208])
+* RestClient uses system properties and system default SSLContext {pull}25757[#25757] (issue: {issue}23231[#23231])
+
+Logging::
+* Use LRU set to reduce repeat deprecation messages {pull}25474[#25474] (issue: {issue}25457[#25457])
+
+Mapping::
+* Optimize `terms` queries on `ip` addresses to use a `PointInSetQuery` whenever possible. {pull}25669[#25669] (issue: {issue}25667[#25667])
+
+Network::
+* Simplify connection closing and cleanups in TcpTransport {pull}25250[#25250]
+
+Parent/Child::
+* Remove ParentJoinFieldSubFetchPhase {pull}25550[#25550] (issue: {issue}25363[#25363])
+* Support parent id being specified as number in the _source {pull}25547[#25547]
+
+Query DSL::
+* Make slop optional when parsing `span_near` query {pull}25677[#25677] (issue: {issue}25642[#25642])
+
+Search::
+* Reduce the overhead of timeouts and low-level search cancellation. {pull}25776[#25776]
+* Reduce profiling overhead. {pull}25772[#25772] (issue: {issue}24799[#24799])
+* Backport `can_match` endpoint to 5.6 to allow 6.0 to use the optimization in mixed version {pull}25704[#25704] (issue: {issue}25658[#25658])
+* Add a shard filter search phase to pre-filter shards based on query rewriting {pull}25658[#25658]
+* Ensure we rewrite common queries to `match_none` if possible {pull}25650[#25650]
+* Limit the number of concurrent shard requests per search request {pull}25632[#25632]
+* Add cluster name validation to RemoteClusterConnection {pull}25568[#25568]
+* Leverage scorerSupplier when applicable. {pull}25109[#25109]
+* Add Cross Cluster Search support for scroll searches {pull}25094[#25094]
+
+Sequence IDs::
+* 5.x - Move primary term from ReplicationRequest to ConcreteShardRequest {pull}25824[#25824] (issue: {issue}25822[#25822])
+* Forward compatibility for primary context handoff on 6.x {pull}25545[#25545] (issue: {issue}25468[#25468])
+
+Settings::
+* Emit settings deprecation logging at most once {pull}25457[#25457]
+* IndexMetaData: Introduce internal format index setting {pull}25292[#25292]
+
+Snapshot/Restore::
+* Improves snapshot logging and snapshot deletion error handling {pull}25264[#25264]
+
+Stats::
+* Update `IndexShard#refreshMetric` via a `ReferenceManager.RefreshListener` {pull}25083[#25083] (issues: {issue}24806[#24806], {issue}25052[#25052])
+
+
+
+[[bug-5.6.0]]
+[float]
+=== Bug fixes
+
+Aliases::
+* mget with an alias shouldn't ignore alias routing {pull}25697[#25697] (issue: {issue}25696[#25696])
+
+Analysis::
+* Pre-configured shingle filter should disable graph analysis {pull}25853[#25853] (issue: {issue}25555[#25555])
+
+Engine::
+* Engine - Do not store operations that are not index into lucene in the translog (5.x only) {pull}25592[#25592]
+
+Geo::
+* Fix GeoPoint FieldStats ternary logic bug {pull}25211[#25211] (issue: {issue}24275[#24275])
+
+Highlighting::
+* FastVectorHighlighter should not cache the field query globally {pull}25197[#25197] (issue: {issue}25171[#25171])
+
+Index APIs::
+* Shrink API should ignore templates {pull}25380[#25380] (issue: {issue}25035[#25035])
+* Rollover max docs should only count primaries {pull}24977[#24977] (issue: {issue}24217[#24217])
+
+Ingest::
+* Sort Processor does not have proper behavior with targetField {pull}25237[#25237] (issue: {issue}24133[#24133])
+
+Inner Hits::
+* When fetching nested inner hits only access stored fields when needed {pull}25864[#25864] (issue: {issue}6[#6])
+
+Internal::
+* Fix BytesReferenceStreamInput#skip with offset {pull}25634[#25634]
+* Fix race condition in RemoteClusterConnection node supplier {pull}25432[#25432]
+* Initialise empty lists in BaseTaskResponse constructor {pull}25290[#25290]
+
+Mapping::
+* Fix parsing of ip range queries. {pull}25768[#25768] (issue: {issue}25636[#25636])
+* Remove `fielddata:false` from mappings of non-analyzed strings. {pull}25542[#25542]
+* Disable date field mapping changing {pull}25285[#25285] (issue: {issue}25271[#25271])
+* token_count datatype should handle null value {pull}25046[#25046] (issue: {issue}24928[#24928])
+* keep _parent field while updating child type mapping {pull}24407[#24407] (issue: {issue}23381[#23381])
+
+Nested Docs::
+* In case of a single type the _id field should be added to the nested document instead of _uid field {pull}25149[#25149]
+
+Network::
+* Ensure pending transport handlers are invoked for all channel failures {pull}25150[#25150]
+
+Packaging::
+* Stop disabling explicit GC {pull}25759[#25759]
+* Avoid failing install if system-sysctl is masked {pull}25657[#25657] (issue: {issue}24234[#24234])
+* Get short path name for native controllers {pull}25344[#25344]
+* When stopping via systemd only kill the JVM, not its control group {pull}25195[#25195]
+
+Parent/Child::
+* The default _parent field should not try to load global ordinals {pull}25851[#25851] (issue: {issue}25849[#25849])
+
+Plugin Repository HDFS::
+* Upgrading HDFS Repository Plugin to use HDFS 2.8.1 Client {pull}25497[#25497] (issue: {issue}25450[#25450])
+
+Query DSL::
+* SpanNearQueryBuilder should return the inner clause when a single clause is provided {pull}25856[#25856] (issue: {issue}25630[#25630])
+* WrapperQueryBuilder should also rewrite the parsed query {pull}25480[#25480]
+
+REST::
+* Fix handling of exceptions thrown on HEAD requests {pull}25172[#25172] (issue: {issue}21125[#21125])
+
+Search::
+* First increment shard stats before notifying and potentially sending response {pull}25818[#25818]
+* Prevent skipping shards if a suggest builder is present {pull}25739[#25739] (issue: {issue}25658[#25658])
+* Ensure remote cluster alias is preserved in inner hits aggs {pull}25627[#25627] (issue: {issue}25606[#25606])
+* Do not search locally if remote index pattern resolves to no indices {pull}25436[#25436] (issue: {issue}25426[#25426])
+
+Settings::
+* Fix settings serialization to not serialize secure settings or not take the total size into account {pull}25323[#25323]
+* Keystore CLI should use the AddFileKeyStoreCommand for files {pull}25298[#25298]
+
+Snapshot/Restore::
+* Output all empty snapshot info fields if in verbose mode {pull}25455[#25455] (issue: {issue}24477[#24477])
+
+Stats::
+* _nodes/stats should not fail due to concurrent AlreadyClosedException {pull}25016[#25016] (issue: {issue}23099[#23099])
+
+Suggesters::
+* Context suggester should filter doc values field {pull}25858[#25858] (issue: {issue}25404[#25404])
+
+
+
+[[upgrade-5.6.0]]
+[float]
+=== Upgrades
+
+Network::
+* Upgrade to Netty 4.1.13.Final {pull}25581[#25581] (issues: {issue}24729[#24729], {issue}6866[#6866])
+
+Upgrade API::
+* Improve stability and logging of TemplateUpgradeServiceIT tests {pull}25386[#25386] (issue: {issue}25382[#25382])
+
+

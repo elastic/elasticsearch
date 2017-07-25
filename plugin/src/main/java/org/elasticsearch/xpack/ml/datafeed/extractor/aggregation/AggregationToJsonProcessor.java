@@ -246,7 +246,8 @@ class AggregationToJsonProcessor {
 
             Long timeStamp = (Long) copy.get(timeField);
             if (timeStamp == null) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_MISSING_MAX_AGGREGATION_FOR_TIME_FIELD, timeField));
+                throw new IllegalArgumentException(
+                        Messages.getMessage(Messages.DATAFEED_MISSING_MAX_AGGREGATION_FOR_TIME_FIELD, timeField));
             }
 
             docsByBucketTimestamp.computeIfAbsent(timeStamp, (t) -> new ArrayList<>()).add(copy);

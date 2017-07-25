@@ -306,7 +306,7 @@ The password for the key in the keystore. Defaults to the keystore password.
 
 `ssl.truststore.path`::
 The path to the Java Keystore file that contains the certificates to trust.
-`ssl.certificate_authorities` and `ssl.trustsore.path` may not be used at the same time.
+`ssl.certificate_authorities` and `ssl.truststore.path` may not be used at the same time.
 
 `ssl.truststore.password`::
 The password to the truststore.
@@ -546,7 +546,7 @@ This setting may not be used with `certificate_authorities`.
 The password for the truststore. Must be provided if `truststore.path` is set.
 
 `truststore.algorithm`::
-Algorithm for the trustsore. Defaults to `SunX509`.
+Algorithm for the truststore. Defaults to `SunX509`.
 
 `files.role_mapping`::
 Specifies the {xpack-ref}/security-files.html[location] of the

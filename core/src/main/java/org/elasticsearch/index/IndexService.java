@@ -150,7 +150,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.mapperService = new MapperService(indexSettings, registry.build(indexSettings), xContentRegistry, similarityService,
             mapperRegistry,
             // we parse all percolator queries as they would be parsed on shard 0
-            () -> newQueryShardContext(0, null, System::currentTimeMillis));
+            () -> newQueryShardContext(0, null, System::currentTimeMillis, null));
         this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
         if (indexSettings.getIndexSortConfig().hasIndexSort()) {
             // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
@@ -467,17 +467,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * Passing a {@code null} {@link IndexReader} will return a valid context, however it won't be able to make
      * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
      */
-    public QueryShardContext newQueryShardContext(int shardId, IndexReader indexReader, LongSupplier nowInMillis) {
-        return new QueryShardContext(
-            shardId, indexSettings, indexCache.bitsetFilterCache(), indexFieldData, mapperService(),
-                similarityService(), scriptService, xContentRegistry,
-                client, indexReader,
-            nowInMillis);
+    public QueryShardContext newQueryShardContext(int shardId, IndexReader indexReader, LongSupplier nowInMillis, String clusterAlias) {
+        return new QueryShardContext(shardId, indexSettings, indexCache.bitsetFilterCache(), indexFieldData::getForField, mapperService(),
+            similarityService(), scriptService, xContentRegistry, client, indexReader, nowInMillis, clusterAlias);
     }
 
-    /**
-     * The {@link ThreadPool} to use for this index.
-     */
+        /**
+         * The {@link ThreadPool} to use for this index.
+         */
     public ThreadPool getThreadPool() {
         return threadPool;
     }

@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -210,7 +211,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract BitsetFilterCache bitsetFilterCache();
 
-    public abstract IndexFieldDataService fieldData();
+    public abstract <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType);
 
     public abstract TimeValue timeout();
 

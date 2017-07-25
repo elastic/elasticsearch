@@ -22,7 +22,6 @@ package org.elasticsearch.tribe;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -45,7 +44,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.hash.MurmurHash3;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -67,6 +65,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -76,6 +75,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -155,9 +155,8 @@ public class TribeService extends AbstractLifecycleComponent {
 
     private final NamedWriteableRegistry namedWriteableRegistry;
 
-    @Inject
     public TribeService(Settings settings, Environment environment, NodeEnvironment nodeEnvironment, ClusterService clusterService,
-                        Node node, NamedWriteableRegistry namedWriteableRegistry, Node.NodeBuilder clientNodeBuilder) {
+                        NamedWriteableRegistry namedWriteableRegistry, BiFunction<Settings, Path, Node> clientNodeBuilder) {
         super(settings);
         this.clusterService = clusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -167,7 +166,7 @@ public class TribeService extends AbstractLifecycleComponent {
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
             Settings clientSettings = buildClientSettings(entry.getKey(), nodeEnvironment.nodeId(), settings, entry.getValue());
             try {
-                nodes.add(clientNodeBuilder.newNode(clientSettings, environment.configFile()));
+                nodes.add(clientNodeBuilder.apply(clientSettings, environment.configFile()));
             } catch (Exception e) {
                 // calling close is safe for non started nodes, we can just iterate over all
                 for (Node otherNode : nodes) {
@@ -190,7 +189,6 @@ public class TribeService extends AbstractLifecycleComponent {
                 .deprecated("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
         }
         this.onConflict = ON_CONFLICT_SETTING.get(settings);
-        node.addOnStartedListener(this::startNodes);
     }
 
     // pkg private for testing

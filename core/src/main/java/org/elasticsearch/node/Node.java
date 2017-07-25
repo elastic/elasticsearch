@@ -152,7 +152,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -229,7 +228,6 @@ public class Node implements Closeable {
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
-    private final List<Runnable> onStartedListeners = new CopyOnWriteArrayList<>();
 
     /**
      * Constructs a node with the given settings.
@@ -394,7 +392,9 @@ public class Node implements Closeable {
 
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
-                                                 scriptModule.getScriptService(), xContentRegistry).stream())
+                                                 scriptModule.getScriptService(), xContentRegistry, environment, nodeEnvironment,
+                                                 namedWriteableRegistry,
+                                                 (settings, configPath) -> newNode(settings, classpathPlugins, configPath)).stream())
                 .collect(Collectors.toList());
             final RestController restController = actionModule.getRestController();
             final NetworkModule networkModule = new NetworkModule(settings, false, pluginsService.filterPlugins(NetworkPlugin.class),
@@ -439,7 +439,6 @@ public class Node implements Closeable {
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptModule.getScriptService(),
                 httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter());
             modules.add(b -> {
-                    b.bind(NodeBuilder.class).toInstance(new NodeBuilder(this, classpathPlugins));
                     b.bind(Node.class).toInstance(this);
                     b.bind(NodeService.class).toInstance(nodeService);
                     b.bind(NamedXContentRegistry.class).toInstance(xContentRegistry);
@@ -515,10 +514,6 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
-    }
-
-    public void addOnStartedListener(Runnable runnable) {
-        onStartedListeners.add(runnable);
     }
 
     // visible for testing
@@ -674,7 +669,7 @@ public class Node implements Closeable {
 
         logger.info("started");
 
-        onStartedListeners.forEach(Runnable::run);
+        pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);
 
         return this;
     }
@@ -906,21 +901,6 @@ public class Node implements Closeable {
             }
         }
         return customNameResolvers;
-    }
-
-    public static class NodeBuilder {
-
-        private final Node node;
-        private final Collection<Class<? extends Plugin>> classpathPlugins;
-
-        public NodeBuilder(Node node, Collection<Class<? extends Plugin>> classpathPlugins) {
-            this.node = node;
-            this.classpathPlugins = classpathPlugins;
-        }
-
-        public Node newNode(Settings settings, Path configPath) {
-            return node.newNode(settings, classpathPlugins, configPath);
-        }
     }
 
     /** Constructs a new node based on the following settings. Overridden by tests */

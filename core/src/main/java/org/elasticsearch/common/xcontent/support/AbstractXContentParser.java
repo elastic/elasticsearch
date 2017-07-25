@@ -54,7 +54,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         }
     }
 
-    private final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(getClass()));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(AbstractXContentParser.class));
 
     private final NamedXContentRegistry xContentRegistry;
 

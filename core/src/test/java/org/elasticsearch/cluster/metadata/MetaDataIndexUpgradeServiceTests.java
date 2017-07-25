@@ -94,7 +94,8 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
         // norelease : having a hardcoded version message requires modifying this test when creating new major version. fix this...
         String message = expectThrows(IllegalStateException.class, () -> service.upgradeIndexMetaData(metaData,
             Version.CURRENT.minimumIndexCompatibilityVersion())).getMessage();
-        assertEquals(message, "The index [[foo/BOOM]] was created with version [2.4.0] but the minimum compatible version is [6.0.0-beta1]." +
+        assertEquals(message, "The index [[foo/BOOM]] was created with version [2.4.0] " +
+             "but the minimum compatible version is [6.0.0-beta1]." +
             " It should be re-indexed in Elasticsearch 6.x before upgrading to " + Version.CURRENT.toString() + ".");
 
         IndexMetaData goodMeta = newIndexMeta("foo", Settings.builder()

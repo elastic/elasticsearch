@@ -116,6 +116,7 @@ if [ -z ${USE_EXISTING_ES:+x} ]; then
     }
 
     # pick_clone_target NOCOMMIT just use master for testing our feature branch. Do not merge this.....
+    GH_USER="elastic"
     BRANCH="master"
 
     echo " -> checking out '$BRANCH' branch from $GH_USER/elasticsearch..."

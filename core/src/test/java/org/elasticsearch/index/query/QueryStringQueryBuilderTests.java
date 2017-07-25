@@ -187,6 +187,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testToQueryMatchAllQuery() throws Exception {
         Query query = queryStringQuery("*:*").toQuery(createShardContext());
         assertThat(query, instanceOf(MatchAllDocsQuery.class));
+
+        query = queryStringQuery("*").toQuery(createShardContext());
+        assertThat(query, instanceOf(MatchAllDocsQuery.class));
     }
 
     public void testToQueryTermQuery() throws IOException {

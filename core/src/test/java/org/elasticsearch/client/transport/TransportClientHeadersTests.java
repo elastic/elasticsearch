@@ -82,7 +82,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
         transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null);
         transportService.start();
         transportService.acceptIncomingRequests();
-        String transport = randomBoolean() ? NioTransportPlugin.NIO_TRANSPORT_NAME : MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
+        String transport = randomTestTransport();
         TransportClient client = new MockTransportClient(Settings.builder()
                 .put("client.transport.sniff", false)
                 .put("cluster.name", "cluster1")
@@ -99,7 +99,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
     }
 
     public void testWithSniffing() throws Exception {
-        String transport = randomBoolean() ? NioTransportPlugin.NIO_TRANSPORT_NAME : MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
+        String transport = randomTestTransport();
         try (TransportClient client = new MockTransportClient(
                 Settings.builder()
                         .put("client.transport.sniff", true)

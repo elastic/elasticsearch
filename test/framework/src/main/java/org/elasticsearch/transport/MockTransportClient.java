@@ -19,7 +19,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;

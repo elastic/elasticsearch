@@ -107,6 +107,7 @@ public class ExplainIT extends CliIntegrationTestCase {
         assertEquals("", in.readLine());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2074")
     public void testExplainWithCount() throws IOException {
         index("test", body -> body.field("test_field", "test_value1").field("i", 1));
         index("test", body -> body.field("test_field", "test_value2").field("i", 2));

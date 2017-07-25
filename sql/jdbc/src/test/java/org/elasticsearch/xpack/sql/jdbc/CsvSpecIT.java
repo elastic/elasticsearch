@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.xpack.sql.jdbc.framework.SpecBaseIntegrationTestCase;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
@@ -20,6 +21,7 @@ import static java.lang.String.format;
  * Tests comparing sql queries executed against our jdbc client
  * with hard coded result sets.
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2074")
 public class CsvSpecIT extends SpecBaseIntegrationTestCase {
     private final CsvTestCase testCase;
 

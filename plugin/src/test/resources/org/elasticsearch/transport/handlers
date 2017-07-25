@@ -92,6 +92,9 @@ indices:monitor/shard_stores
 indices:monitor/stats[n]
 indices:monitor/upgrade[n]
 indices:monitor/upgrade
+indices:data/read/sql
+indices:data/read/sql/jdbc
+indices:data/read/sql/cli
 internal:admin/tasks/ban
 internal:cluster/node/mapping/refresh
 internal:cluster/nodes/indices/shard/store

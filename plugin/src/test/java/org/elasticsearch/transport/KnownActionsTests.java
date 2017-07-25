@@ -20,6 +20,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.deprecation.Deprecation;
+import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -140,6 +141,9 @@ public class KnownActionsTests extends SecurityIntegTestCase {
 
         // also load stuff from Deprecation in org.elasticsearch.deprecation
         loadActions(collectSubClasses(Action.class, Deprecation.class), actions);
+
+        // also load all action from SQL plugin in org.elasticsearch.xpack.sql.plugin package
+        loadActions(collectSubClasses(Action.class, SqlPlugin.class), actions);
 
         return unmodifiableSet(actions);
     }

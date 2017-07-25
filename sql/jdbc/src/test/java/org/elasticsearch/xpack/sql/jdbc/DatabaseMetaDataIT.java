@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.xpack.sql.jdbc.framework.JdbcIntegrationTestCase;
 import org.elasticsearch.xpack.sql.jdbc.framework.LocalH2;
@@ -19,6 +20,7 @@ import static org.elasticsearch.xpack.sql.jdbc.framework.JdbcAssert.assertResult
 /**
  * Tests for our implementation of {@link DatabaseMetaData}.
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2074")
 public class DatabaseMetaDataIT extends JdbcIntegrationTestCase {
     /**
      * We do not support procedures so we return an empty set for

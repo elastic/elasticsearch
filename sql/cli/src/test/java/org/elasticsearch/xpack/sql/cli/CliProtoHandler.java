@@ -28,7 +28,8 @@ class CliProtoHandler extends ProtoHandler<Response> {
     
     CliProtoHandler(Client client) {
         super(client, response -> AbstractSqlServer.write(AbstractProto.CURRENT_VERSION, response));
-        this.server = new CliServer(TestUtils.planExecutor(client), clusterName, () -> info.getNode().getName(), info.getVersion(), info.getBuild());
+        this.server = new CliServer(TestUtils.planExecutor(client), clusterName, () -> info.getNode().getName(), info.getVersion(),
+                info.getBuild());
     }
 
     @Override

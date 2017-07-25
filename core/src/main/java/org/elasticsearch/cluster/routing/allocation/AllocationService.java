@@ -272,6 +272,19 @@ public class AllocationService extends AbstractComponent {
         allocation.ignoreDisable(false);
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
+
+        if (retryFailed) {
+            final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
+            while (unassignedIterator.hasNext()) {
+                final ShardRouting shard = unassignedIterator.next();
+                UnassignedInfo unassignedInfo = shard.unassignedInfo();
+                UnassignedInfo newUnassignedInfo = new UnassignedInfo(unassignedInfo.getReason(), unassignedInfo
+                    .getMessage(), unassignedInfo.getFailure(), 0, unassignedInfo
+                    .getUnassignedTimeInNanos(), unassignedInfo.getUnassignedTimeInMillis(), unassignedInfo.isDelayed(),
+                    unassignedInfo.getLastAllocationStatus());
+                shard.updateUnassigned(newUnassignedInfo, shard.recoverySource());
+            }
+        }
         reroute(allocation);
         return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands"));
     }

@@ -216,7 +216,7 @@ public class FiltersFunctionScoreQuery extends Query {
                     FilterFunction filterFunction = filterFunctions[i];
                     Explanation functionExplanation = filterFunction.function.getLeafScoreFunction(context).explainScore(doc, expl);
                     double factor = functionExplanation.getValue();
-                    float sc = CombineFunction.toFloat(factor);
+                    float sc = (float) factor;
                     Explanation filterExplanation = Explanation.match(sc, "function score, product of:",
                             Explanation.match(1.0f, "match filter: " + filterFunction.filter.toString()), functionExplanation);
                     filterExplanations.add(filterExplanation);
@@ -229,7 +229,7 @@ public class FiltersFunctionScoreQuery extends Query {
             Explanation factorExplanation;
             if (filterExplanations.size() > 0) {
                 factorExplanation = Explanation.match(
-                        CombineFunction.toFloat(score),
+                        (float) score,
                         "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]",
                         filterExplanations);
 

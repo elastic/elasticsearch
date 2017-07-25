@@ -77,7 +77,7 @@ public class RandomScoreFunction extends ScoreFunction {
             @Override
             public Explanation explainScore(int docId, Explanation subQueryScore) {
                 return Explanation.match(
-                        CombineFunction.toFloat(score(docId, subQueryScore.getValue())),
+                        (float) score(docId, subQueryScore.getValue()),
                         "random score function (seed: " + originalSeed + ")");
             }
         };

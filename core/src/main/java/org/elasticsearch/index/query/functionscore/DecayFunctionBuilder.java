@@ -548,7 +548,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                 @Override
                 public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
                     return Explanation.match(
-                            CombineFunction.toFloat(score(docId, subQueryScore.getValue())),
+                            (float) score(docId, subQueryScore.getValue()),
                             "Function for field " + getFieldName() + ":",
                             func.explainFunction(getDistanceString(ctx, docId), distance.get(docId), scale));
                 }

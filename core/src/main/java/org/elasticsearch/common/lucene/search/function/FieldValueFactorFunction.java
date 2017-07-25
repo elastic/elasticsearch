@@ -96,7 +96,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
                 String defaultStr = missing != null ? "?:" + missing : "";
                 double score = score(docId, subQueryScore.getValue());
                 return Explanation.match(
-                        CombineFunction.toFloat(score),
+                        (float) score,
                         String.format(Locale.ROOT,
                                 "field value function: %s(doc['%s'].value%s * factor=%s)", modifierStr, field, defaultStr, boostFactor));
             }

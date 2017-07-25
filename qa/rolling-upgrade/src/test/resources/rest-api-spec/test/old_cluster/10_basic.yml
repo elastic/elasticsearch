@@ -9,29 +9,6 @@
               number_of_replicas: 0
   - do:
       indices.create:
-        index: multi_type_index
-        body:
-          settings:
-            index.number_of_replicas: 0
-            index.mapping.single_type: false
-
-  - do:
-      bulk:
-        refresh: true
-        body:
-          - '{"index": {"_index": "multi_type_index", "_type": "type1"}}'
-          - '{"f1": "v1_old", "f2": 0}'
-          - '{"index": {"_index": "multi_type_index", "_type": "type2"}}'
-          - '{"f1": "v1_old", "f2": 0}'
-
-  - do:
-      search:
-        index: multi_type_index
-
-  - match: { hits.total: 2 }
-
-  - do:
-      indices.create:
         index: index_with_replicas # dummy index to ensure we can recover indices with replicas just fine
         body:
           # if the node with the replica is the first to be restarted, then delayed

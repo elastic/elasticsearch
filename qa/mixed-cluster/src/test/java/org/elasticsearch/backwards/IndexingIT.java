@@ -195,6 +195,7 @@ public class IndexingIT extends ESRestTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25873")
     public void testSeqNoCheckpoints() throws Exception {
         Nodes nodes = buildNodeAndVersions();
         assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());

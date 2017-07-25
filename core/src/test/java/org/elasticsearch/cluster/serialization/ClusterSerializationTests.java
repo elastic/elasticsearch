@@ -100,6 +100,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         assertThat(target.toString(), equalTo(source.toString()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25870")
     public void testSnapshotDeletionsInProgressSerialization() throws Exception {
 
         boolean includeRestore = randomBoolean();

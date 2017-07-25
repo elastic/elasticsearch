@@ -54,7 +54,9 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
 
     @Override
     protected void taskOperation(RethrottleRequest request, BulkByScrollTask task, ActionListener<TaskInfo> listener) {
+        logger.warn("[{}]: RETHROTTLE start taskOperation", task.getId());
         rethrottle(logger, clusterService.localNode().getId(), client, task, request.getRequestsPerSecond(), listener);
+        logger.warn("[{}]: RETHROTTLE finish taskOperation", task.getId());
     }
 
     static void rethrottle(Logger logger, String localNodeId, Client client, BulkByScrollTask task, float newRequestsPerSecond,
@@ -62,14 +64,17 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
 
         if (task.isChild()) {
             rethrottleChildTask(logger, localNodeId, task, newRequestsPerSecond, listener);
+            logger.warn("[{}]: FINISH CHILD INIT RETHROTTLE", task.getId());
             return;
         }
 
         if (task.isParent()) {
             rethrottleParentTask(logger, localNodeId, client, task, newRequestsPerSecond, listener);
+            logger.warn("[{}]: FINISH PARENT INIT RETHROTTLE", task.getId());
             return;
         }
 
+        logger.warn("[{}]: THROW EXCEPTION RETHROTTLE", task.getId());
         throw new IllegalArgumentException("task [" + task.getId() + "] must be set as a child or parent");
     }
 

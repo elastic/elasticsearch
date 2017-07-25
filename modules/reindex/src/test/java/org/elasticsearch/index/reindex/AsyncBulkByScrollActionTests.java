@@ -590,7 +590,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertNull("No refresh was attempted", client.lastRefreshRequest.get());
     }
 
-    /**
+    /*
      * Tests that we can cancel the request during its throttling delay. This can't use {@link #cancelTaskCase(Consumer)} because it needs
      * to send the request un-canceled and cancel it at a specific time.
      */

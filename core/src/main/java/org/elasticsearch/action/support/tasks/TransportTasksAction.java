@@ -149,6 +149,9 @@ public abstract class TransportTasksAction<
                 }
             };
             try {
+                //todo remove
+                Task task = tasks.get(taskIndex);
+                logger.warn("[{}] TASKTYPE {}", task.getId(), task.getClass());
                 taskOperation(request, tasks.get(taskIndex), taskListener);
             } catch (Exception e) {
                 taskListener.onFailure(e);

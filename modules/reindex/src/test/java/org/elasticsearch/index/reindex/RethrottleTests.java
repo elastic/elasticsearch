@@ -82,17 +82,23 @@ public class RethrottleTests extends ReindexTestCase {
         }
         indexRandom(true, docs);
 
+        logger.info("Executing request");
+
         // Start a request that will never finish unless we rethrottle it
         request.setRequestsPerSecond(.000001f);  // Throttle "forever"
         request.source().setSize(1);             // Make sure we use multiple batches
         ActionFuture<? extends BulkByScrollResponse> responseListener = request.execute();
 
+        logger.info("Finished executing request");
+
         TaskGroup taskGroupToRethrottle = findTaskToRethrottle(actionName, request.request().getSlices().number());
         TaskId taskToRethrottle = taskGroupToRethrottle.getTaskInfo().getTaskId();
 
         if (request.request().getSlices().number() == 1) {
+            logger.info("There are no child tasks");
             assertThat(taskGroupToRethrottle.getChildTasks(), empty());
         } else {
+            logger.info("Asserting child tasks are running");
             // There should be a sane number of child tasks running
             assertThat(taskGroupToRethrottle.getChildTasks(),
                     hasSize(allOf(greaterThanOrEqualTo(1), lessThanOrEqualTo(request.request().getSlices().number()))));
@@ -108,12 +114,17 @@ public class RethrottleTests extends ReindexTestCase {
             });
         }
 
+        logger.info("Rethrottling tasks");
+
         // Now rethrottle it so it'll finish
         float newRequestsPerSecond = randomBoolean() ? Float.POSITIVE_INFINITY : between(1, 1000) * 100000; // No throttle or "very fast"
         ListTasksResponse rethrottleResponse = rethrottle().setTaskId(taskToRethrottle).setRequestsPerSecond(newRequestsPerSecond).get();
         rethrottleResponse.rethrowFailures("Rethrottle");
         assertThat(rethrottleResponse.getTasks(), hasSize(1));
         BulkByScrollTask.Status status = (BulkByScrollTask.Status) rethrottleResponse.getTasks().get(0).getStatus();
+
+        logger.info("Finished executing rethrottle task");
+
         // Now check the resulting requests per second.
         if (request.request().getSlices().number() == 1) {
             // If there is a single slice it should match perfectly
@@ -161,10 +172,14 @@ public class RethrottleTests extends ReindexTestCase {
             assertEquals(totalRequestsPerSecond, status.getRequestsPerSecond(), totalRequestsPerSecond * 0.0001f);
         }
 
+        logger.info("Asserted a bunch of stuff");
+
         // Now the response should come back quickly because we've rethrottled the request
         BulkByScrollResponse response = responseListener.get();
         assertThat("Entire request completed in a single batch. This may invalidate the test as throttling is done between batches.",
                 response.getBatches(), greaterThanOrEqualTo(request.request().getSlices().number()));
+
+        logger.info("Test case is done");
     }
 
     private TaskGroup findTaskToRethrottle(String actionName, int sliceCount) {

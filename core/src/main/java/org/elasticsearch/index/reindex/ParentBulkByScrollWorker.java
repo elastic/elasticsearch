@@ -55,7 +55,7 @@ public class ParentBulkByScrollWorker {
         return slices;
     }
 
-    public BulkByScrollTask.Status getStatus() {  // moved to parent worker
+    public BulkByScrollTask.Status getStatus() {
         // We only have access to the statuses of requests that have finished so we return them
         List<BulkByScrollTask.StatusOrException> statuses = Arrays.asList(new BulkByScrollTask.StatusOrException[results.length()]);
         addResultsToList(statuses);

@@ -34,6 +34,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -64,7 +65,11 @@ public class BulkByScrollTask extends CancellableTask {
             return childWorker.getStatus();
         }
 
-        throw new IllegalStateException("This task's worker is not set");
+        return emptyStatus();
+    }
+
+    private BulkByScrollTask.Status emptyStatus() {
+        return new Status(Collections.emptyList(), getReasonCancelled());
     }
 
     public boolean isParent() {
@@ -103,6 +108,17 @@ public class BulkByScrollTask extends CancellableTask {
 
     public ChildBulkByScrollWorker getChildWorker() {
         return childWorker;
+    }
+
+    @Override
+    public void onCancelled() {
+        if (isParent()) {
+            // do nothing
+        } else if (isChild()) {
+            childWorker.handleCancel();
+        } else {
+            throw new IllegalStateException("This task's worker is not set");
+        }
     }
 
     @Override

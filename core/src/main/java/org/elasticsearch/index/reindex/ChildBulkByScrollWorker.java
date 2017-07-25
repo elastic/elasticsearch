@@ -87,6 +87,11 @@ public class ChildBulkByScrollWorker implements SuccessfullyProcessed {
             task.getReasonCancelled(), throttledUntil());
     }
 
+    public void handleCancel() {
+        // Drop the throttle to 0, immediately rescheduling any throttle operation so it will wake up and cancel itself.
+        rethrottle(Float.POSITIVE_INFINITY);
+    }
+
     public void setTotal(long totalHits) {
         total.set(totalHits);
     }
@@ -196,6 +201,7 @@ public class ChildBulkByScrollWorker implements SuccessfullyProcessed {
     }
 
     public void rethrottle(float newRequestsPerSecond) {
+        logger.warn("[{}]: STARTING CHILD RETHROTTLE", task.getId());
         synchronized (delayedPrepareBulkRequestReference) {
             logger.debug("[{}]: rethrottling to [{}] requests per second", task.getId(), newRequestsPerSecond);
             setRequestsPerSecond(newRequestsPerSecond);
@@ -209,6 +215,7 @@ public class ChildBulkByScrollWorker implements SuccessfullyProcessed {
 
             this.delayedPrepareBulkRequestReference.set(delayedPrepareBulkRequest.rethrottle(newRequestsPerSecond));
         }
+        logger.warn("[{}]:22 FINISH CHILD RETHROTTLE HANDLING TASK", task.getId());
     }
 
     class DelayedPrepareBulkRequest {

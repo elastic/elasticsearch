@@ -84,29 +84,19 @@ task shadeDeps(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar)
   }
 }
 
-// builds the actual shaded jar that is being distributed
-shadowJar {
-  configurations = [project.configurations.shade]
-  classifier = null
-  relocate 'org.apache', 'org.elasticsearch.client'
-}
-
 jar {
-  // move the default jar to another classifier so the jar with the shaded dependencies can have the empty classifier
-  classifier = 'nodeps'
+  from zipTree(shadeDeps.outputs.files.singleFile)
+  dependsOn shadeDeps
 }
 
-// Mangle this build so it outputs the correct artifacts
-// readds the shadowJar output (the actual uber jar) but only from the cli
+// remove the deps jar from the classpath to avoid jarHell
 if (isIdea == false && isEclipse == false) {
-  // removes the -nodeps jar
-  configurations.runtime.artifacts.removeAll { it.archiveTask.is jar }
-
-  // removes the runtime configuration inheritance from compile
+  // runtimeElements does not exist in 3.3
+  configurations.maybeCreate('runtimeElements')
+  // 3.3 cleanup to remove the deps jar from the classpath
   configurations.runtime.extendsFrom -= [configurations.compile]
-  artifacts {
-    runtime project.tasks.shadowJar
-  }
+  // 3.5+ cleanup to remove the deps jar from the classpath
+  configurations.runtimeElements.extendsFrom = []
 }
 
 // adds a dependency to compile, so the -deps jar is built first

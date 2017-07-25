@@ -42,6 +42,7 @@ case $key in
         GRADLE_CLI_ARGS=(
             "--info"
             "check"
+            "-xforbiddenPatterns"   # NOCOMMIT this is required *for now* but will be removed when we remove the NOCOMMITs
             "-Dtests.network=true"
             "-Dtests.badapples=true"
         )

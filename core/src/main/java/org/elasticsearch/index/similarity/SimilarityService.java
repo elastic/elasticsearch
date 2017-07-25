@@ -47,16 +47,26 @@ public final class SimilarityService extends AbstractIndexComponent {
     static {
         Map<String, SimilarityProvider.Factory> defaults = new HashMap<>();
         Map<String, SimilarityProvider.Factory> buildIn = new HashMap<>();
-        defaults.put("classic", ClassicSimilarityProvider::new);
-        defaults.put("BM25", BM25SimilarityProvider::new);
-        defaults.put("boolean", BooleanSimilarityProvider::new);
-        buildIn.put("classic", ClassicSimilarityProvider::new);
-        buildIn.put("BM25", BM25SimilarityProvider::new);
-        buildIn.put("DFR", DFRSimilarityProvider::new);
-        buildIn.put("IB", IBSimilarityProvider::new);
-        buildIn.put("LMDirichlet", LMDirichletSimilarityProvider::new);
-        buildIn.put("LMJelinekMercer", LMJelinekMercerSimilarityProvider::new);
-        buildIn.put("DFI", DFISimilarityProvider::new);
+        defaults.put("classic",
+                (name, settings, indexSettings, scriptService) -> new ClassicSimilarityProvider(name, settings, indexSettings));
+        defaults.put("BM25",
+                (name, settings, indexSettings, scriptService) -> new BM25SimilarityProvider(name, settings, indexSettings));
+        defaults.put("boolean",
+                (name, settings, indexSettings, scriptService) -> new BooleanSimilarityProvider(name, settings, indexSettings));
+        buildIn.put("classic",
+                (name, settings, indexSettings, scriptService) -> new ClassicSimilarityProvider(name, settings, indexSettings));
+        buildIn.put("BM25",
+                (name, settings, indexSettings, scriptService) -> new BM25SimilarityProvider(name, settings, indexSettings));
+        buildIn.put("DFR",
+                (name, settings, indexSettings, scriptService) -> new DFRSimilarityProvider(name, settings, indexSettings));
+        buildIn.put("IB",
+                (name, settings, indexSettings, scriptService) -> new IBSimilarityProvider(name, settings, indexSettings));
+        buildIn.put("LMDirichlet",
+                (name, settings, indexSettings, scriptService) -> new LMDirichletSimilarityProvider(name, settings, indexSettings));
+        buildIn.put("LMJelinekMercer",
+                (name, settings, indexSettings, scriptService) -> new LMJelinekMercerSimilarityProvider(name, settings, indexSettings));
+        buildIn.put("DFI",
+                (name, settings, indexSettings, scriptService) -> new DFISimilarityProvider(name, settings, indexSettings));
         buildIn.put("scripted", ScriptedSimilarityProvider::new);
         DEFAULTS = Collections.unmodifiableMap(defaults);
         BUILT_IN = Collections.unmodifiableMap(buildIn);

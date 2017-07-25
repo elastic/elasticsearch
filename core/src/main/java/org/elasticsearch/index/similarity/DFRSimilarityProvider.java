@@ -34,7 +34,6 @@ import org.apache.lucene.search.similarities.DFRSimilarity;
 import org.apache.lucene.search.similarities.Normalization;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -76,7 +75,7 @@ public class DFRSimilarityProvider extends AbstractSimilarityProvider {
 
     private final DFRSimilarity similarity;
 
-    public DFRSimilarityProvider(String name, Settings settings, Settings indexSettings, ScriptService scriptService) {
+    public DFRSimilarityProvider(String name, Settings settings, Settings indexSettings) {
         super(name);
         BasicModel basicModel = parseBasicModel(settings);
         AfterEffect afterEffect = parseAfterEffect(settings);

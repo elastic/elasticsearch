@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.script;
 
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.similarity.ScriptedSimilarity;
 
-import java.util.Map;
+import java.io.IOException;
 
-/**
- * Generic script interface that Painless implements for all Elasticsearch scripts.
- */
-public abstract class GenericElasticsearchScript {
+/** A script that is used to build {@link ScriptedSimilarity} instances. */
+public abstract class SimilarityScript  {
 
-    public GenericElasticsearchScript() {}
+    /** Compute the score. */
+    public abstract double execute(double weight, ScriptedSimilarity.Query query,
+            ScriptedSimilarity.Field field, ScriptedSimilarity.Term term, ScriptedSimilarity.Doc doc) throws IOException;
 
-    public static final String[] PARAMETERS = new String[] {"params", "_score", "doc", "_value", "ctx"};
-    public abstract Object execute(
-        Map<String, Object> params, double _score, Map<String, ScriptDocValues<?>> doc, Object _value, Map<?, ?> ctx);
+    public interface Factory {
+        SimilarityScript newInstance();
+    }
 
-    public abstract boolean needs_score();
-    public abstract boolean needsCtx();
+    public static final String[] PARAMETERS = new String[] {"weight", "query", "field", "term", "doc"};
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("similarity", Factory.class);
 }

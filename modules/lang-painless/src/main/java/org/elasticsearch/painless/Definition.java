@@ -660,7 +660,7 @@ public final class Definition {
     }
 
     private void addStruct(final String name, final Class<?> clazz) {
-        if (!name.matches("^[_a-zA-Z][\\.,_a-zA-Z0-9\\$]*$")) {
+        if (!name.matches("^[_a-zA-Z][\\.,_a-zA-Z0-9]*$")) {
             throw new IllegalArgumentException("Invalid struct name [" + name + "].");
         }
 

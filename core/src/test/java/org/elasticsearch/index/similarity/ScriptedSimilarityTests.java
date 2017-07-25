@@ -40,7 +40,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.SimilarityScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -58,7 +58,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
     }
 
     private void doTestSameNormsAsBM25(boolean discountOverlaps) {
-        ScriptedSimilarity sim1 = new ScriptedSimilarity("foobar", null, discountOverlaps);
+        ScriptedSimilarity sim1 = new ScriptedSimilarity("foobar", null, "foobaz", null, discountOverlaps);
         BM25Similarity sim2 = new BM25Similarity();
         sim2.setDiscountOverlaps(discountOverlaps);
         for (int iter = 0; iter < 100; ++iter) {
@@ -75,44 +75,33 @@ public class ScriptedSimilarityTests extends ESTestCase {
 
     public void testBasics() throws IOException {
         final AtomicBoolean called = new AtomicBoolean();
-        Supplier<ExecutableScript> scriptSupplier = () -> {
-            return new ExecutableScript() {
-
-                private ScriptedSimilarity.Stats stats;
+        Supplier<SimilarityScript> scriptSupplier = () -> {
+            return new SimilarityScript() {
 
                 @Override
-                public void setNextVar(String name, Object value) {
-                    switch (name) {
-                    case "stats":
-                        stats = (ScriptedSimilarity.Stats) value;
-                        break;
-                    default:
-                        throw new AssertionError(name);
-                    }
-                }
-
-                @Override
-                public Object run() {
-                    assertNotNull(stats);
-                    assertNotNull(stats.doc);
-                    assertEquals(2f, stats.doc.getFreq(), 0);
-                    assertEquals(3, stats.doc.getLength(), 0);
-                    assertNotNull(stats.field);
-                    assertEquals(3, stats.field.getDocCount());
-                    assertEquals(5, stats.field.getSumDocFreq());
-                    assertEquals(6, stats.field.getSumTotalTermFreq());
-                    assertNotNull(stats.term);
-                    assertEquals(2, stats.term.getDocFreq());
-                    assertEquals(3, stats.term.getTotalTermFreq());
-                    assertNotNull(stats.query);
-                    assertEquals(3.2f, stats.query.getBoost(), 0);
+                public double execute(double weight, ScriptedSimilarity.Query query,
+                        ScriptedSimilarity.Field field, ScriptedSimilarity.Term term,
+                        ScriptedSimilarity.Doc doc) throws IOException {
+                    assertEquals(1, weight, 0);
+                    assertNotNull(doc);
+                    assertEquals(2f, doc.getFreq(), 0);
+                    assertEquals(3, doc.getLength(), 0);
+                    assertNotNull(field);
+                    assertEquals(3, field.getDocCount());
+                    assertEquals(5, field.getSumDocFreq());
+                    assertEquals(6, field.getSumTotalTermFreq());
+                    assertNotNull(term);
+                    assertEquals(2, term.getDocFreq());
+                    assertEquals(3, term.getTotalTermFreq());
+                    assertNotNull(query);
+                    assertEquals(3.2f, query.getBoost(), 0);
                     called.set(true);
                     return 42f;
                 }
-                
+
             };
         };
-        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", scriptSupplier, true);
+        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", null, "foobaz", scriptSupplier, true);
         Directory dir = new RAMDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
 
@@ -147,4 +136,92 @@ public class ScriptedSimilarityTests extends ESTestCase {
         dir.close();
     }
 
+    public void testInitScript() throws IOException {
+        final AtomicBoolean initCalled = new AtomicBoolean();
+        Supplier<SimilarityScript> initScriptSupplier = () -> {
+            return new SimilarityScript() {
+
+                @Override
+                public double execute(double weight, ScriptedSimilarity.Query query,
+                        ScriptedSimilarity.Field field, ScriptedSimilarity.Term term,
+                        ScriptedSimilarity.Doc doc) throws IOException {
+                    assertEquals(1, weight, 0d);
+                    assertNull(doc);
+                    assertNotNull(field);
+                    assertEquals(3, field.getDocCount());
+                    assertEquals(5, field.getSumDocFreq());
+                    assertEquals(6, field.getSumTotalTermFreq());
+                    assertNotNull(term);
+                    assertEquals(2, term.getDocFreq());
+                    assertEquals(3, term.getTotalTermFreq());
+                    assertNotNull(query);
+                    assertEquals(3.2f, query.getBoost(), 0);
+                    initCalled.set(true);
+                    return 28;
+                }
+
+            };
+        };
+        final AtomicBoolean called = new AtomicBoolean();
+        Supplier<SimilarityScript> scriptSupplier = () -> {
+            return new SimilarityScript() {
+
+                @Override
+                public double execute(double weight, ScriptedSimilarity.Query query,
+                        ScriptedSimilarity.Field field, ScriptedSimilarity.Term term,
+                        ScriptedSimilarity.Doc doc) throws IOException {
+                    assertEquals(28, weight, 0d);
+                    assertNotNull(doc);
+                    assertEquals(2f, doc.getFreq(), 0);
+                    assertEquals(3, doc.getLength(), 0);
+                    assertNotNull(field);
+                    assertEquals(3, field.getDocCount());
+                    assertEquals(5, field.getSumDocFreq());
+                    assertEquals(6, field.getSumTotalTermFreq());
+                    assertNotNull(term);
+                    assertEquals(2, term.getDocFreq());
+                    assertEquals(3, term.getTotalTermFreq());
+                    assertNotNull(query);
+                    assertEquals(3.2f, query.getBoost(), 0);
+                    called.set(true);
+                    return 42;
+                }
+
+            };
+        };
+        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", initScriptSupplier, "foobaz", scriptSupplier, true);
+        Directory dir = new RAMDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
+
+        Document doc = new Document();
+        doc.add(new TextField("f", "foo bar", Store.NO));
+        doc.add(new StringField("match", "no", Store.NO));
+        w.addDocument(doc);
+
+        doc = new Document();
+        doc.add(new TextField("f", "foo foo bar", Store.NO));
+        doc.add(new StringField("match", "yes", Store.NO));
+        w.addDocument(doc);
+
+        doc = new Document();
+        doc.add(new TextField("f", "bar", Store.NO));
+        doc.add(new StringField("match", "no", Store.NO));
+        w.addDocument(doc);
+
+        IndexReader r = DirectoryReader.open(w);
+        w.close();
+        IndexSearcher searcher = new IndexSearcher(r);
+        searcher.setSimilarity(sim);
+        Query query = new BoostQuery(new BooleanQuery.Builder()
+                .add(new TermQuery(new Term("f", "foo")), Occur.SHOULD)
+                .add(new TermQuery(new Term("match", "yes")), Occur.FILTER)
+                .build(), 3.2f);
+        TopDocs topDocs = searcher.search(query, 1);
+        assertEquals(1, topDocs.totalHits);
+        assertTrue(initCalled.get());
+        assertTrue(called.get());
+        assertEquals(42, topDocs.scoreDocs[0].score, 0);
+        w.close();
+        dir.close();
+    }
 }

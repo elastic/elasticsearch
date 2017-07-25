@@ -45,7 +45,7 @@ public class ScriptModule {
             ExecutableScript.AGGS_CONTEXT,
             ExecutableScript.UPDATE_CONTEXT,
             ExecutableScript.INGEST_CONTEXT,
-            ExecutableScript.SIMILARITY_CONTEXT,
+            SimilarityScript.CONTEXT,
             TemplateScript.CONTEXT
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }

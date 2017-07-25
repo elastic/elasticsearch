@@ -51,5 +51,4 @@ public interface ExecutableScript {
     ScriptContext<Factory> AGGS_CONTEXT = new ScriptContext<>("aggs_executable", Factory.class);
     ScriptContext<Factory> UPDATE_CONTEXT = new ScriptContext<>("update", Factory.class);
     ScriptContext<Factory> INGEST_CONTEXT = new ScriptContext<>("ingest", Factory.class);
-    ScriptContext<Factory> SIMILARITY_CONTEXT = new ScriptContext<>("similarity", Factory.class);
 }

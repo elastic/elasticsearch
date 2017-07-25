@@ -21,13 +21,11 @@ package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.SimilarityScript;
 
-import java.util.Collections;
-
+/** Provider of scripted similarities. */
 public class ScriptedSimilarityProvider extends AbstractSimilarityProvider {
 
     private final ScriptedSimilarity scriptedSimilarity;
@@ -35,26 +33,19 @@ public class ScriptedSimilarityProvider extends AbstractSimilarityProvider {
     public ScriptedSimilarityProvider(String name, Settings settings, Settings indexSettings, ScriptService scriptService) {
         super(name);
         boolean discountOverlaps = settings.getAsBoolean("discount_overlaps", true);
-        String lang = settings.get("lang", Script.DEFAULT_SCRIPT_LANG);
-        String source = settings.get("source");
-        if (source == null) {
-            throw new IllegalArgumentException("Scripted similarities only support inline scripts, but [source] has no value");
+        Settings scriptSettings = settings.getAsSettings("script");
+        Script script = Script.parse(scriptSettings);
+        SimilarityScript.Factory scriptFactory = scriptService.compile(script, SimilarityScript.CONTEXT);
+        Settings initScriptSettings = settings.getAsSettings("init_script");
+        Script initScript = null;
+        SimilarityScript.Factory initScriptFactory = null;
+        if (initScriptSettings.isEmpty() == false) {
+            initScript = Script.parse(initScriptSettings);
+            initScriptFactory = scriptService.compile(initScript, SimilarityScript.CONTEXT);
         }
-        String stored = settings.get("stored");
-        if (stored != null) {
-            throw new IllegalArgumentException("Scripted similarities only support inline scripts, but [stored] was provided");
-        }
-        String id = settings.get("id");
-        if (id != null) {
-            throw new IllegalArgumentException("Scripted similarities only support inline scripts, but [id] was provided");
-        }
-        if (settings.getGroups("params").isEmpty() == false) {
-            throw new IllegalArgumentException("Scripted similarities do not support [params]");
-        }
-        Script script = new Script(ScriptType.INLINE, lang, source, Collections.emptyMap());
-        ExecutableScript.Factory scriptFactory = scriptService.compile(script, ExecutableScript.SIMILARITY_CONTEXT);
-        scriptedSimilarity = new ScriptedSimilarity(script.toString(),
-                () -> scriptFactory.newInstance(Collections.emptyMap()), discountOverlaps);
+        scriptedSimilarity = new ScriptedSimilarity(
+                initScript == null ? null : initScript.toString(), initScriptFactory == null ? null : initScriptFactory::newInstance,
+                script.toString(), scriptFactory::newInstance, discountOverlaps);
     }
 
     @Override

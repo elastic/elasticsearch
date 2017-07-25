@@ -25,7 +25,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptService;
 
 /**
  * {@link SimilarityProvider} for the {@link BM25Similarity}.
@@ -42,7 +41,7 @@ public class BM25SimilarityProvider extends AbstractSimilarityProvider {
 
     private final BM25Similarity similarity;
 
-    public BM25SimilarityProvider(String name, Settings settings, Settings indexSettings, ScriptService scriptService) {
+    public BM25SimilarityProvider(String name, Settings settings, Settings indexSettings) {
         super(name);
         float k1 = settings.getAsFloat("k1", 1.2f);
         float b = settings.getAsFloat("b", 0.75f);

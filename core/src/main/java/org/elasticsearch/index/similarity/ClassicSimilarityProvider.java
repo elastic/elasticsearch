@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptService;
 
 /**
  * {@link SimilarityProvider} for {@link ClassicSimilarity}.
@@ -39,7 +38,7 @@ public class ClassicSimilarityProvider extends AbstractSimilarityProvider {
 
     private final ClassicSimilarity similarity = new ClassicSimilarity();
 
-    public ClassicSimilarityProvider(String name, Settings settings, Settings indexSettings, ScriptService scriptService) {
+    public ClassicSimilarityProvider(String name, Settings settings, Settings indexSettings) {
         super(name);
         boolean discountOverlaps = settings.getAsBooleanLenientForPreEs6Indices(
             Version.indexCreated(indexSettings), "discount_overlaps", true, new DeprecationLogger(ESLoggerFactory.getLogger(getClass())));

@@ -21,7 +21,6 @@ package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptService;
 
 /**
  * {@link SimilarityProvider} for the {@link BooleanSimilarity},
@@ -35,7 +34,7 @@ public class BooleanSimilarityProvider extends AbstractSimilarityProvider {
 
     private final BooleanSimilarity similarity = new BooleanSimilarity();
 
-    public BooleanSimilarityProvider(String name, Settings settings, Settings indexSettings, ScriptService scriptService) {
+    public BooleanSimilarityProvider(String name, Settings settings, Settings indexSettings) {
         super(name);
     }
 

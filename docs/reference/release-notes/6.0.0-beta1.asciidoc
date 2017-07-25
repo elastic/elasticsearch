@@ -1,0 +1,350 @@
+[[release-notes-6.0.0-beta1]]
+== 6.0.0-beta1 Release Notes
+
+Also see <<breaking-changes-6.0>>.
+
+[[breaking-6.0.0-beta1]]
+[float]
+=== Breaking changes
+
+Index APIs::
+* Remove (deprecated) support for '+' in index expressions {pull}25274[#25274] (issue: {issue}24515[#24515])
+* Delete index API to work only against concrete indices {pull}25268[#25268] (issues: {issue}2318[#2318], {issue}23997[#23997])
+
+Indexed Scripts/Templates::
+* Scripting: Remove search template actions {pull}25717[#25717]
+
+Ingest::
+* update ingest-user-agent regexes.yml {pull}25608[#25608]
+* remove ingest.new_date_format {pull}25583[#25583]
+
+Packaging::
+* Remove support for ES_INCLUDE {pull}25804[#25804]
+* Setup: Change default heap to 1G {pull}25695[#25695]
+* Use config directory to find jvm.options {pull}25679[#25679] (issue: {issue}23004[#23004])
+* Remove default path settings {pull}25408[#25408] (issue: {issue}25357[#25357])
+* Remove path.conf setting {pull}25392[#25392] (issue: {issue}25357[#25357])
+
+Plugin Analysis ICU::
+* Upgrade icu4j for the ICU analysis plugin to 59.1 {pull}25243[#25243] (issue: {issue}21425[#21425])
+
+Plugin Repository GCS::
+* GCS Repository: Remove specifying credential file on disk {pull}24727[#24727]
+
+Query DSL::
+* Refactor QueryStringQuery for 6.0 {pull}25646[#25646] (issue: {issue}25574[#25574])
+* Remove deprecated template query {pull}24577[#24577] (issue: {issue}19390[#19390])
+
+REST::
+* IndexClosedException to return 400 rather than 403 {pull}25752[#25752]
+* Remove comma-separated feature parsing for GetIndicesAction {pull}24723[#24723] (issue: {issue}24437[#24437])
+
+Scripting::
+* remove lang url parameter from stored script requests {pull}25779[#25779]
+* Disallow lang to be used with Stored Scripts {pull}25610[#25610]
+* Remove Deprecated Script Settings {pull}24756[#24756] (issue: {issue}24532[#24532])
+* Scripting: Remove native scripts {pull}24726[#24726] (issue: {issue}19966[#19966])
+* Scripting: Remove file scripts {pull}24627[#24627] (issue: {issue}21798[#21798])
+
+Search::
+* Make `index` in TermsLookup mandatory {pull}25753[#25753] (issue: {issue}25750[#25750])
+* Removes FieldStats API {pull}25628[#25628] (issue: {issue}25577[#25577])
+
+Settings::
+* Settings: Remove shared setting property {pull}24728[#24728]
+* Settings: Remove support for yaml and json config files {pull}24664[#24664] (issue: {issue}19391[#19391])
+
+
+
+[[breaking-java-6.0.0-beta1]]
+[float]
+=== Breaking Java changes
+
+Aggregations::
+* Remove the unused SignificantTerms.compareTerm() method {pull}24714[#24714]
+* Make SignificantTerms.Bucket an interface rather than an abstract class {pull}24670[#24670] (issue: {issue}24492[#24492])
+
+Internal::
+* Collapses package structure for some bucket aggs {pull}25579[#25579] (issue: {issue}22868[#22868])
+
+Java High Level REST Client::
+* Unify the result interfaces from get and search in Java client {pull}25361[#25361] (issue: {issue}16440[#16440])
+
+Java REST Client::
+* Rename client artifacts {pull}25693[#25693] (issue: {issue}20248[#20248])
+
+Plugin Delete By Query::
+* Move DeleteByQuery and Reindex requests into core {pull}24578[#24578]
+
+
+
+[[deprecation-6.0.0-beta1]]
+[float]
+=== Deprecations
+
+Index APIs::
+* Deprecated use of + in index expressions {pull}24585[#24585] (issue: {issue}24515[#24515])
+
+Indexed Scripts/Templates::
+* Scripting: Deprecate stored search template apis {pull}25437[#25437] (issue: {issue}24596[#24596])
+
+Percolator::
+* Deprecate percolate query's document_type parameter. {pull}25199[#25199]
+
+Scripting::
+* Scripting: Deprecate native scripts {pull}24692[#24692] (issue: {issue}19966[#19966])
+* Scripting: Deprecate index lookup {pull}24691[#24691] (issue: {issue}19359[#19359])
+* Deprecate Fine Grain Settings for Scripts {pull}24573[#24573] (issue: {issue}24532[#24532])
+
+Settings::
+* Settings: Update settings deprecation from yml to yaml {pull}24663[#24663] (issue: {issue}19391[#19391])
+
+Tribe Node::
+* Deprecate tribe service {pull}24598[#24598] (issue: {issue}24581[#24581])
+
+
+
+[[feature-6.0.0-beta1]]
+[float]
+=== New features
+
+Analysis::
+* Expose simplepattern and simplepatternsplit tokenizers {pull}25159[#25159] (issue: {issue}23363[#23363])
+
+Sequence IDs::
+* Add a scheduled translog retention check {pull}25622[#25622] (issues: {issue}10708[#10708], {issue}25294[#25294])
+* Initialize sequence numbers on a shrunken index {pull}25321[#25321] (issue: {issue}10708[#10708])
+* Initialize primary term for shrunk indices {pull}25307[#25307] (issue: {issue}10708[#10708])
+* Introduce translog size and age based retention policies {pull}25147[#25147] (issue: {issue}10708[#10708])
+
+Upgrade API::
+* TemplateUpgraders should be called during rolling restart {pull}25263[#25263] (issues: {issue}24379[#24379], {issue}24680[#24680])
+
+
+
+[[enhancement-6.0.0-beta1]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Add strict parsing of aggregation ranges {pull}25769[#25769]
+* Tweak AggregatorBase.addRequestCircuitBreakerBytes {pull}25162[#25162] (issue: {issue}24511[#24511])
+* Add document count to Matrix Stats aggregation response {pull}24776[#24776]
+*  Share XContent rendering code in significant terms aggregations {pull}24677[#24677]
+
+Allocation::
+* Promote replica on the highest version node {pull}25277[#25277] (issue: {issue}10708[#10708])
+
+Analysis::
+* [Analysis] Support normalizer in request param {pull}24767[#24767] (issue: {issue}23347[#23347])
+
+Cluster::
+* Validate a joining node's version with version of existing cluster nodes {pull}25808[#25808]
+* Add a cluster block that allows to delete indices that are read-only {pull}24678[#24678]
+
+Core::
+* Add compatibility versions to main action response {pull}25799[#25799]
+* Index ids in binary form. {pull}25352[#25352] (issues: {issue}18154[#18154], {issue}24615[#24615])
+* Explicitly reject duplicate data paths {pull}25178[#25178]
+* Upgrade to lucene-7.0.0-snapshot-a0aef2f {pull}24775[#24775]
+
+Highlighting::
+* Picks offset source for the unified highlighter directly from the es mapping {pull}25747[#25747] (issue: {issue}25699[#25699])
+
+Index APIs::
+* Let primary own its replication group {pull}25692[#25692] (issue: {issue}25485[#25485])
+* Create index request should return the index name {pull}25139[#25139] (issue: {issue}23044[#23044])
+
+Ingest::
+* Add Ingest-Processor specific Rest Endpoints & Add Grok endpoint {pull}25059[#25059] (issue: {issue}24725[#24725])
+* Allow removing multiple fields in ingest processor {pull}24750[#24750] (issue: {issue}24622[#24622])
+
+Internal::
+* Bump the min compat version to 5.6.0 {pull}25805[#25805]
+* "shard started" should show index and shard ID {pull}25157[#25157]
+* Remove the need for _UNRELEASED suffix in versions {pull}24798[#24798] (issue: {issue}24768[#24768])
+* Optimize the order of bytes in uuids for better compression. {pull}24615[#24615] (issue: {issue}18209[#18209])
+
+Java High Level REST Client::
+* Add search method to high level REST client {pull}24796[#24796] (issues: {issue}24794[#24794], {issue}24795[#24795])
+
+Java REST Client::
+* Shade external dependencies in the rest client jar {pull}25780[#25780] (issue: {issue}25208[#25208])
+* RestClient uses system properties and system default SSLContext {pull}25757[#25757] (issue: {issue}23231[#23231])
+
+Logging::
+* Prevent excessive disk consumption by log files {pull}25660[#25660]
+
+Mapping::
+* Optimize `terms` queries on `ip` addresses to use a `PointInSetQuery` whenever possible. {pull}25669[#25669] (issue: {issue}25667[#25667])
+
+Network::
+* Move TransportStats accounting into TcpTransport {pull}25251[#25251]
+* Simplify connection closing and cleanups in TcpTransport {pull}25250[#25250]
+* Disable the Netty recycler in the client {pull}24793[#24793] (issues: {issue}22452[#22452], {issue}24721[#24721])
+* Remove Netty logging hack {pull}24653[#24653] (issues: {issue}24469[#24469], {issue}5624[#5624], {issue}6568[#6568], {issue}6696[#6696])
+
+Packaging::
+* Introduce elasticsearch-env {pull}25815[#25815] (issue: {issue}20286[#20286])
+* Stop exporting HOSTNAME from scripts {pull}25807[#25807]
+
+Plugin Lang Painless::
+* Update Painless to Allow Augmentation from Any Class {pull}25360[#25360]
+* Add Needs Methods to Painless Script Context Factories {pull}25267[#25267]
+* Support Script Context Stateful Factory in Painless {pull}25233[#25233]
+* Optimize instance creation in LambdaBootstrap {pull}24618[#24618]
+
+Plugin Repository GCS::
+* GCS Repository: Add secure storage of credentials {pull}24697[#24697]
+
+Plugin Repository S3::
+* S3 Repository: Add back repository level credentials {pull}24609[#24609]
+
+Plugins::
+* Allow plugins to register pre-configured tokenizers {pull}24751[#24751] (issues: {issue}24223[#24223], {issue}24572[#24572])
+* Move ReindexAction class to core {pull}24684[#24684] (issue: {issue}24578[#24578])
+
+Query DSL::
+* Make slop optional when parsing `span_near` query {pull}25677[#25677] (issue: {issue}25642[#25642])
+* Require a field when a `seed` is provided to the `random_score` function. {pull}25594[#25594] (issue: {issue}25240[#25240])
+
+REST::
+* Make ObjectParser support string to boolean conversion {pull}24668[#24668] (issue: {issue}21802[#21802])
+
+Scripting::
+* Scripting: Rename SearchScript.needsScores to needs_score {pull}25235[#25235]
+* Add New Security Script Settings {pull}24637[#24637] (issue: {issue}24532[#24532])
+
+Search::
+* Rewrite search requests on the coordinating nodes {pull}25814[#25814] (issue: {issue}25791[#25791])
+* Ensure query resources are fetched asynchronously during rewrite {pull}25791[#25791]
+* Introduce a new Rewriteable interface to streamline rewriting {pull}25788[#25788]
+* Reduce the scope of `QueryRewriteContext` {pull}25787[#25787]
+* Reduce the overhead of timeouts and low-level search cancellation. {pull}25776[#25776]
+* Reduce profiling overhead. {pull}25772[#25772] (issue: {issue}24799[#24799])
+* Prevent `can_match` requests from sending to incompatible nodes {pull}25705[#25705] (issue: {issue}25704[#25704])
+* Add a shard filter search phase to pre-filter shards based on query rewriting {pull}25658[#25658]
+* Ensure we rewrite common queries to `match_none` if possible {pull}25650[#25650]
+* Limit the number of concurrent shard requests per search request {pull}25632[#25632]
+* Search: Fairer balancing when routing searches by session ID {pull}24671[#24671] (issue: {issue}24642[#24642])
+
+Sequence IDs::
+* Move primary term from ReplicationRequest to ConcreteShardRequest {pull}25822[#25822]
+* Add reason to global checkpoint updates on replica {pull}25612[#25612] (issue: {issue}10708[#10708])
+* Enable a long translog retention policy by default {pull}25294[#25294] (issues: {issue}10708[#10708], {issue}25147[#25147])
+* Block older operations on primary term transition {pull}24779[#24779] (issue: {issue}10708[#10708])
+
+Settings::
+* Add disk threshold settings validation {pull}25600[#25600] (issue: {issue}25560[#25560])
+* IndexMetaData: Introduce internal format index setting {pull}25292[#25292]
+
+Snapshot/Restore::
+* Improves snapshot logging and snapshot deletion error handling {pull}25264[#25264]
+
+
+
+[[bug-6.0.0-beta1]]
+[float]
+=== Bug fixes
+
+Aliases::
+* mget with an alias shouldn't ignore alias routing {pull}25697[#25697] (issue: {issue}25696[#25696])
+
+Analysis::
+* Pre-configured shingle filter should disable graph analysis {pull}25853[#25853] (issue: {issue}25555[#25555])
+
+Circuit Breakers::
+* Checks the circuit breaker before allocating bytes for a new big array {pull}25010[#25010] (issue: {issue}24790[#24790])
+
+Engine::
+* Engine - do not index operations with seq# lower than the local checkpoint into lucene {pull}25827[#25827] (issues: {issue}1[#1], {issue}2[#2], {issue}25592[#25592])
+
+Highlighting::
+* FastVectorHighlighter should not cache the field query globally {pull}25197[#25197] (issue: {issue}25171[#25171])
+
+Ingest::
+* Sort Processor does not have proper behavior with targetField {pull}25237[#25237] (issue: {issue}24133[#24133])
+
+Internal::
+* Fix BytesReferenceStreamInput#skip with offset {pull}25634[#25634]
+* Initialise empty lists in BaseTaskResponse constructor {pull}25290[#25290]
+* Obey lock order if working with store to get metadata snapshots {pull}24787[#24787] (issue: {issue}24481[#24481])
+* Fix Version based BWC and set correct minCompatVersion {pull}24732[#24732]
+* Fix `_field_caps` serialization in order to support cross cluster search {pull}24722[#24722]
+* Avoid race when shutting down controller processes {pull}24579[#24579]
+
+Mapping::
+* Fix parsing of ip range queries. {pull}25768[#25768] (issue: {issue}25636[#25636])
+* Disable date field mapping changing {pull}25285[#25285] (issue: {issue}25271[#25271])
+
+More Like This::
+* Pass over _routing value with more_like_this items to be retrieved {pull}24679[#24679] (issue: {issue}23699[#23699])
+
+Nested Docs::
+* In case of a single type the _id field should be added to the nested document instead of _uid field {pull}25149[#25149]
+
+Network::
+* Ensure pending transport handlers are invoked for all channel failures {pull}25150[#25150]
+* Notify onConnectionClosed rather than onNodeDisconnect to prune transport handlers {pull}24639[#24639] (issues: {issue}24557[#24557], {issue}24575[#24575], {issue}24632[#24632])
+
+Packaging::
+* Fix elasticsearch-keystore handling of path.conf {pull}25811[#25811]
+* Stop disabling explicit GC {pull}25759[#25759]
+* Avoid failing install if system-sysctl is masked {pull}25657[#25657] (issue: {issue}24234[#24234])
+* Get short path name for native controllers {pull}25344[#25344]
+* When stopping via systemd only kill the JVM, not its control group {pull}25195[#25195]
+* remove remaining references to scripts directory {pull}24771[#24771]
+* Handle parentheses in batch file path {pull}24731[#24731] (issue: {issue}24712[#24712])
+
+Parent/Child::
+* The default _parent field should not try to load global ordinals {pull}25851[#25851] (issue: {issue}25849[#25849])
+
+Percolator::
+* Fix range queries with date range based on current time in percolator queries. {pull}24666[#24666] (issue: {issue}23921[#23921])
+
+Plugin Repository S3::
+* Avoid SecurityException in repository-S3 on DefaultS3OutputStream.flush() {pull}25254[#25254] (issue: {issue}25192[#25192])
+
+Query DSL::
+* SpanNearQueryBuilder should return the inner clause when a single clause is provided {pull}25856[#25856] (issue: {issue}25630[#25630])
+* Refactor field expansion for match, multi_match and query_string query {pull}25726[#25726] (issues: {issue}25551[#25551], {issue}25556[#25556])
+
+REST::
+* Fix handling of invalid error trace parameter {pull}25785[#25785] (issue: {issue}25774[#25774])
+* Fix handling of exceptions thrown on HEAD requests {pull}25172[#25172] (issue: {issue}21125[#21125])
+
+Reindex API::
+* Reindex: don't duplicate _source parameter {pull}24629[#24629] (issue: {issue}24628[#24628])
+
+Search::
+* First increment shard stats before notifying and potentially sending response {pull}25818[#25818]
+* Prevent skipping shards if a suggest builder is present {pull}25739[#25739] (issue: {issue}25658[#25658])
+* Ensure remote cluster alias is preserved in inner hits aggs {pull}25627[#25627] (issue: {issue}25606[#25606])
+* Fix RangeFieldMapper rangeQuery to properly handle relations {pull}24808[#24808] (issue: {issue}24744[#24744])
+* Fix ExpandSearchPhase when response contains no hits {pull}24688[#24688] (issue: {issue}24672[#24672])
+
+Sequence IDs::
+* Fix pre-6.0 response to unknown replication actions {pull}25744[#25744] (issue: {issue}10708[#10708])
+* Initialize max unsafe auto ID timestamp on shrink {pull}25356[#25356] (issues: {issue}10708[#10708], {issue}25355[#25355])
+
+Settings::
+* Fix settings serialization to not serialize secure settings or not take the total size into account {pull}25323[#25323]
+* Keystore CLI should use the AddFileKeyStoreCommand for files {pull}25298[#25298]
+* Allow resetting settings that use an IP validator {pull}24713[#24713] (issue: {issue}24709[#24709])
+
+Snapshot/Restore::
+* Remove redundant and broken MD5 checksum from repository-s3 {pull}25270[#25270] (issue: {issue}25269[#25269])
+* Removes completed snapshot from cluster state on master change {pull}24605[#24605] (issue: {issue}24452[#24452])
+
+Suggesters::
+* Context suggester should filter doc values field {pull}25858[#25858] (issue: {issue}25404[#25404])
+
+
+
+[[upgrade-6.0.0-beta1]]
+[float]
+=== Upgrades
+
+Network::
+* Upgrade to Netty 4.1.13.Final {pull}25581[#25581] (issues: {issue}24729[#24729], {issue}6866[#6866])
+* Upgrade to Netty 4.1.11.Final {pull}24652[#24652]

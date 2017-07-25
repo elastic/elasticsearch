@@ -80,6 +80,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
@@ -97,6 +98,7 @@ public abstract class Engine implements Closeable {
     protected final EngineConfig engineConfig;
     protected final Store store;
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
+    private final CountDownLatch closedLatch = new CountDownLatch(1);
     protected final EventListener eventListener;
     protected final SnapshotDeletionPolicy deletionPolicy;
     protected final ReentrantLock failEngineLock = new ReentrantLock();
@@ -800,7 +802,7 @@ public abstract class Engine implements Closeable {
                 failedEngine.set((failure != null) ? failure : new IllegalStateException(reason));
                 try {
                     // we just go and close this engine - no way to recover
-                    closeNoLock("engine failed on: [" + reason + "]");
+                    closeNoLock("engine failed on: [" + reason + "]", closedLatch);
                 } finally {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed engine [{}]", reason), failure);
                     // we must set a failure exception, generate one if not supplied
@@ -1188,8 +1190,10 @@ public abstract class Engine implements Closeable {
 
     /**
      * Method to close the engine while the write lock is held.
+     * Must decrement the supplied when closing work is done and resources are
+     * freed.
      */
-    protected abstract void closeNoLock(String reason);
+    protected abstract void closeNoLock(String reason, CountDownLatch closedLatch);
 
     /**
      * Flush the engine (committing segments to disk and truncating the
@@ -1212,6 +1216,7 @@ public abstract class Engine implements Closeable {
                 }
             }
         }
+        awaitPendingClose();
     }
 
     @Override
@@ -1220,8 +1225,17 @@ public abstract class Engine implements Closeable {
             logger.debug("close now acquiring writeLock");
             try (ReleasableLock lock = writeLock.acquire()) {
                 logger.debug("close acquired writeLock");
-                closeNoLock("api");
+                closeNoLock("api", closedLatch);
             }
+        }
+        awaitPendingClose();
+    }
+
+    private void awaitPendingClose() {
+        try {
+            closedLatch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

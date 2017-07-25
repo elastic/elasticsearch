@@ -55,6 +55,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
@@ -75,6 +76,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -2342,6 +2344,60 @@ public class InternalEngineTests extends ESTestCase {
         mergeThread.join();
         logger.info("exception caught: ", exception.get());
         assertTrue("expected an Exception that signals shard is not available", TransportActions.isShardNotAvailableException(exception.get()));
+    }
+
+    /**
+     * Tests that when the the close method returns the engine is actually guaranteed to have cleaned up and that resources are closed
+     */
+    public void testConcurrentEngineClosed() throws BrokenBarrierException, InterruptedException {
+        Thread[] closingThreads = new Thread[3];
+        CyclicBarrier barrier = new CyclicBarrier(1 + closingThreads.length + 1);
+        Thread failEngine = new Thread(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                barrier.await();
+                engine.failEngine("test", new RuntimeException("test"));
+            }
+        });
+        failEngine.start();
+        for (int i = 0;i < closingThreads.length ; i++) {
+            boolean flushAndClose = randomBoolean();
+            closingThreads[i] = new Thread(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    barrier.await();
+                    if (flushAndClose) {
+                        engine.flushAndClose();
+                    } else {
+                        engine.close();
+                    }
+                    // try to acquire the writer lock - i.e., everything is closed, we need to synchronize
+                    // to avoid races between closing threads
+                    synchronized (closingThreads) {
+                        try (Lock ignored = store.directory().obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
+                            // all good.
+                        }
+                    }
+                }
+            });
+            closingThreads[i].setName("closingThread_" + i);
+            closingThreads[i].start();
+        }
+        barrier.await();
+        failEngine.join();
+        for (Thread t : closingThreads) {
+            t.join();
+        }
     }
 
     public void testCurrentTranslogIDisCommitted() throws IOException {

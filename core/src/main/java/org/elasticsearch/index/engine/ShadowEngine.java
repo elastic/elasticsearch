@@ -35,6 +35,7 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 
 /**
@@ -211,7 +212,7 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    protected void closeNoLock(String reason) {
+    protected void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
             try {
                 logger.debug("shadow replica close searcher manager refCount: {}", store.refCount());
@@ -219,7 +220,11 @@ public class ShadowEngine extends Engine {
             } catch (Exception e) {
                 logger.warn("shadow replica failed to close searcher manager", e);
             } finally {
-                store.decRef();
+                try {
+                    store.decRef();
+                } finally {
+                    closedLatch.countDown();
+                }
             }
         }
     }

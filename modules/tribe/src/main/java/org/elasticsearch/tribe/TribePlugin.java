@@ -167,7 +167,7 @@ public class TribePlugin extends Plugin implements DiscoveryPlugin, ClusterPlugi
             // create dummy setting just so that setting validation does not complain, these settings are going to be validated
             // again by the SettingsModule of the nested tribe node.
             Setting<String> setting = Setting.prefixKeySetting(prefix, (key) -> new Setting<>(key, "", Function.identity(),
-                Setting.Property.Dynamic, Setting.Property.NodeScope));
+                Setting.Property.NodeScope));
             allSettings.add(setting);
         }
 

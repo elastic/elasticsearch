@@ -790,6 +790,20 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertEquals(Messages.getMessage(Messages.JOB_CONFIG_PER_PARTITION_NORMALIZATION_CANNOT_USE_INFLUENCERS), e.getMessage());
     }
 
+    public void testVerifyInfluencerNames() {
+        AnalysisConfig.Builder config = createValidConfig();
+        Detector.Builder builder = new Detector.Builder(config.build().getDetectors().get(0));
+        config.build().getDetectors().set(0, builder.build());
+
+        config.setInfluencers(Arrays.asList("inf1", ""));
+        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, config::build);
+        assertEquals("Influencer names cannot be empty strings", e.getMessage());
+
+        config.setInfluencers(Arrays.asList("invalid\\backslash"));
+        e = ESTestCase.expectThrows(ElasticsearchException.class, config::build);
+        assertEquals("Invalid field name 'invalid\\backslash'. Field names cannot contain any of these characters: \",\\", e.getMessage());
+    }
+
     public void testVerify_GivenCategorizationFiltersContainInvalidRegex() {
         AnalysisConfig.Builder config = createValidCategorizationConfig();
         config.setCategorizationFilters(Arrays.asList("foo", "("));

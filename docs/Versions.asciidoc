@@ -1,5 +1,5 @@
 :version:               5.6.0
-:major-version:         5.6
+:major-version:         5.x
 :lucene_version:        6.6.0
 :lucene_version_path:   6_6_0
 :branch:                5.6

@@ -5,22 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.util;
 
+import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
+
 import java.io.IOException;
 import java.net.URL;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Properties;
 import java.util.Set;
-
-import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
+import java.util.jar.JarInputStream;
+import java.util.jar.Manifest;
 
 public abstract class Version {
-
-    private static final String UNKNOWN = "Unknown";
     private static final String VER;
-    private static final String HASH;
     private static final String SHORT_HASH;
 
     private static final int VER_MAJ, VER_MIN;
@@ -64,17 +62,26 @@ public abstract class Version {
             }
         }
 
-        Properties build = new Properties();
-        try {
-            build = IOUtils.propsFromString(IOUtils.asString(Version.class.getResourceAsStream("/jdbc-build.properties")));
-        } catch (Exception ex) {
-            // ignore if no build info was found
+        // This is similar to how Elasticsearch's Build class digs up its build information.
+        URL url = Version.class.getProtectionDomain().getCodeSource().getLocation();
+        String urlStr = url.toString();
+        if (urlStr.startsWith("file:/") && (urlStr.endsWith(".jar") || urlStr.endsWith("-SNAPSHOT.jar"))) {
+            try (JarInputStream jar = new JarInputStream(url.openStream())) {
+                Manifest manifest = jar.getManifest();
+                VER = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
+                int sep = VER.indexOf('.');
+                VER_MAJ = Integer.parseInt(VER.substring(0, sep - 1));
+                VER_MIN = Integer.parseInt(VER.substring(sep, VER.indexOf(sep, '.') - 1));
+                SHORT_HASH = manifest.getMainAttributes().getValue("Change");
+            } catch (IOException e) {
+                throw new RuntimeException("error finding version of driver", e);
+            }
+        } else {
+            VER_MAJ = 0;
+            VER_MIN = 0;
+            VER = "Unknown";
+            SHORT_HASH = "Unknown";
         }
-        VER_MAJ = Integer.parseInt(build.getProperty("version.major", "1"));
-        VER_MIN = Integer.parseInt(build.getProperty("version.minor", "0"));
-        VER = build.getProperty("version", UNKNOWN);
-        HASH = build.getProperty("hash", UNKNOWN);
-        SHORT_HASH = HASH.length() > 10 ? HASH.substring(0, 10) : HASH;
     }
 
     public static int versionMajor() {
@@ -91,10 +98,6 @@ public abstract class Version {
 
     public static String versionNumber() {
         return VER;
-    }
-
-    public static String versionHash() {
-        return HASH;
     }
 
     public static String versionHashShort() {

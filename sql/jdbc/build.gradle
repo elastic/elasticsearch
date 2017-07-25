@@ -7,37 +7,9 @@ description = 'JDBC driver for Elasticsearch'
 
 def generatedResources = "$buildDir/generated-resources/main"
 
-sourceSets {
-  main {
-    output.dir(generatedResources, builtBy: "generateGitHash")
-  }
-}
-
 forbiddenApisMain {
   // does not depend on core, so only jdk and http signatures should be checked
   signaturesURLs = [this.class.getResource('/forbidden/jdk-signatures.txt')]
-}
-
-task generateGitHash {
-  // TODO use the manifest file automatically built by elasticsearch.build
-  doLast {
-    Version current = Version.fromString(versions.elasticsearch)
-    String revHash = '123123123123123'
-    Properties props = new Properties()
-    props.put("version", versions.elasticsearch)
-    props.put("hash", revHash)
-    props.put("version.major", current.major as String)
-    props.put("version.minor", current.minor as String)
-    File output = new File(generatedResources, "jdbc-build.properties")
-    new File(generatedResources).mkdirs()
-    output.createNewFile()
-    def writer = output.newWriter("UTF-8")
-    try {
-      props.store(writer, null)
-    } finally {
-      writer.close()
-    }
-  }
 }
 
 dependencies {
@@ -115,4 +87,8 @@ eclipse {
 forbiddenApisTest {
   bundledSignatures -= 'jdk-non-portable'
   bundledSignatures += 'jdk-internal'
+}
+
+test.configure {
+  systemProperty 'tests.version.available', 'true'
 }

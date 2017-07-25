@@ -83,10 +83,6 @@ public class FieldValueFactorFunction extends ScoreFunction {
                 }
                 double val = value * boostFactor;
                 double result = modifier.apply(val);
-                if (Double.isNaN(result) || Double.isInfinite(result)) {
-                    throw new ElasticsearchException("Result of field modification [" + modifier.toString() + "(" + val
-                            + ")] must be a number");
-                }
                 return result;
             }
 

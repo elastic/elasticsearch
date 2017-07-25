@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.framework;
 
-import org.apache.http.HttpHost;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;

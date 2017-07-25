@@ -298,6 +298,10 @@ List of paths to PEM encoded certificate files that should be trusted.
 The path to the Java Keystore file that contains a private key and certificate.
 `ssl.key` and `ssl.keystore.path` may not be used at the same time.
 
+`ssl.keystore.type`::
+The format of the keystore file. Should be either `jks` to use the Java
+Keystore format, or `PKCS12` to use PKCS#12 files. The default is `jks`.
+
 `ssl.keystore.password`::
 The password to the keystore.
 
@@ -307,6 +311,10 @@ The password for the key in the keystore. Defaults to the keystore password.
 `ssl.truststore.path`::
 The path to the Java Keystore file that contains the certificates to trust.
 `ssl.certificate_authorities` and `ssl.truststore.path` may not be used at the same time.
+
+`ssl.truststore.type`::
+The format of the keystore file. Should be either `jks` to use the Java
+Keystore format, or `PKCS12` to use PKCS#12 files. The default is `jks`.
 
 `ssl.truststore.password`::
 The password to the truststore.
@@ -482,6 +490,10 @@ List of paths to PEM encoded certificate files that should be trusted.
 `ssl.keystore.path`::
 The path to the Java Keystore file that contains a private key and certificate.
 
+`ssl.keystore.type`::
+The format of the keystore file. Should be either `jks` to use the Java
+Keystore format, or `PKCS12` to use PKCS#12 files. The default is `jks`.
+
 `ssl.keystore.password`::
 The password to the keystore.
 
@@ -490,6 +502,10 @@ The password for the key in the keystore. Defaults to the keystore password.
 
 `ssl.truststore.path`::
 The path to the Java Keystore file that contains the certificates to trust.
+
+`ssl.truststore.type`::
+The format of the truststore file. Should be either `jks` to use the Java
+Keystore format, or `PKCS12` to use PKCS#12 files. The default is `jks`.
 
 `ssl.truststore.password`::
 The password to the truststore.
@@ -632,6 +648,35 @@ same value as `xpack.ssl.keystore.password`.
 
 `xpack.ssl.truststore.path`::
 Path to the truststore file.
+
+`xpack.ssl.truststore.password`::
+Password to the truststore.
+
+[float]
+===== PKCS#12 Files
+
+When using PKCS#12 container files (`.p12` or `.pfx`), which contain the
+private key, certificate, and certificates that should be trusted, use
+the following settings:
+
+`xpack.ssl.keystore.path`::
+Path to the PKCS#12 file that holds the private key and certificate.
+
+`xpack.ssl.keystore.type`::
+Set this to `PKCS12`.
+
+`xpack.ssl.keystore.password`::
+Password to the PKCS#12 file.
+
+`xpack.ssl.keystore.key_password`::
+Password for the private key in the PKCS12 file.
+Defaults to the same value as `xpack.ssl.keystore.password`.
+
+`xpack.ssl.truststore.path`::
+Path to the truststore file.
+
+`xpack.ssl.truststore.type`::
+Set this to `PKCS12`.
 
 `xpack.ssl.truststore.password`::
 Password to the truststore.

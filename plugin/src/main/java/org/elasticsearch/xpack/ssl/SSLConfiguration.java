@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.XPackSettings;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 import java.nio.file.Path;
+import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -186,8 +187,7 @@ public final class SSLConfiguration {
             } else if (System.getProperty("javax.net.ssl.keyStore") != null) {
                 // TODO: we should not support loading a keystore from sysprops...
                 try (SecureString keystorePassword = new SecureString(System.getProperty("javax.net.ssl.keyStorePassword", ""))) {
-                    return new StoreKeyConfig(System.getProperty("javax.net.ssl.keyStore"),
-                        keystorePassword, keystorePassword,
+                    return new StoreKeyConfig(System.getProperty("javax.net.ssl.keyStore"), "jks", keystorePassword, keystorePassword,
                         System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm()),
                         System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
                 }
@@ -205,12 +205,14 @@ public final class SSLConfiguration {
         } else {
             SecureString keyStorePassword = SETTINGS_PARSER.keystorePassword.get(settings);
             String keyStoreAlgorithm = SETTINGS_PARSER.keystoreAlgorithm.get(settings);
+            String keyStoreType = SETTINGS_PARSER.keystoreType.get(settings);
             SecureString keyStoreKeyPassword = SETTINGS_PARSER.keystoreKeyPassword.get(settings);;
             if (keyStoreKeyPassword.length() == 0) {
                 keyStoreKeyPassword = keyStorePassword;
             }
             String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
-            return new StoreKeyConfig(keyStorePath, keyStorePassword, keyStoreKeyPassword, keyStoreAlgorithm, trustStoreAlgorithm);
+            return new StoreKeyConfig(keyStorePath, keyStoreType, keyStorePassword, keyStoreKeyPassword, keyStoreAlgorithm,
+                    trustStoreAlgorithm);
         }
     }
 
@@ -242,10 +244,11 @@ public final class SSLConfiguration {
         } else if (trustStorePath != null) {
             SecureString trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings);
             String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
-            return new StoreTrustConfig(trustStorePath, trustStorePassword, trustStoreAlgorithm);
+            String trustStoreType = SETTINGS_PARSER.truststoreType.get(settings);
+            return new StoreTrustConfig(trustStorePath, trustStoreType, trustStorePassword, trustStoreAlgorithm);
         } else if (global == null && System.getProperty("javax.net.ssl.trustStore") != null) {
             try (SecureString truststorePassword = new SecureString(System.getProperty("javax.net.ssl.trustStorePassword", ""))) {
-                return new StoreTrustConfig(System.getProperty("javax.net.ssl.trustStore"), truststorePassword,
+                return new StoreTrustConfig(System.getProperty("javax.net.ssl.trustStore"), "jks", truststorePassword,
                     System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
             }
         } else if (global != null && keyConfig == global.keyConfig()) {

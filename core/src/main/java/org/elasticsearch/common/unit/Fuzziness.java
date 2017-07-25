@@ -180,9 +180,9 @@ public final class Fuzziness implements ToXContent, Writeable {
     public int asDistance(String text) {
         if (this.equals(AUTO)) { //AUTO
             final int len = termLen(text);
-            if (len <= lowDistance) {
+            if (len < lowDistance) {
                 return 0;
-            } else if (len > highDistance) {
+            } else if (len >= highDistance) {
                 return 2;
             } else {
                 return 1;

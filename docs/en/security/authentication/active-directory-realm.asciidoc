@@ -302,14 +302,14 @@ operation are supported: failover and load balancing
 | `ssl.certificate`          | no       | Specifies the path to the PEM encoded certificate (or certificate chain) that goes with the key
                                           if the Active Directory server requires client authentication.
 | `ssl.certificate_authorities`| no     | Specifies the paths to the PEM encoded certificate authority certificates that
-                                          should be trusted. `ssl.certificate_authorities` and `ssl.trustsore.path` may not be used at
+                                          should be trusted. `ssl.certificate_authorities` and `ssl.truststore.path` may not be used at
                                           the same time.
 | `ssl.keystore.path`        | no       | The path to the Java Keystore file that contains a private key and certificate. `ssl.key` and
                                           `ssl.keystore.path` may not be used at the same time.
 | `ssl.keystore.password`    | no       | The password to the keystore.
 | `ssl.keystore.key_password`| no       | The password for the key in the keystore. Defaults to the keystore password.
 | `ssl.truststore.path`      | no       | The path to the Java Keystore file that contains the certificates to trust.
-                                          `ssl.certificate_authorities` and `ssl.trustsore.path` may not be used at the same time.
+                                          `ssl.certificate_authorities` and `ssl.truststore.path` may not be used at the same time.
 | `ssl.truststore.password`  | no       | The password to the truststore.
 | `ssl.verification_mode`    | no       | Specifies the type of verification to be performed when
                                           connecting to an Active Directory server using `ldaps`. When

@@ -304,6 +304,11 @@ xpack.security.http.ssl.enabled: true
 +
 
 . Restart Elasticsearch.
++
+You must perform a full cluster restart. Nodes which are configured to use
+SSL/TLS cannot communicate with nodes that are using unencrypted networking
+(and vice-versa). After enabling SSL/TLS you must restart all nodes in order
+to maintain communication across the cluster.
 
 NOTE: All SSL related node settings that are considered to be highly sensitive
       and therefore are not exposed via the

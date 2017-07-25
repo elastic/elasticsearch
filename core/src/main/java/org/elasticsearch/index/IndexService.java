@@ -472,9 +472,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             similarityService(), scriptService, xContentRegistry, client, indexReader, nowInMillis, clusterAlias);
     }
 
-        /**
-         * The {@link ThreadPool} to use for this index.
-         */
+    /**
+     * The {@link ThreadPool} to use for this index.
+     */
     public ThreadPool getThreadPool() {
         return threadPool;
     }

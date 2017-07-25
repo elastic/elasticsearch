@@ -23,6 +23,7 @@ import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.Version;
@@ -969,6 +970,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             resolvedFields = allQueryableDefaultFields(context);
             // Automatically set leniency to "true" so mismatched fields don't cause exceptions
             qpSettings.lenient(true);
+            if ("*".equals(queryString)) {
+                return new MatchAllDocsQuery();
+            }
         } else {
             qpSettings.defaultField(this.defaultField == null ? context.defaultField() : this.defaultField);
 

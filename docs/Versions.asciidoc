@@ -1,4 +1,4 @@
-:version:               5.5.0
+:version:               5.5.1
 :major-version:         5.x
 :lucene_version:        6.5.1
 :lucene_version_path:   6_5_1

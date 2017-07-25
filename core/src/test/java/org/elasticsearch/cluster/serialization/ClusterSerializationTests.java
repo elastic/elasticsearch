@@ -142,8 +142,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         outStream.setVersion(Version.CURRENT.minimumIndexCompatibilityVersion());
         diffs.writeTo(outStream);
         inStream = outStream.bytes().streamInput();
-        inStream.setVersion(outStream.getVersion());
         inStream = new NamedWriteableAwareStreamInput(inStream, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
+        inStream.setVersion(outStream.getVersion());
         serializedDiffs = ClusterState.readDiffFrom(inStream, clusterState.nodes().getLocalNode());
         stateAfterDiffs = serializedDiffs.apply(ClusterState.EMPTY_STATE);
         assertThat(stateAfterDiffs.custom(RestoreInProgress.TYPE), includeRestore ? notNullValue() : nullValue());

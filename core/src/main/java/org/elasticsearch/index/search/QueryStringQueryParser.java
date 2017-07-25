@@ -85,7 +85,7 @@ import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQue
 /**
  * A {@link XQueryParser} that uses the {@link MapperService} in order to build smarter
  * queries based on the mapping information.
- * This class uses {@link MultiMatchQuery} to build the text query around logical operators and {@link XQueryParser}
+ * This class uses {@link MultiMatchQuery} to build the text query around operators and {@link XQueryParser}
  * to assemble the result logically.
  */
 public class QueryStringQueryParser extends XQueryParser {

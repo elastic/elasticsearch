@@ -223,7 +223,6 @@ public class TruncateTranslogIT extends ESIntegTestCase {
             expectSeqNoRecovery ? equalTo(0) : greaterThan(0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25817")
     public void testCorruptTranslogTruncationOfReplica() throws Exception {
         internalCluster().startNodes(2, Settings.EMPTY);
 

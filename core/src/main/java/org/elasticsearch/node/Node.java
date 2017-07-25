@@ -393,8 +393,7 @@ public class Node implements Closeable {
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
                                                  scriptModule.getScriptService(), xContentRegistry, environment, nodeEnvironment,
-                                                 namedWriteableRegistry,
-                                                 (settings, configPath) -> newNode(settings, classpathPlugins, configPath)).stream())
+                                                 namedWriteableRegistry, classpathPlugins).stream())
                 .collect(Collectors.toList());
             final RestController restController = actionModule.getRestController();
             final NetworkModule networkModule = new NetworkModule(settings, false, pluginsService.filterPlugins(NetworkPlugin.class),
@@ -901,11 +900,6 @@ public class Node implements Closeable {
             }
         }
         return customNameResolvers;
-    }
-
-    /** Constructs a new node based on the following settings. Overridden by tests */
-    protected Node newNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path configPath) {
-        return new Node(new Environment(settings, configPath), classpathPlugins);
     }
 
     /** Constructs a ClusterInfoService which may be mocked for tests. */

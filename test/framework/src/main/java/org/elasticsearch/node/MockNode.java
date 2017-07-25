@@ -39,7 +39,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -116,11 +115,6 @@ public class MockNode extends Node {
         } else {
             return new MockTransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings);
         }
-    }
-
-    @Override
-    protected Node newNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path configPath) {
-        return new MockNode(new Environment(settings, configPath), classpathPlugins);
     }
 
     @Override

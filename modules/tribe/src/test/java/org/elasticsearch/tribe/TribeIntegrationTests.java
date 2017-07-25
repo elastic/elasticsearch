@@ -41,6 +41,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -56,6 +58,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -146,11 +149,29 @@ public class TribeIntegrationTests extends ESIntegTestCase {
         }
     }
 
+    public static class MockTribePlugin extends TribePlugin {
+
+        public MockTribePlugin(Settings settings) {
+            super(settings);
+        }
+
+        protected Function<Settings, Node> nodeBuilder(Path configPath, Collection<Class<? extends Plugin>> classpathPlugins) {
+            return settings -> new MockTribeNode(settings, configPath, classpathPlugins);
+        }
+
+        private static class MockTribeNode extends MockNode {
+            private MockTribeNode(Settings settings, Path configPath, Collection<Class<? extends Plugin>> classpathPlugins) {
+                super(new Environment(settings, configPath), classpathPlugins);
+            }
+        }
+
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>();
         plugins.addAll(getMockPlugins());
-        plugins.add(TribePlugin.class);
+        plugins.add(MockTribePlugin.class);
         plugins.add(TribeAwareTestZenDiscoveryPlugin.class);
         plugins.add(TestCustomMetaDataPlugin.class);
         return plugins;

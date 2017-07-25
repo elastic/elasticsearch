@@ -65,7 +65,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -75,7 +74,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -155,8 +153,8 @@ public class TribeService extends AbstractLifecycleComponent {
 
     private final NamedWriteableRegistry namedWriteableRegistry;
 
-    public TribeService(Settings settings, Environment environment, NodeEnvironment nodeEnvironment, ClusterService clusterService,
-                        NamedWriteableRegistry namedWriteableRegistry, BiFunction<Settings, Path, Node> clientNodeBuilder) {
+    public TribeService(Settings settings, NodeEnvironment nodeEnvironment, ClusterService clusterService,
+                        NamedWriteableRegistry namedWriteableRegistry, Function<Settings, Node> clientNodeBuilder) {
         super(settings);
         this.clusterService = clusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -166,7 +164,7 @@ public class TribeService extends AbstractLifecycleComponent {
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
             Settings clientSettings = buildClientSettings(entry.getKey(), nodeEnvironment.nodeId(), settings, entry.getValue());
             try {
-                nodes.add(clientNodeBuilder.apply(clientSettings, environment.configFile()));
+                nodes.add(clientNodeBuilder.apply(clientSettings));
             } catch (Exception e) {
                 // calling close is safe for non started nodes, we can just iterate over all
                 for (Node otherNode : nodes) {

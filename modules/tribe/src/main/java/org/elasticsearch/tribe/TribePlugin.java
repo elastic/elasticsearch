@@ -53,7 +53,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -80,9 +79,20 @@ public class TribePlugin extends Plugin implements DiscoveryPlugin, ClusterPlugi
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               BiFunction<Settings, Path, Node> clientNodeBuilder) {
-        tribeService = new TribeService(settings, environment, nodeEnvironment, clusterService, namedWriteableRegistry, clientNodeBuilder);
+                                               Collection<Class<? extends Plugin>> classpathPlugins) {
+        tribeService = new TribeService(settings, nodeEnvironment, clusterService, namedWriteableRegistry,
+            nodeBuilder(environment.configFile(), classpathPlugins));
         return Collections.singleton(tribeService);
+    }
+
+    protected Function<Settings, Node> nodeBuilder(Path configPath, Collection<Class<? extends Plugin>> classpathPlugins) {
+        return settings -> new TribeNode(settings, configPath, classpathPlugins);
+    }
+
+    private static class TribeNode extends Node {
+        private TribeNode(Settings settings, Path configPath, Collection<Class<? extends Plugin>> classpathPlugins) {
+            super(new Environment(settings, configPath), classpathPlugins);
+        }
     }
 
     @Override

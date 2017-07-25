@@ -35,6 +35,7 @@ import java.util.Objects;
 class StoreKeyConfig extends KeyConfig {
 
     final String keyStorePath;
+    final String keyStoreType;
     final SecureString keyStorePassword;
     final String keyStoreAlgorithm;
     final SecureString keyPassword;
@@ -43,14 +44,16 @@ class StoreKeyConfig extends KeyConfig {
     /**
      * Creates a new configuration that can be used to load key and trust material from a {@link KeyStore}
      * @param keyStorePath the path to the keystore file
+     * @param keyStoreType the type of the keystore file
      * @param keyStorePassword the password for the keystore
      * @param keyPassword the password for the private key in the keystore
      * @param keyStoreAlgorithm the algorithm for the keystore
      * @param trustStoreAlgorithm the algorithm to use when loading as a truststore
      */
-    StoreKeyConfig(String keyStorePath, SecureString keyStorePassword, SecureString keyPassword, String keyStoreAlgorithm,
-                   String trustStoreAlgorithm) {
+    StoreKeyConfig(String keyStorePath, String keyStoreType, SecureString keyStorePassword, SecureString keyPassword,
+                   String keyStoreAlgorithm, String trustStoreAlgorithm) {
         this.keyStorePath = Objects.requireNonNull(keyStorePath, "keystore path must be specified");
+        this.keyStoreType = Objects.requireNonNull(keyStoreType, "keystore type must be specified");
         // since we support reloading the keystore, we must store the passphrase in memory for the life of the node, so we
         // clone the password and never close it during our uses below
         this.keyStorePassword = Objects.requireNonNull(keyStorePassword, "keystore password must be specified").clone();
@@ -73,7 +76,7 @@ class StoreKeyConfig extends KeyConfig {
     @Override
     X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
         try {
-            return CertUtils.trustManager(keyStorePath, keyStorePassword.getChars(), trustStoreAlgorithm, environment);
+            return CertUtils.trustManager(keyStorePath, keyStoreType, keyStorePassword.getChars(), trustStoreAlgorithm, environment);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }
@@ -107,8 +110,7 @@ class StoreKeyConfig extends KeyConfig {
     private KeyStore getKeyStore(@Nullable Environment environment)
                                 throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {
         try (InputStream in = Files.newInputStream(CertUtils.resolvePath(keyStorePath, environment))) {
-            // TODO remove reliance on JKS since we can use PKCS12 stores in JDK8+...
-            KeyStore ks = KeyStore.getInstance("jks");
+            KeyStore ks = KeyStore.getInstance(keyStoreType);
             ks.load(in, keyStorePassword.getChars());
             return ks;
         }
@@ -154,6 +156,7 @@ class StoreKeyConfig extends KeyConfig {
     @Override
     public String toString() {
         return "keyStorePath=[" + keyStorePath +
+                "], keyStoreType=[" + keyStoreType +
                 "], keyStoreAlgorithm=[" + keyStoreAlgorithm +
                 "], trustStoreAlgorithm=[" + trustStoreAlgorithm +
                 "]";

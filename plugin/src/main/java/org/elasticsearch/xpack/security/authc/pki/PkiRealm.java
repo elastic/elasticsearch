@@ -180,8 +180,9 @@ public class PkiRealm extends Realm {
         }
         try (SecureString password = SSL_SETTINGS.truststorePassword.get(settings)) {
             String trustStoreAlgorithm = SSL_SETTINGS.truststoreAlgorithm.get(settings);
+            String trustStoreType = SSL_SETTINGS.truststoreType.get(settings);
             try {
-                return CertUtils.trustManager(truststorePath, password.getChars(), trustStoreAlgorithm, realmConfig.env());
+                return CertUtils.trustManager(truststorePath, trustStoreType, password.getChars(), trustStoreAlgorithm, realmConfig.env());
             } catch (Exception e) {
                 throw new IllegalArgumentException("failed to load specified truststore", e);
             }

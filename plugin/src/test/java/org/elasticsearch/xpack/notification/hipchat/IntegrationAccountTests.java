@@ -6,19 +6,15 @@
 package org.elasticsearch.xpack.notification.hipchat;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.common.http.Scheme;
-
-import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -135,21 +131,18 @@ public class IntegrationAccountTests extends ESTestCase {
                 .path("/v2/room/_room/notification")
                 .setHeader("Content-Type", "application/json")
                 .setHeader("Authorization", "Bearer _token")
-                .body(XContentHelper.toString(new ToXContent() {
-                    @Override
-                    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                        builder.field("message", message.body);
-                        if (message.format != null) {
-                            builder.field("message_format", message.format.value());
-                        }
-                        if (message.notify != null) {
-                            builder.field("notify", message.notify);
-                        }
-                        if (message.color != null) {
-                            builder.field("color", String.valueOf(message.color.value()));
-                        }
-                        return builder;
+                .body(Strings.toString((builder, params) -> {
+                    builder.field("message", message.body);
+                    if (message.format != null) {
+                        builder.field("message_format", message.format.value());
                     }
+                    if (message.notify != null) {
+                        builder.field("notify", message.notify);
+                    }
+                    if (message.color != null) {
+                        builder.field("color", String.valueOf(message.color.value()));
+                    }
+                    return builder;
                 }))
                 .build();
 

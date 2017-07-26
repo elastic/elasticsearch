@@ -87,12 +87,12 @@ jar {
 
 // remove the deps jar from the classpath to avoid jarHell
 if (isIdea == false && isEclipse == false) {
-  // runtimeElements does not exist in 3.3
-  configurations.maybeCreate('runtimeElements')
-  // 3.3 cleanup to remove the deps jar from the classpath
-  configurations.runtime.extendsFrom -= [configurations.compile]
-  // 3.5+ cleanup to remove the deps jar from the classpath
-  configurations.runtimeElements.extendsFrom = []
+  // cleanup to remove the deps jar from the classpath
+  if (gradle.gradleVersion == "3.3") {
+    configurations.runtime.extendsFrom -= [configurations.compile]
+  } else if (gradle.gradleVersion > "3.3") {
+    configurations.runtimeElements.extendsFrom = []
+  }
 }
 
 // adds a dependency to compile, so the -deps jar is built first

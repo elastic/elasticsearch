@@ -32,7 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -261,7 +261,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
      * Can either be a leaf node consisting of a Coordinate, or a parent with
      * children
      */
-    protected static class CoordinateNode implements ToXContentFragment {
+    protected static class CoordinateNode implements ToXContentObject {
 
         protected final Coordinate coordinate;
         protected final List<CoordinateNode> children;

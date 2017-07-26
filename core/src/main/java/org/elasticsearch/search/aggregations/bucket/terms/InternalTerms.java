@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -43,7 +42,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends InternalTerms.Bucket<B>>
-        extends InternalMultiBucketAggregation<A, B> implements Terms, ToXContentFragment {
+        extends InternalMultiBucketAggregation<A, B> implements Terms {
 
     protected static final ParseField DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME = new ParseField("doc_count_error_upper_bound");
     protected static final ParseField SUM_OF_OTHER_DOC_COUNTS = new ParseField("sum_other_doc_count");

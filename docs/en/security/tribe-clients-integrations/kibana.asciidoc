@@ -88,12 +88,12 @@ server:
 `subjectAltName` to the hostname, fully-qualified domain name (FQDN), or IP
 address of the Kibana server, or set the CN to the Kibana server's hostname
 or FQDN. Using the server's IP address as the CN does not work.
-.. Set the `server.ssl.key` and `server.ssl.cert` properties in `kibana.yml`:
+.. Set the `server.ssl.key` and `server.ssl.certificate` properties in `kibana.yml`:
 +
 [source,yaml]
 --------------------------------------------------------------------------------
 server.ssl.key: /path/to/your/server.key
-server.ssl.cert: /path/to/your/server.crt
+server.ssl.certificate: /path/to/your/server.crt
 --------------------------------------------------------------------------------
 +
 Once you enable SSL encryption between the browser and the Kibana server,
@@ -117,12 +117,12 @@ elasticsearch.url: "https://<your_elasticsearch_host>.com:9200"
 --------------------------------------------------------------------------------
 
 .. If you are using your own CA to sign certificates for Elasticsearch, set the
-`elasticsearch.ssl.ca` setting in `kibana.yml` to specify the location of the PEM
-file.
+`elasticsearch.ssl.certificateAuthorities` setting in `kibana.yml` to specify
+the location of the PEM file.
 +
 [source,yaml]
 --------------------------------------------------------------------------------
-elasticsearch.ssl.ca: /path/to/your/cacert.pem
+elasticsearch.ssl.certificateAuthorities: /path/to/your/cacert.pem
 --------------------------------------------------------------------------------
 
 . Install {xpack} into Kibana to secure user sessions and enable users
@@ -190,7 +190,7 @@ Kibana server.
 | `xpack.security.sessionTimeout`    | `1800000` (30 minutes)   | Sets the session duration (in milliseconds).
 | `xpack.security.cookieName`        | `"sid"`                  | Sets the name of the cookie used for the session.
 | `xpack.security.secureCookies`     | `false`                  | Sets the `secure` flag of the session cookie. Is set
-                                                                  to `true` if `server.ssl.cert` and `server.ssl.key`
+                                                                  to `true` if `server.ssl.certificate` and `server.ssl.key`
                                                                   are set. Set this to `true` if SSL is configured
                                                                   outside of Kibana (for example, you are routing
                                                                   requests through a load balancer or proxy).

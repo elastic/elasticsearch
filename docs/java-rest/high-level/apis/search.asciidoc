@@ -163,6 +163,19 @@ the text `kmichy`
 We will later see how to <<java-rest-high-retrieve-suggestions,retrieve suggestions>> from the
 `SearchResponse`.
 
+===== Profiling Queries and Aggregations
+
+The {ref}/search-profile.html[Profile API] can be used to profile the execution of queries and aggregations for
+a specific search request. in order to use it, the profile flag must be set to true on the `SearchSourceBuilder`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling]
+--------------------------------------------------
+
+Once the `SearchRequest` is executed the corresponding `SearchResponse` will
+<<java-rest-high-retrieve-profile-results,contain the profiling results>>.
+
 [[java-rest-high-document-search-sync]]
 ==== Synchronous Execution
 
@@ -339,3 +352,77 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-suggestion
 type of Suggestion class (here `TermSuggestion`), otherwise a `ClassCastException` is thrown
 <3> Iterate over the suggestion entries
 <4> Iterate over the options in one entry
+
+[[java-rest-high-retrieve-profile-results]]
+===== Retrieving Profiling Results
+
+Profiling results are retrieved from a `SearchResponse` using the `getProfileResults()` method. This
+ method returns a `Map` containing a `ProfileShardResult` object for every shard involved in the
+ `SearchRequest` execution. `ProfileShardResult` are stored in the `Map` using a key that uniquely
+ identifies the shard the profile result corresponds to.
+
+Here is a sample code that shows how to iterate over all the profiling results of every shard:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-get]
+--------------------------------------------------
+<1> Retrieve the `Map` of `ProfileShardResult` from the `SearchResponse`
+<2> Profiling results can be retrieved by shard's key if the key is known, otherwise it might be simpler
+ to iterate over all the profiling results
+<3> Retrieve the key that identifies which shard the `ProfileShardResult` belongs to
+<4> Retrieve the `ProfileShardResult` for the given shard
+
+The `ProfileShardResult` object itself contains one or more query profile results, one for each query
+executed against the underlying Lucene index:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-queries]
+--------------------------------------------------
+<1> Retrieve the list of `QueryProfileShardResult`
+<2> Iterate over each `QueryProfileShardResult`
+
+Each `QueryProfileShardResult` gives access to the detailed query tree execution, returned as a list of
+`ProfileResult` objects:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-queries-results]
+--------------------------------------------------
+<1> Iterate over the profile results
+<2> Retrieve the name of the Lucene query
+<3> Retrieve the time in millis spent executing the Lucene query
+<4> Retrieve the profile results for the sub-queries (if any)
+
+The Rest API documentation contains more information about {ref}/_profiling_queries.html[Profiling Queries] with
+a description of the {ref}/_profiling_queries.html#_literal_query_literal_section[query profiling information]
+
+The `QueryProfileShardResult` also gives access to the profiling information for the Lucene collectors:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-queries-collectors]
+--------------------------------------------------
+<1> Retrieve the profiling result of the Lucene collector
+<2> Retrieve the name of the Lucene collector
+<3> Retrieve the time in millis spent executing the Lucene collector
+<4> Retrieve the profile results for the sub-collectors (if any)
+
+The Rest API documentation contains more information about profiling information
+{ref}/_profiling_queries.html#_literal_collectors_literal_section[for Lucene collectors].
+
+In a very similar manner to the query tree execution, the `QueryProfileShardResult` objects gives access
+to the detailed aggregations tree execution:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-aggs]
+--------------------------------------------------
+<1> Retrieve the `AggregationProfileShardResult`
+<2> Iterate over the aggregation profile results
+<3> Retrieve the type of the aggregation (corresponds to Java class used to execute the aggregation)
+<4> Retrieve the time in millis spent executing the Lucene collector
+<5> Retrieve the profile results for the sub-aggregations (if any)
+
+The Rest API documentation contains more information about {ref}/_profiling_aggregations.html[Profiling Aggregations]

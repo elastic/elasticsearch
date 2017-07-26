@@ -240,6 +240,28 @@ public class AllocationService extends AbstractComponent {
     }
 
     /**
+     * Reset failed allocation counter for unassigned shards
+     */
+    private void resetFailedAllocationCounter(RoutingAllocation allocation) {
+        final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = allocation.routingNodes().unassigned().iterator();
+        final MetaData metaData = allocation.metaData();
+        while (unassignedIterator.hasNext()) {
+            ShardRouting shardRouting = unassignedIterator.next();
+            UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+            if (unassignedInfo.isDelayed()) {
+                final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(allocation.getCurrentNanoTime(),
+                    metaData.getIndexSafe(shardRouting.index()).getSettings());
+                if (newComputedLeftDelayNanos == 0) {
+                    unassignedIterator.updateUnassigned(new UnassignedInfo(unassignedInfo.getReason(), unassignedInfo.getMessage(),
+                            unassignedInfo.getFailure(), 0, unassignedInfo.getUnassignedTimeInNanos(),
+                            unassignedInfo.getUnassignedTimeInMillis(), unassignedInfo.isDelayed(),
+                            unassignedInfo.getLastAllocationStatus()), shardRouting.recoverySource(), allocation.changes());
+                }
+            }
+        }
+    }
+
+    /**
      * Internal helper to cap the number of elements in a potentially long list for logging.
      *
      * @param elements  The elements to log. May be any non-null list. Must not be null.
@@ -274,16 +296,7 @@ public class AllocationService extends AbstractComponent {
         // so, there will always be shard "movements", so no need to check on reroute
 
         if (retryFailed) {
-            final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
-            while (unassignedIterator.hasNext()) {
-                final ShardRouting shard = unassignedIterator.next();
-                UnassignedInfo unassignedInfo = shard.unassignedInfo();
-                UnassignedInfo newUnassignedInfo = new UnassignedInfo(unassignedInfo.getReason(), unassignedInfo
-                    .getMessage(), unassignedInfo.getFailure(), 0, unassignedInfo
-                    .getUnassignedTimeInNanos(), unassignedInfo.getUnassignedTimeInMillis(), unassignedInfo.isDelayed(),
-                    unassignedInfo.getLastAllocationStatus());
-                shard.updateUnassigned(newUnassignedInfo, shard.recoverySource());
-            }
+            resetFailedAllocationCounter(allocation);
         }
         reroute(allocation);
         return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands"));

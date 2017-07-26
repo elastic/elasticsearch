@@ -322,7 +322,7 @@ public class Version implements Comparable<Version> {
             bwcMajor = Version.V_5_6_0.major;
             bwcMinor = Version.V_5_6_0.minor;
         } else if (major == 7) { // we only specialize for current major here
-            return V_6_0_0_beta1;
+            return V_6_1_0;
         } else {
             bwcMajor = major;
             bwcMinor = 0;

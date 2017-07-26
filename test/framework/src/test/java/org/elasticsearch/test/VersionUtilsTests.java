@@ -23,9 +23,11 @@ import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -147,14 +149,12 @@ public class VersionUtilsTests extends ESTestCase {
     }
 
     static class TestUnstableBranch {
-        public static final Version V_5_3_0 = Version.fromString("5.3.0");
-        public static final Version V_5_3_1 = Version.fromString("5.3.1");
-        public static final Version V_5_3_2 = Version.fromString("5.3.2");
-        public static final Version V_5_4_0 = Version.fromString("5.4.0");
         public static final Version V_6_0_0_alpha1 = Version.fromString("6.0.0-alpha1");
         public static final Version V_6_0_0_alpha2 = Version.fromString("6.0.0-alpha2");
         public static final Version V_6_0_0_beta1 = Version.fromString("6.0.0-beta1");
-        public static final Version CURRENT = V_6_0_0_beta1;
+        public static final Version V_6_1_0 = Version.fromString("6.1.0");
+        public static final Version V_7_0_0_alpha1 = Version.fromString("7.0.0-alpha1");
+        public static final Version CURRENT = V_7_0_0_alpha1;
     }
 
     public void testResolveReleasedVersionsForUnstableBranch() {
@@ -162,9 +162,9 @@ public class VersionUtilsTests extends ESTestCase {
                 TestUnstableBranch.class);
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
-        assertEquals(Arrays.asList(TestUnstableBranch.V_5_3_0, TestUnstableBranch.V_5_3_1,
-                TestUnstableBranch.V_6_0_0_alpha1, TestUnstableBranch.V_6_0_0_alpha2), released);
-        assertEquals(Arrays.asList(TestUnstableBranch.V_5_3_2, TestUnstableBranch.V_5_4_0, TestUnstableBranch.V_6_0_0_beta1), unreleased);
+        assertEquals(Arrays.asList(TestUnstableBranch.V_6_0_0_alpha1, TestUnstableBranch.V_6_0_0_alpha2), released);
+        assertEquals(Arrays.asList(TestUnstableBranch.V_6_0_0_beta1, TestUnstableBranch.V_6_1_0, TestUnstableBranch.V_7_0_0_alpha1),
+            unreleased);
     }
 
     /**
@@ -174,37 +174,29 @@ public class VersionUtilsTests extends ESTestCase {
     public void testGradleVersionsMatchVersionUtils() {
         // First check the index compatible versions
         VersionsFromProperty indexCompatible = new VersionsFromProperty("tests.gradle_index_compat_versions");
-
         List<Version> released = VersionUtils.allReleasedVersions().stream()
                 /* We skip alphas, betas, and the like in gradle because they don't have
                  * backwards compatibility guarantees even though they are technically
                  * released. */
-                .filter(Version::isRelease)
+                .filter(v -> v.isRelease() && (v.major == Version.CURRENT.major || v.major == Version.CURRENT.major - 1))
                 .collect(toList());
         List<String> releasedIndexCompatible = released.stream()
                 .map(Object::toString)
                 .collect(toList());
         assertEquals(releasedIndexCompatible, indexCompatible.released);
 
-        List<String> unreleasedIndexCompatible = VersionUtils.allUnreleasedVersions().stream()
+        List<String> unreleasedIndexCompatible = new ArrayList<>(VersionUtils.allUnreleasedVersions().stream()
                 /* Gradle skips the current version because being backwards compatible
                  * with yourself is implied. Java lists the version because it is useful. */
                 .filter(v -> v != Version.CURRENT)
-                .map(Object::toString)
-                .collect(toList());
+                .map(v -> v.major + "." + v.minor + "." + v.revision)
+                .collect(toCollection(LinkedHashSet::new)));
         assertEquals(unreleasedIndexCompatible, indexCompatible.unreleased);
 
         // Now the wire compatible versions
         VersionsFromProperty wireCompatible = new VersionsFromProperty("tests.gradle_wire_compat_versions");
 
-        // Big horrible hack:
-        // This *should* be:
-        //         Version minimumCompatibleVersion = Version.CURRENT.minimumCompatibilityVersion();
-        // But instead it is:
-        Version minimumCompatibleVersion = Version.V_5_6_0;
-        // Because things blow up all over the place if the minimum compatible version isn't released.
-        // We'll fix this very, very soon. But for now, this hack.
-        // end big horrible hack
+        Version minimumCompatibleVersion = Version.CURRENT.minimumCompatibilityVersion();
         List<String> releasedWireCompatible = released.stream()
                 .filter(v -> v.onOrAfter(minimumCompatibleVersion))
                 .map(Object::toString)

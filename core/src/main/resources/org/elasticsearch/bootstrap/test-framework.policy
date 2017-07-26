@@ -63,6 +63,13 @@ grant codeBase "${codebase.elasticsearch-rest-client-5.6.0-SNAPSHOT.jar}" {
   permission java.net.NetPermission "getProxySelector";
 };
 
+// IDEs need this because they do not play nicely with removing artifacts on projects,
+// so we keep it in here for IDE test support
+grant codeBase "${codebase.elasticsearch-rest-client-5.6.0-SNAPSHOT-deps.jar}" {
+  // rest makes socket connections for rest tests
+  permission java.net.SocketPermission "*", "connect";
+};
+
 grant codeBase "${codebase.httpasyncclient-4.1.2.jar}" {
   // rest client uses system properties which gets the default proxy
   permission java.net.NetPermission "getProxySelector";

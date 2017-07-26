@@ -66,7 +66,7 @@ public final class Fuzziness implements ToXContent, Writeable {
     }
 
     private Fuzziness(String fuzziness, int lowDistance, int highDistance) {
-        if (fuzziness == null) {
+        if (fuzziness == null || fuzziness.isEmpty()) {
             throw new IllegalArgumentException("fuzziness can't be null!");
         }
         if (lowDistance < 0 || highDistance < 0 || lowDistance >= highDistance ) {

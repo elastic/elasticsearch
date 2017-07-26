@@ -23,6 +23,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.FilePermission;
 import java.net.SocketPermission;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.security.AllPermission;
 import java.security.CodeSource;
 import java.security.Permission;
@@ -31,12 +33,24 @@ import java.security.Permissions;
 import java.security.ProtectionDomain;
 import java.security.cert.Certificate;
 import java.util.Collections;
+import java.util.Map;
+
+import static java.util.stream.Collectors.toList;
 
 /**
  * Unit tests for ESPolicy: these cannot run with security manager,
  * we don't allow messing with the policy
  */
 public class ESPolicyUnitTests extends ESTestCase {
+    private final Map<String, URL> shortNameToCodebase = Security.resolveShortNames(
+            JarHell.parseClassPath().stream().filter(url -> {
+                try {
+                    return url.toURI().toString().endsWith(".jar");
+                } catch (URISyntaxException e) {
+                    throw new RuntimeException(e);
+                }
+            }).collect(toList()));
+
     /**
      * Test policy with null codesource.
      * <p>
@@ -50,7 +64,7 @@ public class ESPolicyUnitTests extends ESTestCase {
         Permission all = new AllPermission();
         PermissionCollection allCollection = all.newPermissionCollection();
         allCollection.add(all);
-        ESPolicy policy = new ESPolicy(allCollection, Collections.emptyMap(), true);
+        ESPolicy policy = new ESPolicy(allCollection, Collections.emptyMap(), true, shortNameToCodebase);
         // restrict ourselves to NoPermission
         PermissionCollection noPermissions = new Permissions();
         assertFalse(policy.implies(new ProtectionDomain(null, noPermissions), new FilePermission("foo", "read")));
@@ -64,7 +78,7 @@ public class ESPolicyUnitTests extends ESTestCase {
     public void testNullLocation() throws Exception {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         PermissionCollection noPermissions = new Permissions();
-        ESPolicy policy = new ESPolicy(noPermissions, Collections.emptyMap(), true);
+        ESPolicy policy = new ESPolicy(noPermissions, Collections.emptyMap(), true, shortNameToCodebase);
         assertFalse(policy.implies(new ProtectionDomain(new CodeSource(null, (Certificate[]) null), noPermissions),
                 new FilePermission("foo", "read")));
     }
@@ -72,7 +86,7 @@ public class ESPolicyUnitTests extends ESTestCase {
     public void testListen() {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         final PermissionCollection noPermissions = new Permissions();
-        final ESPolicy policy = new ESPolicy(noPermissions, Collections.emptyMap(), true);
+        final ESPolicy policy = new ESPolicy(noPermissions, Collections.emptyMap(), true, shortNameToCodebase);
         assertFalse(
             policy.implies(
                 new ProtectionDomain(ESPolicyUnitTests.class.getProtectionDomain().getCodeSource(), noPermissions),

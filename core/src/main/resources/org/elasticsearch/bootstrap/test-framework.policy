@@ -63,6 +63,7 @@ grant codeBase "${codebase.mocksocket-1.2.jar}" {
   permission java.net.SocketPermission "*", "accept,connect";
 };
 
+// Tests run with gradle need this permission because they use the shaded jar
 grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT.jar}" {
   // rest makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";
@@ -70,21 +71,19 @@ grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT.jar}" 
   permission java.net.NetPermission "getProxySelector";
 };
 
-// IDEs need this because they do not play nicely with removing artifacts on projects,
-// so we keep it in here for IDE test support
+// Tests run inside IDEs need this permission because they use the shaded deps but not the fully shaded jar.
 grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT-deps.jar}" {
-  // rest makes socket connections for rest tests
-  permission java.net.SocketPermission "*", "connect";
-};
-
-grant codeBase "${codebase.httpcore-nio-4.4.5.jar}" {
-  // httpcore makes socket connections for rest tests
-  permission java.net.SocketPermission "*", "connect";
-};
-
-grant codeBase "${codebase.httpasyncclient-4.1.2.jar}" {
-  // httpasyncclient makes socket connections for rest tests
+  // rest client makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";
   // rest client uses system properties which gets the default proxy
+  permission java.net.NetPermission "getProxySelector";
+};
+
+// Tests run inside IDEs need this permission because they use the shaded deps but not the fully shaded jar.
+grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT-nodeps.jar}" {
+  // even though the rest client's deps make the connection the rest client is still on the stack
+  // when the conenction is made so the client itself needs permission to connect and read the
+  // proxy system setting.
+  permission java.net.SocketPermission "*", "connect";
   permission java.net.NetPermission "getProxySelector";
 };

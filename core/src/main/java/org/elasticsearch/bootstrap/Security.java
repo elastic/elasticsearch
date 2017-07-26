@@ -23,7 +23,6 @@ import org.elasticsearch.SecureSM;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -51,6 +50,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * Initializes SecurityManager with necessary permissions.
@@ -112,7 +112,8 @@ final class Security {
     static void configure(Environment environment, boolean filterBadDefaults) throws IOException, NoSuchAlgorithmException {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
-        Policy.setPolicy(new ESPolicy(createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));
+        Policy.setPolicy(new ESPolicy(createPermissions(environment), getPluginPermissions(environment), filterBadDefaults,
+                Security.resolveShortNames(JarHell.parseClassPath())));
 
         // enable security manager
         System.setSecurityManager(new SecureSM(new String[] { "org.elasticsearch.bootstrap.", "org.elasticsearch.cli" }));
@@ -165,7 +166,7 @@ final class Security {
                 }
 
                 // parse the plugin's policy file into a set of permissions
-                Policy policy = readPolicy(policyFile.toUri().toURL(), codebases);
+                Policy policy = readPolicy(policyFile.toUri().toURL(), resolveShortNames(codebases));
 
                 // consult this policy for each of the plugin's jars:
                 for (URL url : codebases) {
@@ -181,36 +182,57 @@ final class Security {
     }
 
     /**
+     * Build a Map of short names to codebase URLs for some codebases to be used with {@link #readPolicy(URL, Map)}.
+     */
+    @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
+    static Map<String, URL> resolveShortNames(Iterable<URL> codebases) {
+        Map<String, URL> result = new TreeMap<>();
+        try {
+            for (URL url : codebases) {
+                String shortName = PathUtils.get(url.toURI()).getFileName().toString();
+                if (shortName.endsWith(".jar") == false) {
+                    throw new IllegalArgumentException("bad codebase: " + url);
+                }
+                URL previous = result.put(shortName, url);
+                if (previous != null) {
+                    throw new IllegalStateException("duplicate short name for codebase: " + shortName
+                            + " was " + previous + " trying to set to " + url.toString());
+                }
+            }
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("couldn't make sense of a codebase", e);
+        }
+        return result;
+    }
+
+    /**
      * Reads and returns the specified {@code policyFile}.
      * <p>
      * Jar files listed in {@code codebases} location will be provided to the policy file via
      * a system property of the short name: e.g. <code>${codebase.joda-convert-1.2.jar}</code>
      * would map to full URL.
      */
-    @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
-    static Policy readPolicy(URL policyFile, Set<URL> codebases) {
+    @SuppressForbidden(reason = "sets system properties to work with weird jdk api")
+    static Policy readPolicy(URL policyFile, Map<String, URL> shortNameToCodebases) {
         try {
             try {
                 // set codebase properties
-                for (URL url : codebases) {
-                    String shortName = PathUtils.get(url.toURI()).getFileName().toString();
-                    if (shortName.endsWith(".jar") == false) {
-                        continue; // tests :(
-                    }
-                    String previous = System.setProperty("codebase." + shortName, url.toString());
+                for (Map.Entry<String, URL> entry : shortNameToCodebases.entrySet()) {
+                    String previous = System.setProperty("codebase." + entry.getKey(), entry.getValue().toString());
                     if (previous != null) {
-                        throw new IllegalStateException("codebase property already set: " + shortName + "->" + previous);
+                        throw new IllegalStateException("codebase property already set: " + entry.getKey()
+                                + " was " + previous + " trying to set to " + entry.getValue().toString());
                     }
                 }
                 return Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
             } finally {
                 // clear codebase properties
-                for (URL url : codebases) {
-                    String shortName = PathUtils.get(url.toURI()).getFileName().toString();
-                    if (shortName.endsWith(".jar") == false) {
-                        continue; // tests :(
+                for (Map.Entry<String, URL> entry : shortNameToCodebases.entrySet()) {
+                    String previous = System.clearProperty("codebase." + entry.getKey());
+                    if (previous == null) {
+                        throw new IllegalStateException("codebase property [" + entry.getKey()
+                            + "] was not set but expected [" + entry.getValue() + "]");
                     }
-                    System.clearProperty("codebase." + shortName);
                 }
             }
         } catch (NoSuchAlgorithmException | URISyntaxException e) {

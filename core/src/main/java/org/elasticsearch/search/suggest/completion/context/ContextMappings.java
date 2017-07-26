@@ -25,7 +25,7 @@ import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
@@ -50,7 +50,7 @@ import static org.elasticsearch.search.suggest.completion.context.ContextMapping
  * and creates context queries for defined {@link ContextMapping}s
  * for a {@link CompletionFieldMapper}
  */
-public class ContextMappings implements ToXContentFragment {
+public class ContextMappings implements ToXContent {
     private final List<ContextMapping> contextMappings;
     private final Map<String, ContextMapping> contextNameMap;
 

@@ -77,14 +77,6 @@ grant codeBase "${codebase.elasticsearch-rest-client-6.1.0-SNAPSHOT-deps.jar}" {
   permission java.net.SocketPermission "*", "connect";
 };
 
-// IDEs need this because they do not play nicely with removing artifacts on projects,
-// so we keep it in here for IDE test support
-grant codeBase "${codebase.elasticsearch-rest-client-6.1.0-SNAPSHOT-nodeps.jar}" {
-  // rest makes socket connections for rest tests
-  permission java.net.SocketPermission "*", "connect";
-};
-
-
 grant codeBase "${codebase.httpcore-nio-4.4.5.jar}" {
   // httpcore makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";

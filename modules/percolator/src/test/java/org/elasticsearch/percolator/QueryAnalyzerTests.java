@@ -40,6 +40,7 @@ import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.percolator.QueryAnalyzer.Result;
@@ -523,7 +524,8 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(result.verified, is(true));
         assertTermsEqual(result.terms, new Term("_field", "_value"));
 
-        functionScoreQuery = new FunctionScoreQuery(termQuery, new RandomScoreFunction(0, 0, null), null, null, 10f);
+        functionScoreQuery = new FunctionScoreQuery(termQuery, new RandomScoreFunction(0, 0, null),
+            CombineFunction.MULTIPLY, 1f, 10f);
         result = analyze(functionScoreQuery);
         assertThat(result.verified, is(false));
         assertTermsEqual(result.terms, new Term("_field", "_value"));

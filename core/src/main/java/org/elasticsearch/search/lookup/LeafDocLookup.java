@@ -22,7 +22,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;

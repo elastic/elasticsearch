@@ -105,7 +105,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
             if (channel != null && channel.isOpen()) {
                 // We do not need to wait for the close operation to complete. If the close operation fails due
                 // to an IOException, the selector's handler will log the exception. Additionally, in the case
-                // of transport shutdown, where we do want to ensure that all channels to finished closing, the
+                // of transport shutdown, where we do want to ensure that all channels are finished closing, the
                 // NioShutdown class will block on close.
                 futures.add(channel.closeAsync());
             }
@@ -163,29 +163,29 @@ public class NioTransport extends TcpTransport<NioChannel> {
     protected void doStart() {
         boolean success = false;
         try {
-            if (NetworkService.NETWORK_SERVER.get(settings)) {
-                int workerCount = NioTransport.NIO_WORKER_COUNT.get(settings);
-                for (int i = 0; i < workerCount; ++i) {
-                    SocketSelector selector = new SocketSelector(getSocketEventHandler());
-                    socketSelectors.add(selector);
-                }
+            int workerCount = NioTransport.NIO_WORKER_COUNT.get(settings);
+            for (int i = 0; i < workerCount; ++i) {
+                SocketSelector selector = new SocketSelector(getSocketEventHandler());
+                socketSelectors.add(selector);
+            }
 
+            for (SocketSelector selector : socketSelectors) {
+                if (selector.isRunning() == false) {
+                    ThreadFactory threadFactory = daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX);
+                    threadFactory.newThread(selector::runLoop).start();
+                    selector.isRunningFuture().actionGet();
+                }
+            }
+
+            client = createClient();
+
+            if (NetworkService.NETWORK_SERVER.get(settings)) {
                 int acceptorCount = NioTransport.NIO_ACCEPTOR_COUNT.get(settings);
                 for (int i = 0; i < acceptorCount; ++i) {
                     Supplier<SocketSelector> selectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
                     AcceptorEventHandler eventHandler = new AcceptorEventHandler(logger, openChannels, selectorSupplier);
                     AcceptingSelector acceptor = new AcceptingSelector(eventHandler);
                     acceptors.add(acceptor);
-                }
-
-                client = createClient();
-
-                for (SocketSelector selector : socketSelectors) {
-                    if (selector.isRunning() == false) {
-                        ThreadFactory threadFactory = daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX);
-                        threadFactory.newThread(selector::runLoop).start();
-                        selector.isRunningFuture().actionGet();
-                    }
                 }
 
                 for (AcceptingSelector acceptor : acceptors) {

@@ -25,6 +25,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -53,6 +54,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     @Override
     protected void setTypeList() {
         TYPES = new HashSet<>(Arrays.asList("date_range", "ip_range", "float_range", "double_range", "integer_range", "long_range"));
+        WHOLE_TYPES = new HashSet<>(Arrays.asList("integer_range", "long_range"));
     }
 
     private Object getFrom(String type) {
@@ -308,6 +310,41 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                         " in 6.0, use [copy_to] instead.");
     }
 
+     @Override
+    protected void doTestDecimalCoerce(String type) throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field").field("type", type);
+
+        mapping = mapping.endObject().endObject().endObject().endObject();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping.string()));
+
+        assertEquals(mapping.string(), mapper.mappingSource().toString());
+
+        ParsedDocument doc1 = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("field")
+            .field(GT_FIELD.getPreferredName(), "2.34")
+            .field(LT_FIELD.getPreferredName(), "5.67")
+            .endObject()
+            .endObject().bytes(),
+            XContentType.JSON));
+
+        ParsedDocument doc2 = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("field")
+            .field(GT_FIELD.getPreferredName(), "2")
+            .field(LT_FIELD.getPreferredName(), "5")
+            .endObject()
+            .endObject().bytes(),
+            XContentType.JSON));
+
+        IndexableField[] fields1 = doc1.rootDoc().getFields("field");
+        IndexableField[] fields2 = doc2.rootDoc().getFields("field");
+
+        assertNotNull(fields1[0].binaryValue());
+        assertEquals(fields1[0].binaryValue(), fields2[0].binaryValue());
+    }
+
     @Override
     protected void doTestNullValue(String type) throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -423,4 +460,5 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             assertTrue(got, got.contains("\"locale\":" + "\"" + Locale.ROOT + "\"") == type.equals("date_range"));
         }
     }
+
 }

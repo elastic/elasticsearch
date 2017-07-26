@@ -23,6 +23,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -35,6 +36,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     @Override
     protected void setTypeList() {
         TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long", "float", "double"));
+        WHOLE_TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long"));
     }
 
     @Override
@@ -176,6 +178,28 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                 .bytes());
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
         assertThat(e.getCause().getMessage(), containsString("passed as String"));
+    }
+
+    @Override
+    protected void doTestDecimalCoerce(String type) throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", type).endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "7.89")
+                .endObject()
+                .bytes(),
+                XContentType.JSON));
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        IndexableField pointField = fields[0];
+        assertEquals(7, pointField.numericValue().doubleValue(), 0d);
     }
 
     public void testIgnoreMalformed() throws Exception {

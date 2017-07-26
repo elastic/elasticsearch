@@ -39,6 +39,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public abstract class AbstractNumericFieldMapperTestCase extends ESSingleNodeTestCase {
     protected Set<String> TYPES;
+    protected Set<String> WHOLE_TYPES;
     protected IndexService indexService;
     protected DocumentMapperParser parser;
 
@@ -104,6 +105,14 @@ public abstract class AbstractNumericFieldMapperTestCase extends ESSingleNodeTes
     }
 
     protected abstract void doTestIncludeInAll(String type) throws Exception;
+
+    public void testDecimalCoerce() throws Exception {
+        for (String type : WHOLE_TYPES) {
+            doTestDecimalCoerce(type);
+        }
+    }
+
+    protected abstract void doTestDecimalCoerce(String type) throws IOException;
 
     public void testNullValue() throws IOException {
         for (String type : TYPES) {

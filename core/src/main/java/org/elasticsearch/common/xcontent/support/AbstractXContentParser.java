@@ -130,7 +130,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Short.class);
-            return Short.parseShort(text());
+            return (short) Double.parseDouble(text());
         }
         short result = doShortValue();
         ensureNumberConversion(coerce, result, Short.class);
@@ -144,13 +144,12 @@ public abstract class AbstractXContentParser implements XContentParser {
         return intValue(DEFAULT_NUMBER_COERCE_POLICY);
     }
 
-
     @Override
     public int intValue(boolean coerce) throws IOException {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Integer.class);
-            return Integer.parseInt(text());
+            return (int) Double.parseDouble(text());
         }
         int result = doIntValue();
         ensureNumberConversion(coerce, result, Integer.class);
@@ -169,7 +168,13 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Long.class);
-            return Long.parseLong(text());
+            // longs need special handling so we don't lose precision while parsing
+            String stringValue = text();
+            try {
+                return Long.parseLong(stringValue);
+            } catch (NumberFormatException e) {
+                return (long) Double.parseDouble(stringValue);
+            }
         }
         long result = doLongValue();
         ensureNumberConversion(coerce, result, Long.class);

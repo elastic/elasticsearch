@@ -49,20 +49,6 @@ public class GeoHashGridParserTests extends ESTestCase {
         assertNotNull(GeoGridAggregationBuilder.parse("geohash_grid", parseContext));
     }
 
-    public void testParseErrorOnNonIntPrecision() throws Exception {
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, "{\"field\":\"my_loc\", \"precision\":\"2.0\"}");
-        QueryParseContext parseContext = new QueryParseContext(stParser);
-        XContentParser.Token token = stParser.nextToken();
-        assertSame(XContentParser.Token.START_OBJECT, token);
-        try {
-            GeoGridAggregationBuilder.parse("geohash_grid", parseContext);
-            fail();
-        } catch (ParsingException ex) {
-            assertThat(ex.getCause(), instanceOf(NumberFormatException.class));
-            assertEquals("For input string: \"2.0\"", ex.getCause().getMessage());
-        }
-    }
-
     public void testParseErrorOnBooleanPrecision() throws Exception {
         XContentParser stParser = createParser(JsonXContent.jsonXContent, "{\"field\":\"my_loc\", \"precision\":false}");
         QueryParseContext parseContext = new QueryParseContext(stParser);

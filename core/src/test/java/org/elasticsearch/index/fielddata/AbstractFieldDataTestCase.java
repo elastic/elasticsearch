@@ -74,7 +74,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
     protected List<LeafReaderContext> readerContexts = null;
     protected DirectoryReader topLevelReader = null;
     protected IndicesFieldDataCache indicesFieldDataCache;
-    private QueryShardContext shardContext;
+    protected QueryShardContext shardContext;
 
     protected abstract String getFieldDataType();
 

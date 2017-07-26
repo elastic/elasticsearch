@@ -20,7 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -215,7 +214,7 @@ public class ChildBulkByScrollWorker implements SuccessfullyProcessed {
 
             this.delayedPrepareBulkRequestReference.set(delayedPrepareBulkRequest.rethrottle(newRequestsPerSecond));
         }
-        logger.warn("[{}]:22 FINISH CHILD RETHROTTLE HANDLING TASK", task.getId());
+        logger.warn("[{}]: FINISH CHILD RETHROTTLE HANDLING TASK", task.getId());
     }
 
     class DelayedPrepareBulkRequest {

@@ -39,8 +39,11 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
  * 3) The *actual* jar that will be used by clients. This has no classifier, contains the rest client src and
  *    `org.elasticsearch.client`. This jar is the only actual output artifact of this job.
  */
+plugins {
+  id "com.github.johnrengelman.shadow" version "2.0.1"
+}
+
 apply plugin: 'elasticsearch.build'
-apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'ru.vyarus.animalsniffer'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'

@@ -73,7 +73,7 @@ public class DiskUsage implements ToXContentFragment, Writeable {
         return Math.round(pct * 10.0) / 10.0;
     }
 
-    public XContentBuilder toShortXContent(XContentBuilder builder, Params params) throws IOException {
+    XContentBuilder toShortXContent(XContentBuilder builder) throws IOException {
         builder.field("path", this.path);
         builder.byteSizeField("total_bytes", "total", this.totalBytes);
         builder.byteSizeField("used_bytes", "used", this.getUsedBytes());
@@ -86,7 +86,7 @@ public class DiskUsage implements ToXContentFragment, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("node_id", this.nodeId);
         builder.field("node_name", this.nodeName);
-        builder = toShortXContent(builder, params);
+        builder = toShortXContent(builder);
         return builder;
     }
 

@@ -124,15 +124,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, true);
-    }
-
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean includeFieldName) throws IOException {
-        if (includeFieldName) {
-            builder.field(X_FIELD_NAME, fuzziness);
-        } else {
-            builder.value(fuzziness);
-        }
+        builder.field(X_FIELD_NAME, fuzziness);
         return builder;
     }
 

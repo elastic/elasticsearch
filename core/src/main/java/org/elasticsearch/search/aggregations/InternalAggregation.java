@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
@@ -38,7 +37,7 @@ import java.util.Objects;
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
  */
-public abstract class InternalAggregation implements Aggregation, ToXContentFragment, NamedWriteable {
+public abstract class InternalAggregation implements Aggregation, NamedWriteable {
 
     public static class ReduceContext {
 

@@ -493,7 +493,6 @@ final class DefaultSearchContext extends SearchContext {
         return indexService.cache().bitsetFilterCache();
     }
 
-
     @Override
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
         return queryShardContext.getForField(fieldType);

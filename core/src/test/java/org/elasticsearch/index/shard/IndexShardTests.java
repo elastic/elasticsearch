@@ -1721,7 +1721,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // test global ordinals are evicted
         MappedFieldType foo = shard.mapperService().fullName("foo");
-        IndexFieldData.Global ifd = shard.indexFieldDataService().getForField(foo);
+        IndexFieldData.Global ifd = shard.getForField(foo);
         FieldDataStats before = shard.fieldData().stats("foo");
         assertThat(before.getMemorySizeInBytes(), equalTo(0L));
         FieldDataStats after = null;

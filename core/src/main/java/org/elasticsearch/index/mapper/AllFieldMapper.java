@@ -106,8 +106,8 @@ public class AllFieldMapper extends MetadataFieldMapper {
                                                  ParserContext parserContext) throws MapperParsingException {
             if (node.isEmpty() == false &&
                     parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
-                //throw new IllegalArgumentException("[_all] is disabled in 6.0. As a replacement, you can use an [copy_to] " +
-                //                "on mapping fields to create your own catch all field. " + );
+                throw new IllegalArgumentException("[_all] is disabled in 6.0. As a replacement, you can use an [copy_to] " +
+                                "on mapping fields to create your own catch all field.");
             }
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             builder.fieldType().setIndexAnalyzer(parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer());

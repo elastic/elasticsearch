@@ -744,7 +744,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QB testQuery = createTestQueryBuilder();
             XContentType xContentType = XContentType.JSON;
-            String toString = testQuery.toString();
+            String toString = Strings.toString(testQuery);
             assertParsedQuery(createParser(xContentType.xContent(), toString), testQuery);
         }
     }

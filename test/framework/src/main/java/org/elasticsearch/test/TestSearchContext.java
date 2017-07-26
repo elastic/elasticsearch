@@ -72,7 +72,6 @@ public class TestSearchContext extends SearchContext {
 
     final BigArrays bigArrays;
     final IndexService indexService;
-    final IndexFieldDataService indexFieldDataService;
     final BitsetFilterCache fixedBitSetFilterCache;
     final ThreadPool threadPool;
     final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
@@ -101,7 +100,6 @@ public class TestSearchContext extends SearchContext {
     public TestSearchContext(ThreadPool threadPool, BigArrays bigArrays, IndexService indexService) {
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;
-        this.indexFieldDataService = indexService.fieldData();
         this.fixedBitSetFilterCache = indexService.cache().bitsetFilterCache();
         this.threadPool = threadPool;
         this.indexShard = indexService.getShardOrNull(0);
@@ -115,7 +113,6 @@ public class TestSearchContext extends SearchContext {
     public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard) {
         this.bigArrays = null;
         this.indexService = null;
-        this.indexFieldDataService = null;
         this.threadPool = null;
         this.fixedBitSetFilterCache = null;
         this.indexShard = indexShard;
@@ -309,7 +306,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return indexFieldDataService.getForField(fieldType);
+        return queryShardContext.getForField(fieldType);
     }
 
     @Override

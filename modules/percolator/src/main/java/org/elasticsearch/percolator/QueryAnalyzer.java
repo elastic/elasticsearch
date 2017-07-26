@@ -30,10 +30,12 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.spans.SpanFirstQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanNotQuery;
@@ -51,8 +53,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public final class QueryAnalyzer {
 
@@ -78,6 +82,8 @@ public final class QueryAnalyzer {
         map.put(DisjunctionMaxQuery.class, disjunctionMaxQuery());
         map.put(SynonymQuery.class, synonymQuery());
         map.put(FunctionScoreQuery.class, functionScoreQuery());
+        map.put(PrefixQuery.class, prefixQuery());
+        map.put(WildcardQuery.class, wildcardQuery());
         queryProcessors = Collections.unmodifiableMap(map);
     }
 
@@ -144,17 +150,17 @@ public final class QueryAnalyzer {
     static Function<Query, Result> termQuery() {
         return (query -> {
             TermQuery termQuery = (TermQuery) query;
-            return new Result(true, Collections.singleton(termQuery.getTerm()));
+            return new Result(true, Collections.singleton(new QueryTerm(termQuery.getTerm())));
         });
     }
 
     static Function<Query, Result> termInSetQuery() {
         return query -> {
             TermInSetQuery termInSetQuery = (TermInSetQuery) query;
-            Set<Term> terms = new HashSet<>();
+            Set<QueryTerm> terms = new HashSet<>();
             PrefixCodedTerms.TermIterator iterator = termInSetQuery.getTermData().iterator();
             for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
-                terms.add(new Term(iterator.field(), term));
+                terms.add(new QueryTerm(new Term(iterator.field(), term)));
             }
             return new Result(true, terms);
         };
@@ -162,22 +168,22 @@ public final class QueryAnalyzer {
 
     static Function<Query, Result> synonymQuery() {
         return query -> {
-            Set<Term> terms = new HashSet<>(((SynonymQuery) query).getTerms());
+            Set<QueryTerm> terms = ((SynonymQuery) query).getTerms().stream().map(QueryTerm::new).collect(Collectors.toSet());
             return new Result(true, terms);
         };
     }
 
     static Function<Query, Result> commonTermsQuery() {
         return query -> {
-            List<Term> terms = ((CommonTermsQuery) query).getTerms();
-            return new Result(false, new HashSet<>(terms));
+            Set<QueryTerm> terms = ((CommonTermsQuery) query).getTerms().stream().map(QueryTerm::new).collect(Collectors.toSet());
+            return new Result(false, terms);
         };
     }
 
     static Function<Query, Result> blendedTermQuery() {
         return query -> {
-            List<Term> terms = ((BlendedTermQuery) query).getTerms();
-            return new Result(true, new HashSet<>(terms));
+            Set<QueryTerm> terms = ((BlendedTermQuery) query).getTerms().stream().map(QueryTerm::new).collect(Collectors.toSet());
+            return new Result(true, terms);
         };
     }
 
@@ -196,7 +202,7 @@ public final class QueryAnalyzer {
                     longestTerm = term;
                 }
             }
-            return new Result(false, Collections.singleton(longestTerm));
+            return new Result(false, Collections.singleton(new QueryTerm(longestTerm)));
         };
     }
 
@@ -207,9 +213,10 @@ public final class QueryAnalyzer {
                 return new Result(true, Collections.emptySet());
             }
 
-            Set<Term> bestTermArr = null;
+            Set<QueryTerm> bestTermArr = null;
             for (Term[] termArr : terms) {
-                bestTermArr = selectTermListWithTheLongestShortestTerm(bestTermArr, new HashSet<>(Arrays.asList(termArr)));
+                Set<QueryTerm> queryTerms = Arrays.stream(termArr).map(QueryTerm::new).collect(Collectors.toSet());
+                bestTermArr = selectTermListWithTheLongestShortestTerm(bestTermArr, queryTerms);
             }
             return new Result(false, bestTermArr);
         };
@@ -218,13 +225,13 @@ public final class QueryAnalyzer {
     static Function<Query, Result> spanTermQuery() {
         return query -> {
             Term term = ((SpanTermQuery) query).getTerm();
-            return new Result(true, Collections.singleton(term));
+            return new Result(true, Collections.singleton(new QueryTerm(term)));
         };
     }
 
     static Function<Query, Result> spanNearQuery() {
         return query -> {
-            Set<Term> bestClauses = null;
+            Set<QueryTerm> bestClauses = null;
             SpanNearQuery spanNearQuery = (SpanNearQuery) query;
             for (SpanQuery clause : spanNearQuery.getClauses()) {
                 Result temp = analyze(clause);
@@ -236,7 +243,7 @@ public final class QueryAnalyzer {
 
     static Function<Query, Result> spanOrQuery() {
         return query -> {
-            Set<Term> terms = new HashSet<>();
+            Set<QueryTerm> terms = new HashSet<>();
             SpanOrQuery spanOrQuery = (SpanOrQuery) query;
             for (SpanQuery clause : spanOrQuery.getClauses()) {
                 terms.addAll(analyze(clause).terms);
@@ -279,7 +286,7 @@ public final class QueryAnalyzer {
                 }
             }
             if (numRequiredClauses > 0) {
-                Set<Term> bestClause = null;
+                Set<QueryTerm> bestClause = null;
                 UnsupportedQueryException uqe = null;
                 for (BooleanClause clause : clauses) {
                     if (clause.isRequired() == false) {
@@ -341,9 +348,55 @@ public final class QueryAnalyzer {
         };
     }
 
+    static Function<Query, Result> prefixQuery() {
+        return query -> {
+            PrefixQuery prefixQuery = (PrefixQuery) query;
+            return new Result(false, Collections.singleton(new QueryTerm(prefixQuery.getPrefix(), true)));
+        };
+    }
+
+    static Function<Query, Result> wildcardQuery() {
+        return query -> {
+            WildcardQuery wildcardQuery = (WildcardQuery) query;
+
+            boolean escape = false;
+            String longestText = "";
+            StringBuilder builder = new StringBuilder();
+            String wildcardExpression = wildcardQuery.getTerm().text();
+            for (int i = 0; i < wildcardExpression.length(); i++) {
+                char c = wildcardExpression.charAt(i);
+                if (c == '\\') {
+                    escape = true;
+                    continue;
+                }
+
+                if (escape) {
+                    builder.append(c);
+                } else if (c == '*' || c == '?') {
+                    String text = builder.toString();
+                    builder = new StringBuilder();
+                    if (text.length() > longestText.length()) {
+                        longestText = text;
+                    }
+                } else {
+                    builder.append(c);
+                }
+                escape = false;
+            }
+
+            if (longestText.isEmpty()) {
+                // I think in most cases we shouldn't get here since query parser translate `*` into a query based on _field_names field:
+                throw new UnsupportedQueryException(query);
+            } else {
+                QueryTerm  queryTerm = new QueryTerm(new Term(wildcardQuery.getField(), longestText), true);
+                return new Result(false, Collections.singleton(queryTerm));
+            }
+        };
+    }
+
     static Result handleDisjunction(List<Query> disjunctions, int minimumShouldMatch, boolean otherClauses) {
         boolean verified = minimumShouldMatch <= 1 && otherClauses == false;
-        Set<Term> terms = new HashSet<>();
+        Set<QueryTerm> terms = new HashSet<>();
         for (Query disjunct : disjunctions) {
             Result subResult = analyze(disjunct);
             if (subResult.verified == false) {
@@ -354,7 +407,7 @@ public final class QueryAnalyzer {
         return new Result(verified, terms);
     }
 
-    static Set<Term> selectTermListWithTheLongestShortestTerm(Set<Term> terms1, Set<Term> terms2) {
+    static Set<QueryTerm> selectTermListWithTheLongestShortestTerm(Set<QueryTerm> terms1, Set<QueryTerm> terms2) {
         if (terms1 == null) {
             return terms2;
         } else if (terms2 == null) {
@@ -371,9 +424,9 @@ public final class QueryAnalyzer {
         }
     }
 
-    static int minTermLength(Set<Term> terms) {
+    static int minTermLength(Set<QueryTerm> terms) {
         int min = Integer.MAX_VALUE;
-        for (Term term : terms) {
+        for (QueryTerm term : terms) {
             min = Math.min(min, term.bytes().length);
         }
         return min;
@@ -381,14 +434,61 @@ public final class QueryAnalyzer {
 
     static class Result {
 
-        final Set<Term> terms;
+        final Set<QueryTerm> terms;
         final boolean verified;
 
-        Result(boolean verified, Set<Term> terms) {
+        Result(boolean verified, Set<QueryTerm> terms) {
             this.terms = terms;
             this.verified = verified;
         }
 
+    }
+
+    static class QueryTerm implements Comparable<QueryTerm> {
+
+        final Term term;
+        final boolean wildcard;
+
+        QueryTerm(Term term) {
+            this.term = term;
+            this.wildcard = false;
+        }
+
+        QueryTerm(Term term, boolean wildcard) {
+            this.term = term;
+            this.wildcard = wildcard;
+        }
+
+        public String field() {
+            return term.field();
+        }
+
+        public BytesRef bytes() {
+            return term.bytes();
+        }
+
+        public String text() {
+            return term.text();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            QueryTerm queryTerm = (QueryTerm) o;
+            return wildcard == queryTerm.wildcard &&
+                Objects.equals(term, queryTerm.term);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(term, wildcard);
+        }
+
+        @Override
+        public int compareTo(QueryTerm other) {
+            return term.compareTo(other.term);
+        }
     }
 
     /**

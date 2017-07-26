@@ -263,6 +263,8 @@ public class FunctionScoreQuery extends Query {
                 if (filterWeights[i] != null) {
                     ScorerSupplier filterScorerSupplier = filterWeights[i].scorerSupplier(context);
                     docSets[i] = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorerSupplier);
+                } else {
+                    docSets[i] = new Bits.MatchAllBits(context.reader().maxDoc());
                 }
             }
             return new FunctionFactorScorer(this, subQueryScorer, scoreMode, functions, maxBoost, leafFunctions,
@@ -290,11 +292,8 @@ public class FunctionScoreQuery extends Query {
                 // First: Gather explanations for all functions/filters
                 List<Explanation> functionsExplanations = new ArrayList<>();
                 for (int i = 0; i < functions.length; ++i) {
-                    final Bits docSet;
-
                     if (filterWeights[i] != null) {
-                        docSet = Lucene.asSequentialAccessBits(context.reader().maxDoc(),
-                            filterWeights[i].scorerSupplier(context));
+                        final Bits docSet = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterWeights[i].scorerSupplier(context));
                         if (docSet.get(doc) == false) {
                             continue;
                         }
@@ -371,7 +370,7 @@ public class FunctionScoreQuery extends Query {
             float finalScore = scoreCombiner.combine(subQueryScore, factor, maxBoost);
             if (finalScore == Float.NEGATIVE_INFINITY || Float.isNaN(finalScore)) {
                 /**
-                 * These scores are invalid for {@link TopDocsCollector}s that relies on score comparison.
+                 * These scores are invalid for score based {@link TopDocsCollector}s.
                  * See {@link TopScoreDocCollector} for details.
                  */
                 throw new ElasticsearchException("function score query returned an invalid score: " + finalScore + " for doc: " + docId);
@@ -384,7 +383,7 @@ public class FunctionScoreQuery extends Query {
             switch(scoreMode) {
                 case FIRST:
                     for (int i = 0; i < leafFunctions.length; i++) {
-                        if (docSets[i] == null || docSets[i].get(docId)) {
+                        if (docSets[i].get(docId)) {
                             factor = leafFunctions[i].score(docId, subQueryScore);
                             break;
                         }
@@ -393,7 +392,7 @@ public class FunctionScoreQuery extends Query {
                 case MAX:
                     double maxFactor = Double.NEGATIVE_INFINITY;
                     for (int i = 0; i < leafFunctions.length; i++) {
-                        if (docSets[i] == null || docSets[i].get(docId)) {
+                        if (docSets[i].get(docId)) {
                             maxFactor = Math.max(leafFunctions[i].score(docId, subQueryScore), maxFactor);
                         }
                     }
@@ -404,7 +403,7 @@ public class FunctionScoreQuery extends Query {
                 case MIN:
                     double minFactor = Double.POSITIVE_INFINITY;
                     for (int i = 0; i < leafFunctions.length; i++) {
-                        if (docSets[i] == null || docSets[i].get(docId)) {
+                        if (docSets[i].get(docId)) {
                             minFactor = Math.min(leafFunctions[i].score(docId, subQueryScore), minFactor);
                         }
                     }
@@ -414,7 +413,7 @@ public class FunctionScoreQuery extends Query {
                     break;
                 case MULTIPLY:
                     for (int i = 0; i < leafFunctions.length; i++) {
-                        if (docSets[i] == null || docSets[i].get(docId)) {
+                        if (docSets[i].get(docId)) {
                             factor *= leafFunctions[i].score(docId, subQueryScore);
                         }
                     }
@@ -423,7 +422,7 @@ public class FunctionScoreQuery extends Query {
                     double totalFactor = 0.0f;
                     double weightSum = 0;
                     for (int i = 0; i < leafFunctions.length; i++) {
-                        if (docSets[i] == null || docSets[i].get(docId)) {
+                        if (docSets[i].get(docId)) {
                             totalFactor += leafFunctions[i].score(docId, subQueryScore);
                             weightSum += functions[i].getWeight();
                         }

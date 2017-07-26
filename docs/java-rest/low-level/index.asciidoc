@@ -20,7 +20,7 @@ The low-level client's features include:
 
 * optional automatic <<sniffer,discovery of cluster nodes>>
 
-* packaged as a single JAR file that includes all required dependencies
+* packaged as a single JAR file that shades all dependencies
 
 --
 

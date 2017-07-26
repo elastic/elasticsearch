@@ -740,6 +740,15 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
     }
 
+    public void testToString() throws IOException {
+        for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
+            QB testQuery = createTestQueryBuilder();
+            XContentType xContentType = XContentType.JSON;
+            String toString = testQuery.toString();
+            assertParsedQuery(createParser(xContentType.xContent(), toString), testQuery);
+        }
+    }
+
     private QB changeNameOrBoost(QB original) throws IOException {
         QB secondQuery = copyQuery(original);
         if (randomBoolean()) {

@@ -299,7 +299,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
     }
 
     public void testDelegateToFailingMaster() throws ExecutionException, InterruptedException {
-        boolean failsWithConnectTransportException = true || randomBoolean();
+        boolean failsWithConnectTransportException = randomBoolean();
         boolean rejoinSameMaster = failsWithConnectTransportException && randomBoolean();
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(failsWithConnectTransportException ? 60 : 0));
         DiscoveryNode masterNode = this.remoteNode;
@@ -320,7 +320,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             transport.handleRemoteError(capturedRequest.requestId, new ConnectTransportException(masterNode, "Fake error"));
             assertFalse(listener.isDone());
             if (randomBoolean()) {
-                // simulate master node removal removal
+                // simulate master node removal
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
                 nodesBuilder.masterNodeId(null);
                 setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodesBuilder));

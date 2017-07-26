@@ -42,7 +42,7 @@ public final class MasterNodeChangePredicate {
             final boolean accept;
             if (newMaster == null) {
                 accept = false;
-            } else if (newMaster.getEphemeralId().equals(currentMasterId) == false){
+            } else if (newMaster.getEphemeralId().equals(currentMasterId) == false) {
                 accept = true;
             } else {
                 accept = newState.version() > currentVersion;

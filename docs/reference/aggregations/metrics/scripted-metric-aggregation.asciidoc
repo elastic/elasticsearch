@@ -9,25 +9,23 @@ Example:
 
 [source,js]
 --------------------------------------------------
-POST ledger/_search?size=0
+POST /transactions/_search
 {
-    "query" : {
-        "match_all" : {}
-    },
-    "aggs": {
-        "profit": {
-            "scripted_metric": {
-                "init_script" : "params._agg.transactions = []",
-                "map_script" : "params._agg.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)", <1>
-                "combine_script" : "double profit = 0; for (t in params._agg.transactions) { profit += t } return profit",
-                "reduce_script" : "double profit = 0; for (a in params._aggs) { profit += a } return profit"
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "profit": {
+      "scripted_metric": {
+        "init_script" : "params._agg.transactions = []",
+        "map_script" : "params._agg.transactions.add(doc['type.keyword'].value == 'sale' ? doc.amount.value : -1 * doc.amount.value)", <1>
+        "combine_script" : "double profit = 0; for (t in params._agg.transactions) { profit += t } return profit",
+        "reduce_script" : "double profit = 0; for (a in params._aggs) { profit += a } return profit"
+      }
     }
+  }
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:ledger]
+// TEST[setup:transactions]
 
 <1> `map_script` is the only required  parameter
 
@@ -38,13 +36,13 @@ The response for the above aggregation:
 [source,js]
 --------------------------------------------------
 {
-    "took": 218,
-    ...
-    "aggregations": {
-        "profit": {
-            "value": 240.0
-        }
-   }
+  "took": 218,
+  ...
+  "aggregations": {
+    "profit": {
+      "value": 240.0
+    }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 218/"took": $body.took/]
@@ -54,34 +52,35 @@ The above example can also be specified using stored scripts as follows:
 
 [source,js]
 --------------------------------------------------
-POST ledger/_search?size=0
+POST /transactions/_search
 {
-    "aggs": {
-        "profit": {
-            "scripted_metric": {
-                "init_script" : {
-                    "id": "my_init_script"
-                },
-                "map_script" : {
-                    "id": "my_map_script"
-                },
-                "combine_script" : {
-                    "id": "my_combine_script"
-                },
-                "params": {
-                    "field": "amount", <1>
-                    "_agg": {}        <2>
-                },
-                "reduce_script" : {
-                    "id": "my_reduce_script"
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "profit": {
+      "scripted_metric": {
+        "init_script" : {
+          "id": "my_init_script"
+        },
+        "map_script" : {
+          "id": "my_map_script"
+        },
+        "combine_script" : {
+          "id": "my_combine_script"
+        },
+        "params": {
+          "field": "amount", <1>
+          "_agg": {}        <2>
+        },
+        "reduce_script" : {
+          "id": "my_reduce_script"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:ledger,stored_scripted_metric_script]
+// TEST[setup:transactions,stored_scripted_metric_script]
 
 <1> script parameters for `init`, `map` and `combine` scripts must be specified
 in a global `params` object so that it can be share between the scripts.
@@ -93,13 +92,13 @@ Verify this response as well but in a hidden block.
 [source,js]
 --------------------------------------------------
 {
-    "took": 218,
-    ...
-    "aggregations": {
-        "profit": {
-            "value": 240.0
-        }
-   }
+  "took": 218,
+  ...
+  "aggregations": {
+    "profit": {
+      "value": 240.0
+    }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 218/"took": $body.took/]
@@ -173,7 +172,7 @@ No params object was specified so the default params object is used:
 [source,js]
 --------------------------------------------------
 "params" : {
-    "_agg" : {}
+  "_agg" : {}
 }
 --------------------------------------------------
 
@@ -186,9 +185,9 @@ Shard A::
 [source,js]
 --------------------------------------------------
 "params" : {
-    "_agg" : {
-        "transactions" : []
-    }
+  "_agg" : {
+    "transactions" : []
+  }
 }
 --------------------------------------------------
 
@@ -197,9 +196,9 @@ Shard B::
 [source,js]
 --------------------------------------------------
 "params" : {
-    "_agg" : {
-        "transactions" : []
-    }
+  "_agg" : {
+    "transactions" : []
+  }
 }
 --------------------------------------------------
 
@@ -212,9 +211,9 @@ Shard A::
 [source,js]
 --------------------------------------------------
 "params" : {
-    "_agg" : {
-        "transactions" : [ 80, -30 ]
-    }
+  "_agg" : {
+    "transactions" : [ 80, -30 ]
+  }
 }
 --------------------------------------------------
 
@@ -223,9 +222,9 @@ Shard B::
 [source,js]
 --------------------------------------------------
 "params" : {
-    "_agg" : {
-        "transactions" : [ -10, 130 ]
-    }
+  "_agg" : {
+    "transactions" : [ -10, 130 ]
+  }
 }
 --------------------------------------------------
 
@@ -244,8 +243,8 @@ The reduce_script receives an `_aggs` array containing the result of the combine
 [source,js]
 --------------------------------------------------
 "_aggs" : [
-    50,
-    120
+  50,
+  120
 ]
 --------------------------------------------------
 
@@ -255,13 +254,13 @@ produce the response:
 [source,js]
 --------------------------------------------------
 {
-    ...
+  ...
 
-    "aggregations": {
-        "profit": {
-            "value": 170
-        }
-   }
+  "aggregations": {
+    "profit": {
+      "value": 170
+    }
+  }
 }
 --------------------------------------------------
 
@@ -275,12 +274,12 @@ params::           Optional. An object whose contents will be passed as variable
 [source,js]
 --------------------------------------------------
 "params" : {
-    "_agg" : {}
+  "_agg" : {}
 }
 --------------------------------------------------
 
 ==== Empty Buckets
 
 If a parent bucket of the scripted metric aggregation does not collect any documents an empty aggregation response will be returned from the
-shard with a `null` value. In this case the `reduce_script`'s `_aggs` variable will contain `null` as a response from that shard.  
-`reduce_script`'s should therefore expect and deal with `null` responses from shards.  
+shard with a `null` value. In this case the `reduce_script`'s `_aggs` variable will contain `null` as a response from that shard.
+`reduce_script`'s should therefore expect and deal with `null` responses from shards.

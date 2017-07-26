@@ -606,7 +606,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         refreshReader();
         assertThat(ifd.loadGlobal(topLevelReader), not(sameInstance(globalOrdinals)));
 
-        ifdService.clear();
+        indexService.clearCaches(false, true);
         assertThat(indicesFieldDataCache.getCache().weight(), equalTo(0L));
     }
 }

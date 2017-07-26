@@ -19,11 +19,9 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.client.methods.HttpPost;
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.nio.entity.NStringEntity;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -38,6 +36,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -46,6 +45,11 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.client.methods.HttpPost;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.nio.entity.NStringEntity;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -87,6 +91,28 @@ import static java.util.Collections.singletonMap;
  * --------------------------------------------------
  */
 public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
+
+    public void testMain() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::main-execute
+            MainResponse response = client.info();
+            //end::main-execute
+            assertTrue(response.isAvailable());
+            //tag::main-response
+            ClusterName clusterName = response.getClusterName(); // <1>
+            String clusterUuid = response.getClusterUuid(); // <2>
+            String nodeName = response.getNodeName(); // <3>
+            Version version = response.getVersion(); // <4>
+            Build build = response.getBuild(); // <5>
+            //end::main-response
+            assertNotNull(clusterName);
+            assertNotNull(clusterUuid);
+            assertNotNull(nodeName);
+            assertNotNull(version);
+            assertNotNull(build);
+        }
+    }
 
     public void testIndex() throws IOException {
         RestHighLevelClient client = highLevelClient();

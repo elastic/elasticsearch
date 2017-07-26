@@ -7,5 +7,6 @@ include::update.asciidoc[]
 include::bulk.asciidoc[]
 include::search.asciidoc[]
 include::scroll.asciidoc[]
+include::main.asciidoc[]
 
 :doc-tests!:

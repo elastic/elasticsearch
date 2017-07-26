@@ -1,0 +1,137 @@
+[[java-rest-high-level-migration]]
+== Migration Guide
+
+This section describes how to migrate existing code from the `TransportClient`
+to the new Java High Level REST Client released with the version 5.6.0
+of Elasticsearch.
+
+=== Motivations around a new Java client
+
+The existing `TransportClient` has always been part of Elasticsearch since https://github
+.com/elastic/elasticsearch/blob/b3337c312765e51cec7bde5883bbc0a08f56fb65/modules/elasticsearch/src/main/java/org/elasticsearch/client
+/transport/TransportClient.java[its very first commit]. Although it covers the whole set of Elasticsearch APIs,
+it always has had various flaws:
+
+- it is tightly coupled with Elasticsearch and uses Elasticsearch's internal implementations
+- it uses Java serialization to transport objects over the wire using their binary representations
+
+These two aspects forces any Java application that communicates with an Elasticsearch cluster to use
+a `TransportClient` in a version compatible with the remote cluster's version. That's perfect most of
+the time but Elasticsearch moves fast and new versions are released every month, forcing Java applications
+to use a newer version of the `TransportClient` just because the remote cluster has been upgraded.
+
+We decided to tackle these issues and we released a low-level REST client in 2016. This low-level REST client
+is based on the well-known Apache HTTP Client and it allows to communicate with an Elasticsearch cluster in any
+version using HTTP. On top of it, we released the high-level REST client. It is based on the low-level client
+and it provides a <<java-rest-high-supported-apis,subset of Elasticsearch's APIs>> that uses Elasticsearch core
+Java classes, like the `TransportClient`does, in order to perform requests and to parse responses.
+
+=== Prerequisite
+
+The Java High Level Rest Client requires Java `1.8`.
+
+=== Compatibility
+
+==== Java API
+The Java High Level Rest Client has been released with the version 5.6.0 of Elasticsearch and is
+therefore compatible with the Elasticsearch's Java API in this version.
+
+==== Rest API
+A special effort has been made to make it compatible with the Elasticsearch's REST API in versions
+5.x and 6.x.
+
+=== How to migrate
+
+Changing an existing code to use the `RestHighLevelClient` instead of the `TransportClient`
+requires the following steps:
+
+- Update dependencies
+- Update client initialization
+- Update application code
+
+==== Updating the dependencies
+
+Java application that uses the `TransportClient` declare the following dependency:
+
+["source","xml",subs="attributes"]
+--------------------------------------------------
+<dependency>
+    <groupId>org.elasticsearch.client</groupId>
+    <artifactId>transport</artifactId>
+    <version>...</version>
+</dependency>
+--------------------------------------------------
+
+This dependency must be removed and replaced by a new dependency on the
+high-level client. The <<java-rest-high-usage,Getting Started>> page shows
+ typical configurations for Maven and Gradle and presents the
+ <<java-rest-high-usage-dependencies,two transitive dependencies>> brought
+ by the high-level client.
+
+==== Changing the client's initialization code
+
+The `TransportClient` is typically initialized with something like:
+[source,java]
+--------------------------------------------------
+Settings settings = Settings.builder()
+        .put("cluster.name", "prod").build();
+
+TransportClient client = new PreBuiltTransportClient(settings)
+        .addTransportAddress(new TransportAddress(InetAddress.getByName("host"), 9300));
+--------------------------------------------------
+
+The initialization of a `RestHighLevelClient` is different. It first requires the initialization
+of a <<java-rest-low-usage-initialization,low-level client>>:
+
+[source,java]
+--------------------------------------------------
+RestClient lowLevelRestClient = RestClient.builder(
+                new HttpHost("host", 9200, "http")).build();
+--------------------------------------------------
+
+Which is then passed to the constructor of the `RestHighLevelClient`:
+
+[source,java]
+--------------------------------------------------
+RestHighLevelClient client =
+    new RestHighLevelClient(lowLevelRestClient);
+--------------------------------------------------
+
+Both `RestClient` and `RestHighLevelClient` are thread safe. They are
+ typically instantiated by the application at startup time or when the
+ first request is executed, and must both be closed when they are not
+ needed anymore or when the application is stopped.
+
+The `RestClient` provides various <<java-rest-low-usage-initialization,
+ initialization options>> that can be used to tune the way it executes
+ the requests.
+
+Once the `RestHighLevelClient` is initialized, it can then be used to
+execute any of the <<java-rest-high-supported-apis,supported APIs>>.
+
+WARNING: The high-level client does not verify the name of the cluster
+it connects to. This verification can be made after the initialization
+of the client by checking the <<java-rest-high-main, cluster's information>>
+
+==== Changing the application's code
+
+The `RestHighLevelClient` does not provide the same methods than
+the `TransportClient` to execute the requests.
+
+More important, the high-level client:
+
+- does not provide indices or cluster management APIs. Management
+operations must be executed by external scripts or using the low-level
+client.
+- does not provide request builders like the `TransportClient`. The
+ legacy methods like `client.prepareIndex()` must be changed to use
+ request constructors like `new IndexRequest()` to create requests
+ instances. The requests are then executed using synchronous or
+ asynchronous dedicated methods like `client.index()` or `client.indexAsync()`.
+
+==== Provide feedback
+
+We love to hear from you! Please give us your feedback about your migration
+experience and how to improve the Java High Level Rest Client on https://discuss.elastic.co/[our forum].
+
+

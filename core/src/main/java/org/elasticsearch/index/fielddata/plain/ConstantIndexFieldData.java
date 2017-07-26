@@ -73,6 +73,7 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
             this.value = value;
         }
 
+
         @Override
         public long ramBytesUsed() {
             return 0;
@@ -125,7 +126,7 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     }
 
-    private final AtomicOrdinalsFieldData atomicFieldData;
+    private final ConstantAtomicFieldData atomicFieldData;
 
     private ConstantIndexFieldData(IndexSettings indexSettings, String name, String value) {
         super(indexSettings, name, null, null,
@@ -165,6 +166,10 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
     @Override
     public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
         return loadGlobal(indexReader);
+    }
+
+    public String getValue() {
+        return atomicFieldData.value;
     }
 
 }

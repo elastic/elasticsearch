@@ -72,7 +72,7 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                     if (subReaderContext == null || hit.docId() >= subReaderContext.docBase + subReaderContext.reader().maxDoc()) {
                         int readerIndex = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
                         subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
-                        data = context.fieldData().getForField(fieldType).load(subReaderContext);
+                        data = context.getForField(fieldType).load(subReaderContext);
                         values = data.getScriptValues();
                     }
                     int subDocId = hit.docId() - subReaderContext.docBase;

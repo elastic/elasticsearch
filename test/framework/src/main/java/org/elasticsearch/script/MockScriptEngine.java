@@ -21,6 +21,11 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
+import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
+import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
+import org.elasticsearch.index.similarity.ScriptedSimilarity.Term;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -94,6 +99,9 @@ public class MockScriptEngine implements ScriptEngine {
                     };
                 };
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(SimilarityScript.class)) {
+            SimilarityScript.Factory factory = mockCompiled::createSimilarityScript;
+            return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }
@@ -140,6 +148,10 @@ public class MockScriptEngine implements ScriptEngine {
                 context.put("params", params);
             }
             return new MockSearchScript(lookup, context, script != null ? script : ctx -> source);
+        }
+
+        public SimilarityScript createSimilarityScript() {
+            return new MockSimilarityScript(script != null ? script : ctx -> 42d);
         }
     }
 
@@ -221,6 +233,26 @@ public class MockScriptEngine implements ScriptEngine {
         @Override
         public boolean needs_score() {
             return true;
+        }
+    }
+
+    public class MockSimilarityScript extends SimilarityScript {
+
+        private final Function<Map<String, Object>, Object> script;
+
+        MockSimilarityScript(Function<Map<String, Object>, Object> script) {
+            this.script = script;
+        }
+
+        @Override
+        public double execute(double weight, Query query, Field field, Term term, Doc doc) throws IOException {
+            Map<String, Object> map = new HashMap<>();
+            map.put("weight", weight);
+            map.put("query", query);
+            map.put("field", field);
+            map.put("term", term);
+            map.put("doc", doc);
+            return ((Number) script.apply(map)).doubleValue();
         }
     }
 

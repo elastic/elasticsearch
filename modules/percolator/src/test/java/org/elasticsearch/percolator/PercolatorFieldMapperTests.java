@@ -314,7 +314,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         QueryShardContext shardContext = indexService.newQueryShardContext(
             randomInt(20), null, () -> {
                 throw new UnsupportedOperationException();
-            });
+            }, null);
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(queryBuilder, shardContext, future);
         assertQueryBuilder(qbSource, future.get());

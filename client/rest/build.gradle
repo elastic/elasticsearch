@@ -21,22 +21,18 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
 
 /**
  * The rest client is a shaded jar. It contains the source of the rest client, as well as all the dependencies,
- * shaded to the `org.elasticsearch.client` package. 3 artifacts come out of this build process. The shading process only
- * modifies the imports and class names and locations. It does not do any processing on the files. The classes used to
- * interact with the rest client are no different from the dependencies in the shade configuration, besides in name.
+ * shaded to the `org.elasticsearch.client` package. 2 artifacts come out of this build process. The shading process
+ * only modifies the imports and class names and locations. It does not do any processing on the files. The classes used
+ * to interact with the rest client are no different from the dependencies in the shade configuration, besides in name.
  *
  * IDEs do not like removing artifacts and changing configurations on the fly, so the bits that make the build use the
- * actual shaded jar (3) are only executed on the cli. Tests run in an IDE rely on the deps (1) and nodeps (2) jars.
+ * actual shaded jar (2) are only executed on the cli. Tests run in an IDE rely on the deps (1) jar.
  *
- * 1) A jar that contains *only* the `org.elasticsearch.client` dependencies. This is a jar that is built before the src
- *    is compiled. This jar is only used by the rest client so its compilable. There exists a chicken-egg situation where
- *    the src needs compilation and depends on `org.elasticsearch.client` classes, so an intermediary jar needs to exist
- *    to satisfy the compile. The `deps` classifier is added to this jar.
- * 2) The original src/ contents, using the `org.elasticsearch.client` packages, but without the `org.elasticsearch.client`
- *    code also in the jar. The reason this jar was not overwritten was because gradle knows what its inputs and outputs
- *    are for a given task and we should not alter that by overwriting the original jar. What we do is add a `nodeps`
- *    classifier to it instead.
- * 3) The *actual* jar that will be used by clients. This has no classifier, contains the rest client src and
+ * 1) A jar that contains *only* the `org.elasticsearch.client` shaded dependencies. This is a jar that is built before
+ *    the src is compiled. This jar is only used by the rest client so will compile. There exists a chicken-egg
+ *    situation where the src needs compilation and depends on `org.elasticsearch.client` shaded classes, so an
+ *    intermediary jar needs to exist to satisfy the compile. The `deps` classifier is added to this jar.
+ * 2) The *actual* jar that will be used by clients. This has no classifier, contains the rest client src and
  *    `org.elasticsearch.client`. This jar is the only actual output artifact of this job.
  */
 plugins {
@@ -84,28 +80,18 @@ task shadeDeps(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar)
   }
 }
 
-// builds the actual shaded jar that is being distributed
-shadowJar {
-  configurations = [project.configurations.shade]
-  classifier = null
-  relocate 'org.apache', 'org.elasticsearch.client'
-}
-
 jar {
-  // move the default jar to another classifier so the jar with the shaded dependencies can have the empty classifier
-  classifier = 'nodeps'
+  from zipTree(shadeDeps.outputs.files.singleFile)
+  dependsOn shadeDeps
 }
 
-// Mangle this build so it outputs the correct artifacts
-// readds the shadowJar output (the actual uber jar) but only from the cli
+// remove the deps jar from the classpath to avoid jarHell
 if (isIdea == false && isEclipse == false) {
-  // removes the -nodeps jar
-  configurations.runtime.artifacts.removeAll { it.archiveTask.is jar }
-
-  // removes the runtime configuration inheritance from compile
-  configurations.runtime.extendsFrom -= [configurations.compile]
-  artifacts {
-    runtime project.tasks.shadowJar
+  // cleanup to remove the deps jar from the classpath
+  if (gradle.gradleVersion == "3.3") {
+    configurations.runtime.extendsFrom -= [configurations.compile]
+  } else if (gradle.gradleVersion > "3.3") {
+    configurations.runtimeElements.extendsFrom = []
   }
 }
 

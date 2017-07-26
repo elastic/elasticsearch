@@ -299,7 +299,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
     }
 
     public void testDelegateToFailingMaster() throws ExecutionException, InterruptedException {
-        boolean failsWithConnectTransportException = randomBoolean();
+        boolean failsWithConnectTransportException = true || randomBoolean();
         boolean rejoinSameMaster = failsWithConnectTransportException && randomBoolean();
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(failsWithConnectTransportException ? 60 : 0));
         DiscoveryNode masterNode = this.remoteNode;
@@ -320,15 +320,24 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             transport.handleRemoteError(capturedRequest.requestId, new ConnectTransportException(masterNode, "Fake error"));
             assertFalse(listener.isDone());
             if (randomBoolean()) {
+                // simulate master node removal removal
+                final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
+                nodesBuilder.masterNodeId(null);
+                setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodesBuilder));
+            }
+            if (randomBoolean()) {
                 // reset the same state to increment a version simulating a join of an existing node
                 // simulating use being disconnected
-                setState(clusterService, clusterService.state());
+                final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
+                nodesBuilder.masterNodeId(masterNode.getId());
+                setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodesBuilder));
             } else {
                 // simulate master restart followed by a state recovery - this will reset the cluster state version
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
                 nodesBuilder.remove(masterNode);
                 masterNode = new DiscoveryNode(masterNode.getId(), masterNode.getAddress(), masterNode.getVersion());
                 nodesBuilder.add(masterNode);
+                nodesBuilder.masterNodeId(masterNode.getId());
                 final ClusterState.Builder builder = ClusterState.builder(clusterService.state()).nodes(nodesBuilder);
                 setState(clusterService, builder.version(0));
             }

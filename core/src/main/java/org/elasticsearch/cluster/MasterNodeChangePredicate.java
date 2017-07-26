@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+
 import java.util.function.Predicate;
 
 public final class MasterNodeChangePredicate {
@@ -33,13 +35,14 @@ public final class MasterNodeChangePredicate {
      */
     public static Predicate<ClusterState> build(ClusterState currentState) {
         final long currentVersion = currentState.version();
-        final String currentMasterId = currentState.nodes().getMasterNode().getEphemeralId();
+        final DiscoveryNode masterNode = currentState.nodes().getMasterNode();
+        final String currentMasterId = masterNode == null ? null : masterNode.getEphemeralId();
         return newState -> {
-            final String newMasterId = newState.nodes().getMasterNode().getEphemeralId();
+            final DiscoveryNode newMaster = newState.nodes().getMasterNode();
             final boolean accept;
-            if (newMasterId == null) {
+            if (newMaster == null) {
                 accept = false;
-            } else if (newMasterId.equals(currentMasterId) == false){
+            } else if (newMaster.getEphemeralId().equals(currentMasterId) == false){
                 accept = true;
             } else {
                 accept = newState.version() > currentVersion;

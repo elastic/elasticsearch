@@ -56,6 +56,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -576,21 +577,51 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public Snapshot newSnapshot() {
         try (ReleasableLock ignored = readLock.acquire()) {
-            return newSnapshot(getMinFileGeneration());
+            return newSnapshotFromGen(getMinFileGeneration());
         }
     }
 
-    public Snapshot newSnapshot(long minGeneration) {
+    public Snapshot newSnapshotFromGen(long minGeneration) {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             if (minGeneration < getMinFileGeneration()) {
                 throw new IllegalArgumentException("requested snapshot generation [" + minGeneration + "] is not available. " +
                     "Min referenced generation is [" + getMinFileGeneration() + "]");
             }
-            Snapshot[] snapshots = Stream.concat(readers.stream(), Stream.of(current))
+            TranslogSnapshot[] snapshots = Stream.concat(readers.stream(), Stream.of(current))
                     .filter(reader -> reader.getGeneration() >= minGeneration)
-                    .map(BaseTranslogReader::newSnapshot).toArray(Snapshot[]::new);
-            return new MultiSnapshot(snapshots);
+                    .map(BaseTranslogReader::newSnapshot).toArray(TranslogSnapshot[]::new);
+            return newMultiSnapshot(snapshots);
+        }
+    }
+
+    public Snapshot newSnapshotFromMinSeqNo(long minSeqNo) {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            TranslogSnapshot[] snapshots = readersAboveMinSeqNo(minSeqNo).map(BaseTranslogReader::newSnapshot)
+                .toArray(TranslogSnapshot[]::new);
+            return newMultiSnapshot(snapshots);
+        }
+    }
+
+    private Snapshot newMultiSnapshot(TranslogSnapshot[] snapshots) {
+        final Releasable onClose;
+        if (snapshots.length == 0) {
+            onClose = () -> {};
+        } else {
+            assert Arrays.stream(snapshots).map(BaseTranslogReader::getGeneration).min(Long::compareTo).get()
+                == snapshots[0].generation : "first reader generation of " + snapshots[0].generation + " is not the smallest";
+            onClose = deletionPolicy.acquireTranslogGen(snapshots[0].generation);
+        }
+        boolean success = false;
+        try {
+            Snapshot result  = new MultiSnapshot(snapshots, onClose);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                onClose.close();
+            }
         }
     }
 
@@ -605,14 +636,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             });
     }
 
-    private Snapshot createSnapshotFromMinSeqNo(long minSeqNo) {
-        try (ReleasableLock ignored = readLock.acquire()) {
-            ensureOpen();
-            Snapshot[] snapshots = readersAboveMinSeqNo(minSeqNo).map(BaseTranslogReader::newSnapshot).toArray(Snapshot[]::new);
-            return new MultiSnapshot(snapshots);
-        }
-    }
-
     /**
      * Returns a view into the current translog that is guaranteed to retain all current operations
      * while receiving future ones as well
@@ -621,11 +644,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             final long viewGen = getMinFileGeneration();
-            deletionPolicy.acquireTranslogGenForView(viewGen);
+            Releasable onClose = deletionPolicy.acquireTranslogGen(viewGen);
             try {
-                return new View(viewGen);
+                return new View(viewGen, onClose);
             } catch (Exception e) {
-                deletionPolicy.releaseTranslogGenView(viewGen);
+                onClose.close();
                 throw e;
             }
         }
@@ -751,11 +774,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public class View implements Closeable {
 
-        AtomicBoolean closed = new AtomicBoolean();
-        final long viewGenToRelease;
+        final AtomicBoolean closed = new AtomicBoolean();
+        final long baseTranslogGen;
+        private final Releasable onClose;
 
-        View(long viewGenToRelease) {
-            this.viewGenToRelease = viewGenToRelease;
+        View(long baseTranslogGen, Releasable onClose) {
+            this.baseTranslogGen = baseTranslogGen;
+            this.onClose = onClose;
         }
 
         /**
@@ -781,7 +806,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * operations from the given sequence number and up (with potentially some more) */
         public Snapshot snapshot(long minSequenceNumber) {
             ensureOpen();
-            return Translog.this.createSnapshotFromMinSeqNo(minSequenceNumber);
+            return Translog.this.newSnapshotFromMinSeqNo(minSequenceNumber);
         }
 
         void ensureOpen() {
@@ -793,8 +818,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         @Override
         public void close() throws IOException {
             if (closed.getAndSet(true) == false) {
-                logger.trace("closing view starting at translog [{}]", viewGenToRelease);
-                deletionPolicy.releaseTranslogGenView(viewGenToRelease);
+                logger.trace("closing view starting at translog [{}]", baseTranslogGen);
+                onClose.close();
                 trimUnreferencedReaders();
                 closeFilesIfNoPendingViews();
             }
@@ -859,7 +884,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * A snapshot of the transaction log, allows to iterate over all the transaction log operations.
      */
-    public interface Snapshot {
+    public interface Snapshot extends Releasable {
 
         /**
          * The total number of operations in the translog.

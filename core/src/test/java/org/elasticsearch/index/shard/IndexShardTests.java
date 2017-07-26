@@ -1883,6 +1883,11 @@ public class IndexShardTests extends IndexShardTestCase {
         Translog.Snapshot snapshot = new Translog.Snapshot() {
 
             @Override
+            public void close() {
+
+            }
+
+            @Override
             public int totalOperations() {
                 return numTotalEntries;
             }

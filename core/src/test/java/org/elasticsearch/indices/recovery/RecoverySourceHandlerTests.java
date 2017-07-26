@@ -181,6 +181,11 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
         operations.add(null);
         RecoverySourceHandler.SendSnapshotResult result = handler.sendSnapshot(startingSeqNo, new Translog.Snapshot() {
+            @Override
+            public void close() {
+
+            }
+
             private int counter = 0;
 
             @Override

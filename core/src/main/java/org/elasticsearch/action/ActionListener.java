@@ -24,7 +24,6 @@ import org.elasticsearch.common.CheckedConsumer;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -66,6 +65,34 @@ public interface ActionListener<Response> {
             @Override
             public void onFailure(Exception e) {
                 onFailure.accept(e);
+            }
+        };
+    }
+
+    static <Response> ActionListener<Response> chain(ActionListener<Response> first, ActionListener<Response> second) {
+        return new ActionListener<Response>() {
+            @Override
+            public void onResponse(Response response) {
+                try {
+                    first.onResponse(response);
+                } catch (Exception e) {
+                    onFailure(e);
+                }
+                try {
+                    second.onResponse(response);
+                } catch (Exception e) {
+                    second.onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    first.onFailure(e);
+                } catch (Exception suppressed) {
+                    e.addSuppressed(suppressed);
+                }
+                second.onFailure(e);
             }
         };
     }

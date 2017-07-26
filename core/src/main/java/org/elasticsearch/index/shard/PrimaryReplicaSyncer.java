@@ -49,6 +49,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.action.ActionListener.chain;
+import static org.elasticsearch.action.ActionListener.wrap;
 
 public class PrimaryReplicaSyncer extends AbstractComponent {
 
@@ -79,15 +81,21 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
     }
 
     public void resync(IndexShard indexShard, ActionListener<ResyncTask> listener) throws IOException {
-        try (Translog.View view = indexShard.acquireTranslogView()) {
+        try {
             final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
-            Translog.Snapshot snapshot = view.snapshot(startingSeqNo);
+            Translog.Snapshot snapshot = indexShard.getTranslog().newSnapshotFromMinSeqNo(startingSeqNo);
+            listener = chain(wrap(r -> snapshot.close(), e -> snapshot.close()), listener);
             ShardId shardId = indexShard.shardId();
 
             // Wrap translog snapshot to make it synchronized as it is accessed by different threads through SnapshotSender.
             // Even though those calls are not concurrent, snapshot.next() uses non-synchronized state and is not multi-thread-compatible
             // Also fail the resync early if the shard is shutting down
             Translog.Snapshot wrappedSnapshot = new Translog.Snapshot() {
+
+                @Override
+                public void close() {
+                    snapshot.close();
+                }
 
                 @Override
                 public synchronized int totalOperations() {
@@ -103,9 +111,10 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                     return snapshot.next();
                 }
             };
-
             resync(shardId, indexShard.routingEntry().allocationId().getId(), indexShard.getPrimaryTerm(), wrappedSnapshot,
                 startingSeqNo, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 

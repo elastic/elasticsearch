@@ -20,11 +20,13 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.util.Counter;
+import org.elasticsearch.common.lease.Releasable;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TranslogDeletionPolicy {
 
@@ -66,11 +68,18 @@ public class TranslogDeletionPolicy {
     }
 
     /**
-     * acquires the basis generation for a new view. Any translog generation above, and including, the returned generation
-     * will not be deleted until a corresponding call to {@link #releaseTranslogGenView(long)} is called.
+     * acquires the basis generation for a new view or snapshot. Any translog generation above, and including, the returned generation
+     * will not be deleted until the returned {@link Releasable} is closed.
      */
-    synchronized void acquireTranslogGenForView(final long genForView) {
+    synchronized Releasable acquireTranslogGen(final long genForView) {
         translogRefCounts.computeIfAbsent(genForView, l -> Counter.newCounter(false)).addAndGet(1);
+        final AtomicBoolean closed = new AtomicBoolean();
+        return () -> {
+            if (closed.compareAndSet(false, true)) {
+                // TODO add assertions that this is called
+                releaseTranslogGenView(genForView);
+            }
+        };
     }
 
     /** returns the number of generations that were acquired for views */
@@ -79,9 +88,9 @@ public class TranslogDeletionPolicy {
     }
 
     /**
-     * releases a generation that was acquired by {@link #acquireTranslogGenForView(long)}
+     * releases a generation that was acquired by {@link #acquireTranslogGen(long)}
      */
-    synchronized void releaseTranslogGenView(long translogGen) {
+    private synchronized void releaseTranslogGenView(long translogGen) {
         Counter current = translogRefCounts.get(translogGen);
         if (current == null || current.get() <= 0) {
             throw new IllegalArgumentException("translog gen [" + translogGen + "] wasn't acquired");

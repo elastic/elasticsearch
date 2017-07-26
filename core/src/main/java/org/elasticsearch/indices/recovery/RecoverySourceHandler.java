@@ -184,8 +184,8 @@ public class RecoverySourceHandler {
 
             logger.trace("snapshot translog for recovery; current size is [{}]", translogView.estimateTotalOperations(startingSeqNo));
             final long targetLocalCheckpoint;
-            try {
-                targetLocalCheckpoint = phase2(startingSeqNo, translogView.snapshot(startingSeqNo));
+            try(Translog.Snapshot snapshot = translogView.snapshot(startingSeqNo)) {
+                targetLocalCheckpoint = phase2(startingSeqNo, snapshot);
             } catch (Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e);
             }
@@ -234,11 +234,12 @@ public class RecoverySourceHandler {
             logger.trace("all operations up to [{}] completed, checking translog content", endingSeqNo);
 
             final LocalCheckpointTracker tracker = new LocalCheckpointTracker(shard.indexSettings(), startingSeqNo, startingSeqNo - 1);
-            final Translog.Snapshot snapshot = translogView.snapshot(startingSeqNo);
-            Translog.Operation operation;
-            while ((operation = snapshot.next()) != null) {
-                if (operation.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                    tracker.markSeqNoAsCompleted(operation.seqNo());
+            try(Translog.Snapshot snapshot = translogView.snapshot(startingSeqNo)) {
+                Translog.Operation operation;
+                while ((operation = snapshot.next()) != null) {
+                    if (operation.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                        tracker.markSeqNoAsCompleted(operation.seqNo());
+                    }
                 }
             }
             return tracker.getCheckpoint() >= endingSeqNo;

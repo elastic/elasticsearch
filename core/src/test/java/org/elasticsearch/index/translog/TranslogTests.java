@@ -324,7 +324,7 @@ public class TranslogTests extends ESTestCase {
         assertThat(snapshot.totalOperations(), equalTo(ops.size()));
 
         markCurrentGenAsCommitted(translog);
-        snapshot = translog.newSnapshot(firstId + 1);
+        snapshot = translog.newSnapshotFromGen(firstId + 1);
         assertThat(snapshot, SnapshotMatchers.size(0));
         assertThat(snapshot.totalOperations(), equalTo(0));
     }
@@ -855,7 +855,7 @@ public class TranslogTests extends ESTestCase {
                     // captures the last committed checkpoint, while holding the view, simulating
                     // recovery logic which captures a view and gets a lucene commit
                     committedLocalCheckpointAtView = lastCommittedLocalCheckpoint.get();
-                    logger.info("--> [{}] opened view from [{}]", threadId, view.viewGenToRelease);
+                    logger.info("--> [{}] opened view from [{}]", threadId, view.baseTranslogGen);
                 }
 
                 @Override
@@ -871,10 +871,11 @@ public class TranslogTests extends ESTestCase {
                         // these are what we expect the snapshot to return (and potentially some more).
                         Set<Translog.Operation> expectedOps = new HashSet<>(writtenOps.keySet());
                         expectedOps.removeIf(op -> op.seqNo() <= committedLocalCheckpointAtView);
-                        Translog.Snapshot snapshot = view.snapshot(committedLocalCheckpointAtView + 1L);
-                        Translog.Operation op;
-                        while ((op = snapshot.next()) != null) {
-                            expectedOps.remove(op);
+                        try (Translog.Snapshot snapshot = view.snapshot(committedLocalCheckpointAtView + 1L)) {
+                            Translog.Operation op;
+                            while ((op = snapshot.next()) != null) {
+                                expectedOps.remove(op);
+                            }
                         }
                         if (expectedOps.isEmpty() == false) {
                             StringBuilder missed = new StringBuilder("missed ").append(expectedOps.size())
@@ -1049,7 +1050,7 @@ public class TranslogTests extends ESTestCase {
         final Checkpoint checkpoint = Checkpoint.read(translog.location().resolve(Translog.CHECKPOINT_FILE_NAME));
         try (TranslogReader reader = translog.openReader(translog.location().resolve(Translog.getFilename(translog.currentFileGeneration())), checkpoint)) {
             assertEquals(lastSynced + 1, reader.totalOperations());
-            Translog.Snapshot snapshot = reader.newSnapshot();
+            TranslogSnapshot snapshot = reader.newSnapshot();
 
             for (int op = 0; op < translogOperations; op++) {
                 if (op <= lastSynced) {
@@ -1191,7 +1192,7 @@ public class TranslogTests extends ESTestCase {
             translog = new Translog(config, translogGeneration.translogUUID, translog.getDeletionPolicy(), () -> SequenceNumbersService.UNASSIGNED_SEQ_NO);
             assertEquals("lastCommitted must be 1 less than current", translogGeneration.translogFileGeneration + 1, translog.currentFileGeneration());
             assertFalse(translog.syncNeeded());
-            Translog.Snapshot snapshot = translog.newSnapshot(translogGeneration.translogFileGeneration);
+            Translog.Snapshot snapshot = translog.newSnapshotFromGen(translogGeneration.translogFileGeneration);
             for (int i = minUncommittedOp; i < translogOperations; i++) {
                 assertEquals("expected operation" + i + " to be in the previous translog but wasn't", translog.currentFileGeneration() - 1, locations.get(i).generation);
                 Translog.Operation next = snapshot.next();
@@ -1425,7 +1426,7 @@ public class TranslogTests extends ESTestCase {
 
         }
         this.translog = new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbersService.UNASSIGNED_SEQ_NO);
-        Translog.Snapshot snapshot = this.translog.newSnapshot(translogGeneration.translogFileGeneration);
+        Translog.Snapshot snapshot = this.translog.newSnapshotFromGen(translogGeneration.translogFileGeneration);
         for (int i = firstUncommitted; i < translogOperations; i++) {
             Translog.Operation next = snapshot.next();
             assertNotNull("" + i, next);
@@ -2204,7 +2205,7 @@ public class TranslogTests extends ESTestCase {
             TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy();
             deletionPolicy.setMinTranslogGenerationForRecovery(minGenForRecovery);
             try (Translog translog = new Translog(config, generationUUID, deletionPolicy, () -> SequenceNumbersService.UNASSIGNED_SEQ_NO)) {
-                Translog.Snapshot snapshot = translog.newSnapshot(minGenForRecovery);
+                Translog.Snapshot snapshot = translog.newSnapshotFromGen(minGenForRecovery);
                 assertEquals(syncedDocs.size(), snapshot.totalOperations());
                 for (int i = 0; i < syncedDocs.size(); i++) {
                     Translog.Operation next = snapshot.next();
@@ -2425,7 +2426,7 @@ public class TranslogTests extends ESTestCase {
                     final Set<Tuple<Long, Long>> generationSeenSeqNos = new HashSet<>();
                     final Checkpoint checkpoint = Checkpoint.read(translog.location().resolve(Translog.getCommitCheckpointFileName(g)));
                     try (TranslogReader reader = translog.openReader(translog.location().resolve(Translog.getFilename(g)), checkpoint)) {
-                        Translog.Snapshot snapshot = reader.newSnapshot();
+                        TranslogSnapshot snapshot = reader.newSnapshot();
                         Translog.Operation operation;
                         while ((operation = snapshot.next()) != null) {
                             generationSeenSeqNos.add(Tuple.tuple(operation.seqNo(), operation.primaryTerm()));
@@ -2473,8 +2474,8 @@ public class TranslogTests extends ESTestCase {
             if (frequently()) {
                 long viewGen;
                 try (Translog.View view = translog.newView()) {
-                    viewGen = view.viewGenToRelease;
-                    assertThat(deletionPolicy.getViewCount(view.viewGenToRelease), equalTo(1L));
+                    viewGen = view.baseTranslogGen;
+                    assertThat(deletionPolicy.getViewCount(view.baseTranslogGen), equalTo(1L));
                 }
                 assertThat(deletionPolicy.getViewCount(viewGen), equalTo(0L));
             }

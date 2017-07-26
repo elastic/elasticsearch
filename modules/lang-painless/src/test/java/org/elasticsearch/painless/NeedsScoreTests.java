@@ -40,7 +40,7 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
 
         PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY,
             Arrays.asList(SearchScript.CONTEXT, ExecutableScript.CONTEXT));
-        SearchLookup lookup = new SearchLookup(index.mapperService(), index.fieldData(), null);
+        SearchLookup lookup = new SearchLookup(index.mapperService(), index.fieldData()::getForField, null);
 
         SearchScript.Factory factory = service.compile(null, "1.2", SearchScript.CONTEXT, Collections.emptyMap());
         SearchScript.LeafFactory ss = factory.newFactory(Collections.emptyMap(), lookup);

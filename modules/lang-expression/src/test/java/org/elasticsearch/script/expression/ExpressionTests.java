@@ -38,7 +38,7 @@ public class ExpressionTests extends ESSingleNodeTestCase {
         super.setUp();
         IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");
         service = new ExpressionScriptEngine(Settings.EMPTY);
-        lookup = new SearchLookup(index.mapperService(), index.fieldData(), null);
+        lookup = new SearchLookup(index.mapperService(), index.fieldData()::getForField, null);
     }
 
     private SearchScript.LeafFactory compile(String expression) {

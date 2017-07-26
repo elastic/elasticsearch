@@ -2170,7 +2170,7 @@ public class IndexShardTests extends IndexShardTestCase {
         int max = offset;
         boolean gap = false;
         for (int i = offset + 1; i < operations; i++) {
-            if (!rarely()) {
+            if (!rarely() || i == operations - 1) { // last operation can't be a gap as it's not a gap anymore
                 final String id = Integer.toString(i);
                 SourceToParse sourceToParse = SourceToParse.source(indexShard.shardId().getIndexName(), "test", id,
                         new BytesArray("{}"), XContentType.JSON);

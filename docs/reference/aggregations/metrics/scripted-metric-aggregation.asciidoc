@@ -9,7 +9,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
-POST /transactions/_search
+POST /ledger/_search
 {
   "size": 0,
   "aggs": {
@@ -25,7 +25,7 @@ POST /transactions/_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:transactions]
+// TEST[setup:ledger]
 
 <1> `map_script` is the only required  parameter
 
@@ -52,7 +52,7 @@ The above example can also be specified using stored scripts as follows:
 
 [source,js]
 --------------------------------------------------
-POST /transactions/_search
+POST /ledger/_search
 {
   "size": 0,
   "aggs": {
@@ -80,7 +80,7 @@ POST /transactions/_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:transactions,stored_scripted_metric_script]
+// TEST[setup:ledger,stored_scripted_metric_script]
 
 <1> script parameters for `init`, `map` and `combine` scripts must be specified
 in a global `params` object so that it can be share between the scripts.
@@ -150,7 +150,7 @@ Imagine a situation where you index the following documents into an index with 2
 
 [source,js]
 --------------------------------------------------
-PUT /transactions/stock/_bulk?refresh
+PUT /ledger/stock/_bulk?refresh
 {"index":{"_id":1}}
 {"type": "sale","amount": 80}
 {"index":{"_id":2}}

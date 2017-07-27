@@ -37,7 +37,7 @@ import java.util.Objects;
 public final class MinDocQuery extends Query {
 
     // Matching documents depend on the sequence of segments that the index reader
-    // wraps. Yes matches must be cacheable per-segment, so we need to incorporate
+    // wraps. Yet matches must be cacheable per-segment, so we need to incorporate
     // the reader id in the identity of the query so that a cache entry may only
     // be reused if this query is run against the same index reader.
     private final Object readerId;

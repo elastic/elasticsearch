@@ -1494,17 +1494,18 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(1, newShard.recoveryState().getTranslog().totalOperations());
         assertEquals(1, newShard.recoveryState().getTranslog().totalOperationsOnStart());
         assertEquals(100.0f, newShard.recoveryState().getTranslog().recoveredPercent(), 0.01f);
-        Translog.Snapshot snapshot = newShard.getTranslog().newSnapshot();
-        Translog.Operation operation;
-        int numNoops = 0;
-        while((operation = snapshot.next()) != null) {
-            if (operation.opType() == Translog.Operation.Type.NO_OP) {
-                numNoops++;
-                assertEquals(newShard.getPrimaryTerm(), operation.primaryTerm());
-                assertEquals(0, operation.seqNo());
+        try (Translog.Snapshot snapshot = newShard.getTranslog().newSnapshot()) {
+            Translog.Operation operation;
+            int numNoops = 0;
+            while ((operation = snapshot.next()) != null) {
+                if (operation.opType() == Translog.Operation.Type.NO_OP) {
+                    numNoops++;
+                    assertEquals(newShard.getPrimaryTerm(), operation.primaryTerm());
+                    assertEquals(0, operation.seqNo());
+                }
             }
+            assertEquals(1, numNoops);
         }
-        assertEquals(1, numNoops);
         IndexShardTestCase.updateRoutingEntry(newShard, newShard.routingEntry().moveToStarted());
         assertDocCount(newShard, 1);
         assertDocCount(shard, 2);

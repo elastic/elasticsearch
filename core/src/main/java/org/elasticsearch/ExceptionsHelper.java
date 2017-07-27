@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -127,7 +128,7 @@ public final class ExceptionsHelper {
      * If the given list is empty no exception is thrown
      *
      */
-    public static <T extends Throwable> void rethrowAndSuppress(List<T> exceptions) throws T {
+    public static <T extends Throwable> void rethrowAndSuppress(Collection<T> exceptions) throws T {
         T main = null;
         for (T ex : exceptions) {
             main = useOrSuppress(main, ex);

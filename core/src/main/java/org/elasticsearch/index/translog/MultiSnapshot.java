@@ -19,8 +19,7 @@
 
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.common.lease.Releasable;
-
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 
@@ -31,13 +30,13 @@ final class MultiSnapshot implements Translog.Snapshot {
 
     private final TranslogSnapshot[] translogs;
     private final int totalOperations;
-    private final Releasable onClose;
+    private final Closeable onClose;
     private int index;
 
     /**
      * Creates a new point in time snapshot of the given snapshots. Those snapshots are always iterated in-order.
      */
-    MultiSnapshot(TranslogSnapshot[] translogs, Releasable onClose) {
+    MultiSnapshot(TranslogSnapshot[] translogs, Closeable onClose) {
         this.translogs = translogs;
         totalOperations = Arrays.stream(translogs).mapToInt(TranslogSnapshot::totalOperations).sum();
         this.onClose = onClose;
@@ -63,7 +62,7 @@ final class MultiSnapshot implements Translog.Snapshot {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         onClose.close();
     }
 }

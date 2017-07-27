@@ -84,7 +84,13 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         try {
             final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
             Translog.Snapshot snapshot = indexShard.getTranslog().newSnapshotFromMinSeqNo(startingSeqNo);
-            listener = chain(wrap(r -> snapshot.close(), e -> snapshot.close()), listener);
+            listener = chain(wrap(r -> snapshot.close(), e -> {
+                try {
+                    snapshot.close();
+                } catch (IOException e1) {
+                    e.addSuppressed(e1);
+                }
+            }), listener);
             ShardId shardId = indexShard.shardId();
 
             // Wrap translog snapshot to make it synchronized as it is accessed by different threads through SnapshotSender.
@@ -93,7 +99,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             Translog.Snapshot wrappedSnapshot = new Translog.Snapshot() {
 
                 @Override
-                public void close() {
+                public void close() throws IOException {
                     snapshot.close();
                 }
 

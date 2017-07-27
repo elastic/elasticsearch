@@ -270,7 +270,7 @@ final class IndexShardOperationPermits implements Closeable {
     }
 
     /**
-     * A permit-aware action listener wrapper that spawns listener invocations off on a configurable thread-pool.
+     * A permit-aware action listener wrapper that spawns onResponse listener invocations off on a configurable thread-pool.
      * Being permit-aware, it also releases the permit when hitting thread-pool rejections and falls back to the
      * invoker's thread to communicate failures.
      */
@@ -310,29 +310,14 @@ final class IndexShardOperationPermits implements Closeable {
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onFailure(e); // will possibly execute on the generic thread spawned off in releaseDelayedOperations
+                    listener.onFailure(e); // will possibly execute on the caller thread
                 }
             });
         }
 
         @Override
         public void onFailure(final Exception e) {
-            threadPool.executor(executor).execute(new AbstractRunnable() {
-                @Override
-                public boolean isForceExecution() {
-                    return forceExecution;
-                }
-
-                @Override
-                protected void doRun() throws Exception {
-                    listener.onFailure(e);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e); // will possibly execute on the generic thread spawned off in releaseDelayedOperations
-                }
-            });
+            listener.onFailure(e);
         }
     }
 

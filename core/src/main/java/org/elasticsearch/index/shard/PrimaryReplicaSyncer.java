@@ -122,7 +122,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                     if (state == IndexShardState.CLOSED) {
                         throw new IndexShardClosedException(shardId);
                     } else {
-                        assert state == IndexShardState.STARTED : "resync should only happen on a started shard";
+                        assert state == IndexShardState.STARTED : "resync should only happen on a started shard, but state was: " + state;
                     }
                     return snapshot.next();
                 }

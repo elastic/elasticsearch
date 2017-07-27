@@ -34,6 +34,7 @@ import org.elasticsearch.tasks.TaskManager;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.containsString;
@@ -94,10 +95,12 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
     public void testSyncerOnClosingShard() throws Exception {
         IndexShard shard = newStartedShard(true);
         AtomicBoolean syncActionCalled = new AtomicBoolean();
+        CountDownLatch syncCalledLatch = new CountDownLatch(1);
         PrimaryReplicaSyncer.SyncAction syncAction =
             (request, parentTask, allocationId, primaryTerm, listener) -> {
                 logger.info("Sending off {} operations", request.getOperations().size());
                 syncActionCalled.set(true);
+                syncCalledLatch.countDown();
                 threadPool.generic().execute(() -> listener.onResponse(new ResyncReplicationResponse()));
             };
         PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(Settings.EMPTY, new TaskManager(Settings.EMPTY), syncAction);
@@ -121,7 +124,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             }
         });
         if (randomBoolean()) {
-            assertBusy(() -> assertTrue("Sync action was not called", syncActionCalled.get()));
+            syncCalledLatch.await();
         }
         closeShards(shard);
         try {

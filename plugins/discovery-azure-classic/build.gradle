@@ -233,6 +233,7 @@ if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
     'javax.xml.bind.util.ValidationEventCollector'
   ]
 } else {
+  // jarhell with jdk (intentionally, because we still expect to run again JDK 8)
   thirdPartyAudit.excludes += [
     'javax.activation.ActivationDataFlavor',
     'javax.activation.DataContentHandler',

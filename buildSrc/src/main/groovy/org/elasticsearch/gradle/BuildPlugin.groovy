@@ -407,7 +407,6 @@ class BuildPlugin implements Plugin<Project> {
     static void configureCompile(Project project) {
         project.ext.compactProfile = 'compact3'
         project.afterEvaluate {
-            // fail on all javac warnings
             project.tasks.withType(JavaCompile) {
                 File gradleJavaHome = Jvm.current().javaHome
                 if (new File(project.javaHome).canonicalPath != gradleJavaHome.canonicalPath) {
@@ -428,6 +427,7 @@ class BuildPlugin implements Plugin<Project> {
                  * -serial because we don't use java serialization.
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
+                // fail on all javac warnings
                 options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation' << '-Xdoclint:all' << '-Xdoclint:-missing'
 
                 // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly defined

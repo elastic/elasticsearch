@@ -9,11 +9,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpProxy;
@@ -25,7 +23,6 @@ import org.elasticsearch.xpack.notification.hipchat.HipChatMessage.Color;
 import org.elasticsearch.xpack.notification.hipchat.HipChatMessage.Format;
 import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -99,28 +96,25 @@ public class IntegrationAccount extends HipChatAccount {
         return new SentMessages(name, sentMessages);
     }
 
-    public HttpRequest buildRoomRequest(String room, final HipChatMessage message, HttpProxy proxy) {
+    private HttpRequest buildRoomRequest(String room, final HipChatMessage message, HttpProxy proxy) {
         HttpRequest.Builder builder = server.httpRequest()
                 .method(HttpMethod.POST)
                 .scheme(Scheme.HTTPS)
                 .path("/v2/room/" + room + "/notification")
                 .setHeader("Content-Type", "application/json")
                 .setHeader("Authorization", "Bearer " + authToken)
-                .body(XContentHelper.toString(new ToXContent() {
-                    @Override
-                    public XContentBuilder toXContent(XContentBuilder xbuilder, Params params) throws IOException {
-                        xbuilder.field("message", message.body);
-                        if (message.format != null) {
-                            xbuilder.field("message_format", message.format.value());
-                        }
-                        if (message.notify != null) {
-                            xbuilder.field("notify", message.notify);
-                        }
-                        if (message.color != null) {
-                            xbuilder.field("color", String.valueOf(message.color.value()));
-                        }
-                        return xbuilder;
+                .body(Strings.toString((xbuilder, params) -> {
+                    xbuilder.field("message", message.body);
+                    if (message.format != null) {
+                        xbuilder.field("message_format", message.format.value());
                     }
+                    if (message.notify != null) {
+                        xbuilder.field("notify", message.notify);
+                    }
+                    if (message.color != null) {
+                        xbuilder.field("color", String.valueOf(message.color.value()));
+                    }
+                    return xbuilder;
                 }));
         if (proxy != null) {
             builder.proxy(proxy);

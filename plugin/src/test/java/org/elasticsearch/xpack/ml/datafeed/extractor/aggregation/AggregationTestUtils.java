@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -29,21 +30,28 @@ public final class AggregationTestUtils {
     private AggregationTestUtils() {}
 
     static Histogram.Bucket createHistogramBucket(long timestamp, long docCount, List<Aggregation> subAggregations) {
-        Histogram.Bucket bucket = createHistogramBucket(timestamp, docCount);
+        Histogram.Bucket bucket = mock(Histogram.Bucket.class);
+        when(bucket.getKey()).thenReturn(timestamp);
+        when(bucket.getDocCount()).thenReturn(docCount);
         Aggregations aggs = createAggs(subAggregations);
         when(bucket.getAggregations()).thenReturn(aggs);
         return bucket;
     }
 
-    static Aggregations createAggs(List<Aggregation> aggsList) {
-        return new Aggregations(aggsList) {};
+    static Histogram.Bucket createHistogramBucket(long timestamp, long docCount) {
+        return createHistogramBucket(timestamp, docCount, Collections.emptyList());
     }
 
-    static Histogram.Bucket createHistogramBucket(long timestamp, long docCount) {
-        Histogram.Bucket bucket = mock(Histogram.Bucket.class);
-        when(bucket.getKey()).thenReturn(timestamp);
-        when(bucket.getDocCount()).thenReturn(docCount);
-        return bucket;
+    static Aggregations createAggs(List<Aggregation> aggsList) {
+        return new Aggregations(aggsList);
+    }
+
+    @SuppressWarnings("unchecked")
+    static Histogram createHistogramAggregation(String name, List histogramBuckets) {
+        Histogram histogram = mock(Histogram.class);
+        when((List<Histogram.Bucket>)histogram.getBuckets()).thenReturn(histogramBuckets);
+        when(histogram.getName()).thenReturn(name);
+        return histogram;
     }
 
     static Max createMax(String name, double value) {
@@ -71,12 +79,16 @@ public final class AggregationTestUtils {
             when(bucket.getKey()).thenReturn(term.key);
             when(bucket.getDocCount()).thenReturn(term.count);
             List<Aggregation> numericAggs = new ArrayList<>();
-            for (Map.Entry<String, Double> keyValue : term.values.entrySet()) {
-                numericAggs.add(createSingleValue(keyValue.getKey(), keyValue.getValue()));
-            }
-            if (!numericAggs.isEmpty()) {
-                Aggregations aggs = createAggs(numericAggs);
-                when(bucket.getAggregations()).thenReturn(aggs);
+            if (term.hasBuckekAggs()) {
+                when(bucket.getAggregations()).thenReturn(createAggs(term.bucketAggs));
+            } else {
+                for (Map.Entry<String, Double> keyValue : term.values.entrySet()) {
+                    numericAggs.add(createSingleValue(keyValue.getKey(), keyValue.getValue()));
+                }
+                if (!numericAggs.isEmpty()) {
+                    Aggregations aggs = createAggs(numericAggs);
+                    when(bucket.getAggregations()).thenReturn(aggs);
+                }
             }
             buckets.add(bucket);
         }
@@ -101,6 +113,7 @@ public final class AggregationTestUtils {
         String key;
         long count;
         Map<String, Double> values;
+        List<Aggregation> bucketAggs;
 
         Term(String key, long count) {
             this(key, count, Collections.emptyMap());
@@ -114,6 +127,15 @@ public final class AggregationTestUtils {
             this.key = key;
             this.count = count;
             this.values = values;
+        }
+
+        Term(String key, long count, List<Aggregation> bucketAggs) {
+            this(key, count);
+            this.bucketAggs = bucketAggs;
+        }
+
+        private boolean hasBuckekAggs() {
+            return bucketAggs != null;
         }
 
         private static Map<String, Double> newKeyValue(String key, Double value) {

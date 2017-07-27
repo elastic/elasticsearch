@@ -530,7 +530,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
                                 () -> {
                                     throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
 
-                                }),
+                                }, null),
                                 indexService.cache().bitsetFilterCache(),
                                 indexService.getThreadPool().getThreadContext(), licenseState,
                                 indexService.getScriptService()));

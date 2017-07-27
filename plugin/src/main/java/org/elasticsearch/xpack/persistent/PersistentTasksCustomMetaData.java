@@ -393,14 +393,6 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             return status;
         }
 
-        /**
-         * @return Whether the task status isn't stale. When a task gets unassigned from the executor node or assigned
-         * to a new executor node and the status hasn't been updated then the task status is stale.
-         */
-        public boolean isCurrentStatus() {
-            return allocationIdOnLastStatusUpdate != null && allocationIdOnLastStatusUpdate == allocationId;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params xParams) throws IOException {
             builder.startObject();

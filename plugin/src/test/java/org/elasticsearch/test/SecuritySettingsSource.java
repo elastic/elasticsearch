@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -138,8 +139,13 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     @Override
     public Settings transportClientSettings() {
-        Settings.Builder builder = Settings.builder().put(super.transportClientSettings());
+        Settings superSettings = super.transportClientSettings();
+        Settings.Builder builder = Settings.builder().put(superSettings);
         addClientSSLSettings(builder, "");
+        if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(superSettings) == false) {
+            builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), Security.NAME4);
+        }
+
         if (randomBoolean()) {
             builder.put(Security.USER_SETTING.getKey(),
                     transportClientUsername() + ":" + new String(transportClientPassword().getChars()));

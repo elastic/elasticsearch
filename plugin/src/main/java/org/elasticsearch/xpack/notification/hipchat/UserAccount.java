@@ -9,11 +9,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpProxy;
@@ -119,21 +117,18 @@ public class UserAccount extends HipChatAccount {
                 .path("/v2/room/" + room + "/notification")
                 .setHeader("Content-Type", "application/json")
                 .setHeader("Authorization", "Bearer " + authToken)
-                .body(XContentHelper.toString(new ToXContent() {
-                    @Override
-                    public XContentBuilder toXContent(XContentBuilder xbuilder, Params params) throws IOException {
-                        xbuilder.field("message", message.body);
-                        if (message.format != null) {
-                            xbuilder.field("message_format", message.format.value());
-                        }
-                        if (message.notify != null) {
-                            xbuilder.field("notify", message.notify);
-                        }
-                        if (message.color != null) {
-                            xbuilder.field("color", String.valueOf(message.color.value()));
-                        }
-                        return xbuilder;
+                .body(Strings.toString((xbuilder, params) -> {
+                    xbuilder.field("message", message.body);
+                    if (message.format != null) {
+                        xbuilder.field("message_format", message.format.value());
                     }
+                    if (message.notify != null) {
+                        xbuilder.field("notify", message.notify);
+                    }
+                    if (message.color != null) {
+                        xbuilder.field("color", String.valueOf(message.color.value()));
+                    }
+                    return xbuilder;
                 }));
         if (proxy != null) {
             builder.proxy(proxy);
@@ -148,18 +143,15 @@ public class UserAccount extends HipChatAccount {
                 .path("/v2/user/" + user + "/message")
                 .setHeader("Content-Type", "application/json")
                 .setHeader("Authorization", "Bearer " + authToken)
-                .body(XContentHelper.toString(new ToXContent() {
-                    @Override
-                    public XContentBuilder toXContent(XContentBuilder xbuilder, Params params) throws IOException {
-                        xbuilder.field("message", message.body);
-                        if (message.format != null) {
-                            xbuilder.field("message_format", message.format.value());
-                        }
-                        if (message.notify != null) {
-                            xbuilder.field("notify", message.notify);
-                        }
-                        return xbuilder;
+                .body(Strings.toString((xbuilder, params) -> {
+                    xbuilder.field("message", message.body);
+                    if (message.format != null) {
+                        xbuilder.field("message_format", message.format.value());
                     }
+                    if (message.notify != null) {
+                        xbuilder.field("notify", message.notify);
+                    }
+                    return xbuilder;
                 }));
         if (proxy != null) {
             builder.proxy(proxy);

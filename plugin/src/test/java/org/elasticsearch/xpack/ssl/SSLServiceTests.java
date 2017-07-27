@@ -5,29 +5,6 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.elasticsearch.client.http.HttpHost;
-import org.elasticsearch.client.http.HttpResponse;
-import org.elasticsearch.client.http.client.methods.HttpGet;
-import org.elasticsearch.client.http.concurrent.FutureCallback;
-import org.elasticsearch.client.http.conn.ssl.DefaultHostnameVerifier;
-import org.elasticsearch.client.http.conn.ssl.NoopHostnameVerifier;
-import org.elasticsearch.client.http.impl.client.CloseableHttpClient;
-import org.elasticsearch.client.http.impl.client.HttpClients;
-import org.elasticsearch.client.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.elasticsearch.client.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.elasticsearch.client.http.nio.conn.ssl.SSLIOSessionStrategy;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.xpack.XPackSettings;
-import org.junit.Before;
-import org.mockito.ArgumentCaptor;
-
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -44,6 +21,29 @@ import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.HttpResponse;
+import org.elasticsearch.client.http.client.methods.HttpGet;
+import org.elasticsearch.client.http.concurrent.FutureCallback;
+import org.elasticsearch.client.http.conn.ssl.DefaultHostnameVerifier;
+import org.elasticsearch.client.http.conn.ssl.NoopHostnameVerifier;
+import org.elasticsearch.client.http.impl.client.CloseableHttpClient;
+import org.elasticsearch.client.http.impl.client.HttpClients;
+import org.elasticsearch.client.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.elasticsearch.client.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.elasticsearch.client.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.xpack.XPackSettings;
+import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -64,12 +64,22 @@ import static org.mockito.Mockito.when;
 public class SSLServiceTests extends ESTestCase {
 
     private Path testnodeStore;
+    private String testnodeStoreType;
     private Path testclientStore;
     private Environment env;
 
     @Before
     public void setup() throws Exception {
-        testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+        // Randomise the keystore type (jks/PKCS#12)
+        if (randomBoolean()) {
+            testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+            // The default is to use JKS. Randomly test with explicit and with the default value.
+            testnodeStoreType = randomBoolean() ? "jks" : null;
+        } else {
+            testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.p12");
+            testnodeStoreType = "PKCS12";
+        }
+        logger.info("Using [{}] key/truststore [{}]", testnodeStoreType, testnodeStore);
         testclientStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks");
         env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
     }
@@ -81,6 +91,7 @@ public class SSLServiceTests extends ESTestCase {
         secureSettings.setString("transport.profiles.foo.xpack.security.ssl.truststore.secure_password", "testclient");
         Settings settings = Settings.builder()
                 .put("xpack.ssl.truststore.path", testnodeStore)
+                .put("xpack.ssl.truststore.type", testnodeStoreType)
                 .setSecureSettings(secureSettings)
                 .put("transport.profiles.foo.xpack.security.ssl.truststore.path", testClientStore)
                 .build();
@@ -105,6 +116,7 @@ public class SSLServiceTests extends ESTestCase {
         secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("xpack.ssl.keystore.path", testnodeStore)
+                .put("xpack.ssl.keystore.type", testnodeStoreType)
                 .setSecureSettings(secureSettings)
                 .build();
         SSLService sslService = new SSLService(settings, env);
@@ -150,6 +162,7 @@ public class SSLServiceTests extends ESTestCase {
         secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("xpack.ssl.keystore.path", testnodeStore)
+                .put("xpack.ssl.keystore.type", testnodeStoreType)
                 .setSecureSettings(secureSettings)
                 .build();
         SSLService sslService = new SSLService(settings, env);
@@ -181,6 +194,7 @@ public class SSLServiceTests extends ESTestCase {
         secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("xpack.ssl.keystore.path", testnodeStore)
+                .put("xpack.ssl.keystore.type", testnodeStoreType)
                 .setSecureSettings(secureSettings)
                 .build();
         SSLService sslService = new SSLService(settings, env);
@@ -193,6 +207,7 @@ public class SSLServiceTests extends ESTestCase {
         secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("xpack.ssl.truststore.path", testnodeStore)
+                .put("xpack.ssl.truststore.type", testnodeStoreType)
                 .setSecureSettings(secureSettings)
                 .build();
         SSLService sslService = new SSLService(settings, env);
@@ -201,8 +216,10 @@ public class SSLServiceTests extends ESTestCase {
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
         settings = Settings.builder()
                 .put("xpack.ssl.truststore.path", testnodeStore)
+                .put("xpack.ssl.truststore.type", testnodeStoreType)
                 .setSecureSettings(secureSettings)
                 .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
+                .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
                 .build();
         sslService = new SSLService(settings, env);
         assertFalse(sslService.isConfigurationValidForServerUsage(sslService.sslConfiguration(Settings.EMPTY)));
@@ -268,8 +285,10 @@ public class SSLServiceTests extends ESTestCase {
         secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("xpack.ssl.keystore.path", testnodeStore)
+                .put("xpack.ssl.keystore.type", testnodeStoreType)
                 .setSecureSettings(secureSettings)
                 .put("xpack.ssl.truststore.path", testnodeStore)
+                .put("xpack.ssl.truststore.type", testnodeStoreType)
                 .build();
         ElasticsearchException e =
                 expectThrows(ElasticsearchException.class, () -> new SSLService(settings, env));
@@ -279,6 +298,7 @@ public class SSLServiceTests extends ESTestCase {
     public void testThatKeystorePasswordIsRequired() throws Exception {
         Settings settings = Settings.builder()
                 .put("xpack.ssl.keystore.path", testnodeStore)
+                .put("xpack.ssl.keystore.type", testnodeStoreType)
                 .build();
         ElasticsearchException e =
                 expectThrows(ElasticsearchException.class, () -> new SSLService(settings, env));
@@ -293,6 +313,7 @@ public class SSLServiceTests extends ESTestCase {
         secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("xpack.ssl.keystore.path", testnodeStore)
+                .put("xpack.ssl.keystore.type", testnodeStoreType)
                 .setSecureSettings(secureSettings)
                 .putArray("xpack.ssl.ciphers", ciphers.toArray(new String[ciphers.size()]))
                 .build();
@@ -309,6 +330,7 @@ public class SSLServiceTests extends ESTestCase {
 
         Settings settings = Settings.builder()
                 .put("xpack.ssl.keystore.path", testnodeStore)
+                .put("xpack.ssl.keystore.type", testnodeStoreType)
                 .setSecureSettings(secureSettings)
                 .putArray("xpack.ssl.cipher_suites", new String[]{"foo", "bar"})
                 .build();
@@ -322,6 +344,7 @@ public class SSLServiceTests extends ESTestCase {
         secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("xpack.ssl.keystore.path", testnodeStore)
+                .put("xpack.ssl.keystore.type", testnodeStoreType)
                 .setSecureSettings(secureSettings)
                 .build();
         SSLService sslService = new SSLService(settings, env);
@@ -335,6 +358,7 @@ public class SSLServiceTests extends ESTestCase {
         secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("xpack.ssl.keystore.path", testnodeStore)
+                .put("xpack.ssl.keystore.type", testnodeStoreType)
                 .setSecureSettings(secureSettings)
                 .build();
         SSLService sslService = new SSLService(settings, env);
@@ -359,6 +383,7 @@ public class SSLServiceTests extends ESTestCase {
         secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("xpack.ssl.keystore.path", testnodeStore)
+                .put("xpack.ssl.keystore.type", testnodeStoreType)
                 .setSecureSettings(secureSettings)
                 .build();
         SSLService sslService = new SSLService(settings, env);

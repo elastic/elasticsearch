@@ -75,13 +75,16 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         assertThat(ssl.keyPassword.exists(settings), is(false));
         assertThat(ssl.keyPath.get(settings).isPresent(), is(false));
         assertThat(ssl.keystoreAlgorithm.get(settings), is(KeyManagerFactory.getDefaultAlgorithm()));
+        assertThat(ssl.keystoreType.get(settings), is("jks"));
         assertThat(ssl.keystoreKeyPassword.exists(settings), is(false));
         assertThat(ssl.keystorePassword.exists(settings), is(false));
         assertThat(ssl.keystorePath.get(settings).isPresent(), is(false));
         assertThat(ssl.supportedProtocols.get(settings).size(), is(0));
         assertThat(ssl.truststoreAlgorithm.get(settings), is(TrustManagerFactory.getDefaultAlgorithm()));
+        assertThat(ssl.truststoreType.get(settings), is("jks"));
         assertThat(ssl.truststorePassword.exists(settings), is(false));
         assertThat(ssl.truststorePath.get(settings).isPresent(), is(false));
+        assertThat(ssl.trustRestrictionsPath.get(settings).isPresent(), is(false));
         assertThat(ssl.verificationMode.get(settings).isPresent(), is(false));
     }
 

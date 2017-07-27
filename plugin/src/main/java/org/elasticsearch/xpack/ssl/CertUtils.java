@@ -160,12 +160,11 @@ public class CertUtils {
      * @param env the environment to use for file resolution. May be {@code null}
      * @return a trust manager with the trust material from the store
      */
-    public static X509ExtendedTrustManager trustManager(String trustStorePath, char[] trustStorePassword, String trustStoreAlgorithm,
-                                                        @Nullable Environment env)
+    public static X509ExtendedTrustManager trustManager(String trustStorePath, String trustStoreType, char[] trustStorePassword,
+                                                        String trustStoreAlgorithm, @Nullable Environment env)
             throws NoSuchAlgorithmException, UnrecoverableKeyException, KeyStoreException, IOException, CertificateException {
         try (InputStream in = Files.newInputStream(resolvePath(trustStorePath, env))) {
-            // TODO remove reliance on JKS since we can PKCS12 stores...
-            KeyStore trustStore = KeyStore.getInstance("jks");
+            KeyStore trustStore = KeyStore.getInstance(trustStoreType);
             assert trustStorePassword != null;
             trustStore.load(in, trustStorePassword);
             return trustManager(trustStore, trustStoreAlgorithm);

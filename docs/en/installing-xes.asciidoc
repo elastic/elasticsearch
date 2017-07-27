@@ -16,7 +16,26 @@ a {ref}/rolling-upgrades.html[rolling upgrade].
 
 To install {xpack} in {es}:
 
-. Run `bin/elasticsearch-plugin install` from `ES_HOME` on each node in your cluster:
+. Optional: If you want to install {xpack} on a machine that doesn't have
+internet access:
+
+.. Manually download the {xpack} zip file:
+https://artifacts.elastic.co/downloads/packs/x-pack/x-pack-{version}.zip[
++https://artifacts.elastic.co/downloads/packs/x-pack/x-pack-{version}.zip+]
+(https://artifacts.elastic.co/downloads/packs/x-pack/x-pack-{version}.zip.sha1[sha1])
++
+--
+NOTE: The plugins for {es}, {kib}, and Logstash are included in the same zip
+file. If you have already downloaded this file to install {xpack} on one of
+those other products, you can reuse the same file.
+
+--
+
+.. Transfer the zip file to a temporary directory on the offline machine. (Do
+NOT put the file in the {es} plugins directory.)
+
+. Run `bin/elasticsearch-plugin install` from `ES_HOME` on each node in your
+cluster:
 +
 --
 [source,shell]
@@ -25,8 +44,18 @@ bin/elasticsearch-plugin install x-pack
 ----------------------------------------------------------
 
 NOTE: If you are using a <<xpack-package-installation, DEB/RPM distribution>>
-      of {es}, run the installation with superuser permissions. To
-      perform an offline installation, <<xpack-installing-offline, download the X-Pack binaries>>.
+      of {es}, run the installation with superuser permissions.
+
+The plugin install scripts require direct internet access to download and
+install {xpack}. If your server doesn’t have internet access, specify the
+location of the {xpack} zip file that you downloaded to a temporary directory.
+
+["source","sh",subs="attributes"]
+----------------------------------------------------------
+bin/elasticsearch-plugin install file:///path/to/file/x-pack-{version}.zip
+----------------------------------------------------------
+
+NOTE:  You must specify an absolute path to the zip file after the `file://` protocol.
 
 --
 
@@ -157,33 +186,3 @@ NOTE: If the configuration files are not in `/etc/elasticsearch` you
       setting the system property `es.path.conf` to the config path via
       `ES_JAVA_OPTS="-Des.path.conf=<path>"` or by setting the
       environment variable `CONF_DIR` via `CONF_DIR=<path>`.
-
-[float]
-[[xpack-installing-offline]]
-=== Installing {xpack} on Offline Machines
-The plugin install scripts require direct Internet access to download and
-install {xpack}. If your server doesn’t have Internet access, you
-can manually download and install {xpack}.
-
-To install {xpack} on a machine that doesn't have Internet access:
-
-. Manually download the {xpack} zip file:
-https://artifacts.elastic.co/downloads/packs/x-pack/x-pack-{version}.zip[
-+https://artifacts.elastic.co/downloads/packs/x-pack/x-pack-{version}.zip+]
-(https://artifacts.elastic.co/downloads/packs/x-pack/x-pack-{version}.zip.sha1[sha1])
-
-. Transfer the zip file to a temporary directory on the offline machine. (Do NOT
-put the file in the {es} plugins directory.)
-
-. Run `bin/elasticsearch-plugin install` from the {es} install directory
-and specify the location of the {xpack} zip file. For example:
-+
---
-["source","sh",subs="attributes"]
-----------------------------------------------------------
-bin/elasticsearch-plugin install file:///path/to/file/x-pack-{version}.zip
-----------------------------------------------------------
-
-NOTE:  You must specify an absolute path to the zip file after the `file://` protocol.
-
---

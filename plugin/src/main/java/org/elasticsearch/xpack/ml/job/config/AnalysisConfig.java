@@ -36,7 +36,6 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
-
 /**
  * Autodetect analysis configuration options describes which fields are
  * analysed and the functions to use.
@@ -558,6 +557,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             }
 
             verifyNoInconsistentNestedFieldNames();
+            verifyInfluencerNames();
 
             return new AnalysisConfig(bucketSpan, categorizationFieldName, categorizationFilters,
                     latency, summaryCountFieldName, detectors, influencers, overlappingBuckets,
@@ -672,6 +672,17 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
                     throw ExceptionsHelper.badRequestException(
                             Messages.getMessage(Messages.JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE, span, bucketSpan));
                 }
+            }
+        }
+
+        private void verifyInfluencerNames() {
+            for (String influencer : influencers) {
+                if (influencer == null || influencer.isEmpty()) {
+                    throw ExceptionsHelper.badRequestException(
+                            Messages.getMessage(Messages.JOB_CONFIG_INFLUENCER_CANNOT_BE_EMPTY));
+                }
+
+                Detector.Builder.verifyFieldName(influencer);
             }
         }
 

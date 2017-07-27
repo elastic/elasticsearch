@@ -6,11 +6,9 @@
 package org.elasticsearch.xpack.notification.hipchat;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
@@ -20,7 +18,6 @@ import org.elasticsearch.xpack.common.http.Scheme;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 
-import java.io.IOException;
 import java.util.HashMap;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -132,21 +129,18 @@ public class UserAccountTests extends ESTestCase {
                 .path("/v2/room/_r1/notification")
                 .setHeader("Content-Type", "application/json")
                 .setHeader("Authorization", "Bearer _token")
-                .body(XContentHelper.toString(new ToXContent() {
-                    @Override
-                    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                        builder.field("message", message.body);
-                        if (message.format != null) {
-                            builder.field("message_format", message.format.value());
-                        }
-                        if (message.notify != null) {
-                            builder.field("notify", message.notify);
-                        }
-                        if (message.color != null) {
-                            builder.field("color", String.valueOf(message.color.value()));
-                        }
-                        return builder;
+                .body(Strings.toString((builder, params) -> {
+                    builder.field("message", message.body);
+                    if (message.format != null) {
+                        builder.field("message_format", message.format.value());
                     }
+                    if (message.notify != null) {
+                        builder.field("notify", message.notify);
+                    }
+                    if (message.color != null) {
+                        builder.field("color", String.valueOf(message.color.value()));
+                    }
+                    return builder;
                 }))
                 .build();
 
@@ -162,21 +156,18 @@ public class UserAccountTests extends ESTestCase {
                 .path("/v2/room/_r2/notification")
                 .setHeader("Content-Type", "application/json")
                 .setHeader("Authorization", "Bearer _token")
-                .body(XContentHelper.toString(new ToXContent() {
-                    @Override
-                    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                        builder.field("message", message.body);
-                        if (message.format != null) {
-                            builder.field("message_format", message.format.value());
-                        }
-                        if (message.notify != null) {
-                            builder.field("notify", message.notify);
-                        }
-                        if (message.color != null) {
-                            builder.field("color", String.valueOf(message.color.value()));
-                        }
-                        return builder;
+                .body(Strings.toString((builder, params) -> {
+                    builder.field("message", message.body);
+                    if (message.format != null) {
+                        builder.field("message_format", message.format.value());
                     }
+                    if (message.notify != null) {
+                        builder.field("notify", message.notify);
+                    }
+                    if (message.color != null) {
+                        builder.field("color", String.valueOf(message.color.value()));
+                    }
+                    return builder;
                 }))
                 .build();
 
@@ -192,18 +183,15 @@ public class UserAccountTests extends ESTestCase {
                 .path("/v2/user/_u1/message")
                 .setHeader("Content-Type", "application/json")
                 .setHeader("Authorization", "Bearer _token")
-                .body(XContentHelper.toString(new ToXContent() {
-                    @Override
-                    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                        builder.field("message", message.body);
-                        if (message.format != null) {
-                            builder.field("message_format", message.format.value());
-                        }
-                        if (message.notify != null) {
-                            builder.field("notify", message.notify);
-                        }
-                        return builder;
+                .body(Strings.toString((builder, params) -> {
+                    builder.field("message", message.body);
+                    if (message.format != null) {
+                        builder.field("message_format", message.format.value());
                     }
+                    if (message.notify != null) {
+                        builder.field("notify", message.notify);
+                    }
+                    return builder;
                 }))
                 .build();
 
@@ -219,18 +207,15 @@ public class UserAccountTests extends ESTestCase {
                 .path("/v2/user/_u2/message")
                 .setHeader("Content-Type", "application/json")
                 .setHeader("Authorization", "Bearer _token")
-                .body(XContentHelper.toString(new ToXContent() {
-                    @Override
-                    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                        builder.field("message", message.body);
-                        if (message.format != null) {
-                            builder.field("message_format", message.format.value());
-                        }
-                        if (message.notify != null) {
-                            builder.field("notify", message.notify);
-                        }
-                        return builder;
+                .body(Strings.toString((builder, params) -> {
+                    builder.field("message", message.body);
+                    if (message.format != null) {
+                        builder.field("message_format", message.format.value());
                     }
+                    if (message.notify != null) {
+                        builder.field("notify", message.notify);
+                    }
+                    return builder;
                 }))
                 .build();
 

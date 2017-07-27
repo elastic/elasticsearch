@@ -188,7 +188,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             int finalI = i;
             WaitForPersistentTaskStatusFuture<?> future1 = new WaitForPersistentTaskStatusFuture<>();
             persistentTasksService.waitForPersistentTaskStatus(taskId,
-                    task -> task != null && task.isCurrentStatus() && task.getStatus().toString() != null &&
+                    task -> task != null && task.getStatus() != null && task.getStatus().toString() != null &&
                             task.getStatus().toString().equals("{\"phase\":\"phase " + (finalI + 1) + "\"}"),
                     TimeValue.timeValueSeconds(10), future1);
             assertThat(future1.get().getId(), equalTo(taskId));

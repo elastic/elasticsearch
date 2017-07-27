@@ -13,7 +13,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestUtils;
@@ -420,8 +419,7 @@ public class HttpRequest implements ToXContentObject {
         }
 
         public Builder jsonBody(ToXContent xContent) {
-            return body(XContentHelper.toString(xContent))
-                    .setHeader("Content-Type", XContentType.JSON.mediaType());
+            return body(Strings.toString(xContent)).setHeader("Content-Type", XContentType.JSON.mediaType());
         }
 
         public Builder connectionTimeout(TimeValue timeout) {

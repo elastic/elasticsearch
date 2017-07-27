@@ -22,6 +22,7 @@ import java.util.Objects;
 class StoreTrustConfig extends TrustConfig {
 
     final String trustStorePath;
+    final String trustStoreType;
     final SecureString trustStorePassword;
     final String trustStoreAlgorithm;
 
@@ -31,8 +32,9 @@ class StoreTrustConfig extends TrustConfig {
      * @param trustStorePassword the password for the truststore
      * @param trustStoreAlgorithm the algorithm to use for reading the truststore
      */
-    StoreTrustConfig(String trustStorePath, SecureString trustStorePassword, String trustStoreAlgorithm) {
+    StoreTrustConfig(String trustStorePath, String trustStoreType, SecureString trustStorePassword, String trustStoreAlgorithm) {
         this.trustStorePath = trustStorePath;
+        this.trustStoreType = trustStoreType;
         // since we support reloading the truststore, we must store the passphrase in memory for the life of the node, so we
         // clone the password and never close it during our uses below
         this.trustStorePassword = Objects.requireNonNull(trustStorePassword, "truststore password must be specified").clone();
@@ -42,7 +44,7 @@ class StoreTrustConfig extends TrustConfig {
     @Override
     X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
         try {
-            return CertUtils.trustManager(trustStorePath, trustStorePassword.getChars(), trustStoreAlgorithm, environment);
+            return CertUtils.trustManager(trustStorePath, trustStoreType, trustStorePassword.getChars(), trustStoreAlgorithm, environment);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }

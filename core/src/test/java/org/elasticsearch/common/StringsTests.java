@@ -81,7 +81,8 @@ public class StringsTests extends ESTestCase {
 
         String toString = Strings.toString(toXContent);
         if (error) {
-            assertThat(toString, containsString("Error building toString out of XContent"));
+            assertThat(toString, containsString("\"error\":\"error building toString out of XContent:"));
+            assertThat(toString, containsString("\"stack_trace\":"));
         } else {
             assertThat(toString, containsString("\"ok\":\"here\""));
             assertThat(toString, containsString("\"catastrophe\":\"\""));

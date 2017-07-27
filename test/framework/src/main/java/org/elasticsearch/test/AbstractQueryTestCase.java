@@ -29,6 +29,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -67,13 +68,16 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -218,9 +222,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             }
 
             @Override
-            public IndexFieldDataService fieldData() {
-                return serviceHolder.indexFieldDataService; // need to build / parse inner hits sort fields
+            public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
+                return serviceHolder.indexFieldDataService.getForField(fieldType); // need to build / parse inner hits sort fields
             }
+
         };
         testSearchContext.getQueryShardContext().setTypes(types);
         return testSearchContext;
@@ -618,7 +623,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     private QueryBuilder rewriteQuery(QB queryBuilder, QueryRewriteContext rewriteContext) throws IOException {
-        QueryBuilder rewritten = QueryBuilder.rewriteQuery(queryBuilder, rewriteContext);
+        QueryBuilder rewritten = rewriteAndFetch(queryBuilder, rewriteContext);
         // extra safety to fail fast - serialize the rewritten version to ensure it's serializable.
         assertSerialization(rewritten);
         return rewritten;
@@ -872,14 +877,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            if (method.equals(Client.class.getMethod("get", GetRequest.class))) {
-                return new PlainActionFuture<GetResponse>() {
-                    @Override
-                    public GetResponse get() throws InterruptedException, ExecutionException {
-                        return delegate.executeGet((GetRequest) args[0]);
-                    }
-                };
-            } else if (method.equals(Client.class.getMethod("multiTermVectors", MultiTermVectorsRequest.class))) {
+            if (method.equals(Client.class.getMethod("get", GetRequest.class, ActionListener.class))){
+                GetResponse getResponse = delegate.executeGet((GetRequest) args[0]);
+                ActionListener<GetResponse> listener = (ActionListener<GetResponse>) args[1];
+                if (randomBoolean()) {
+                    listener.onResponse(getResponse);
+                } else {
+                    new Thread(() -> listener.onResponse(getResponse)).start();
+                }
+                return null;
+            } else if (method.equals(Client.class.getMethod
+                ("multiTermVectors", MultiTermVectorsRequest.class))) {
                 return new PlainActionFuture<MultiTermVectorsResponse>() {
                     @Override
                     public MultiTermVectorsResponse get() throws InterruptedException, ExecutionException {
@@ -1069,8 +1077,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
 
         QueryShardContext createShardContext() {
-            return new QueryShardContext(0, idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
-                    scriptService, xContentRegistry, this.client, null, () -> nowInMillis);
+            return new QueryShardContext(0, idxSettings, bitsetFilterCache, indexFieldDataService::getForField, mapperService,
+                similarityService, scriptService, xContentRegistry, this.client, null, () -> nowInMillis, null);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {
@@ -1079,5 +1087,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             }
             return new ScriptModule(Settings.EMPTY, scriptPlugins);
         }
+    }
+
+    protected QueryBuilder rewriteAndFetch(QueryBuilder builder, QueryRewriteContext context) throws IOException {
+        PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
+        Rewriteable.rewriteAndFetch(builder, context, future);
+        return future.actionGet();
     }
 }

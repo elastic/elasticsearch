@@ -65,7 +65,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.setDocValuesType(DocValuesType.SORTED);
-            FIELD_TYPE.setEagerGlobalOrdinals(true);
+            FIELD_TYPE.setEagerGlobalOrdinals(false);
             FIELD_TYPE.freeze();
         }
     }
@@ -78,6 +78,8 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
         public Builder(String documentType) {
             super(Defaults.NAME, new ParentFieldType(Defaults.FIELD_TYPE, documentType), Defaults.FIELD_TYPE);
+            // Defaults to true
+            eagerGlobalOrdinals(true);
             this.documentType = documentType;
             builder = this;
         }
@@ -287,7 +289,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
         builder.startObject(CONTENT_TYPE);
         builder.field("type", parentType);
-        if (includeDefaults || fieldType().eagerGlobalOrdinals() != defaultFieldType.eagerGlobalOrdinals()) {
+        if (includeDefaults || fieldType().eagerGlobalOrdinals() == false) {
             builder.field("eager_global_ordinals", fieldType().eagerGlobalOrdinals());
         }
         builder.endObject();

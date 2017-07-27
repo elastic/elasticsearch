@@ -51,9 +51,8 @@ public class StoredExpressionTests extends ESIntegTestCase {
 
     public void testAllOpsDisabledIndexedScripts() throws IOException {
         client().admin().cluster().preparePutStoredScript()
-                .setLang(ExpressionScriptEngine.NAME)
                 .setId("script1")
-                .setContent(new BytesArray("{\"script\":\"2\"}"), XContentType.JSON)
+                .setContent(new BytesArray("{\"script\": {\"lang\": \"expression\", \"source\": \"2\"} }"), XContentType.JSON)
                 .get();
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON).get();
         try {

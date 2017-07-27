@@ -61,6 +61,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -91,6 +92,7 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqN
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -2926,6 +2928,60 @@ public class InternalEngineTests extends ESTestCase {
         assertTrue("expected an Exception that signals shard is not available", TransportActions.isShardNotAvailableException(exception.get()));
     }
 
+    /**
+     * Tests that when the the close method returns the engine is actually guaranteed to have cleaned up and that resources are closed
+     */
+    public void testConcurrentEngineClosed() throws BrokenBarrierException, InterruptedException {
+        Thread[] closingThreads = new Thread[3];
+        CyclicBarrier barrier = new CyclicBarrier(1 + closingThreads.length + 1);
+        Thread failEngine = new Thread(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                barrier.await();
+                engine.failEngine("test", new RuntimeException("test"));
+            }
+        });
+        failEngine.start();
+        for (int i = 0;i < closingThreads.length ; i++) {
+            boolean flushAndClose = randomBoolean();
+            closingThreads[i] = new Thread(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    barrier.await();
+                    if (flushAndClose) {
+                        engine.flushAndClose();
+                    } else {
+                        engine.close();
+                    }
+                    // try to acquire the writer lock - i.e., everything is closed, we need to synchronize
+                    // to avoid races between closing threads
+                    synchronized (closingThreads) {
+                        try (Lock ignored = store.directory().obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
+                            // all good.
+                        }
+                    }
+                }
+            });
+            closingThreads[i].setName("closingThread_" + i);
+            closingThreads[i].start();
+        }
+        barrier.await();
+        failEngine.join();
+        for (Thread t : closingThreads) {
+            t.join();
+        }
+    }
+
     public void testCurrentTranslogIDisCommitted() throws IOException {
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null);
@@ -3177,16 +3233,19 @@ public class InternalEngineTests extends ESTestCase {
     public void testDoubleDeliveryReplicaAppendingOnly() throws IOException {
         final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(),
             new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
-        Engine.Index operation = appendOnlyReplica(doc, false, 1, randomIntBetween(0, 20));
-        Engine.Index retry = appendOnlyReplica(doc, true, 1, operation.seqNo());
+        Engine.Index operation = appendOnlyReplica(doc, false, 1, randomIntBetween(0, 5));
+        Engine.Index retry = appendOnlyReplica(doc, true, 1, randomIntBetween(0, 5));
+        // operations with a seq# equal or lower to the local checkpoint are not indexed to lucene
+        // and the version lookup is skipped
+        final boolean belowLckp = operation.seqNo() == 0 && retry.seqNo() == 0;
         if (randomBoolean()) {
             Engine.IndexResult indexResult = engine.index(operation);
             assertFalse(engine.indexWriterHasDeletions());
             assertEquals(0, engine.getNumVersionLookups());
             assertNotNull(indexResult.getTranslogLocation());
             Engine.IndexResult retryResult = engine.index(retry);
-            assertFalse(engine.indexWriterHasDeletions());
-            assertEquals(1, engine.getNumVersionLookups());
+            assertEquals(retry.seqNo() > operation.seqNo(), engine.indexWriterHasDeletions());
+            assertEquals(belowLckp ? 0 : 1, engine.getNumVersionLookups());
             assertNotNull(retryResult.getTranslogLocation());
             assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) > 0);
         } else {
@@ -3195,8 +3254,8 @@ public class InternalEngineTests extends ESTestCase {
             assertEquals(1, engine.getNumVersionLookups());
             assertNotNull(retryResult.getTranslogLocation());
             Engine.IndexResult indexResult = engine.index(operation);
-            assertFalse(engine.indexWriterHasDeletions());
-            assertEquals(2, engine.getNumVersionLookups());
+            assertEquals(operation.seqNo() > retry.seqNo(), engine.indexWriterHasDeletions());
+            assertEquals(belowLckp ? 1 : 2, engine.getNumVersionLookups());
             assertNotNull(retryResult.getTranslogLocation());
             assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) < 0);
         }

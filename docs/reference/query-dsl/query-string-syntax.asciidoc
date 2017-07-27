@@ -283,16 +283,6 @@ NOTE: `<` and `>` can't be escaped at all. The only way to prevent them from
 attempting to create a range query is to remove them from the query string
 entirely.
 
-.Watch this space
-****
-A space may also be a reserved character.  For instance, if you have a
-synonym list which converts `"wi fi"` to `"wifi"`, a `query_string` search
-for `"wi fi"` would fail. The query string parser would interpret your
-query as a search for `"wi OR fi"`, while the token stored in your
-index is actually `"wifi"`.  The option `split_on_whitespace=false` will protect it from
-being touched by the query string parser and will let the analysis run on the entire input (`"wi fi"`).
-****
-
 ===== Empty Query
 
 If the query string is empty or only contains whitespaces the query will

@@ -21,6 +21,8 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -40,7 +42,9 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
 
         PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY,
             Arrays.asList(SearchScript.CONTEXT, ExecutableScript.CONTEXT));
-        SearchLookup lookup = new SearchLookup(index.mapperService(), index.fieldData(), null);
+
+        QueryShardContext shardContext = index.newQueryShardContext(0, null, () -> 0, null);
+        SearchLookup lookup = new SearchLookup(index.mapperService(), shardContext::getForField, null);
 
         SearchScript.Factory factory = service.compile(null, "1.2", SearchScript.CONTEXT, Collections.emptyMap());
         SearchScript.LeafFactory ss = factory.newFactory(Collections.emptyMap(), lookup);

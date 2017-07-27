@@ -888,6 +888,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // to ensure we fail as fast as possible.
             MembershipAction.ensureNodesCompatibility(node.getVersion(), state.getNodes());
             MembershipAction.ensureIndexCompatibility(node.getVersion(), state.getMetaData());
+            if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
+                MembershipAction.ensureMajorVersionBarrier(node.getVersion(), state.getNodes().getMinNodeVersion());
+            }
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);
 

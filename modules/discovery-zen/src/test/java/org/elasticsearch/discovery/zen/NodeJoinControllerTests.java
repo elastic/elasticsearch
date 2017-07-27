@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -81,7 +82,11 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.VersionUtils.allVersions;
 import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
+import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -586,16 +591,70 @@ public class NodeJoinControllerTests extends ESTestCase {
 
     public void testRejectingJoinWithIncompatibleVersion() throws InterruptedException, ExecutionException {
         addNodes(randomInt(5));
+        final Version badVersion;
+        if (randomBoolean()) {
+            badVersion = getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion());
+        } else {
+            badVersion = randomFrom(allVersions().stream().filter(v -> v.major < Version.CURRENT.major).collect(Collectors.toList()));
+        }
         final DiscoveryNode badNode = new DiscoveryNode("badNode", buildNewFakeTransportAddress(), emptyMap(),
-            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
-            getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()));
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), badVersion);
 
+        final Version goodVersion =
+            randomFrom(allVersions().stream().filter(v -> v.major >= Version.CURRENT.major).collect(Collectors.toList()));
         final DiscoveryNode goodNode = new DiscoveryNode("goodNode", buildNewFakeTransportAddress(), emptyMap(),
-            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), Version.CURRENT);
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), goodVersion);
 
         CountDownLatch latch = new CountDownLatch(1);
         // block cluster state
-        masterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        masterService.submitStateUpdateTask("test", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                latch.await();
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+
+        final SimpleFuture badJoin;
+        final SimpleFuture goodJoin;
+        if (randomBoolean()) {
+            badJoin = joinNodeAsync(badNode);
+            goodJoin = joinNodeAsync(goodNode);
+        } else {
+            goodJoin = joinNodeAsync(goodNode);
+            badJoin = joinNodeAsync(badNode);
+        }
+        assert goodJoin.isDone() == false;
+        assert badJoin.isDone() == false;
+        latch.countDown();
+        goodJoin.get();
+        ExecutionException e = expectThrows(ExecutionException.class, badJoin::get);
+        assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(e.getCause().getMessage(), allOf(containsString("node version"), containsString("not supported")));
+    }
+
+    public void testRejectingJoinWithIncompatibleVersionWithUnrecoveredState() throws InterruptedException, ExecutionException {
+        addNodes(randomInt(5));
+        ClusterState.Builder builder = ClusterState.builder(masterService.state());
+        builder.blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
+        setState(masterService, builder.build());
+        final Version badVersion = getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion());
+        final DiscoveryNode badNode = new DiscoveryNode("badNode", buildNewFakeTransportAddress(), emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), badVersion);
+
+        final Version goodVersion = randomFrom(randomCompatibleVersion(random(), Version.CURRENT));
+        final DiscoveryNode goodNode = new DiscoveryNode("goodNode", buildNewFakeTransportAddress(), emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), goodVersion);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        // block cluster state
+        masterService.submitStateUpdateTask("test", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 latch.await();

@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.IOException;
@@ -143,7 +144,7 @@ public class AliasValidator extends AbstractComponent {
 
     private static void validateAliasFilter(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
         QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
-        QueryBuilder queryBuilder = QueryBuilder.rewriteQuery(parseInnerQueryBuilder, queryShardContext);
+        QueryBuilder queryBuilder = Rewriteable.rewrite(parseInnerQueryBuilder, queryShardContext, true);
         queryBuilder.toFilter(queryShardContext);
     }
 }

@@ -21,12 +21,14 @@ package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.transport.nio.channel.CloseFuture;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
+import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Map;
+import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -90,31 +92,40 @@ public class OpenChannels implements Releasable {
     }
 
     public void closeServerChannels() {
+        List<CloseFuture> futures = new ArrayList<>();
         for (NioServerSocketChannel channel : openServerChannels.keySet()) {
-            ensureClosedInternal(channel);
+            CloseFuture closeFuture = channel.closeAsync();
+            futures.add(closeFuture);
         }
+        ensureChannelsClosed(futures);
 
         openServerChannels.clear();
     }
 
     @Override
     public void close() {
+        List<CloseFuture> futures = new ArrayList<>();
         for (NioSocketChannel channel : openClientChannels.keySet()) {
-            ensureClosedInternal(channel);
+            CloseFuture closeFuture = channel.closeAsync();
+            futures.add(closeFuture);
         }
         for (NioSocketChannel channel : openAcceptedChannels.keySet()) {
-            ensureClosedInternal(channel);
+            CloseFuture closeFuture = channel.closeAsync();
+            futures.add(closeFuture);
         }
+        ensureChannelsClosed(futures);
 
         openClientChannels.clear();
         openAcceptedChannels.clear();
     }
 
-    private void ensureClosedInternal(NioChannel channel) {
-        try {
-            channel.closeAsync().get();
-        } catch (Exception e) {
-            logger.trace("exception while closing channels", e);
+    private void ensureChannelsClosed(List<CloseFuture> futures) {
+        for (CloseFuture future : futures) {
+            try {
+                future.get();
+            } catch (Exception e) {
+                logger.debug("exception while closing channels", e);
+            }
         }
     }
 }

@@ -41,9 +41,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -85,6 +85,7 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -127,6 +128,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -156,7 +158,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final CircuitBreakerService circuitBreakerService;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
-    private final ClusterService clusterService;
     private final Client client;
     private volatile Map<String, IndexService> indices = emptyMap();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
@@ -177,12 +178,10 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv, NamedXContentRegistry xContentRegistry,
-                          AnalysisRegistry analysisRegistry,
-                          IndexNameExpressionResolver indexNameExpressionResolver,
-                          MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry,
-                          ThreadPool threadPool, IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService,
-                          BigArrays bigArrays, ScriptService scriptService, ClusterService clusterService, Client client,
-                          MetaStateService metaStateService) {
+                          AnalysisRegistry analysisRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
+                          MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry, ThreadPool threadPool,
+                          IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService, BigArrays bigArrays,
+                          ScriptService scriptService, Client client, MetaStateService metaStateService) {
         super(settings);
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -202,7 +201,6 @@ public class IndicesService extends AbstractLifecycleComponent
         this.circuitBreakerService = circuitBreakerService;
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
-        this.clusterService = clusterService;
         this.client = client;
         this.indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
             @Override
@@ -1102,13 +1100,6 @@ public class IndicesService extends AbstractLifecycleComponent
 
     }
 
-    public void clearRequestCache(IndexShard shard) {
-        if (shard == null) {
-            return;
-        }
-        indicesRequestCache.clear(new IndexShardCacheEntity(shard));
-        logger.trace("{} explicit cache clear", shard.shardId());
-    }
 
     /**
      * Loads the cache result, computing it if needed by executing the query phase and otherwise deserializing the cached
@@ -1237,4 +1228,25 @@ public class IndicesService extends AbstractLifecycleComponent
         return new AliasFilter(ShardSearchRequest.parseAliasFilter(filterParser, indexMetaData, aliases), aliases);
     }
 
+    /**
+     * Returns a new {@link QueryRewriteContext} with the given <tt>now</tt> provider
+     */
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
+        return new QueryRewriteContext(xContentRegistry, client, nowInMillis);
+    }
+
+    /**
+     * Clears the caches for the given shard id if the shard is still allocated on this node
+     */
+    public void clearIndexShardCache(ShardId shardId, boolean queryCache, boolean fieldDataCache, boolean requestCache,
+                                     String...fields) {
+        final IndexService service = indexService(shardId.getIndex());
+        if (service != null) {
+            IndexShard shard = service.getShardOrNull(shardId.id());
+            final boolean clearedAtLeastOne = service.clearCaches(queryCache, fieldDataCache, fields);
+            if ((requestCache || (clearedAtLeastOne == false && fields.length == 0)) && shard != null) {
+                indicesRequestCache.clear(new IndexShardCacheEntity(shard));
+            }
+        }
+    }
 }

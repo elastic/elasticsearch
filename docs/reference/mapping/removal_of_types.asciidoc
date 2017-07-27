@@ -270,7 +270,7 @@ Elasticsearch 8.x::
 
 * The `type` parameter is no longer supported in URLs.
 
-* The `include_in_type` parameter defaults to `false`.
+* The `include_type_name` parameter defaults to `false`.
 
 Elasticsearch 9.x::
 

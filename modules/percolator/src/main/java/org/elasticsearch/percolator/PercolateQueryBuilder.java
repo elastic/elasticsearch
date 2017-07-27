@@ -40,11 +40,12 @@ import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -77,6 +78,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 import static org.elasticsearch.percolator.PercolatorFieldMapper.parseQuery;
@@ -108,6 +110,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     private final String indexedDocumentRouting;
     private final String indexedDocumentPreference;
     private final Long indexedDocumentVersion;
+    private final Supplier<BytesReference> documentSupplier;
 
     /**
      * @deprecated use {@link #PercolateQueryBuilder(String, BytesReference, XContentType)} with the document content
@@ -141,6 +144,24 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         this.documentType = documentType;
         this.document = document;
         this.documentXContentType = Objects.requireNonNull(documentXContentType);
+        indexedDocumentIndex = null;
+        indexedDocumentType = null;
+        indexedDocumentId = null;
+        indexedDocumentRouting = null;
+        indexedDocumentPreference = null;
+        indexedDocumentVersion = null;
+        this.documentSupplier = null;
+    }
+
+    private PercolateQueryBuilder(String field, String documentType, Supplier<BytesReference> documentSupplier) {
+        if (field == null) {
+            throw new IllegalArgumentException("[field] is a required argument");
+        }
+        this.field = field;
+        this.documentType = documentType;
+        this.document = null;
+        this.documentXContentType = null;
+        this.documentSupplier = documentSupplier;
         indexedDocumentIndex = null;
         indexedDocumentType = null;
         indexedDocumentId = null;
@@ -192,6 +213,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         this.indexedDocumentVersion = indexedDocumentVersion;
         this.document = null;
         this.documentXContentType = null;
+        this.documentSupplier = null;
     }
 
     /**
@@ -225,10 +247,14 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         } else {
             documentXContentType = null;
         }
+        documentSupplier = null;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
+        if (documentSupplier != null) {
+            throw new IllegalStateException("supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
+        }
         out.writeString(field);
         if (out.getVersion().before(Version.V_6_0_0_beta1)) {
             out.writeString(documentType);
@@ -369,12 +395,14 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 && Objects.equals(document, other.document)
                 && Objects.equals(indexedDocumentIndex, other.indexedDocumentIndex)
                 && Objects.equals(indexedDocumentType, other.indexedDocumentType)
+                && Objects.equals(documentSupplier, other.documentSupplier)
                 && Objects.equals(indexedDocumentId, other.indexedDocumentId);
+
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(field, documentType, document, indexedDocumentIndex, indexedDocumentType, indexedDocumentId);
+        return Objects.hash(field, documentType, document, indexedDocumentIndex, indexedDocumentType, indexedDocumentId, documentSupplier);
     }
 
     @Override
@@ -386,8 +414,14 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) {
         if (document != null) {
             return this;
+        } else if (documentSupplier != null) {
+            final BytesReference source = documentSupplier.get();
+            if (source == null) {
+                return this; // not executed yet
+            } else {
+                return new PercolateQueryBuilder(field, documentType, source, XContentFactory.xContentType(source));
+            }
         }
-
         GetRequest getRequest = new GetRequest(indexedDocumentIndex, indexedDocumentType, indexedDocumentId);
         getRequest.preference("_local");
         getRequest.routing(indexedDocumentRouting);
@@ -395,19 +429,25 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         if (indexedDocumentVersion != null) {
             getRequest.version(indexedDocumentVersion);
         }
-        GetResponse getResponse = queryShardContext.getClient().get(getRequest).actionGet();
-        if (getResponse.isExists() == false) {
-            throw new ResourceNotFoundException(
-                    "indexed document [{}/{}/{}] couldn't be found", indexedDocumentIndex, indexedDocumentType, indexedDocumentId
-            );
-        }
-        if(getResponse.isSourceEmpty()) {
-            throw new IllegalArgumentException(
-                "indexed document [" + indexedDocumentIndex + "/" + indexedDocumentType + "/" + indexedDocumentId + "] source disabled"
-            );
-        }
-        final BytesReference source = getResponse.getSourceAsBytesRef();
-        return new PercolateQueryBuilder(field, documentType, source, XContentFactory.xContentType(source));
+        SetOnce<BytesReference> documentSupplier = new SetOnce<>();
+        queryShardContext.registerAsyncAction((client, listener) -> {
+            client.get(getRequest, ActionListener.wrap(getResponse -> {
+                if (getResponse.isExists() == false) {
+                    throw new ResourceNotFoundException(
+                        "indexed document [{}/{}/{}] couldn't be found", indexedDocumentIndex, indexedDocumentType, indexedDocumentId
+                    );
+                }
+                if(getResponse.isSourceEmpty()) {
+                    throw new IllegalArgumentException(
+                        "indexed document [" + indexedDocumentIndex + "/" + indexedDocumentType + "/" + indexedDocumentId
+                            + "] source disabled"
+                    );
+                }
+                documentSupplier.set(getResponse.getSourceAsBytesRef());
+                listener.onResponse(null);
+            }, listener::onFailure));
+        });
+        return new PercolateQueryBuilder(field, documentType, documentSupplier::get);
     }
 
     @Override
@@ -415,7 +455,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         // Call nowInMillis() so that this query becomes un-cacheable since we
         // can't be sure that it doesn't use now or scripts
         context.nowInMillis();
-        if (indexedDocumentIndex != null || indexedDocumentType != null || indexedDocumentId != null) {
+        if (indexedDocumentIndex != null || indexedDocumentType != null || indexedDocumentId != null || documentSupplier != null) {
             throw new IllegalStateException("query builder must be rewritten first");
         }
 

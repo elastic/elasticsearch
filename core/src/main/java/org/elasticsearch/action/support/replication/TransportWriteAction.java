@@ -106,8 +106,8 @@ public abstract class TransportWriteAction<
     }
 
     @Override
-    protected ReplicationOperation.Replicas newReplicasProxy() {
-        return new WriteActionReplicasProxy();
+    protected ReplicationOperation.Replicas newReplicasProxy(long primaryTerm) {
+        return new WriteActionReplicasProxy(primaryTerm);
     }
 
     /**
@@ -377,8 +377,12 @@ public abstract class TransportWriteAction<
      */
     class WriteActionReplicasProxy extends ReplicasProxy {
 
+        WriteActionReplicasProxy(long primaryTerm) {
+            super(primaryTerm);
+        }
+
         @Override
-        public void failShardIfNeeded(ShardRouting replica, long primaryTerm, String message, Exception exception,
+        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception,
                                       Runnable onSuccess, Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
 
             logger.warn((org.apache.logging.log4j.util.Supplier<?>)
@@ -388,7 +392,7 @@ public abstract class TransportWriteAction<
         }
 
         @Override
-        public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, long primaryTerm, Runnable onSuccess,
+        public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, Runnable onSuccess,
                                                  Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
             shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, "mark copy as stale", null,
                     createListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));

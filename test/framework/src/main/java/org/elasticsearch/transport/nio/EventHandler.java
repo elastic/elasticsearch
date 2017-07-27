@@ -38,10 +38,19 @@ public abstract class EventHandler {
     /**
      * This method handles an IOException that was thrown during a call to {@link Selector#select(long)}.
      *
-     * @param exception that was uncaught
+     * @param exception the exception
      */
     public void selectException(IOException exception) {
         logger.warn("io exception during select", exception);
+    }
+
+    /**
+     * This method handles an IOException that was thrown during a call to {@link Selector#close()}.
+     *
+     * @param exception the exception
+     */
+    public void closeSelectorException(IOException exception) {
+        logger.warn("io exception while closing selector", exception);
     }
 
     /**
@@ -65,7 +74,7 @@ public abstract class EventHandler {
         assert closeFuture.isDone() : "Should always be done as we are on the selector thread";
         IOException closeException = closeFuture.getCloseException();
         if (closeException != null) {
-            logger.trace("exception while closing channel", closeException);
+            logger.debug("exception while closing channel", closeException);
         }
     }
 }

@@ -109,7 +109,7 @@ public class ScriptScoreFunction extends ScoreFunction {
                             subQueryScore.getValue(), "_score: ",
                             subQueryScore);
                     return Explanation.match(
-                            CombineFunction.toFloat(score), explanation,
+                            (float) score, explanation,
                             scoreExp);
                 }
                 return exp;

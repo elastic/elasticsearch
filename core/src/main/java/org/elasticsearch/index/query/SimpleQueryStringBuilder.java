@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SimpleQueryParser.Settings;
+import org.elasticsearch.index.search.QueryStringQueryParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -376,7 +377,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                 (context.getMapperService().allEnabled() == false &&
                         "_all".equals(context.defaultField()) &&
                         this.fieldsAndWeights.isEmpty())) {
-            resolvedFieldsAndWeights = QueryStringQueryBuilder.allQueryableDefaultFields(context);
+            resolvedFieldsAndWeights = QueryStringQueryParser.resolveMappingField(context, "*", 1.0f,
+                false, false);
             // Need to use lenient mode when using "all-mode" so exceptions aren't thrown due to mismatched types
             newSettings.lenient(lenientSet ? settings.lenient() : true);
         } else {

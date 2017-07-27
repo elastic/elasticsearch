@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Order;
 
@@ -49,7 +50,8 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
  * This abstract class holds parameters shared by {@link HighlightBuilder} and {@link HighlightBuilder.Field}
  * and provides the common setters, equality, hashCode calculation and common serialization
  */
-public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>> extends ToXContentToBytes implements Writeable {
+public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>> extends ToXContentToBytes implements
+    Writeable, Rewriteable<HB> {
     public static final ParseField PRE_TAGS_FIELD = new ParseField("pre_tags");
     public static final ParseField POST_TAGS_FIELD = new ParseField("post_tags");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
@@ -110,6 +112,27 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     protected Boolean requireFieldMatch;
 
     public AbstractHighlighterBuilder() {
+    }
+
+    protected AbstractHighlighterBuilder(AbstractHighlighterBuilder template, QueryBuilder queryBuilder) {
+        preTags = template.preTags;
+        postTags = template.postTags;
+        fragmentSize = template.fragmentSize;
+        numOfFragments = template.numOfFragments;
+        highlighterType = template.highlighterType;
+        fragmenter = template.fragmenter;
+        highlightQuery = queryBuilder;
+        order = template.order;
+        highlightFilter = template.highlightFilter;
+        forceSource = template.forceSource;
+        boundaryScannerType = template.boundaryScannerType;
+        boundaryMaxScan = template.boundaryMaxScan;
+        boundaryChars = template.boundaryChars;
+        boundaryScannerLocale = template.boundaryScannerLocale;
+        noMatchSize = template.noMatchSize;
+        phraseLimit = template.phraseLimit;
+        options = template.options;
+        requireFieldMatch = template.requireFieldMatch;
     }
 
     /**

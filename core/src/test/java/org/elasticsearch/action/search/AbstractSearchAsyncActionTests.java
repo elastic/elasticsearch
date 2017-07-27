@@ -112,7 +112,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         ShardSearchTransportRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator);
         assertEquals(IndicesOptions.strictExpand(), shardSearchTransportRequest.indicesOptions());
         assertArrayEquals(new String[] {"name", "name1"}, shardSearchTransportRequest.indices());
-        assertEquals(new MatchAllQueryBuilder(), shardSearchTransportRequest.filteringAliases());
+        assertEquals(new MatchAllQueryBuilder(), shardSearchTransportRequest.getAliasFilter().getQueryBuilder());
         assertEquals(2.0f, shardSearchTransportRequest.indexBoost(), 0.0f);
     }
 }

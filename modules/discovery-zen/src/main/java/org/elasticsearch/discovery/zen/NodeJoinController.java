@@ -49,6 +49,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+
 /**
  * This class processes incoming join request (passed zia {@link ZenDiscovery}). Incoming nodes
  * are directly added to the cluster state or are accumulated during master election.
@@ -434,6 +436,8 @@ public class NodeJoinController extends AbstractComponent {
 
             Version minClusterNodeVersion = newState.nodes().getMinNodeVersion();
             Version maxClusterNodeVersion = newState.nodes().getMaxNodeVersion();
+            // we only enforce major version transitions on a fully formed clusters
+            final boolean enforceMajorVersion = currentState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
             // processing any joins
             for (final DiscoveryNode node : joiningNodes) {
                 if (node.equals(BECOME_MASTER_TASK) || node.equals(FINISH_ELECTION_TASK)) {
@@ -442,6 +446,9 @@ public class NodeJoinController extends AbstractComponent {
                     logger.debug("received a join request for an existing node [{}]", node);
                 } else {
                     try {
+                        if (enforceMajorVersion) {
+                            MembershipAction.ensureMajorVersionBarrier(node.getVersion(), minClusterNodeVersion);
+                        }
                         MembershipAction.ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                         // we have to reject nodes that don't support all indices we have in this cluster

@@ -430,5 +430,4 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertThat("index not defined", indexStats.containsKey(index), equalTo(true));
         assertThat("unexpected shard stats", indexStats.get(index), equalTo(shardStats));
     }
-
 }

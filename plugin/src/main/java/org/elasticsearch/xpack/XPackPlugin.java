@@ -106,6 +106,7 @@ import org.elasticsearch.xpack.watcher.WatcherFeatureSet;
 
 import javax.security.auth.DestroyFailedException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.GeneralSecurityException;
@@ -205,7 +206,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     protected Graph graph;
     protected MachineLearning machineLearning;
     protected Logstash logstash;
-    protected CryptoService cryptoService;
+
     protected Deprecation deprecation;
     protected Upgrade upgrade;
 
@@ -233,7 +234,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         } else {
             this.extensionsService = null;
         }
-        cryptoService = ENCRYPT_SENSITIVE_DATA_SETTING.get(settings) ? new CryptoService(settings) : null;
     }
 
     // For tests only
@@ -286,6 +286,13 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         }
         components.addAll(monitoring.createComponents(internalClient, threadPool, clusterService, licenseService, sslService));
 
+        final CryptoService cryptoService;
+        try {
+            cryptoService = ENCRYPT_SENSITIVE_DATA_SETTING.get(settings) ? new CryptoService(settings) : null;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
         // watcher http stuff
         Map<String, HttpAuthFactory> httpAuthFactories = new HashMap<>();
         httpAuthFactories.put(BasicAuth.TYPE, new BasicAuthFactory(cryptoService));
@@ -297,7 +304,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         components.add(httpClient);
 
         Collection<Object> notificationComponents = createNotificationComponents(clusterService.getClusterSettings(), httpClient,
-                httpTemplateParser, scriptService, httpAuthRegistry);
+                httpTemplateParser, scriptService, httpAuthRegistry, cryptoService);
         components.addAll(notificationComponents);
 
         components.addAll(watcher.createComponents(getClock(), scriptService, internalClient, licenseState,
@@ -318,7 +325,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
     private Collection<Object> createNotificationComponents(ClusterSettings clusterSettings, HttpClient httpClient,
                                                             HttpRequestTemplate.Parser httpTemplateParser, ScriptService scriptService,
-                                                            HttpAuthRegistry httpAuthRegistry) {
+                                                            HttpAuthRegistry httpAuthRegistry, CryptoService cryptoService) {
         List<Object> components = new ArrayList<>();
         components.add(new EmailService(settings, cryptoService, clusterSettings));
         components.add(new HipChatService(settings, httpClient, clusterSettings));

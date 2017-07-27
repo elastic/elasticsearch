@@ -198,11 +198,14 @@ final class IndexShardOperationPermits implements Closeable {
     /**
      * Acquires a permit whenever permit acquisition is not blocked. If the permit is directly available, the provided
      * {@link ActionListener} will be called on the calling thread. During calls of
-     * {@link #blockOperations(long, TimeUnit, CheckedRunnable)}, permit acquisition can be delayed. The provided {@link ActionListener}
-     * will then be called using the provided executor once operations are no longer blocked.
+     * {@link #blockOperations(long, TimeUnit, CheckedRunnable)}, permit acquisition can be delayed.
+     * The {@link ActionListener#onResponse(Object)} method will then be called using the provided executor once operations are no
+     * longer blocked. Note that the executor will not be used for {@link ActionListener#onFailure(Exception)} calls. Those will run
+     * directly on the calling thread, which in case of delays, will be a generic thread. Callers should thus make sure
+     * that the {@link ActionListener#onFailure(Exception)} method provided here only contains lightweight operations.
      *
      * @param onAcquired      {@link ActionListener} that is invoked once acquisition is successful or failed
-     * @param executorOnDelay executor to use for delayed call
+     * @param executorOnDelay executor to use for the possibly delayed {@link ActionListener#onResponse(Object)} call
      * @param forceExecution  whether the runnable should force its execution in case it gets rejected
      */
     public void acquire(final ActionListener<Releasable> onAcquired, final String executorOnDelay, final boolean forceExecution) {

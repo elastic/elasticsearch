@@ -740,11 +740,15 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
     }
 
+    /**
+     * Generic test that checks that the toString method renders the XContent
+     * correctly.
+     */
     public void testToString() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QB testQuery = createTestQueryBuilder();
             XContentType xContentType = XContentType.JSON;
-            String toString = Strings.toString(testQuery);
+            String toString = randomBoolean() ? Strings.toString(testQuery) : testQuery.toString();
             assertParsedQuery(createParser(xContentType.xContent(), toString), testQuery);
         }
     }

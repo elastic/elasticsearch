@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -127,13 +126,12 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
     }
 
     /**
-     * Generic test that checks that if the test instance extends
-     * {@link ToXContentToBytes} the Strings.toString method renders the
-     * XContent correctly.
+     * Generic test that checks that the toString method renders the XContent
+     * correctly.
      */
     public void testToString() throws IOException {
         AB testAgg = createTestAggregatorBuilder();
-        String toString = Strings.toString(testAgg);
+        String toString = randomBoolean() ? Strings.toString(testAgg) : testAgg.toString();
         XContentParser parser = createParser(XContentType.JSON.xContent(), toString);
         AggregationBuilder newAgg = parse(parser);
         assertNotSame(newAgg, testAgg);

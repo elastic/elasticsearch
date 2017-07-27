@@ -47,6 +47,15 @@ case $key in
             "-Dtests.badapples=true"
         )
         ;;
+    smokeTestSql)  # NOCOMMIT remove this once we are ready to merge sql down
+        GRADLE_CLI_ARGS=(
+            "--info"
+            "-psql"
+            "check"
+            ":x-pack-elasticsearch:plugin:precommit"
+            "-xforbiddenPatterns"
+        )
+        ;;
     jdk9)
         GRADLE_CLI_ARGS=(
             "-Pxpack.kibana.build=false"

@@ -88,7 +88,3 @@ forbiddenApisTest {
   bundledSignatures -= 'jdk-non-portable'
   bundledSignatures += 'jdk-internal'
 }
-
-test.configure {
-  systemProperty 'tests.version.available', 'true'
-}

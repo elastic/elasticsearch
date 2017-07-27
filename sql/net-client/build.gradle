@@ -4,3 +4,21 @@ forbiddenApisMain {
   // does not depend on core, so only jdk and http signatures should be checked
   signaturesURLs = [this.class.getResource('/forbidden/jdk-signatures.txt')]
 }
+
+forbiddenApisTest {
+  bundledSignatures -= 'jdk-non-portable'
+  bundledSignatures += 'jdk-internal'
+}
+
+// Allow for com.sun.net.httpserver.* usage for testing
+eclipse {
+  classpath.file {
+    whenMerged { cp ->
+      def con = entries.find { e ->
+        e.kind == "con" && e.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER")
+      }
+      con.accessRules.add(new org.gradle.plugins.ide.eclipse.model.AccessRule(
+        "accessible", "com/sun/net/httpserver/*"))
+    }
+  }
+}

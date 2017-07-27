@@ -176,7 +176,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     public URL asUrl() {
         // TODO: need to assemble all the various params here
         try {
-            return new URL(isSSL() ? "https" : "http", hostAndPort.ip, port(), urlFile);
+            return new URL(isSSLEnabled() ? "https" : "http", hostAndPort.ip, port(), urlFile);
         } catch (MalformedURLException ex) {
             throw new JdbcException(ex, "Cannot connect to server %s", originalUrl);
         }

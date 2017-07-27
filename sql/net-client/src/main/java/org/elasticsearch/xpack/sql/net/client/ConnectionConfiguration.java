@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.net.client;
 
-import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
-
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
@@ -35,48 +33,30 @@ public class ConnectionConfiguration {
     // Timeouts
 
     // 30s
-    static final String CONNECT_TIMEOUT = "connect.timeout";
-    static final String CONNECT_TIMEOUT_DEFAULT = String.valueOf(TimeUnit.SECONDS.toMillis(30));
+    private static final String CONNECT_TIMEOUT = "connect.timeout";
+    private static final String CONNECT_TIMEOUT_DEFAULT = String.valueOf(TimeUnit.SECONDS.toMillis(30));
 
     // 1m
-    static final String NETWORK_TIMEOUT = "network.timeout";
-    static final String NETWORK_TIMEOUT_DEFAULT = String.valueOf(TimeUnit.MINUTES.toMillis(1));
+    private static final String NETWORK_TIMEOUT = "network.timeout";
+    private static final String NETWORK_TIMEOUT_DEFAULT = String.valueOf(TimeUnit.MINUTES.toMillis(1));
 
     // 1m
-    static final String QUERY_TIMEOUT = "query.timeout";
-    static final String QUERY_TIMEOUT_DEFAULT = String.valueOf(TimeUnit.MINUTES.toMillis(1));
+    private static final String QUERY_TIMEOUT = "query.timeout";
+    private static final String QUERY_TIMEOUT_DEFAULT = String.valueOf(TimeUnit.MINUTES.toMillis(1));
 
     // 5m
-    static final String PAGE_TIMEOUT = "page.timeout";
-    static final String PAGE_TIMEOUT_DEFAULT = String.valueOf(TimeUnit.MINUTES.toMillis(5));
+    private static final String PAGE_TIMEOUT = "page.timeout";
+    private static final String PAGE_TIMEOUT_DEFAULT = String.valueOf(TimeUnit.MINUTES.toMillis(5));
 
-    static final String PAGE_SIZE = "page.size";
-    static final String PAGE_SIZE_DEFAULT = "1000";
+    private static final String PAGE_SIZE = "page.size";
+    private static final String PAGE_SIZE_DEFAULT = "1000";
 
-    static final String SSL = "ssl";
-    static final String SSL_DEFAULT = "false";
+    // Auth
 
-    static final String SSL_PROTOCOL = "ssl.protocol";
-    static final String SSL_PROTOCOL_DEFAULT = "TLS"; // SSL alternative
+    private static final String AUTH_USER = "user";
+    private static final String AUTH_PASS = "pass";
 
-    static final String SSL_KEYSTORE_LOCATION = "ssl.keystore.location";
-    static final String SSL_KEYSTORE_LOCATION_DEFAULT = "";
-
-    static final String SSL_KEYSTORE_PASS = "ssl.keystore.location";
-    static final String SSL_KEYSTORE_PASS_DEFAULT = "";
-
-    static final String SSL_KEYSTORE_TYPE = "ssl.keystore.type";
-    static final String SSL_KEYSTORE_TYPE_DEFAULT = "JKS"; // PCKS12
-
-    static final String SSL_TRUSTSTORE_LOCATION = "ssl.keystore.location";
-    static final String SSL_TRUSTSTORE_LOCATION_DEFAULT = "";
-
-    static final String SSL_TRUSTSTORE_PASS = "ssl.keystore.location";
-    static final String SSL_TRUSTSTORE_PASS_DEFAULT = "";
-
-    static final String SSL_TRUSTSTORE_TYPE = "ssl.keystore.location";
-    static final String SSL_TRUSTSTORE_TYPE_DEFAULT = "ssl.keystore.location";
-    
+    // Proxy
 
     private final Properties settings;
 
@@ -86,7 +66,12 @@ public class ConnectionConfiguration {
 
     private long pageTimeout;
     private int pageSize;
-    private final boolean ssl;
+
+    private final String user, pass;
+
+
+    private final SslConfig sslConfig;
+    private final ProxyConfig proxyConfig;
 
     public ConnectionConfiguration(Properties props) {
         settings = props != null ? new Properties(props) : new Properties();
@@ -97,15 +82,29 @@ public class ConnectionConfiguration {
         // page
         pageTimeout = Long.parseLong(settings.getProperty(PAGE_TIMEOUT, PAGE_TIMEOUT_DEFAULT));
         pageSize = Integer.parseInt(settings.getProperty(PAGE_SIZE, PAGE_SIZE_DEFAULT));
-        ssl = StringUtils.parseBoolean(settings.getProperty(SSL, SSL_DEFAULT));
+
+        // auth
+        user = settings.getProperty(AUTH_USER);
+        pass = settings.getProperty(AUTH_PASS);
+
+        sslConfig = new SslConfig(props);
+        proxyConfig = new ProxyConfig(props);
+    }
+
+    protected boolean isSSLEnabled() {
+        return sslConfig.isEnabled();
+    }
+
+    SslConfig sslConfig() {
+        return sslConfig;
+    }
+
+    ProxyConfig proxyConfig() {
+        return proxyConfig;
     }
 
     protected Properties settings() {
         return settings;
-    }
-
-    protected boolean isSSL() {
-        return ssl;
     }
 
     public void connectTimeout(long millis) {
@@ -138,5 +137,15 @@ public class ConnectionConfiguration {
 
     public int pageSize() {
         return pageSize;
+    }
+    
+    // auth
+
+    public String authUser() {
+        return user;
+    }
+
+    public String authPass() {
+        return pass;
     }
 }

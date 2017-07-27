@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
+import org.elasticsearch.xpack.sql.net.client.ConnectionConfiguration;
+
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Properties;
-
-import org.elasticsearch.xpack.sql.net.client.ConnectionConfiguration;
 
 //
 // Supports the following syntax
@@ -74,7 +74,7 @@ public class CliConfiguration extends ConnectionConfiguration {
     public URL asUrl() {
         // TODO: need to assemble all the various params here
         try {
-            return new URL(isSSL() ? "https" : "http", hostAndPort.ip, port(), urlFile);
+            return new URL(isSSLEnabled() ? "https" : "http", hostAndPort.ip, port(), urlFile);
         } catch (MalformedURLException ex) {
             throw new IllegalArgumentException("Cannot connect to server " + originalUrl, ex);
         }

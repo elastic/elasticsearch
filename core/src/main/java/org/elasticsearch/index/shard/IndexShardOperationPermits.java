@@ -20,10 +20,10 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -217,7 +217,7 @@ final class IndexShardOperationPermits implements Closeable {
                     final Supplier<StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(false);
                     if (executorOnDelay != null) {
                         delayedOperations.add(
-                                new ThreadedActionListener<>(logger, threadPool, executorOnDelay,
+                                new PermitAwareThreadedActionListener(threadPool, executorOnDelay,
                                         new ContextPreservingActionListener<>(contextSupplier, onAcquired), forceExecution));
                     } else {
                         delayedOperations.add(new ContextPreservingActionListener<>(contextSupplier, onAcquired));
@@ -266,6 +266,73 @@ final class IndexShardOperationPermits implements Closeable {
             return 0;
         } else {
             return TOTAL_PERMITS - availablePermits;
+        }
+    }
+
+    /**
+     * A permit-aware action listener wrapper that spawns listener invocations off on a configurable thread-pool.
+     * Being permit-aware, it also releases the permit when hitting thread-pool rejections and falls back to the
+     * invoker's thread to communicate failures.
+     */
+    private static class PermitAwareThreadedActionListener implements ActionListener<Releasable> {
+
+        private final ThreadPool threadPool;
+        private final String executor;
+        private final ActionListener<Releasable> listener;
+        private final boolean forceExecution;
+
+        private PermitAwareThreadedActionListener(ThreadPool threadPool, String executor, ActionListener<Releasable> listener,
+                                                  boolean forceExecution) {
+            this.threadPool = threadPool;
+            this.executor = executor;
+            this.listener = listener;
+            this.forceExecution = forceExecution;
+        }
+
+        @Override
+        public void onResponse(final Releasable releasable) {
+            threadPool.executor(executor).execute(new AbstractRunnable() {
+                @Override
+                public boolean isForceExecution() {
+                    return forceExecution;
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    listener.onResponse(releasable);
+                }
+
+                @Override
+                public void onRejection(Exception e) {
+                    IOUtils.closeWhileHandlingException(releasable);
+                    super.onRejection(e);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e); // will possibly execute on the generic thread spawned off in releaseDelayedOperations
+                }
+            });
+        }
+
+        @Override
+        public void onFailure(final Exception e) {
+            threadPool.executor(executor).execute(new AbstractRunnable() {
+                @Override
+                public boolean isForceExecution() {
+                    return forceExecution;
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e); // will possibly execute on the generic thread spawned off in releaseDelayedOperations
+                }
+            });
         }
     }
 

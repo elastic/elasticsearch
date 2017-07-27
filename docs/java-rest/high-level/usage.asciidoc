@@ -48,7 +48,7 @@ dependencies {
 The High Level Java REST Client depends on the following artifacts and their
 transitive dependencies:
 
-- org.elasticsearch.client:rest
+- org.elasticsearch.client:elasticsearch-rest-client
 - org.elasticsearch:elasticsearch
 
 

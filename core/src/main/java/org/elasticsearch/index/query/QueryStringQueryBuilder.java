@@ -98,7 +98,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             .withAllDeprecated("Decision is now made by the analyzer");
     private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
     private static final ParseField SPLIT_ON_WHITESPACE = new ParseField("split_on_whitespace")
-            .withAllDeprecated("This setting is ignored, the parser always splits on logical operator");
+            .withAllDeprecated("This setting is ignored, the parser always splits on operator");
     private static final ParseField ALL_FIELDS_FIELD = new ParseField("all_fields")
             .withAllDeprecated("Set [default_field] to `*` instead");
     private static final ParseField TYPE_FIELD = new ParseField("type");

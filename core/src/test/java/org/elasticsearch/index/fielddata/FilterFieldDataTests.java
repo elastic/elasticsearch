@@ -63,12 +63,12 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         final BuilderContext builderCtx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
 
         {
-            ifdService.clear();
+            indexService.clearCaches(false, true);
             MappedFieldType ft = new TextFieldMapper.Builder("high_freq")
                     .fielddata(true)
                     .fielddataFrequencyFilter(0, random.nextBoolean() ? 100 : 0.5d, 0)
                     .build(builderCtx).fieldType();
-            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
+            IndexOrdinalsFieldData fieldData = shardContext.getForField(ft);
             for (LeafReaderContext context : contexts) {
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
@@ -78,12 +78,12 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
             }
         }
         {
-            ifdService.clear();
+            indexService.clearCaches(false, true);
             MappedFieldType ft = new TextFieldMapper.Builder("high_freq")
                     .fielddata(true)
                     .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, 201, 100)
                     .build(builderCtx).fieldType();
-            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
+            IndexOrdinalsFieldData fieldData = shardContext.getForField(ft);
             for (LeafReaderContext context : contexts) {
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
@@ -93,12 +93,12 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         }
 
         {
-            ifdService.clear(); // test # docs with value
+            indexService.clearCaches(false, true);// test # docs with value
             MappedFieldType ft = new TextFieldMapper.Builder("med_freq")
                     .fielddata(true)
                     .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, Integer.MAX_VALUE, 101)
                     .build(builderCtx).fieldType();
-            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
+            IndexOrdinalsFieldData fieldData = shardContext.getForField(ft);
             for (LeafReaderContext context : contexts) {
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
@@ -109,12 +109,12 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         }
 
         {
-            ifdService.clear();
+            indexService.clearCaches(false, true);
             MappedFieldType ft = new TextFieldMapper.Builder("med_freq")
                     .fielddata(true)
                     .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, Integer.MAX_VALUE, 101)
                     .build(builderCtx).fieldType();
-            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
+            IndexOrdinalsFieldData fieldData = shardContext.getForField(ft);
             for (LeafReaderContext context : contexts) {
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();

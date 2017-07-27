@@ -19,6 +19,7 @@
 
 package org.apache.lucene.queries;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
@@ -35,16 +36,26 @@ import java.util.Objects;
  *  to a configured doc ID. */
 public final class MinDocQuery extends Query {
 
+    // Matching documents depend on the sequence of segments that the index reader
+    // wraps. Yet matches must be cacheable per-segment, so we need to incorporate
+    // the reader id in the identity of the query so that a cache entry may only
+    // be reused if this query is run against the same index reader.
+    private final Object readerId;
     private final int minDoc;
 
     /** Sole constructor. */
     public MinDocQuery(int minDoc) {
+        this(minDoc, null);
+    }
+
+    MinDocQuery(int minDoc, Object readerId) {
         this.minDoc = minDoc;
+        this.readerId = readerId;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), minDoc);
+        return Objects.hash(classHash(), minDoc, readerId);
     }
 
     @Override
@@ -53,11 +64,24 @@ public final class MinDocQuery extends Query {
             return false;
         }
         MinDocQuery that = (MinDocQuery) obj;
-        return minDoc == that.minDoc;
+        return minDoc == that.minDoc && Objects.equals(readerId, that.readerId);
+    }
+
+    @Override
+    public Query rewrite(IndexReader reader) throws IOException {
+        if (Objects.equals(reader.getContext().id(), readerId) == false) {
+            return new MinDocQuery(minDoc, reader.getContext().id());
+        }
+        return this;
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
+        if (readerId == null) {
+            throw new IllegalStateException("Rewrite first");
+        } else if (Objects.equals(searcher.getIndexReader().getContext().id(), readerId) == false) {
+            throw new IllegalStateException("Executing against a different reader than the query has been rewritten against");
+        }
         return new ConstantScoreWeight(this, boost) {
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {

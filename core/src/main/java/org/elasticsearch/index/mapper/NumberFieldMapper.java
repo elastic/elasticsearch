@@ -348,18 +348,9 @@ public class NumberFieldMapper extends FieldMapper {
         DOUBLE("double", NumericType.DOUBLE) {
             @Override
             Double parse(Object value, boolean coerce) {
-                final Double result;
-
-                if (value instanceof Number) {
-                    result = ((Number) value).doubleValue();
-                } else {
-                    if (value instanceof BytesRef) {
-                        value = ((BytesRef) value).utf8ToString();
-                    }
-                    result = Double.parseDouble(value.toString());
-                }
-                validateParsed(result);
-                return result;
+                Double parsed = objectToDouble(value);
+                validateParsed(parsed);
+                return parsed;
             }
 
             @Override
@@ -438,20 +429,20 @@ public class NumberFieldMapper extends FieldMapper {
         BYTE("byte", NumericType.BYTE) {
             @Override
             Byte parse(Object value, boolean coerce) {
+                double doubleValue = objectToDouble(value);
+
+                if (doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE) {
+                    throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
+                }
+                if (!coerce && doubleValue % 1 != 0) {
+                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                }
+
                 if (value instanceof Number) {
-                    double doubleValue = ((Number) value).doubleValue();
-                    if (doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE) {
-                        throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
-                    }
-                    if (!coerce && doubleValue % 1 != 0) {
-                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
-                    }
                     return ((Number) value).byteValue();
                 }
-                if (value instanceof BytesRef) {
-                    value = ((BytesRef) value).utf8ToString();
-                }
-                return Byte.parseByte(value.toString());
+
+                return (byte) doubleValue;
             }
 
             @Override
@@ -494,29 +485,25 @@ public class NumberFieldMapper extends FieldMapper {
         SHORT("short", NumericType.SHORT) {
             @Override
             Short parse(Object value, boolean coerce) {
+                double doubleValue = objectToDouble(value);
+
+                if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
+                    throw new IllegalArgumentException("Value [" + value + "] is out of range for a short");
+                }
+                if (!coerce && doubleValue % 1 != 0) {
+                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                }
+
                 if (value instanceof Number) {
-                    double doubleValue = ((Number) value).doubleValue();
-                    if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
-                        throw new IllegalArgumentException("Value [" + value + "] is out of range for a short");
-                    }
-                    if (!coerce && doubleValue % 1 != 0) {
-                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
-                    }
                     return ((Number) value).shortValue();
                 }
-                if (value instanceof BytesRef) {
-                    value = ((BytesRef) value).utf8ToString();
-                }
-                return Short.parseShort(value.toString());
+
+                return (short) doubleValue;
             }
 
             @Override
             Short parse(XContentParser parser, boolean coerce) throws IOException {
-                int value = parser.intValue(coerce);
-                if (value < Short.MIN_VALUE || value > Short.MAX_VALUE) {
-                    throw new IllegalArgumentException("Value [" + value + "] is out of range for a short");
-                }
-                return (short) value;
+                return parser.shortValue(coerce);
             }
 
             @Override
@@ -550,20 +537,20 @@ public class NumberFieldMapper extends FieldMapper {
         INTEGER("integer", NumericType.INT) {
             @Override
             Integer parse(Object value, boolean coerce) {
+                double doubleValue = objectToDouble(value);
+
+                if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
+                    throw new IllegalArgumentException("Value [" + value + "] is out of range for an integer");
+                }
+                if (!coerce && doubleValue % 1 != 0) {
+                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                }
+
                 if (value instanceof Number) {
-                    double doubleValue = ((Number) value).doubleValue();
-                    if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
-                        throw new IllegalArgumentException("Value [" + value + "] is out of range for an integer");
-                    }
-                    if (!coerce && doubleValue % 1 != 0) {
-                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
-                    }
                     return ((Number) value).intValue();
                 }
-                if (value instanceof BytesRef) {
-                    value = ((BytesRef) value).utf8ToString();
-                }
-                return Integer.parseInt(value.toString());
+
+                return (int) doubleValue;
             }
 
             @Override
@@ -661,20 +648,27 @@ public class NumberFieldMapper extends FieldMapper {
         LONG("long", NumericType.LONG) {
             @Override
             Long parse(Object value, boolean coerce) {
+                double doubleValue = objectToDouble(value);
+
+                if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
+                    throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
+                }
+                if (!coerce && doubleValue % 1 != 0) {
+                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                }
+
                 if (value instanceof Number) {
-                    double doubleValue = ((Number) value).doubleValue();
-                    if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
-                        throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
-                    }
-                    if (!coerce && doubleValue % 1 != 0) {
-                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
-                    }
                     return ((Number) value).longValue();
                 }
-                if (value instanceof BytesRef) {
-                    value = ((BytesRef) value).utf8ToString();
+
+                // longs need special handling so we don't lose precision while parsing
+                String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
+
+                try {
+                    return Long.parseLong(stringValue);
+                } catch (NumberFormatException e) {
+                    return (long) Double.parseDouble(stringValue);
                 }
-                return Long.parseLong(value.toString());
             }
 
             @Override
@@ -828,6 +822,23 @@ public class NumberFieldMapper extends FieldMapper {
                 value = ((BytesRef) value).utf8ToString();
             }
             return Math.signum(Double.parseDouble(value.toString()));
+        }
+
+        /**
+         * Converts an Object to a double by checking it against known types first
+         */
+        private static double objectToDouble(Object value) {
+            double doubleValue;
+
+            if (value instanceof Number) {
+                doubleValue = ((Number) value).doubleValue();
+            } else if (value instanceof BytesRef) {
+                doubleValue = Double.parseDouble(((BytesRef) value).utf8ToString());
+            } else {
+                doubleValue = Double.parseDouble(value.toString());
+            }
+
+            return doubleValue;
         }
 
     }

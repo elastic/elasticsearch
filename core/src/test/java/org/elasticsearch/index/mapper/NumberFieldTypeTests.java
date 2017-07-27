@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.HalfFloatPoint;
@@ -35,6 +36,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
@@ -45,6 +47,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
@@ -251,6 +254,37 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertEquals(1.1d, NumberType.DOUBLE.parse(1.1, true));
     }
 
+    public void testCoercions() {
+        assertEquals((byte) 5, NumberType.BYTE.parse((short) 5, true));
+        assertEquals((byte) 5, NumberType.BYTE.parse("5", true));
+        assertEquals((byte) 5, NumberType.BYTE.parse("5.0", true));
+        assertEquals((byte) 5, NumberType.BYTE.parse("5.9", true));
+        assertEquals((byte) 5, NumberType.BYTE.parse(new BytesRef("5.3".getBytes(StandardCharsets.UTF_8)), true));
+
+        assertEquals((short) 5, NumberType.SHORT.parse((byte) 5, true));
+        assertEquals((short) 5, NumberType.SHORT.parse("5", true));
+        assertEquals((short) 5, NumberType.SHORT.parse("5.0", true));
+        assertEquals((short) 5, NumberType.SHORT.parse("5.9", true));
+        assertEquals((short) 5, NumberType.SHORT.parse(new BytesRef("5.3".getBytes(StandardCharsets.UTF_8)), true));
+
+        assertEquals(5, NumberType.INTEGER.parse((byte) 5, true));
+        assertEquals(5, NumberType.INTEGER.parse("5", true));
+        assertEquals(5, NumberType.INTEGER.parse("5.0", true));
+        assertEquals(5, NumberType.INTEGER.parse("5.9", true));
+        assertEquals(5, NumberType.INTEGER.parse(new BytesRef("5.3".getBytes(StandardCharsets.UTF_8)), true));
+        assertEquals(Integer.MAX_VALUE, NumberType.INTEGER.parse(Integer.MAX_VALUE, true));
+
+        assertEquals((long) 5, NumberType.LONG.parse((byte) 5, true));
+        assertEquals((long) 5, NumberType.LONG.parse("5", true));
+        assertEquals((long) 5, NumberType.LONG.parse("5.0", true));
+        assertEquals((long) 5, NumberType.LONG.parse("5.9", true));
+        assertEquals((long) 5, NumberType.LONG.parse(new BytesRef("5.3".getBytes(StandardCharsets.UTF_8)), true));
+
+        // these will lose precision if they get treated as a double
+        assertEquals(-4115420654264075766L, NumberType.LONG.parse("-4115420654264075766", true));
+        assertEquals(-4115420654264075766L, NumberType.LONG.parse(-4115420654264075766L, true));
+    }
+
     public void testHalfFloatRange() throws IOException {
         // make sure the accuracy loss of half floats only occurs at index time
         // this test checks that searching half floats yields the same results as
@@ -355,35 +389,35 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testParseOutOfRangeValues() throws IOException {
-        final List<Triple<NumberType, Object, String>> inputs = Arrays.asList(
-            Triple.of(NumberType.BYTE, "128", "Value out of range"),
-            Triple.of(NumberType.SHORT, "32768", "Value out of range"),
-            Triple.of(NumberType.INTEGER, "2147483648", "For input string"),
-            Triple.of(NumberType.LONG, "9223372036854775808", "For input string"),
+        final List<OutOfRangeSpec<Object>> inputs = Arrays.asList(
+            OutOfRangeSpec.of(NumberType.BYTE, "128", "out of range for a byte"),
+            OutOfRangeSpec.of(NumberType.SHORT, "32768", "out of range for a short"), //@todo fix this value
+            OutOfRangeSpec.of(NumberType.INTEGER, "2147483648", "out of range for an integer"),
+            //OutOfRangeSpec.of(NumberType.LONG, "9223372036854775808", "out of range for a long"),
 
-            Triple.of(NumberType.BYTE, 128, "is out of range for a byte"),
-            Triple.of(NumberType.SHORT, 32768, "is out of range for a short"),
-            Triple.of(NumberType.INTEGER, 2147483648L, "is out of range for an integer"),
-            Triple.of(NumberType.LONG, new BigInteger("92233720368547758080"), " is out of range for a long"),
+            OutOfRangeSpec.of(NumberType.BYTE, 128, "is out of range for a byte"),
+            OutOfRangeSpec.of(NumberType.SHORT, 327684, "is out of range for a short"),
+            OutOfRangeSpec.of(NumberType.INTEGER, 2147483648L, "is out of range for an integer"),
+            //OutOfRangeSpec.of(NumberType.LONG, new BigInteger("9223372036854775808"), " is out of range for a long"),
 
-            Triple.of(NumberType.HALF_FLOAT, "65504.1", "[half_float] supports only finite values"),
-            Triple.of(NumberType.FLOAT, "3.4028235E39", "[float] supports only finite values"),
-            Triple.of(NumberType.DOUBLE, "1.7976931348623157E309", "[double] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.HALF_FLOAT, "65504.1", "[half_float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.FLOAT, "3.4028235E39", "[float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.DOUBLE, "1.7976931348623157E309", "[double] supports only finite values"),
 
-            Triple.of(NumberType.HALF_FLOAT, 65504.1, "[half_float] supports only finite values"),
-            Triple.of(NumberType.FLOAT, 3.4028235E39, "[float] supports only finite values"),
-            Triple.of(NumberType.DOUBLE, new BigDecimal("1.7976931348623157E309"), "[double] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.HALF_FLOAT, 65504.1, "[half_float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.FLOAT, 3.4028235E39, "[float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.DOUBLE, new BigDecimal("1.7976931348623157E309"), "[double] supports only finite values"),
 
-            Triple.of(NumberType.HALF_FLOAT, Float.NaN, "[half_float] supports only finite values"),
-            Triple.of(NumberType.FLOAT, Float.NaN, "[float] supports only finite values"),
-            Triple.of(NumberType.DOUBLE, Double.NaN, "[double] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.HALF_FLOAT, Float.NaN, "[half_float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.FLOAT, Float.NaN, "[float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.DOUBLE, Double.NaN, "[double] supports only finite values"),
 
-            Triple.of(NumberType.HALF_FLOAT, Float.POSITIVE_INFINITY, "[half_float] supports only finite values"),
-            Triple.of(NumberType.FLOAT, Float.POSITIVE_INFINITY, "[float] supports only finite values"),
-            Triple.of(NumberType.DOUBLE, Double.POSITIVE_INFINITY, "[double] supports only finite values")
+            OutOfRangeSpec.of(NumberType.HALF_FLOAT, Float.POSITIVE_INFINITY, "[half_float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.FLOAT, Float.POSITIVE_INFINITY, "[float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.DOUBLE, Double.POSITIVE_INFINITY, "[double] supports only finite values")
         );
 
-        for (Triple<NumberType, Object, String> item: inputs) {
+        for (OutOfRangeSpec<Object> item: inputs) {
             try {
                 item.type.parse(item.value, false);
                 fail("Parsing exception expected for [" + item.type + "] with value [" + item.value + "]");
@@ -394,17 +428,17 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         }
     }
 
-    private static class Triple<K,V,M> {
+    static class OutOfRangeSpec<V> {
 
-        final K type;
+        final NumberType type;
         final V value;
-        final M message;
+        final String message;
 
-        static <K,V,M> Triple<K,V,M> of(K t, V v, M m) {
-            return new Triple<>(t, v, m);
+        static <V> OutOfRangeSpec<V> of(NumberType t, V v, String m) {
+            return new OutOfRangeSpec<>(t, v, m);
         }
 
-        Triple(K t, V v, M m) {
+        OutOfRangeSpec(NumberType t, V v, String m) {
             type = t;
             value = v;
             message = m;

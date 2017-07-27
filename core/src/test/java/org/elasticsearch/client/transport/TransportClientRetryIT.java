@@ -25,14 +25,17 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
@@ -49,9 +52,12 @@ public class TransportClientRetryIT extends ESIntegTestCase {
             addresses[i++] = instance.boundAddress().publishAddress();
         }
 
+        String transport = randomTestTransport();
+
         Settings.Builder builder = Settings.builder().put("client.transport.nodes_sampler_interval", "1s")
                 .put("node.name", "transport_client_retry_test")
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), internalCluster().getClusterName())
+                .put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(),transport)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir());
 
         try (TransportClient client = new MockTransportClient(builder.build())) {

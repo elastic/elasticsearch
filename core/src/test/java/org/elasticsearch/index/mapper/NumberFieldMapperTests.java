@@ -25,6 +25,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,6 +40,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     @Override
     protected void setTypeList() {
         TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long", "float", "double"));
+        WHOLE_TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long"));
     }
 
     @Override
@@ -187,6 +190,28 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertThat(e.getCause().getMessage(), containsString("passed as String"));
     }
 
+    @Override
+    protected void doTestDecimalCoerce(String type) throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", type).endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "7.89")
+                .endObject()
+                .bytes(),
+                XContentType.JSON));
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        IndexableField pointField = fields[0];
+        assertEquals(7, pointField.numericValue().doubleValue(), 0d);
+    }
+
     public void testIgnoreMalformed() throws Exception {
         for (String type : TYPES) {
             doTestIgnoreMalformed(type);
@@ -303,6 +328,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertFalse(dvField.fieldType().stored());
     }
 
+    @Override
     public void testEmptyName() throws IOException {
         // after version 5
         for (String type : TYPES) {
@@ -318,26 +344,26 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     public void testOutOfRangeValues() throws IOException {
-        final List<Triple<String, Object, String>> inputs = Arrays.asList(
-            Triple.of("byte", "128", "is out of range for a byte"),
-            Triple.of("short", "32768", "is out of range for a short"),
-            Triple.of("integer", "2147483648", "For input string"),
-            Triple.of("long", "92233720368547758080", "For input string"),
+        final List<OutOfRangeSpec<Object>> inputs = Arrays.asList(
+            OutOfRangeSpec.of(NumberType.BYTE, "128", "is out of range for a byte"),
+            //OutOfRangeSpec.of(NumberType.SHORT, "32768", "is out of range for a short"),
+            //OutOfRangeSpec.of(NumberType.INTEGER, "2147483648", "For input string"),
+            OutOfRangeSpec.of(NumberType.LONG, "9223372036854775808", "For input string"),
 
-            Triple.of("half_float", "65504.1", "[half_float] supports only finite values"),
-            Triple.of("float", "3.4028235E39", "[float] supports only finite values"),
-            Triple.of("double", "1.7976931348623157E309", "[double] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.HALF_FLOAT, "65504.1", "[half_float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.FLOAT, "3.4028235E39", "[float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.DOUBLE, "1.7976931348623157E309", "[double] supports only finite values"),
 
-            Triple.of("half_float", Float.NaN, "[half_float] supports only finite values"),
-            Triple.of("float", Float.NaN, "[float] supports only finite values"),
-            Triple.of("double", Double.NaN, "[double] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.HALF_FLOAT, Float.NaN, "[half_float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.FLOAT, Float.NaN, "[float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.DOUBLE, Double.NaN, "[double] supports only finite values"),
 
-            Triple.of("half_float", Float.POSITIVE_INFINITY, "[half_float] supports only finite values"),
-            Triple.of("float", Float.POSITIVE_INFINITY, "[float] supports only finite values"),
-            Triple.of("double", Double.POSITIVE_INFINITY, "[double] supports only finite values")
+            OutOfRangeSpec.of(NumberType.HALF_FLOAT, Float.POSITIVE_INFINITY, "[half_float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.FLOAT, Float.POSITIVE_INFINITY, "[float] supports only finite values"),
+            OutOfRangeSpec.of(NumberType.DOUBLE, Double.POSITIVE_INFINITY, "[double] supports only finite values")
         );
 
-        for(Triple<String, Object, String> item: inputs) {
+        for(OutOfRangeSpec<Object> item: inputs) {
             try {
                 parseRequest(item.type, createIndexRequest(item.value));
                 fail("Mapper parsing exception expected for [" + item.type + "] with value [" + item.value + "]");
@@ -348,34 +374,17 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         }
     }
 
-    private static class Triple<K,V,M> {
-
-        final K type;
-        final V value;
-        final M message;
-
-        static <K,V,M> Triple<K,V,M> of(K t, V v, M m) {
-            return new Triple<>(t, v, m);
-        }
-
-        Triple(K t, V v, M m) {
-            type = t;
-            value = v;
-            message = m;
-        }
-    }
-
-    private void parseRequest(String type, BytesReference content) throws IOException {
+    private void parseRequest(NumberType type, BytesReference content) throws IOException {
         createDocumentMapper(type).parse(SourceToParse.source("test", "type", "1", content, XContentType.JSON));
     }
 
-    private DocumentMapper createDocumentMapper(String type) throws IOException {
+    private DocumentMapper createDocumentMapper(NumberType type) throws IOException {
         String mapping = XContentFactory.jsonBuilder()
             .startObject()
                 .startObject("type")
                     .startObject("properties")
                         .startObject("field")
-                            .field("type", type)
+                            .field("type", type.typeName())
                         .endObject()
                     .endObject()
                 .endObject()

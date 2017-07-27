@@ -108,7 +108,7 @@ public class ChildrenAggregationBuilder
             parentFilter = parentIdFieldMapper.getParentFilter();
             childFilter = parentIdFieldMapper.getChildFilter(childType);
             MappedFieldType fieldType = parentIdFieldMapper.fieldType();
-            final SortedSetDVOrdinalsIndexFieldData fieldData = context.fieldData().getForField(fieldType);
+            final SortedSetDVOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
             config.fieldContext(new FieldContext(fieldType.name(), fieldData, fieldType));
         } else {
             config.unmapped(true);
@@ -128,7 +128,7 @@ public class ChildrenAggregationBuilder
                 parentFilter = parentDocMapper.typeFilter(context.getQueryShardContext());
                 childFilter = childDocMapper.typeFilter(context.getQueryShardContext());
                 MappedFieldType parentFieldType = parentDocMapper.parentFieldMapper().getParentJoinFieldType();
-                final SortedSetDVOrdinalsIndexFieldData fieldData = context.fieldData().getForField(parentFieldType);
+                final SortedSetDVOrdinalsIndexFieldData fieldData = context.getForField(parentFieldType);
                 config.fieldContext(new FieldContext(parentFieldType.name(), fieldData,
                     parentFieldType));
             } else {

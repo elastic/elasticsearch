@@ -61,6 +61,7 @@ public abstract class AbstractWireSerializingTestCase<T extends Writeable> exten
      * of the given instance that is different to this instance. This defaults
      * to null.
      */
+    // TODO: Make this abstract when all sub-classes implement this (https://github.com/elastic/elasticsearch/issues/25929)
     protected MutateFunction<T> getMutateFunction() {
         return null;
     }

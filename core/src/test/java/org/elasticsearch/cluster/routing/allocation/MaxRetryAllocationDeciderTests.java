@@ -122,7 +122,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertEquals(routingTable.index("idx").shards().size(), 1);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), retries);
-        assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
+        assertEquals(INITIALIZING, routingTable.index("idx").shard(0).shards().get(0).state());
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getMessage(), "boom");
 
         // now we go and check that we are actually stick to unassigned on the next failure ie. no retry
@@ -161,7 +161,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             assertEquals(unassignedPrimary.unassignedInfo().getMessage(), "boom" + i);
             // MaxRetryAllocationDecider#canForceAllocatePrimary should return YES decisions because canAllocate returns YES here
             assertEquals(Decision.YES, new MaxRetryAllocationDecider(Settings.EMPTY).canForceAllocatePrimary(
-                unassignedPrimary, null, new RoutingAllocation(null, null, clusterState, null, 0, false)));
+                unassignedPrimary, null, new RoutingAllocation(null, null, clusterState, null, 0)));
         }
         // now we go and check that we are actually stick to unassigned on the next failure
         {
@@ -179,7 +179,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             assertEquals(unassignedPrimary.unassignedInfo().getMessage(), "boom");
             // MaxRetryAllocationDecider#canForceAllocatePrimary should return a NO decision because canAllocate returns NO here
             assertEquals(Decision.NO, new MaxRetryAllocationDecider(Settings.EMPTY).canForceAllocatePrimary(
-                unassignedPrimary, null, new RoutingAllocation(null, null, clusterState, null, 0, false)));
+                unassignedPrimary, null, new RoutingAllocation(null, null, clusterState, null, 0)));
         }
 
         // change the settings and ensure we can do another round of allocation for that index.
@@ -201,7 +201,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals(unassignedPrimary.unassignedInfo().getMessage(), "boom");
         // bumped up the max retry count, so canForceAllocatePrimary should return a YES decision
         assertEquals(Decision.YES, new MaxRetryAllocationDecider(Settings.EMPTY).canForceAllocatePrimary(
-            routingTable.index("idx").shard(0).shards().get(0), null, new RoutingAllocation(null, null, clusterState, null, 0, false)));
+            routingTable.index("idx").shard(0).shards().get(0), null, new RoutingAllocation(null, null, clusterState, null, 0)));
 
         // now we start the shard
         clusterState = strategy.applyStartedShards(clusterState, Collections.singletonList(
@@ -228,7 +228,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals(unassignedPrimary.unassignedInfo().getMessage(), "ZOOOMG");
         // Counter reset, so MaxRetryAllocationDecider#canForceAllocatePrimary should return a YES decision
         assertEquals(Decision.YES, new MaxRetryAllocationDecider(Settings.EMPTY).canForceAllocatePrimary(
-            unassignedPrimary, null, new RoutingAllocation(null, null, clusterState, null, 0, false)));
+            unassignedPrimary, null, new RoutingAllocation(null, null, clusterState, null, 0)));
     }
 
 }

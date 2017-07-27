@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
  * Note: This allocation decider also allows allocation of repeatedly failing shards when the <tt>/_cluster/reroute?retry_failed=true</tt>
  * API is manually invoked. This allows single retries without raising the limits.
  *
- * @see RoutingAllocation#isRetryFailed()
  */
 public class MaxRetryAllocationDecider extends AllocationDecider {
 
@@ -59,14 +58,7 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
         if (unassignedInfo != null && unassignedInfo.getNumFailedAllocations() > 0) {
             final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
             final int maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(indexMetaData.getSettings());
-            if (allocation.isRetryFailed()) { // manual allocation - retry
-                // if we are called via the _reroute API we ignore the failure counter and try to allocate
-                // this improves the usability since people don't need to raise the limits to issue retries since a simple _reroute call is
-                // enough to manually retry.
-                decision = allocation.decision(Decision.YES, NAME, "shard has exceeded the maximum number of retries [%d] on " +
-                    "failed allocation attempts - retrying once due to a manual reroute command, [%s]",
-                    maxRetry, unassignedInfo.toString());
-            } else if (unassignedInfo.getNumFailedAllocations() >= maxRetry) {
+            if (unassignedInfo.getNumFailedAllocations() >= maxRetry) {
                 decision = allocation.decision(Decision.NO, NAME, "shard has exceeded the maximum number of retries [%d] on " +
                     "failed allocation attempts - manually call [/_cluster/reroute?retry_failed=true] to retry, [%s]",
                     maxRetry, unassignedInfo.toString());

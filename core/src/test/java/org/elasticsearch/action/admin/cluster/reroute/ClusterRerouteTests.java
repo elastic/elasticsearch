@@ -151,7 +151,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         clusterState = newState;
         routingTable = clusterState.routingTable();
         assertEquals(routingTable.index("idx").shards().size(), 1);
-        assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
+        assertEquals(INITIALIZING, routingTable.index("idx").shard(0).shards().get(0).state());
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), retries);
     }
 

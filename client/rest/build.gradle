@@ -35,8 +35,13 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
  * 2) The *actual* jar that will be used by clients. This has no classifier, contains the rest client src and
  *    `org.elasticsearch.client`. This jar is the only actual output artifact of this job.
  */
-plugins {
-  id "com.github.johnrengelman.shadow" version "2.0.1"
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.1'
+    }
 }
 
 apply plugin: 'elasticsearch.build'

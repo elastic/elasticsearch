@@ -117,8 +117,11 @@ no analysis can occur and an error is returned.
   aggregates results for each influencer entity.
 
 `latency`::
-  (unsigned integer) The size of the window, in seconds, in which to expect data
-  that is out of time order. The default value is 0 (no latency). +
+  (time units) The size of the window in which to expect data that is out of
+  time order. The default value is 0 (no latency). If you specify a non-zero
+  value, it must be greater than or equal to one second. For more information
+  about time units, see
+  {ref}/common-options.html#time-units[Time Units]. +
 
 NOTE: Latency is only applicable when you send data by using
 the <<ml-post-data,post data>> API.

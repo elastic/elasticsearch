@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations;
 
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -35,7 +34,6 @@ import java.util.Map;
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
 public abstract class AggregationBuilder
-    extends ToXContentToBytes
         implements NamedWriteable, ToXContentFragment, BaseAggregationBuilder {
 
     protected final String name;

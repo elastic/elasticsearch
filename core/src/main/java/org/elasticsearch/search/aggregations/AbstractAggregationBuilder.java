@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -182,5 +183,10 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     }
 
     protected abstract boolean doEquals(Object obj);
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
 
 }

@@ -53,7 +53,10 @@ case $key in
             "-psql"
             "check"
             ":x-pack-elasticsearch:plugin:precommit"
+            ":x-pack-elasticsearch:qa:sql-security:check"
             "-xforbiddenPatterns"
+            "-x:x-pack-elasticsearch:plugin:forbiddenPatterns"
+            "-x:x-pack-elasticsearch:qa:sql-security:forbiddenPatterns"
         )
         ;;
     jdk9)

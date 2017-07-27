@@ -1,0 +1,43 @@
+read_test:
+  indices:
+    - names: test
+      privileges: [read]
+
+read_nothing:
+
+read_something_else:
+  indices:
+    - names: something_that_isnt_test
+      privileges: [read]
+
+read_test_a:
+  indices:
+    - names: test
+      privileges: [read]
+      field_security:
+        grant: [a]
+
+read_test_a_and_b:
+  indices:
+    - names: test
+      privileges: [read]
+      field_security:
+        grant: ["*"]
+        except: [c]
+
+read_test_without_c_3:
+  indices:
+    - names: test
+      privileges: [read]
+      query: |
+        {
+          "bool": {
+            "must_not": [
+              {
+                "match": {
+                  "c": 3
+                }
+              }
+            ]
+          }
+        }

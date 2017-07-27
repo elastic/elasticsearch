@@ -315,8 +315,11 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         components.addAll(upgrade.createComponents(internalClient, clusterService, threadPool, resourceWatcherService,
                 scriptService, xContentRegistry));
 
+        /* Note that we need *client*, not *internalClient* because client preserves the
+         * authenticated user while internalClient throws that user away and acts as the
+         * x-pack user. */
         components.addAll(
-                sql.createComponents(internalClient, clusterService, threadPool, resourceWatcherService, scriptService, xContentRegistry));
+                sql.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService, xContentRegistry));
 
         // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService);

@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.sql.analysis.catalog.EsCatalog;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
 import org.elasticsearch.xpack.sql.session.SqlSettings;
-import org.joda.time.DateTimeZone;
 
 import java.util.function.Supplier;
 
@@ -61,14 +60,11 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
     protected void doExecute(SqlRequest request, ActionListener<SqlResponse> listener) {
         String sessionId = request.sessionId();
         String query = request.query();
-        DateTimeZone timeZone = request.timeZone();
-        
-        SqlSettings sqlCfg = new SqlSettings(
-                Settings.builder()
-                //    .put(SqlSettings.PAGE_SIZE, req.fetchSize)
-                        .put(SqlSettings.TIMEZONE_ID, request.timeZone().getID())
-                .build());
 
+        // NOCOMMIT this should be linked up
+//        SqlSettings sqlCfg = new SqlSettings(Settings.builder()
+//                // .put(SqlSettings.PAGE_SIZE, req.fetchSize)
+//                .put(SqlSettings.TIMEZONE_ID, request.timeZone().getID()).build());
         try {
             if (sessionId == null) {
                 if (!Strings.hasText(query)) {

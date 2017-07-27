@@ -417,7 +417,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
             final String transportType = NetworkModule.TRANSPORT_TYPE_SETTING.get(settings);
             if (NAME4.equals(transportType) == false) {
                 throw new IllegalArgumentException("transport type setting [" + NetworkModule.TRANSPORT_TYPE_KEY + "] must be [" + NAME4
-                        + "]");
+                        + "] but is [" + transportType + "]");
             }
         } else {
             // default to security4
@@ -429,7 +429,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
             if (httpType.equals(NAME4)) {
                 SecurityNetty4HttpServerTransport.overrideSettings(settingsBuilder, settings);
             } else {
-                throw new IllegalArgumentException("http type setting [" + NetworkModule.HTTP_TYPE_KEY + "] must be [" + NAME4 + "]");
+                throw new IllegalArgumentException("http type setting [" + NetworkModule.HTTP_TYPE_KEY + "] must be [" + NAME4
+                        + "] but is [" + httpType + "]");
             }
         } else {
             // default to security4

@@ -7,16 +7,16 @@ of Elasticsearch.
 
 === Motivations around a new Java client
 
-The existing `TransportClient` has always been part of Elasticsearch since https://github
+The existing `TransportClient` has been part of Elasticsearch since https://github
 .com/elastic/elasticsearch/blob/b3337c312765e51cec7bde5883bbc0a08f56fb65/modules/elasticsearch/src/main/java/org/elasticsearch/client
 /transport/TransportClient.java[its very first commit]. Although it covers the whole set of Elasticsearch APIs,
 it always has had various flaws:
 
 - it is tightly coupled with Elasticsearch and uses Elasticsearch's internal implementations
-- it uses Java serialization to transport objects over the wire using their binary representations
+- it uses a home grown binary serialization to transport objects over the wire
 
 These two aspects forces any Java application that communicates with an Elasticsearch cluster to use
-a `TransportClient` in a version compatible with the remote cluster's version. That's perfect most of
+a `TransportClient` in a version compatible with the remote cluster's version. That's acceptable most of
 the time but Elasticsearch moves fast and new versions are released every month, forcing Java applications
 to use a newer version of the `TransportClient` just because the remote cluster has been upgraded.
 
@@ -24,7 +24,7 @@ We decided to tackle these issues and we released a low-level REST client in 201
 is based on the well-known Apache HTTP Client and it allows to communicate with an Elasticsearch cluster in any
 version using HTTP. On top of it, we released the high-level REST client. It is based on the low-level client
 and it provides a <<java-rest-high-supported-apis,subset of Elasticsearch's APIs>> that uses Elasticsearch core
-Java classes, like the `TransportClient`does, in order to perform requests and to parse responses.
+Java classes, like the `TransportClient` does, in order to perform requests and to parse responses.
 
 === Prerequisite
 
@@ -65,8 +65,8 @@ Java application that uses the `TransportClient` declare the following dependenc
 This dependency must be removed and replaced by a new dependency on the
 high-level client. The <<java-rest-high-usage,Getting Started>> page shows
  typical configurations for Maven and Gradle and presents the
- <<java-rest-high-usage-dependencies,two transitive dependencies>> brought
- by the high-level client.
+ <<java-rest-high-usage-dependencies, dependencies>> brought by the
+ high-level client.
 
 ==== Changing the client's initialization code
 

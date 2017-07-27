@@ -82,6 +82,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
         @Override
         public Storage createClient(String accountName, String application,
                                     TimeValue connectTimeout, TimeValue readTimeout) throws Exception {
+            // The actual impl might open a connection. So check we have permission when this call is made.
             AccessController.checkPermission(new SocketPermission("*", "connect"));
             return storage.get();
         }

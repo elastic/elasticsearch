@@ -150,7 +150,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.mapperService = new MapperService(indexSettings, registry.build(indexSettings), xContentRegistry, similarityService,
             mapperRegistry,
             // we parse all percolator queries as they would be parsed on shard 0
-            () -> newQueryShardContext(0, null, System::currentTimeMillis));
+            () -> newQueryShardContext(0, null, System::currentTimeMillis, null));
         this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
         if (indexSettings.getIndexSortConfig().hasIndexSort()) {
             // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
@@ -172,7 +172,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexStore = indexStore;
         indexFieldData.setListener(new FieldDataCacheListener(this));
         this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
-        this.warmer = new IndexWarmer(indexSettings.getSettings(), threadPool,
+        this.warmer = new IndexWarmer(indexSettings.getSettings(), threadPool, indexFieldData,
             bitsetFilterCache.createListener(threadPool));
         this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
         this.engineFactory = engineFactory;
@@ -229,10 +229,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public IndexCache cache() {
         return indexCache;
-    }
-
-    public IndexFieldDataService fieldData() {
-        return indexFieldData;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -363,7 +359,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock,
                     new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
             indexShard = new IndexShard(routing, this.indexSettings, path, store, indexSortSupplier,
-                indexCache, mapperService, similarityService, indexFieldData, engineFactory,
+                indexCache, mapperService, similarityService, engineFactory,
                 eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
                     searchOperationListeners, indexingOperationListeners);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
@@ -467,12 +463,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * Passing a {@code null} {@link IndexReader} will return a valid context, however it won't be able to make
      * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
      */
-    public QueryShardContext newQueryShardContext(int shardId, IndexReader indexReader, LongSupplier nowInMillis) {
-        return new QueryShardContext(
-            shardId, indexSettings, indexCache.bitsetFilterCache(), indexFieldData, mapperService(),
-                similarityService(), scriptService, xContentRegistry,
-                client, indexReader,
-            nowInMillis);
+    public QueryShardContext newQueryShardContext(int shardId, IndexReader indexReader, LongSupplier nowInMillis, String clusterAlias) {
+        return new QueryShardContext(shardId, indexSettings, indexCache.bitsetFilterCache(), indexFieldData::getForField, mapperService(),
+            similarityService(), scriptService, xContentRegistry, client, indexReader, nowInMillis, clusterAlias);
     }
 
     /**
@@ -893,6 +886,39 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     AsyncTranslogFSync getFsyncTask() { // for tests
         return fsyncTask;
+    }
+
+    /**
+     * Clears the caches for the given shard id if the shard is still allocated on this node
+     */
+    public boolean clearCaches(boolean queryCache, boolean fieldDataCache, String...fields) {
+        boolean clearedAtLeastOne = false;
+        if (queryCache) {
+            clearedAtLeastOne = true;
+            indexCache.query().clear("api");
+        }
+        if (fieldDataCache) {
+            clearedAtLeastOne = true;
+            if (fields.length == 0) {
+                indexFieldData.clear();
+            } else {
+                for (String field : fields) {
+                    indexFieldData.clearField(field);
+                }
+            }
+        }
+        if (clearedAtLeastOne == false) {
+            if (fields.length ==  0) {
+                indexCache.clear("api");
+                indexFieldData.clear();
+            } else {
+                // only clear caches relating to the specified fields
+                for (String field : fields) {
+                    indexFieldData.clearField(field);
+                }
+            }
+        }
+        return clearedAtLeastOne;
     }
 
 }

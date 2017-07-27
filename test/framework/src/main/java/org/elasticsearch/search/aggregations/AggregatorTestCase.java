@@ -44,6 +44,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache.Listener;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -68,6 +69,8 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.mockito.Matchers;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -106,9 +109,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
         IndexFieldDataService ifds = new IndexFieldDataService(indexSettings,
                 new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
                 }), circuitBreakerService, mapperService);
-        when(searchContext.fieldData()).thenReturn(ifds);
+        when(searchContext.getForField(Mockito.any(MappedFieldType.class))).thenAnswer(new Answer<Object>() {
+            @Override
+            public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
+                return ifds.getForField((MappedFieldType) invocationOnMock.getArguments()[0]);
+            }
+        });
 
-        SearchLookup searchLookup = new SearchLookup(mapperService, ifds, new String[]{"type"});
+        SearchLookup searchLookup = new SearchLookup(mapperService, ifds::getForField, new String[]{"type"});
         when(searchContext.lookup()).thenReturn(searchLookup);
 
         QueryShardContext queryShardContext = queryShardContextMock(mapperService, fieldTypes, circuitBreakerService);

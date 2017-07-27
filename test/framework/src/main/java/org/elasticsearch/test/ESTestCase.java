@@ -102,6 +102,8 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -881,6 +883,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static String randomGeohash(int minPrecision, int maxPrecision) {
         return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
+    }
+
+    public static String randomTestTransport() {
+        return randomBoolean() ? NioTransportPlugin.NIO_TRANSPORT_NAME : MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
     }
 
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();

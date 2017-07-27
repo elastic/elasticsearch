@@ -1,5 +1,5 @@
 ---
-"Test that remote index names are preserved in top hits":
+setup:
 
   - do:
       indices.create:
@@ -9,6 +9,16 @@
             index:
               number_of_shards: 1
               number_of_replicas: 0
+---
+teardown:
+
+  - do:
+      indices.delete:
+        index: single_doc_index
+        ignore_unavailable: true
+
+---
+"Test that remote index names are preserved in top hits":
 
   - do:
       bulk:

@@ -19,6 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.document.DoubleRange;
 import org.apache.lucene.document.FloatRange;
 import org.apache.lucene.document.InetAddressPoint;
@@ -82,7 +83,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         QueryShardContext context = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
-                null, null, () -> nowInMillis);
+                null, null, () -> nowInMillis, null);
         RangeFieldMapper.RangeFieldType ft = new RangeFieldMapper.RangeFieldType(type, Version.CURRENT);
         ft.setName(FIELDNAME);
         ft.setIndexOptions(IndexOptions.DOCS);

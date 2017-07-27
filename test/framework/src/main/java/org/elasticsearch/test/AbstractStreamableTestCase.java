@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 
@@ -52,7 +51,7 @@ public abstract class AbstractStreamableTestCase<T extends Streamable> extends E
     /**
      * Returns a {@link CopyFunction} that can be used to make an exact copy of
      * the given instance. This defaults to a function that uses
-     * {@link #copyInstance(Writeable)} to create the copy.
+     * {@link #copyInstance(Streamable, Version)} to create the copy.
      */
     protected CopyFunction<T> getCopyFunction() {
         return (original) -> copyInstance(original, Version.CURRENT);

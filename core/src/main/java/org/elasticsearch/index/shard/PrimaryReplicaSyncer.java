@@ -118,9 +118,11 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
 
                 @Override
                 public synchronized Translog.Operation next() throws IOException {
-                    if (indexShard.state() != IndexShardState.STARTED) {
-                        assert indexShard.state() != IndexShardState.RELOCATED : "resync should never happen on a relocated shard";
-                        throw new IndexShardNotStartedException(shardId, indexShard.state());
+                    IndexShardState state = indexShard.state();
+                    if (state == IndexShardState.CLOSED) {
+                        throw new IndexShardClosedException(shardId);
+                    } else {
+                        assert state == IndexShardState.STARTED : "resync should only happen on a started shard";
                     }
                     return snapshot.next();
                 }

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -88,6 +89,47 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         }
 
         closeShards(shard);
+    }
+
+    public void testSyncerOnClosingShard() throws Exception {
+        IndexShard shard = newStartedShard(true);
+        AtomicBoolean syncActionCalled = new AtomicBoolean();
+        PrimaryReplicaSyncer.SyncAction syncAction =
+            (request, parentTask, allocationId, primaryTerm, listener) -> {
+                logger.info("Sending off {} operations", request.getOperations().size());
+                syncActionCalled.set(true);
+                threadPool.generic().execute(() -> listener.onResponse(new ResyncReplicationResponse()));
+            };
+        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(Settings.EMPTY, new TaskManager(Settings.EMPTY), syncAction);
+        syncer.setChunkSize(new ByteSizeValue(1)); // every document is sent off separately
+
+        int numDocs = 10;
+        for (int i = 0; i < numDocs; i++) {
+            indexDoc(shard, "test", Integer.toString(i));
+        }
+
+        String allocationId = shard.routingEntry().allocationId().getId();
+        shard.updateShardState(shard.routingEntry(), shard.getPrimaryTerm(), null, 1000L, Collections.singleton(allocationId),
+            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build(), Collections.emptySet());
+
+        PlainActionFuture<PrimaryReplicaSyncer.ResyncTask> fut = new PlainActionFuture<>();
+        threadPool.generic().execute(() -> {
+            try {
+                syncer.resync(shard, fut);
+            } catch (AlreadyClosedException ace) {
+                fut.onFailure(ace);
+            }
+        });
+        if (randomBoolean()) {
+            assertBusy(() -> assertTrue("Sync action was not called", syncActionCalled.get()));
+        }
+        closeShards(shard);
+        try {
+            fut.actionGet();
+            assertTrue("Sync action was not called", syncActionCalled.get());
+        } catch (AlreadyClosedException | IndexShardClosedException ignored) {
+            // ignore
+        }
     }
 
     public void testStatusSerialization() throws IOException {

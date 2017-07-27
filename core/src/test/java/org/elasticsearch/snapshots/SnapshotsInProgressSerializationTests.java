@@ -32,6 +32,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.test.AbstractDiffableWireSerializationTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -113,6 +114,20 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+    }
+
+    @Override
+    protected MutateFunction<Custom> getMutateFunction() {
+        return instance -> {
+            List<Entry> entries = new ArrayList<>(((SnapshotsInProgress) instance).entries());
+            boolean addEntry = entries.isEmpty() ? true : randomBoolean();
+            if (addEntry) {
+                entries.add(randomSnapshot());
+            } else {
+                entries.remove(randomIntBetween(0, entries.size() - 1));
+            }
+            return new SnapshotsInProgress(entries);
+        };
     }
 
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -64,5 +65,39 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
         return StoredScriptSource::new;
     }
 
+    @Override
+    protected MutateFunction<StoredScriptSource> getMutateFunction() {
+        return instance -> {
+            String source = instance.getSource();
+            String lang = instance.getLang();
+            Map<String, String> options = instance.getOptions();
 
+            XContentType newXContentType = randomFrom(XContentType.JSON, XContentType.YAML);
+            XContentBuilder newTemplate = XContentBuilder.builder(newXContentType.xContent());
+            newTemplate.startObject();
+            newTemplate.startObject("query");
+            newTemplate.startObject("match");
+            newTemplate.field("body", "{{query_string}}");
+            newTemplate.endObject();
+            newTemplate.endObject();
+            newTemplate.endObject();
+
+            switch (between(0, 3)) {
+            case 0:
+                source = newTemplate.string();
+                break;
+            case 1:
+                lang = randomAlphaOfLengthBetween(1, 20);
+                break;
+            case 2:
+                options = new HashMap<>(options);
+                options.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+                break;
+            case 3:
+            default:
+                return new StoredScriptSource(newTemplate.string());
+            }
+            return new StoredScriptSource(lang, source, options);
+        };
+    }
 }

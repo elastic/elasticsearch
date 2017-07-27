@@ -31,12 +31,14 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats.Fields;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -76,12 +78,53 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         RunningStats runningStats = new RunningStats();
         runningStats.add(fields, values);
         MatrixStatsResults matrixStatsResults = hasMatrixStatsResults ? new MatrixStatsResults(runningStats) : null;
-        return new InternalMatrixStats(name, 1L, runningStats, matrixStatsResults, Collections.emptyList(), Collections.emptyMap());
+        return new InternalMatrixStats(name, 1L, runningStats, matrixStatsResults, Collections.emptyList(), metaData);
     }
 
     @Override
     protected Writeable.Reader<InternalMatrixStats> instanceReader() {
         return InternalMatrixStats::new;
+    }
+
+    @Override
+    protected MutateFunction<InternalMatrixStats> getMutateFunction() {
+        return instance -> {
+            String name = instance.getName();
+            long docCount = instance.getDocCount();
+            RunningStats runningStats = instance.getStats();
+            MatrixStatsResults matrixStatsResults = instance.getResults();
+            Map<String, Object> metaData = instance.getMetaData();
+            switch (between(0, 3)) {
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                double[] values = new double[fields.length];
+                for (int i = 0; i < fields.length; i++) {
+                    values[i] = randomDouble() * 200;
+                }
+                runningStats = new RunningStats();
+                runningStats.add(fields, values);
+                break;
+            case 2:
+                if (matrixStatsResults == null) {
+                    matrixStatsResults = new MatrixStatsResults(runningStats);
+                } else {
+                    matrixStatsResults = null;
+                }
+                break;
+            case 3:
+            default:
+                if (metaData == null) {
+                    metaData = new HashMap<>(1);
+                } else {
+                    metaData = new HashMap<>(instance.getMetaData());
+                }
+                metaData.put(randomAlphaOfLength(15), randomInt());
+                break;
+            }
+            return new InternalMatrixStats(name, docCount, runningStats, matrixStatsResults, Collections.emptyList(), metaData);
+        };
     }
 
     @Override

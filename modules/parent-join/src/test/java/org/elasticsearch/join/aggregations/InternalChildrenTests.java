@@ -28,8 +28,10 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -62,5 +64,37 @@ public class InternalChildrenTests extends InternalSingleBucketAggregationTestCa
     @Override
     protected Class<? extends ParsedSingleBucketAggregation> implementationClass() {
         return ParsedChildren.class;
+    }
+
+    @Override
+    protected MutateFunction<InternalChildren> getMutateFunction() {
+        return instance -> {
+            String name = instance.getName();
+            long docCount = instance.getDocCount();
+            InternalAggregations aggregations = instance.getAggregations();
+            List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+            Map<String, Object> metaData = instance.getMetaData();
+            switch (between(0, 3)) {
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                docCount += between(1, 2000);
+                break;
+            case 2:
+                aggregations = subAggregationsSupplier.get();
+                break;
+            case 3:
+            default:
+                if (metaData == null) {
+                    metaData = new HashMap<>(1);
+                } else {
+                    metaData = new HashMap<>(instance.getMetaData());
+                }
+                metaData.put(randomAlphaOfLength(15), randomInt());
+                break;
+            }
+            return new InternalChildren(name, docCount, aggregations, pipelineAggregators, metaData);
+        };
     }
 }

@@ -155,14 +155,8 @@ public class TribeIntegrationTests extends ESIntegTestCase {
             super(settings);
         }
 
-        protected Function<Settings, Node> nodeBuilder(Path configPath, Collection<Class<? extends Plugin>> classpathPlugins) {
-            return settings -> new MockTribeNode(settings, configPath, classpathPlugins);
-        }
-
-        private static class MockTribeNode extends MockNode {
-            private MockTribeNode(Settings settings, Path configPath, Collection<Class<? extends Plugin>> classpathPlugins) {
-                super(new Environment(settings, configPath), classpathPlugins);
-            }
+        protected Function<Settings, Node> nodeBuilder(Path configPath) {
+            return settings -> new MockNode(new Environment(settings, configPath), internalCluster().getPlugins());
         }
 
     }

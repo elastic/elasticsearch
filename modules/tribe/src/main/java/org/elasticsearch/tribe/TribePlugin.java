@@ -78,21 +78,14 @@ public class TribePlugin extends Plugin implements DiscoveryPlugin, ClusterPlugi
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               Collection<Class<? extends Plugin>> classpathPlugins) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         tribeService = new TribeService(settings, nodeEnvironment, clusterService, namedWriteableRegistry,
-            nodeBuilder(environment.configFile(), classpathPlugins));
+            nodeBuilder(environment.configFile()));
         return Collections.singleton(tribeService);
     }
 
-    protected Function<Settings, Node> nodeBuilder(Path configPath, Collection<Class<? extends Plugin>> classpathPlugins) {
-        return settings -> new TribeNode(settings, configPath, classpathPlugins);
-    }
-
-    private static class TribeNode extends Node {
-        private TribeNode(Settings settings, Path configPath, Collection<Class<? extends Plugin>> classpathPlugins) {
-            super(new Environment(settings, configPath), classpathPlugins);
-        }
+    protected Function<Settings, Node> nodeBuilder(Path configPath) {
+        return settings -> new Node(new Environment(settings, configPath));
     }
 
     @Override

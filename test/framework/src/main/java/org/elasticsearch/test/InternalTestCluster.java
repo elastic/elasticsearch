@@ -378,7 +378,7 @@ public final class InternalTestCluster extends TestCluster {
         return builder.build();
     }
 
-    private Collection<Class<? extends Plugin>> getPlugins() {
+    public Collection<Class<? extends Plugin>> getPlugins() {
         Set<Class<? extends Plugin>> plugins = new HashSet<>(nodeConfigurationSource.nodePlugins());
         plugins.addAll(mockPlugins);
         return plugins;

@@ -110,13 +110,11 @@ public abstract class Plugin implements Closeable {
      * @param environment the environment for path and setting configurations
      * @param nodeEnvironment the node environment used coordinate access to the data paths
      * @param namedWriteableRegistry the registry for {@link NamedWriteable} object parsing
-     * @param classpathPlugins the plugins available on the classpath
      */
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               Collection<Class<? extends Plugin>> classpathPlugins) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         return Collections.emptyList();
     }
 

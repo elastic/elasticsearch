@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.Client;
@@ -55,6 +56,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 @SuppressForbidden(reason = "modifies system properties intentionally")
 public class TribeUnitTests extends ESTestCase {
 
+    private static List<Class<? extends Plugin>> classpathPlugins;
     private static Node tribe1;
     private static Node tribe2;
 
@@ -67,27 +69,28 @@ public class TribeUnitTests extends ESTestCase {
             .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
             .build();
 
-        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(MockTcpTransportPlugin.class,
-            TribeAwareTestZenDiscoveryPlugin.class, TribePlugin.class);
+        classpathPlugins = Arrays.asList(TribeAwareTestZenDiscoveryPlugin.class, MockTribePlugin.class, MockTcpTransportPlugin.class);
+
         tribe1 = new MockNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe1")
                 .put("node.name", "tribe1_node")
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
-                .build(), mockPlugins).start();
+                .build(), classpathPlugins).start();
         tribe2 = new MockNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe2")
                 .put("node.name", "tribe2_node")
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
-                .build(), mockPlugins).start();
+                .build(), classpathPlugins).start();
     }
 
     @AfterClass
     public static void closeTribes() throws IOException {
         IOUtils.close(tribe1, tribe2);
+        classpathPlugins = null;
         tribe1 = null;
         tribe2 = null;
     }
@@ -108,6 +111,18 @@ public class TribeUnitTests extends ESTestCase {
         }
     }
 
+    public static class MockTribePlugin extends TribePlugin {
+
+        public MockTribePlugin(Settings settings) {
+            super(settings);
+        }
+
+        protected Function<Settings, Node> nodeBuilder(Path configPath) {
+            return settings -> new MockNode(new Environment(settings, configPath), classpathPlugins);
+        }
+
+    }
+
     public void testThatTribeClientsIgnoreGlobalConfig() throws Exception {
         assertTribeNodeSuccessfullyCreated(getDataPath("elasticsearch.yml").getParent());
         assertWarnings("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
@@ -122,8 +137,6 @@ public class TribeUnitTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
 
-        final List<Class<? extends Plugin>> classpathPlugins =
-                Arrays.asList(TribeAwareTestZenDiscoveryPlugin.class, TribePlugin.class, MockTcpTransportPlugin.class);
         try (Node node = new MockNode(settings, classpathPlugins, configPath).start()) {
             try (Client client = node.client()) {
                 assertBusy(() -> {

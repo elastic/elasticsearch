@@ -393,7 +393,7 @@ public class Node implements Closeable {
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
                                                  scriptModule.getScriptService(), xContentRegistry, environment, nodeEnvironment,
-                                                 namedWriteableRegistry, classpathPlugins).stream())
+                                                 namedWriteableRegistry).stream())
                 .collect(Collectors.toList());
             final RestController restController = actionModule.getRestController();
             final NetworkModule networkModule = new NetworkModule(settings, false, pluginsService.filterPlugins(NetworkPlugin.class),

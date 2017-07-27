@@ -517,3 +517,7 @@ thirdPartyAudit.excludes = [
 if (GradleVersion.current() > GradleVersion.version("2.13")) {
   thirdPartyAudit.excludes += ['org.slf4j.impl.StaticLoggerBinder']
 }
+
+if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+  thirdPartyAudit.excludes += ['javax.xml.bind.annotation.adapters.HexBinaryAdapter']
+}

@@ -259,6 +259,10 @@ thirdPartyAudit.excludes = [
   'org.noggit.JSONParser',
 ]
 
+if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+  thirdPartyAudit.excludes += ['javax.xml.bind.DatatypeConverter']
+}
+
 dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /jackson-.*/, to: 'jackson'

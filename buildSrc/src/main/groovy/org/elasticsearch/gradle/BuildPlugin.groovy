@@ -407,11 +407,13 @@ class BuildPlugin implements Plugin<Project> {
     static void configureCompile(Project project) {
         project.ext.compactProfile = 'compact3'
         project.afterEvaluate {
-            // fail on all javac warnings
             project.tasks.withType(JavaCompile) {
-                options.fork = true
-                options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
-                options.forkOptions.memoryMaximumSize = "1g"
+                File gradleJavaHome = Jvm.current().javaHome
+                if (new File(project.javaHome).canonicalPath != gradleJavaHome.canonicalPath) {
+                    options.fork = true
+                    options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
+                    options.forkOptions.memoryMaximumSize = "1g"
+                }
                 if (project.targetCompatibility >= JavaVersion.VERSION_1_8) {
                     // compile with compact 3 profile by default
                     // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
@@ -425,6 +427,7 @@ class BuildPlugin implements Plugin<Project> {
                  * -serial because we don't use java serialization.
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
+                // fail on all javac warnings
                 options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation' << '-Xdoclint:all' << '-Xdoclint:-missing'
 
                 // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly defined
@@ -439,9 +442,12 @@ class BuildPlugin implements Plugin<Project> {
                     // hack until gradle supports java 9's new "--release" arg
                     assert minimumJava == JavaVersion.VERSION_1_8
                     options.compilerArgs << '--release' << '8'
-                    doFirst{
-                        sourceCompatibility = null
-                        targetCompatibility = null
+                    if (GradleVersion.current().getBaseVersion() < GradleVersion.version("4.1")) {
+                        // this hack is not needed anymore since Gradle 4.1, see https://github.com/gradle/gradle/pull/2474
+                        doFirst {
+                            sourceCompatibility = null
+                            targetCompatibility = null
+                        }
                     }
                 }
             }

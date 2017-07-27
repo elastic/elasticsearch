@@ -390,8 +390,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testParseOutOfRangeValues() throws IOException {
         final List<OutOfRangeSpec<Object>> inputs = Arrays.asList(
+            // TODO fix min/max value validation for long and uncomment tests
             OutOfRangeSpec.of(NumberType.BYTE, "128", "out of range for a byte"),
-            OutOfRangeSpec.of(NumberType.SHORT, "32768", "out of range for a short"), //@todo fix this value
+            OutOfRangeSpec.of(NumberType.SHORT, "32768", "out of range for a short"),
             OutOfRangeSpec.of(NumberType.INTEGER, "2147483648", "out of range for an integer"),
             //OutOfRangeSpec.of(NumberType.LONG, "9223372036854775808", "out of range for a long"),
 

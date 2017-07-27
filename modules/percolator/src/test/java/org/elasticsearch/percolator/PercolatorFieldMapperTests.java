@@ -20,6 +20,11 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.HalfFloatPoint;
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -38,6 +43,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.hash.MurmurHash3;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -77,6 +84,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -128,7 +136,13 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("field2").field("type", "text").endObject()
                 .startObject("_field3").field("type", "text").endObject()
                 .startObject("field4").field("type", "text").endObject()
-                .startObject("number_field").field("type", "long").endObject()
+                .startObject("number_field1").field("type", "integer").endObject()
+                .startObject("number_field2").field("type", "long").endObject()
+                .startObject("number_field3").field("type", "long").endObject()
+                .startObject("number_field4").field("type", "half_float").endObject()
+                .startObject("number_field5").field("type", "float").endObject()
+                .startObject("number_field6").field("type", "double").endObject()
+                .startObject("number_field7").field("type", "ip").endObject()
                 .startObject("date_field").field("type", "date").endObject()
             .endObject().endObject().endObject().string();
         mapperService.merge("doc", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE, false);
@@ -206,12 +220,12 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         memoryIndex.addField("field2", "some more text", new WhitespaceAnalyzer());
         memoryIndex.addField("_field3", "unhide me", new WhitespaceAnalyzer());
         memoryIndex.addField("field4", "123", new WhitespaceAnalyzer());
-        memoryIndex.addField(new LongPoint("number_field", 10L), new WhitespaceAnalyzer());
+        memoryIndex.addField(new LongPoint("number_field2", 10L), new WhitespaceAnalyzer());
 
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
         BooleanQuery candidateQuery = (BooleanQuery) fieldType.createCandidateQuery(indexReader);
-        assertEquals(2, candidateQuery.clauses().size());
+        assertEquals(3, candidateQuery.clauses().size());
         assertEquals(Occur.SHOULD, candidateQuery.clauses().get(0).getOccur());
         TermInSetQuery termsQuery = (TermInSetQuery) candidateQuery.clauses().get(0).getQuery();
 
@@ -236,6 +250,54 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(Occur.SHOULD, candidateQuery.clauses().get(1).getOccur());
         assertEquals(new TermQuery(new Term(fieldType.extractionResultField.name(), EXTRACTION_FAILED)),
                 candidateQuery.clauses().get(1).getQuery());
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(2).getOccur());
+        assertThat(candidateQuery.clauses().get(2).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:"));
+    }
+
+    public void testCreateCandidateQuery_numberFields() throws Exception {
+        addQueryFieldMappings();
+
+        MemoryIndex memoryIndex = new MemoryIndex(false);
+        memoryIndex.addField(new IntPoint("number_field1", 10), new WhitespaceAnalyzer());
+        memoryIndex.addField(new LongPoint("number_field2", 20L), new WhitespaceAnalyzer());
+        memoryIndex.addField(new LongPoint("number_field3", 30L), new WhitespaceAnalyzer());
+        memoryIndex.addField(new HalfFloatPoint("number_field4", 30f), new WhitespaceAnalyzer());
+        memoryIndex.addField(new FloatPoint("number_field5", 40f), new WhitespaceAnalyzer());
+        memoryIndex.addField(new DoublePoint("number_field6", 50f), new WhitespaceAnalyzer());
+        memoryIndex.addField(new InetAddressPoint("number_field7", InetAddresses.forString("192.168.1.12")), new WhitespaceAnalyzer());
+        memoryIndex.addField(new InetAddressPoint("number_field7", InetAddresses.forString("192.168.1.20")), new WhitespaceAnalyzer());
+        memoryIndex.addField(new InetAddressPoint("number_field7", InetAddresses.forString("192.168.1.24")), new WhitespaceAnalyzer());
+
+        IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
+
+        BooleanQuery candidateQuery = (BooleanQuery) fieldType.createCandidateQuery(indexReader);
+        assertEquals(8, candidateQuery.clauses().size());
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(0).getOccur());
+        assertEquals(new TermQuery(new Term(fieldType.extractionResultField.name(), EXTRACTION_FAILED)),
+            candidateQuery.clauses().get(0).getQuery());
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(1).getOccur());
+        assertThat(candidateQuery.clauses().get(1).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:[["));
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(2).getOccur());
+        assertThat(candidateQuery.clauses().get(2).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:[["));
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(3).getOccur());
+        assertThat(candidateQuery.clauses().get(3).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:[["));
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(4).getOccur());
+        assertThat(candidateQuery.clauses().get(4).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:[["));
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(5).getOccur());
+        assertThat(candidateQuery.clauses().get(5).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:[["));
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(6).getOccur());
+        assertThat(candidateQuery.clauses().get(6).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:[["));
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(7).getOccur());
+        assertThat(candidateQuery.clauses().get(7).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:[["));
     }
 
     private void assertTermIterator(PrefixCodedTerms.TermIterator termIterator, String expectedValue, String expectedField) {
@@ -283,7 +345,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         addQueryFieldMappings();
         QueryBuilder[] queries = new QueryBuilder[]{
                 termQuery("field", "value"), matchAllQuery(), matchQuery("field", "value"), matchPhraseQuery("field", "value"),
-                prefixQuery("field", "v"), wildcardQuery("field", "v*"), rangeQuery("number_field").gte(0).lte(9),
+                prefixQuery("field", "v"), wildcardQuery("field", "v*"), rangeQuery("number_field2").gte(0).lte(9),
                 rangeQuery("date_field").from("2015-01-01T00:00").to("2015-01-01T00:00")
         };
         // note: it important that range queries never rewrite, otherwise it will cause results to be wrong.
@@ -549,6 +611,72 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         parsedQuery = XContentHelper.convertToMap(new BytesArray(querySource), true).v2();
         assertEquals(Script.DEFAULT_SCRIPT_LANG,
                 ((List) XContentMapValues.extractValue("function_score.functions.script_score.script.lang", parsedQuery)).get(0));
+    }
+
+    public void testEncodeRange() {
+        int iters = randomIntBetween(32, 256);
+        for (int i = 0; i < iters; i++) {
+            int encodingType = randomInt(1);
+
+            final int randomFrom = randomInt();
+            final byte[] encodedFrom;
+            switch (encodingType) {
+                case 0:
+                    encodedFrom = new byte[Integer.BYTES];
+                    IntPoint.encodeDimension(randomFrom, encodedFrom, 0);
+                    break;
+                case 1:
+                    encodedFrom = new byte[Long.BYTES];
+                    LongPoint.encodeDimension(randomFrom, encodedFrom, 0);
+                    break;
+                default:
+                    throw new AssertionError("unexpected encoding type [" + encodingType + "]");
+            }
+
+            final int randomTo = randomIntBetween(randomFrom, Integer.MAX_VALUE);
+            final byte[] encodedTo;
+            switch (encodingType) {
+                case 0:
+                    encodedTo = new byte[Integer.BYTES];
+                    IntPoint.encodeDimension(randomTo, encodedTo, 0);
+                    break;
+                case 1:
+                    encodedTo = new byte[Long.BYTES];
+                    LongPoint.encodeDimension(randomTo, encodedTo, 0);
+                    break;
+                default:
+                    throw new AssertionError("unexpected encoding type [" + encodingType + "]");
+            }
+
+            String fieldName = randomAlphaOfLength(5);
+            byte[] result = PercolatorFieldMapper.encodeRange(fieldName, encodedFrom, encodedTo);
+            assertEquals(32, result.length);
+
+            BytesRef fieldAsBytesRef = new BytesRef(fieldName);
+            MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
+            MurmurHash3.hash128(fieldAsBytesRef.bytes, fieldAsBytesRef.offset, fieldAsBytesRef.length, 0, hash);
+
+            switch (encodingType) {
+                case 0:
+                    assertEquals(hash.h1, ByteBuffer.wrap(subByteArray(result, 0, 8)).getLong());
+                    assertEquals(randomFrom, IntPoint.decodeDimension(subByteArray(result, 12, 4), 0));
+                    assertEquals(hash.h1, ByteBuffer.wrap(subByteArray(result, 16, 8)).getLong());
+                    assertEquals(randomTo, IntPoint.decodeDimension(subByteArray(result, 28, 4), 0));
+                    break;
+                case 1:
+                    assertEquals(hash.h1, ByteBuffer.wrap(subByteArray(result, 0, 8)).getLong());
+                    assertEquals(randomFrom, LongPoint.decodeDimension(subByteArray(result, 8, 8), 0));
+                    assertEquals(hash.h1, ByteBuffer.wrap(subByteArray(result, 16, 8)).getLong());
+                    assertEquals(randomTo, LongPoint.decodeDimension(subByteArray(result, 24, 8), 0));
+                    break;
+                default:
+                    throw new AssertionError("unexpected encoding type [" + encodingType + "]");
+            }
+        }
+    }
+
+    private static byte[] subByteArray(byte[] source, int offset, int length) {
+        return Arrays.copyOfRange(source, offset, offset + length);
     }
 
     // Just so that we store scripts in percolator queries, but not really execute these scripts.

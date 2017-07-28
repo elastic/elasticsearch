@@ -72,8 +72,7 @@ privilege is primarily available for use by <<kibana-roles, Kibana users>>.
 `read`::
 Read only access to actions (count, explain, get, mget, get indexed scripts,
 more like this, multi percolate/search/termvector, percolate, scroll,
-clear_scroll, search, tv). Also grants access to the update mapping
-action.
+clear_scroll, search, suggest, tv).
 
 `read_cross_cluster`::
 Read only access to the search action from a <<cross-cluster-configuring,remote cluster>>.

@@ -44,7 +44,9 @@ public class ReservedRolesStore {
                         RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*").privileges("manage", "read", "index", "delete")
                                 .build() }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("monitoring_user", new RoleDescriptor("monitoring_user", null, new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("read").build() },
+                        RoleDescriptor.IndicesPrivileges.builder()
+                                      .indices(".monitoring-*").privileges("read", "read_cross_cluster").build()
+                        },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("remote_monitoring_agent", new RoleDescriptor("remote_monitoring_agent",
                         new String[] {
@@ -64,7 +66,8 @@ public class ReservedRolesStore {
                 .put(KibanaUser.ROLE_NAME, new RoleDescriptor(KibanaUser.ROLE_NAME, new String[] { "monitor", MonitoringBulkAction.NAME},
                         new RoleDescriptor.IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*", ".reporting-*").privileges("all").build(),
-                            RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("read").build()
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                          .indices(".monitoring-*").privileges("read", "read_cross_cluster").build()
                         },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("logstash_system", new RoleDescriptor("logstash_system", new String[] { "monitor", MonitoringBulkAction.NAME},

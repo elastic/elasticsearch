@@ -1864,9 +1864,17 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /**
      * Iff this returns true mock transport implementations are used for the test runs. Otherwise not mock transport impls are used.
-     * The defautl is <tt>true</tt>
+     * The default is <tt>true</tt>
      */
     protected boolean addMockTransportService() {
+        return true;
+    }
+
+    /**
+     * Iff this returns true test zen discovery implementations is used for the test runs.
+     * The default is <tt>true</tt>
+     */
+    protected boolean addTestZenDiscovery() {
         return true;
     }
 
@@ -1907,7 +1915,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             mocks.add(MockTcpTransportPlugin.class);
         }
 
-        mocks.add(TestZenDiscovery.TestPlugin.class);
+        if (addTestZenDiscovery()) {
+            mocks.add(TestZenDiscovery.TestPlugin.class);
+        }
         mocks.add(TestSeedPlugin.class);
         return Collections.unmodifiableList(mocks);
     }

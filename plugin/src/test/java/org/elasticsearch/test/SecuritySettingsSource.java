@@ -142,9 +142,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         Settings superSettings = super.transportClientSettings();
         Settings.Builder builder = Settings.builder().put(superSettings);
         addClientSSLSettings(builder, "");
-        if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(superSettings) == false) {
-            builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), Security.NAME4);
-        }
+        addDefaultSecurityTransportType(builder, superSettings);
 
         if (randomBoolean()) {
             builder.put(Security.USER_SETTING.getKey(),
@@ -154,6 +152,12 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                     transportClientPassword()));
         }
         return builder.build();
+    }
+
+    protected void addDefaultSecurityTransportType(Settings.Builder builder, Settings settings) {
+        if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings) == false) {
+            builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), Security.NAME4);
+        }
     }
 
     @Override

@@ -105,7 +105,7 @@ public final class ExtractorUtils {
     }
 
     /**
-     * Get the interval from {@code histogramAggregation} or throw an {@coce IllegalStateException}
+     * Get the interval from {@code histogramAggregation} or throw an {@code IllegalStateException}
      * if {@code histogramAggregation} is not a {@link HistogramAggregationBuilder} or a
      * {@link DateHistogramAggregationBuilder}
      *

@@ -113,45 +113,46 @@ the current running process:
 [[plugins-info]]
 ==== Plugins information
 
-`plugins` - if set, the result will contain details about the loaded
-plugins per node:
+`plugins` - if set, the result will contain details about the installed plugins
+ per node:
 
 * `name`: plugin name
-* `description`: plugin description if any
-* `site`: `true` if the plugin is a site plugin
-* `jvm`: `true` if the plugin is a plugin running in the JVM
-* `url`: URL if the plugin is a site plugin
+* `version`: version of Elasticsearch the plugin was built for
+* `description`: short description of the plugin's purpose
+* `classname`: fully-qualified class name of the plugin's entry point
+* `has_native_controller`: whether or not the plugin has a native controller process
 
 The result will look similar to:
 
 [source,js]
 --------------------------------------------------
 {
-  "cluster_name" : "test-cluster-MacBook-Air-de-David.local",
-  "nodes" : {
-    "hJLXmY_NTrCytiIMbX4_1g" : {
-      "name" : "node4",
-      "transport_address" : "inet[/172.18.58.139:9303]",
-      "hostname" : "MacBook-Air-de-David.local",
-      "version" : "0.90.0.Beta2-SNAPSHOT",
-      "http_address" : "inet[/172.18.58.139:9203]",
-      "plugins" : [ {
-        "name" : "test-plugin",
-        "description" : "test-plugin description",
-        "site" : true,
-        "jvm" : false
-      }, {
-        "name" : "test-no-version-plugin",
-        "description" : "test-no-version-plugin description",
-        "site" : true,
-        "jvm" : false
-      }, {
-        "name" : "dummy",
-        "description" : "No description found for dummy.",
-        "url" : "/_plugin/dummy/",
-        "site" : false,
-        "jvm" : true
-      } ]
+  "cluster_name": "elasticsearch",
+  "nodes": {
+    "O70_wBv6S9aPPcAKdSUBtw": {
+      "plugins": [
+        {
+          "name": "analysis-icu",
+          "version": "{version}",
+          "description": "The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.",
+          "classname": "org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin",
+          "has_native_controller": false
+        },
+        {
+          "name": "ingest-geoip",
+          "version": "{version}",
+          "description": "Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database",
+          "classname": "org.elasticsearch.ingest.geoip.IngestGeoIpPlugin",
+          "has_native_controller": false
+        },
+        {
+          "name": "ingest-user-agent",
+          "version": "{version}",
+          "description": "Ingest processor that extracts information from a user agent",
+          "classname": "org.elasticsearch.ingest.useragent.IngestUserAgentPlugin",
+          "has_native_controller": false
+        }
+      ]
     }
   }
 }

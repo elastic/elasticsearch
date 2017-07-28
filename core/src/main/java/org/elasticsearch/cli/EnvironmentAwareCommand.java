@@ -29,11 +29,9 @@ import org.elasticsearch.node.InternalSettingsPreparer;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 
 /** A cli command which requires an {@link org.elasticsearch.env.Environment} to use current paths and settings. */
 public abstract class EnvironmentAwareCommand extends Command {

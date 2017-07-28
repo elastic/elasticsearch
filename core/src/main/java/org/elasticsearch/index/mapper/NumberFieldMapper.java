@@ -51,6 +51,8 @@ import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -646,34 +648,38 @@ public class NumberFieldMapper extends FieldMapper {
             }
         },
         LONG("long", NumericType.LONG) {
+
+            private final BigInteger MIN_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
+            private final BigInteger MAX_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
+
             @Override
             Long parse(Object value, boolean coerce) {
-                double doubleValue = objectToDouble(value);
-
-                if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
-                    throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
-                }
-                if (!coerce && doubleValue % 1 != 0) {
-                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
-                }
-
-                if (value instanceof Number) {
-                    return ((Number) value).longValue();
-                }
-
                 // longs need special handling so we don't lose precision while parsing
                 String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
 
-                try {
-                    return Long.parseLong(stringValue);
-                } catch (NumberFormatException e) {
-                    return (long) Double.parseDouble(stringValue);
+                BigDecimal bigDecimalValue = new BigDecimal(stringValue);
+                final BigInteger bigIntegerValue;
+
+                if (!coerce) {
+                    try {
+                        bigIntegerValue = bigDecimalValue.toBigIntegerExact();
+                    } catch (ArithmeticException e) {
+                        throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");
+                    }
+                } else {
+                    bigIntegerValue = bigDecimalValue.toBigInteger();
                 }
+
+                if (bigIntegerValue.compareTo(MAX_VALUE) == 1 || bigIntegerValue.compareTo(MIN_VALUE) == -1) {
+                    throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
+                }
+                return bigIntegerValue.longValue();
             }
 
             @Override
             Long parse(XContentParser parser, boolean coerce) throws IOException {
-                return parser.longValue(coerce);
+                parser.longValue(coerce); // validation in parser
+                return parse(parser.objectText().toString(), coerce);
             }
 
             @Override

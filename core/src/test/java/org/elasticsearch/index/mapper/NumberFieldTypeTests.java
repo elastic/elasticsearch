@@ -46,7 +46,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
@@ -389,6 +388,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testParseOutOfRangeValues() throws IOException {
+
         final List<OutOfRangeSpec<Object>> inputs = Arrays.asList(
             // TODO fix min/max value validation for long and uncomment tests
             OutOfRangeSpec.of(NumberType.BYTE, "128", "out of range for a byte"),
@@ -424,6 +424,31 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 fail("Parsing exception expected for [" + item.type + "] with value [" + item.value + "]");
             } catch (IllegalArgumentException e) {
                 assertThat("Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
+                    e.getMessage(), containsString(item.message));
+            }
+        }
+    }
+
+    public void testLongOutOfRange() {
+        final List<OutOfRangeSpec<Object>> inputs = Arrays.asList(
+            OutOfRangeSpec.of(NumberType.LONG, "9223372036854775806.99", "has a decimal part"),
+            OutOfRangeSpec.of(NumberType.LONG, "9223372036854775807.01", "has a decimal part"),
+            OutOfRangeSpec.of(NumberType.LONG, "9223372036854775808", "out of range for a long"),
+
+            OutOfRangeSpec.of(NumberType.LONG, new BigDecimal("9223372036854775806.99"), "has a decimal part"),
+            OutOfRangeSpec.of(NumberType.LONG, new BigDecimal("9223372036854775807.01"), "has a decimal part"),
+            OutOfRangeSpec.of(NumberType.LONG, new BigDecimal("9223372036854775808"), "out of range for a long"),
+
+            // lost precision, value is intended to be below Long.MAX_VALUE
+            OutOfRangeSpec.of(NumberType.LONG, 9223372036854775806d, "out of range for a long")
+        );
+
+        for (OutOfRangeSpec<Object> item: inputs) {
+            try {
+                item.type.parse(item.value, false);
+                fail("Parsing exception expected");
+            } catch (IllegalArgumentException e) {
+                assertThat("Incorrect error message for value [" + item.value + "]",
                     e.getMessage(), containsString(item.message));
             }
         }

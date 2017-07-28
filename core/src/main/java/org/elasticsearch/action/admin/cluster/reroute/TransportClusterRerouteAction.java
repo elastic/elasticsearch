@@ -32,12 +32,18 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+import static java.util.Collections.emptyList;
 
 public class TransportClusterRerouteAction extends TransportMasterNodeAction<ClusterRerouteRequest, ClusterRerouteResponse> {
 
@@ -80,6 +86,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         private final AllocationService allocationService;
         private volatile ClusterState clusterStateToSend;
         private volatile RoutingExplanations explanations;
+        private volatile List<String> messages;
 
         ClusterRerouteResponseAckedClusterStateUpdateTask(Logger logger, AllocationService allocationService, ClusterRerouteRequest request,
                                                           ActionListener<ClusterRerouteResponse> listener) {
@@ -97,7 +104,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
 
         @Override
         public void onAckTimeout() {
-            listener.onResponse(new ClusterRerouteResponse(false, clusterStateToSend, new RoutingExplanations()));
+            // todo does it make sense to return no explanations in this case
+            // e.g. if dry run, nothing is done but they still get the routing explanations
+            // but if ack times out then they get the state still but no explanations
+            // figure out whether clusterStateToSend is set in this case
+            listener.onResponse(new ClusterRerouteResponse(false, clusterStateToSend, new RoutingExplanations(), emptyList()));
         }
 
         @Override
@@ -112,10 +123,22 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                 allocationService.reroute(currentState, request.getCommands(), request.explain(), request.isRetryFailed());
             clusterStateToSend = commandsResult.getClusterState();
             explanations = commandsResult.explanations();
+
             if (request.dryRun()) {
+                messages = emptyList();
                 return currentState;
+            } else {
+                messages = collectMessages(explanations);
+                messages.forEach(logger::info);
+                return commandsResult.getClusterState();
             }
-            return commandsResult.getClusterState();
+        }
+
+        private static List<String> collectMessages(RoutingExplanations explanations) {
+            return explanations.explanations().stream()
+                .filter(explanation -> explanation.decisions().type().equals(Decision.Type.YES))
+                .flatMap(explanation -> explanation.command().getMessages().stream())
+                .collect(Collectors.toList());
         }
     }
 }

@@ -26,6 +26,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.List;
+
+import static java.util.Collections.emptyList;
 
 /**
  * Response returned after a cluster reroute request
@@ -34,15 +37,21 @@ public class ClusterRerouteResponse extends AcknowledgedResponse {
 
     private ClusterState state;
     private RoutingExplanations explanations;
+    private List<String> messages;
 
     ClusterRerouteResponse() {
 
     }
 
     ClusterRerouteResponse(boolean acknowledged, ClusterState state, RoutingExplanations explanations) {
+        this(acknowledged, state, explanations, emptyList());
+    }
+
+    ClusterRerouteResponse(boolean acknowledged, ClusterState state, RoutingExplanations explanations, List<String> messages) {
         super(acknowledged);
         this.state = state;
         this.explanations = explanations;
+        this.messages = messages;
     }
 
     /**
@@ -56,12 +65,17 @@ public class ClusterRerouteResponse extends AcknowledgedResponse {
         return this.explanations;
     }
 
+    public List<String> getMessages() {
+        return this.messages;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         state = ClusterState.readFrom(in, null);
         readAcknowledged(in);
         explanations = RoutingExplanations.readFrom(in);
+        messages = in.readList(StreamInput::readString);
     }
 
     @Override
@@ -70,5 +84,6 @@ public class ClusterRerouteResponse extends AcknowledgedResponse {
         state.writeTo(out);
         writeAcknowledged(out);
         RoutingExplanations.writeTo(explanations, out);
+        out.writeStringList(messages);
     }
 }

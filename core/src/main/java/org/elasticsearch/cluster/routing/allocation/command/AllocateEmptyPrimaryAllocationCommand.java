@@ -38,6 +38,11 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
+
+import static java.util.Collections.singletonList;
+import static java.util.Collections.unmodifiableList;
 
 /**
  * Allocates an unassigned empty primary shard to a specific node. Use with extreme care as this will result in data loss.
@@ -46,6 +51,9 @@ import java.io.IOException;
 public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocationCommand {
     public static final String NAME = "allocate_empty_primary";
     public static final ParseField COMMAND_NAME_FIELD = new ParseField(NAME);
+
+    private static final String MESSAGE = "Allocating an empty primary for [%1s][%2s] on node [%3s]. This action can cause " +
+        "data loss. If the old primary rejoins the cluster, its copy of this shard will be deleted.";
 
     private static final ObjectParser<Builder, Void> EMPTY_PRIMARY_PARSER = BasePrimaryAllocationCommand.createAllocatePrimaryParser(NAME);
 
@@ -130,5 +138,10 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, unassignedInfoToUpdate, StoreRecoverySource.EMPTY_STORE_INSTANCE);
 
         return new RerouteExplanation(this, allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders"));
+    }
+
+    @Override
+    public List<String> getMessages() {
+        return unmodifiableList(singletonList(String.format(Locale.ROOT, MESSAGE, index, shardId, node)));
     }
 }

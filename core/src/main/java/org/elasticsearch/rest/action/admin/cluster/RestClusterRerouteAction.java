@@ -86,6 +86,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
                     settingsFilter.addFilterSettingParams(request);
                     response.getState().toXContent(builder, request);
                     builder.endObject();
+                    builder.array("messages", response.getMessages().toArray(new String[response.getMessages().size()]));
                     if (clusterRerouteRequest.explain()) {
                         assert response.getExplanations() != null;
                         response.getExplanations().toXContent(builder, ToXContent.EMPTY_PARAMS);

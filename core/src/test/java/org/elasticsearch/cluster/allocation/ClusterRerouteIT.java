@@ -19,10 +19,12 @@
 
 package org.elasticsearch.cluster.allocation;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.ClusterState;
@@ -54,6 +56,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockLogAppender;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -309,7 +312,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(explanation.decisions().type(), equalTo(Decision.Type.YES));
     }
 
-    public void testMessages() {
+    public void testMessages() throws Exception{
         final Settings settings = Settings.builder()
             .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name())
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE.name())
@@ -333,6 +336,43 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1))
         .execute().actionGet();
 
+        Logger actionLogger = Loggers.getLogger(TransportClusterRerouteAction.class);
+
+
+        MockLogAppender dryRunMockLog = new MockLogAppender();
+        dryRunMockLog.start();
+        dryRunMockLog.addExpectation(
+            new MockLogAppender.UnseenEventExpectation("don't warn about allocation on dry run",
+                TransportClusterRerouteAction.class.getName(), Level.INFO, "Allocating an empty primary*")
+        );
+        Loggers.addAppender(actionLogger, dryRunMockLog);
+
+        AllocationCommand dryRunAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
+        ClusterRerouteResponse dryRunResponse = client().admin().cluster().prepareReroute()
+            .setExplain(randomBoolean())
+            .setDryRun(true)
+            .add(dryRunAllocation)
+            .execute().actionGet();
+
+        // during a dry run, messages exist but are not logged or exposed
+        assertThat(dryRunResponse.getMessages(), hasSize(1));
+
+        dryRunMockLog.assertAllExpectationsMatched();
+        dryRunMockLog.stop();
+        Loggers.removeAppender(actionLogger, dryRunMockLog);
+
+        MockLogAppender allocateMockLog = new MockLogAppender();
+        allocateMockLog.start();
+        allocateMockLog.addExpectation(
+            new MockLogAppender.SeenEventExpectation("warning for first allocate empty primary",
+                TransportClusterRerouteAction.class.getName(), Level.INFO, "Allocating an empty primary*")
+        );
+        allocateMockLog.addExpectation(
+            new MockLogAppender.SeenEventExpectation("warning for second allocate empty primary",
+                TransportClusterRerouteAction.class.getName(), Level.INFO, "Allocating an empty primary*")
+        );
+        Loggers.addAppender(actionLogger, allocateMockLog);
+
         AllocationCommand allocateEmptyPrimaryCommand1 = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
         AllocationCommand allocateEmptyPrimaryCommand2 = new AllocateEmptyPrimaryAllocationCommand(indexName, 1, nodeName2, true);
         ClusterRerouteResponse response = client().admin().cluster().prepareReroute()
@@ -341,9 +381,15 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             .add(allocateEmptyPrimaryCommand2)
             .execute().actionGet();
 
-        assertThat(response.getMessages().size(), equalTo(2));
+        ensureYellow(indexName);
+
+        assertThat(response.getMessages(), hasSize(2));
         assertThat(response.getMessages().get(0), containsString("Allocating an empty primary"));
         assertThat(response.getMessages().get(1), containsString("Allocating an empty primary"));
+
+        allocateMockLog.assertAllExpectationsMatched();
+        allocateMockLog.stop();
+        Loggers.removeAppender(actionLogger, allocateMockLog);
     }
 
     public void testClusterRerouteWithBlocks() throws Exception {

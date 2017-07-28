@@ -50,7 +50,6 @@ public class MigrateToolIT extends MigrateToolTestCase {
         assertTrue(pur.created());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2114")
     public void testRunMigrateTool() throws Exception {
         final String testConfigDir = System.getProperty("tests.config.dir");
         logger.info("--> CONF: {}", testConfigDir);

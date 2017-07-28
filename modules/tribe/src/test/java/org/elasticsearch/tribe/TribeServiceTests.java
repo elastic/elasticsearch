@@ -20,16 +20,17 @@
 package org.elasticsearch.tribe;
 
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.MergableCustomMetaData;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestCustomMetaData;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
@@ -43,6 +44,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -137,7 +139,7 @@ public class TribeServiceTests extends ESTestCase {
     }
 
     public void testMergeMultipleCustomMetaData() {
-        Map<String, List<TribeService.MergableCustomMetaData>> inputMap = new HashMap<>();
+        Map<String, List<MergableCustomMetaData>> inputMap = new HashMap<>();
         inputMap.put(MergableCustomMetaData1.TYPE,
                 Arrays.asList(new MergableCustomMetaData1("data10"), new MergableCustomMetaData1("data11")));
         inputMap.put(MergableCustomMetaData2.TYPE,
@@ -155,15 +157,15 @@ public class TribeServiceTests extends ESTestCase {
     }
 
     public void testMergeCustomMetaDataFromMany() {
-        Map<String, List<TribeService.MergableCustomMetaData>> inputMap = new HashMap<>();
+        Map<String, List<MergableCustomMetaData>> inputMap = new HashMap<>();
         int n = randomIntBetween(3, 5);
-        List<TribeService.MergableCustomMetaData> customList1 = new ArrayList<>();
+        List<MergableCustomMetaData> customList1 = new ArrayList<>();
         for (int i = 0; i <= n; i++) {
             customList1.add(new MergableCustomMetaData1("data1"+String.valueOf(i)));
         }
         Collections.shuffle(customList1, random());
         inputMap.put(MergableCustomMetaData1.TYPE, customList1);
-        List<TribeService.MergableCustomMetaData> customList2 = new ArrayList<>();
+        List<MergableCustomMetaData> customList2 = new ArrayList<>();
         for (int i = 0; i <= n; i++) {
             customList2.add(new MergableCustomMetaData2("data2"+String.valueOf(i)));
         }
@@ -182,6 +184,20 @@ public class TribeServiceTests extends ESTestCase {
         assertEquals(mergedCustom.getData(), "data2"+String.valueOf(n));
     }
 
+    public static class MockTribePlugin extends TribePlugin {
+
+        static List<Class<? extends Plugin>> classpathPlugins = Arrays.asList(MockTribePlugin.class, MockTcpTransportPlugin.class);
+
+        public MockTribePlugin(Settings settings) {
+            super(settings);
+        }
+
+        protected Function<Settings, Node> nodeBuilder(Path configPath) {
+            return settings -> new MockNode(new Environment(settings, configPath), classpathPlugins);
+        }
+
+    }
+
     public void testTribeNodeDeprecation() throws IOException {
         final Path tempDir = createTempDir();
         Settings.Builder settings = Settings.builder()
@@ -197,7 +213,7 @@ public class TribeServiceTests extends ESTestCase {
             settings.put(tribeSetting + ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName)
                 .put(tribeSetting + NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), "mock-socket-network");
         }
-        try (Node node = new MockNode(settings.build(),Collections.singleton(MockTcpTransportPlugin.class) )) {
+        try (Node node = new MockNode(settings.build(), MockTribePlugin.classpathPlugins)) {
             if (tribeServiceEnable) {
                 assertWarnings("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
             }
@@ -205,7 +221,7 @@ public class TribeServiceTests extends ESTestCase {
     }
 
     static class MergableCustomMetaData1 extends TestCustomMetaData
-            implements TribeService.MergableCustomMetaData<MergableCustomMetaData1> {
+            implements MergableCustomMetaData<MergableCustomMetaData1> {
         public static final String TYPE = "custom_md_1";
 
         protected MergableCustomMetaData1(String data) {
@@ -237,7 +253,7 @@ public class TribeServiceTests extends ESTestCase {
     }
 
     static class MergableCustomMetaData2 extends TestCustomMetaData
-            implements TribeService.MergableCustomMetaData<MergableCustomMetaData2> {
+            implements MergableCustomMetaData<MergableCustomMetaData2> {
         public static final String TYPE = "custom_md_2";
 
         protected MergableCustomMetaData2(String data) {

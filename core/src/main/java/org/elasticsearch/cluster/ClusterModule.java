@@ -94,6 +94,7 @@ public class ClusterModule extends AbstractModule {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final AllocationDeciders allocationDeciders;
     private final AllocationService allocationService;
+    private final Runnable onStarted;
     // pkg private for tests
     final Collection<AllocationDecider> deciderList;
     final ShardsAllocator shardsAllocator;
@@ -106,6 +107,7 @@ public class ClusterModule extends AbstractModule {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
         this.allocationService = new AllocationService(settings, allocationDeciders, shardsAllocator, clusterInfoService);
+        this.onStarted = () -> clusterPlugins.forEach(plugin -> plugin.onNodeStarted());
     }
 
 
@@ -240,5 +242,9 @@ public class ClusterModule extends AbstractModule {
         bind(TaskResultsService.class).asEagerSingleton();
         bind(AllocationDeciders.class).toInstance(allocationDeciders);
         bind(ShardsAllocator.class).toInstance(shardsAllocator);
+    }
+
+    public Runnable onStarted() {
+        return onStarted;
     }
 }

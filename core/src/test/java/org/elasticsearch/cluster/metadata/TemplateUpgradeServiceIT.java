@@ -22,10 +22,13 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -67,11 +70,13 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
         @Override
         public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                    ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                                   NamedXContentRegistry xContentRegistry) {
+                                                   NamedXContentRegistry xContentRegistry, Environment environment,
+                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
             clusterService.getClusterSettings().addSettingsUpdateConsumer(UPDATE_TEMPLATE_DUMMY_SETTING, integer -> {
                 logger.debug("the template dummy setting was updated to {}", integer);
             });
-            return super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService, xContentRegistry);
+            return super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService, xContentRegistry,
+                environment, nodeEnvironment, namedWriteableRegistry);
         }
 
         @Override

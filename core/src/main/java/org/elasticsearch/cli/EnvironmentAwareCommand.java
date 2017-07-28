@@ -33,18 +33,16 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 /** A cli command which requires an {@link org.elasticsearch.env.Environment} to use current paths and settings. */
 public abstract class EnvironmentAwareCommand extends Command {
 
     private final OptionSpec<KeyValuePair> settingOption;
-    private final OptionSpec<String> pathConfOption;
 
     public EnvironmentAwareCommand(String description) {
         super(description);
         this.settingOption = parser.accepts("E", "Configure a setting").withRequiredArg().ofType(KeyValuePair.class);
-        this.pathConfOption =
-                parser.acceptsAll(Arrays.asList("c", "path.conf"), "Configure config path").withRequiredArg().ofType(String.class);
     }
 
     @Override
@@ -70,13 +68,17 @@ public abstract class EnvironmentAwareCommand extends Command {
         putSystemPropertyIfSettingIsMissing(settings, "path.home", "es.path.home");
         putSystemPropertyIfSettingIsMissing(settings, "path.logs", "es.path.logs");
 
-        final String pathConf = pathConfOption.value(options);
+        final String pathConf = System.getProperty("es.path.conf");
+        if (pathConf == null) {
+            throw new UserException(ExitCodes.CONFIG, "the system property es.path.conf must be set");
+        }
+
         execute(terminal, options, createEnv(terminal, settings, getConfigPath(pathConf)));
     }
 
     @SuppressForbidden(reason = "need path to construct environment")
     private static Path getConfigPath(final String pathConf) {
-        return pathConf == null ? null : Paths.get(pathConf);
+        return Paths.get(pathConf);
     }
 
     /** Create an {@link Environment} for the command to use. Overrideable for tests. */

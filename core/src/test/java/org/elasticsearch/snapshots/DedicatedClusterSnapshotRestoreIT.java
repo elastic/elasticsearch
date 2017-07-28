@@ -798,7 +798,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final int numberOfShards = getNumShards("test-idx").numPrimaries;
         logger.info("number of shards: {}", numberOfShards);
 
-        final String masterNode = blockMasterFromCreatingSnapshot("test-repo");
+        final String masterNode = blockMasterFromFinalizingSnapshotOnSnapFile("test-repo");
         final String dataNode = blockNodeWithIndex("test-repo", "test-idx");
 
         dataNodeClient().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
@@ -861,7 +861,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             assertEquals(ClusterHealthStatus.RED, client().admin().cluster().prepareHealth().get().getStatus()),
             30, TimeUnit.SECONDS);
 
-        final String masterNode = blockMasterFromFinalizingSnapshot("test-repo");
+        final String masterNode = blockMasterFromFinalizingSnapshotOnIndexFile("test-repo");
 
         logger.info("-->  snapshot");
         client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")

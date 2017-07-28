@@ -421,6 +421,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 } else {
                     String nodeId = in.readOptionalString();
                     State shardState = State.fromValue(in.readByte());
+                    // Workaround for https://github.com/elastic/elasticsearch/issues/25878
+                    // Some old snapshot might still have null in shard failure reasons
                     String reason = shardState.failed() ? "" : null;
                     builder.put(shardId, new ShardSnapshotStatus(nodeId, shardState, reason));
                 }

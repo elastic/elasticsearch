@@ -193,7 +193,9 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
                         } else if ("node_id".equals(currentFieldName)) {
                             snapshotShardFailure.nodeId = parser.text();
                         } else if ("reason".equals(currentFieldName)) {
-                            snapshotShardFailure.reason = parser.text();
+                            // Workaround for https://github.com/elastic/elasticsearch/issues/25878
+                            // Some old snapshot might still have null in shard failure reasons
+                            snapshotShardFailure.reason = parser.textOrNull();
                         } else if ("shard_id".equals(currentFieldName)) {
                             shardId = parser.intValue();
                         } else if ("status".equals(currentFieldName)) {

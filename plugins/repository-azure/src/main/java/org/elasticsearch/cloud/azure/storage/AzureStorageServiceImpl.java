@@ -234,7 +234,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         // Container name must be lower case.
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        if (blobContainer.exists()) {
+        if (SocketAccess.doPrivilegedException(blobContainer::exists)) {
             CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
             return SocketAccess.doPrivilegedException(azureBlob::exists);
         }
@@ -249,7 +249,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         // Container name must be lower case.
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        if (blobContainer.exists()) {
+        if (SocketAccess.doPrivilegedException(blobContainer::exists)) {
             logger.trace("container [{}]: blob [{}] found. removing.", container, blob);
             CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
             SocketAccess.doPrivilegedVoidException(azureBlob::delete);
@@ -317,7 +317,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
         CloudBlockBlob blobSource = blobContainer.getBlockBlobReference(sourceBlob);
-        if (blobSource.exists()) {
+        if (SocketAccess.doPrivilegedException(blobSource::exists)) {
             CloudBlockBlob blobTarget = blobContainer.getBlockBlobReference(targetBlob);
             SocketAccess.doPrivilegedVoidException(() -> {
                 blobTarget.startCopy(blobSource);

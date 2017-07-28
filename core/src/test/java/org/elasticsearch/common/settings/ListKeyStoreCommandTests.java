@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.settings;
 
-import java.nio.file.Path;
 import java.util.Map;
 
 import org.elasticsearch.cli.Command;
@@ -36,7 +35,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new ListKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path configPath) {
+            protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
                 return env;
             }
         };

@@ -53,10 +53,4 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
         mockTransportService.start();
         return mockTransportService;
     }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25893")
-    @Override
-    public void testTransportStatsWithException() throws Exception {
-        super.testTransportStatsWithException();
-    }
 }

@@ -130,10 +130,4 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
         });
         assertEquals("Failed to bind to ["+ port + "]", bindTransportException.getMessage());
     }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25893")
-    @Override
-    public void testTransportStatsWithException() throws Exception {
-        super.testTransportStatsWithException();
-    }
 }

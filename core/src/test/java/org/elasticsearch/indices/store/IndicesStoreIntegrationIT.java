@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -40,6 +41,7 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -62,6 +64,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -464,6 +467,35 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         for (int shard : node2Shards) {
             assertTrue(waitForShardDeletion(nonMasterNode, index, shard));
         }
+    }
+
+    /**
+     * This test creates a scenario where a primary shard (0 replicas) relocates and is in POST_RECOVERY on the target
+     * node but already deleted on the source node. Search request should still work.
+     */
+    public void testSearchWithRelocationAndSlowClusterStateProcessing() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String node_1 = internalCluster().startDataOnlyNode();
+
+        logger.info("--> creating index [test] with one shard and on replica");
+        assertAcked(prepareCreate("test").setSettings(
+            Settings.builder().put(indexSettings())
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+        );
+        ensureGreen("test");
+
+        final String node_2 = internalCluster().startDataOnlyNode();
+        List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            indexRequestBuilderList.add(client().prepareIndex().setIndex("test").setType("doc")
+                .setSource("{\"int_field\":1}", XContentType.JSON));
+        }
+        indexRandom(true, indexRequestBuilderList);
+
+        relocateAndBlockCompletion(logger, "test", 0, node_1, node_2);
+        // now search for the documents and see if we get a reply
+        assertThat(client().prepareSearch().setSize(0).get().getHits().getTotalHits(), equalTo(100L));
     }
 
     private Path indexDirectory(String server, Index index) {

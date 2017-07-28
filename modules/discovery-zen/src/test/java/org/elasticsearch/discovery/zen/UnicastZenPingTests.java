@@ -40,6 +40,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.discovery.UnicastHostsProvider;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -393,7 +394,7 @@ public class UnicastZenPingTests extends ESTestCase {
             new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null);
         closeables.push(transportService);
         final int limitPortCounts = randomIntBetween(1, 10);
-        final List<DiscoveryNode> discoveryNodes = TestUnicastZenPing.resolveHostsLists(
+        final List<DiscoveryNode> discoveryNodes = UnicastHostsProvider.resolveHostsLists(
             executorService,
             logger,
             Collections.singletonList("127.0.0.1"),
@@ -437,7 +438,7 @@ public class UnicastZenPingTests extends ESTestCase {
         final TransportService transportService =
             new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null);
         closeables.push(transportService);
-        final List<DiscoveryNode> discoveryNodes = TestUnicastZenPing.resolveHostsLists(
+        final List<DiscoveryNode> discoveryNodes = UnicastHostsProvider.resolveHostsLists(
             executorService,
             logger,
             Collections.singletonList(NetworkAddress.format(loopbackAddress)),
@@ -488,7 +489,7 @@ public class UnicastZenPingTests extends ESTestCase {
             new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null);
         closeables.push(transportService);
 
-        final List<DiscoveryNode> discoveryNodes = TestUnicastZenPing.resolveHostsLists(
+        final List<DiscoveryNode> discoveryNodes = UnicastHostsProvider.resolveHostsLists(
             executorService,
             logger,
             Arrays.asList(hostname),
@@ -547,7 +548,7 @@ public class UnicastZenPingTests extends ESTestCase {
         closeables.push(transportService);
         final TimeValue resolveTimeout = TimeValue.timeValueSeconds(randomIntBetween(1, 3));
         try {
-            final List<DiscoveryNode> discoveryNodes = TestUnicastZenPing.resolveHostsLists(
+            final List<DiscoveryNode> discoveryNodes = UnicastHostsProvider.resolveHostsLists(
                 executorService,
                 logger,
                 Arrays.asList("hostname1", "hostname2"),
@@ -713,7 +714,7 @@ public class UnicastZenPingTests extends ESTestCase {
         final TransportService transportService =
             new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null);
         closeables.push(transportService);
-        final List<DiscoveryNode> discoveryNodes = TestUnicastZenPing.resolveHostsLists(
+        final List<DiscoveryNode> discoveryNodes = UnicastHostsProvider.resolveHostsLists(
             executorService,
             logger,
             Arrays.asList("127.0.0.1:9300:9300", "127.0.0.1:9301"),

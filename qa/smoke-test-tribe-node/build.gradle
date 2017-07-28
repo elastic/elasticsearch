@@ -28,11 +28,13 @@ apply plugin: 'elasticsearch.rest-test'
 ClusterConfiguration configOne = new ClusterConfiguration(project)
 configOne.clusterName = 'one'
 configOne.setting('node.name', 'one')
+configOne.module project(':modules:discovery-zen')
 List<NodeInfo> oneNodes = ClusterFormationTasks.setup(project, 'clusterOne', integTestRunner, configOne)
 
 ClusterConfiguration configTwo = new ClusterConfiguration(project)
 configTwo.clusterName = 'two'
 configTwo.setting('node.name', 'two')
+configTwo.module project(':modules:discovery-zen')
 List<NodeInfo> twoNodes = ClusterFormationTasks.setup(project, 'clusterTwo', integTestRunner, configTwo)
 
 integTestCluster {

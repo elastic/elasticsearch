@@ -20,12 +20,10 @@ package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -371,7 +369,7 @@ public class OperationRoutingTests extends ESTestCase{
             terminate(threadPool);
         }
     }
-    
+
     public void testFairSessionIdPreferences() throws InterruptedException, IOException {
         // Ensure that a user session is re-routed back to same nodes for
         // subsequent searches and that the nodes are selected fairly i.e.
@@ -422,13 +420,13 @@ public class OperationRoutingTests extends ESTestCase{
             assertThat("Search should use more than one of the nodes", selectedNodes.size(), greaterThan(1));
         }
     }
-    
+
     // Regression test for the routing logic - implements same hashing logic
     private ShardIterator duelGetShards(ClusterState clusterState, ShardId shardId, String sessionId) {
         final IndexShardRoutingTable indexShard = clusterState.getRoutingTable().shardRoutingTable(shardId.getIndexName(), shardId.getId());
         int routingHash = Murmur3HashFunction.hash(sessionId);
         routingHash = 31 * routingHash + indexShard.shardId.hashCode();
-        return indexShard.activeInitializingShardsIt(routingHash);        
+        return indexShard.activeInitializingShardsIt(routingHash);
     }
 
     public void testThatOnlyNodesSupportNodeIds() throws InterruptedException, IOException {

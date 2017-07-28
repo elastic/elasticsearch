@@ -159,7 +159,7 @@ public class MasterService extends AbstractLifecycleComponent {
     /**
      * The current cluster state exposed by the discovery layer. Package-visible for tests.
      */
-    ClusterState state() {
+    protected ClusterState state() {
         return clusterStateSupplier.get();
     }
 

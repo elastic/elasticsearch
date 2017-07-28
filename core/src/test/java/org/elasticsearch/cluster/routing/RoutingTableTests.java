@@ -343,22 +343,5 @@ public class RoutingTableTests extends ESAllocationTestCase {
         assertTrue(IndexShardRoutingTable.Builder.distinctNodes(Arrays.asList(routing1, routing4)));
         assertFalse(IndexShardRoutingTable.Builder.distinctNodes(Arrays.asList(routing2, routing4)));
     }
-
-    /** reverse engineer the in sync aid based on the given indexRoutingTable **/
-    public static IndexMetaData updateActiveAllocations(IndexRoutingTable indexRoutingTable, IndexMetaData indexMetaData) {
-        IndexMetaData.Builder imdBuilder = IndexMetaData.builder(indexMetaData);
-        for (IndexShardRoutingTable shardTable : indexRoutingTable) {
-            for (ShardRouting shardRouting : shardTable) {
-                Set<String> insyncAids = shardTable.activeShards().stream().map(
-                    shr -> shr.allocationId().getId()).collect(Collectors.toSet());
-                final ShardRouting primaryShard = shardTable.primaryShard();
-                if (primaryShard.initializing() && primaryShard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
-                    // simulate a primary was initialized based on aid
-                    insyncAids.add(primaryShard.allocationId().getId());
-                }
-                imdBuilder.putInSyncAllocationIds(shardRouting.id(), insyncAids);
-            }
-        }
-        return imdBuilder.build();
-    }
+    
 }

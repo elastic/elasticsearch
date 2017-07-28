@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery;
+package org.elasticsearch.discovery.zen;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -26,7 +26,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,7 +37,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
@@ -73,7 +71,7 @@ import static org.hamcrest.Matchers.not;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
-public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
+public class ClusterDisruptionTests extends AbstractDisruptionTestCase {
 
     /**
      * Test that we do not loose document whose indexing request was successful, under a randomly selected disruption scheme
@@ -357,37 +355,6 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         for (ShardRouting shard : shards) {
             assertThat(shard.allocationId(), not(equalTo(failedShard.allocationId())));
         }
-    }
-
-    /**
-     * This test creates a scenario where a primary shard (0 replicas) relocates and is in POST_RECOVERY on the target
-     * node but already deleted on the source node. Search request should still work.
-     */
-    public void testSearchWithRelocationAndSlowClusterStateProcessing() throws Exception {
-        // don't use DEFAULT settings (which can cause node disconnects on a slow CI machine)
-        configureCluster(Settings.EMPTY, 3, null, 1);
-        final String masterNode = internalCluster().startMasterOnlyNode();
-        final String node_1 = internalCluster().startDataOnlyNode();
-
-        logger.info("--> creating index [test] with one shard and on replica");
-        assertAcked(prepareCreate("test").setSettings(
-            Settings.builder().put(indexSettings())
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-        );
-        ensureGreen("test");
-
-        final String node_2 = internalCluster().startDataOnlyNode();
-        List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
-        for (int i = 0; i < 100; i++) {
-            indexRequestBuilderList.add(client().prepareIndex().setIndex("test").setType("doc")
-                .setSource("{\"int_field\":1}", XContentType.JSON));
-        }
-        indexRandom(true, indexRequestBuilderList);
-
-        IndicesStoreIntegrationIT.relocateAndBlockCompletion(logger, "test", 0, node_1, node_2);
-        // now search for the documents and see if we get a reply
-        assertThat(client().prepareSearch().setSize(0).get().getHits().getTotalHits(), equalTo(100L));
     }
 
     public void testIndexImportedFromDataOnlyNodesIfMasterLostDataFolder() throws Exception {

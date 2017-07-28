@@ -23,6 +23,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -47,7 +48,6 @@ import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -70,7 +70,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 @TestLogging("_root:DEBUG")
-public class ZenDiscoveryIT extends ESIntegTestCase {
+public class ZenDiscoveryTests extends ESIntegTestCase {
 
     public void testNoShardRelocationsOccurWhenElectedMasterNodeFails() throws Exception {
         Settings defaultSettings = Settings.builder()
@@ -174,7 +174,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                         emptySet(), Version.CURRENT)).masterNodeId("abc");
         ClusterState.Builder builder = ClusterState.builder(state);
         builder.nodes(nodes);
-        BytesReference bytes = PublishClusterStateAction.serializeFullClusterState(builder.build(), node.getVersion());
+        BytesReference bytes = TransportClusterStateAction.serializeFullClusterState(builder.build(), node.getVersion());
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> reference = new AtomicReference<>();
@@ -201,11 +201,8 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
     }
 
     public void testHandleNodeJoin_incompatibleClusterState() throws UnknownHostException {
-        Settings nodeSettings = Settings.builder()
-            .put("discovery.type", "zen") // <-- To override the local setting if set externally
-            .build();
-        String masterOnlyNode = internalCluster().startMasterOnlyNode(nodeSettings);
-        String node1 = internalCluster().startNode(nodeSettings);
+        String masterOnlyNode = internalCluster().startMasterOnlyNode();
+        String node1 = internalCluster().startNode();
         ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, masterOnlyNode);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node1);
         final ClusterState state = clusterService.state();

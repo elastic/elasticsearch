@@ -39,6 +39,7 @@ task setupSeedNodeAndUnicastHostsFile(type: DefaultTask) {
 // for unicast discovery
 ClusterConfiguration config = new ClusterConfiguration(project)
 config.clusterName = 'discovery-file-test-cluster'
+config.module project(':modules:discovery-zen')
 List<NodeInfo> nodes = ClusterFormationTasks.setup(project, 'initialCluster', setupSeedNodeAndUnicastHostsFile, config)
 File srcUnicastHostsFile = file('build/cluster/unicast_hosts.txt')
 
@@ -53,6 +54,7 @@ integTestCluster {
     dependsOn setupSeedNodeAndUnicastHostsFile
     clusterName = 'discovery-file-test-cluster'
     extraConfigFile 'discovery-file/unicast_hosts.txt', srcUnicastHostsFile
+    module project(':modules:discovery-zen')
 }
 
 integTestRunner.finalizedBy ':plugins:discovery-file:initialCluster#stop'

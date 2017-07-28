@@ -23,8 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
-
 public class FileBasedDiscoveryPluginTests extends ESTestCase {
 
     public void testHostsProviderBwc() {

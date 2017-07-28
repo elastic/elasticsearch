@@ -29,8 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
+import org.elasticsearch.discovery.UnicastHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -73,7 +72,7 @@ public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin 
             ResourceWatcherService resourceWatcherService,
             ScriptService scriptService,
             NamedXContentRegistry xContentRegistry) {
-        final int concurrentConnects = UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
+        final int concurrentConnects = UnicastHostsProvider.DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[file_based_discovery_resolve]");
         fileBasedDiscoveryExecutorService = EsExecutors.newScaling(
             "file_based_discovery_resolve",
@@ -104,8 +103,8 @@ public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin 
     public Settings additionalSettings() {
         // For 5.0, the hosts provider was "zen", but this was before the discovery.zen.hosts_provider
         // setting existed. This check looks for the legacy zen, and sets the file hosts provider if not set
-        String discoveryType = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings);
-        if (discoveryType.equals("zen")) {
+        if (DiscoveryModule.DISCOVERY_TYPE_SETTING.exists(settings) == false ||
+            DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings).equals("zen")) {
             deprecationLogger.deprecated("Using " + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() +
                 " setting to set hosts provider is deprecated. " +
                 "Set \"" + DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + ": file\" instead");

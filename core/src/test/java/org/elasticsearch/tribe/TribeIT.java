@@ -39,7 +39,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -256,7 +256,7 @@ public class TribeIT extends ESIntegTestCase {
         doWithAllClusters(filter, c -> {
             String tribeSetting = "tribe." + c.getClusterName() + ".";
             settings.put(tribeSetting + ClusterName.CLUSTER_NAME_SETTING.getKey(), c.getClusterName());
-            settings.put(tribeSetting + DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "100ms");
+            settings.put(tribeSetting + DiscoveryModule.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "100ms");
             settings.put(tribeSetting + NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
         });
 

@@ -51,7 +51,7 @@ public class RemovePluginCommandTests extends ESTestCase {
 
         final Environment env;
 
-        public MockRemovePluginCommand(final Environment env) {
+        private MockRemovePluginCommand(final Environment env) {
             this.env = env;
         }
 

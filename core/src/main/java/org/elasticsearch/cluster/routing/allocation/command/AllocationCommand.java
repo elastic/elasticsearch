@@ -27,8 +27,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -66,7 +64,7 @@ public interface AllocationCommand extends NamedWriteable, ToXContent {
     }
 
     /**
-     * Returns any information from the command that is relevant to the user
+     * Returns any feedback the command wants to provide for logging
      */
     default Optional<String> getMessage() {
         return Optional.empty();

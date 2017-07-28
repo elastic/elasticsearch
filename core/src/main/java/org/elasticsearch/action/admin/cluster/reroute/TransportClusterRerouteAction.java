@@ -69,11 +69,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     @Override
     protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state, final ActionListener<ClusterRerouteResponse> listener) {
         ActionListener<ClusterRerouteResponse> logWrapper = ActionListener.wrap(
-            r -> {
+            response -> {
                 if (request.dryRun() == false) {
-                    r.getMessages().forEach(logger::info);
+                    response.getMessages().forEach(logger::info);
                 }
-                listener.onResponse(r);
+                listener.onResponse(response);
             },
             listener::onFailure
         );
@@ -107,10 +107,6 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
 
         @Override
         public void onAckTimeout() {
-            // todo does it make sense to return no explanations in this case
-            // e.g. if dry run, nothing is done but they still get the routing explanations
-            // but if ack times out then they get the state still but no explanations
-            // figure out whether clusterStateToSend is set in this case
             listener.onResponse(new ClusterRerouteResponse(false, clusterStateToSend, new RoutingExplanations()));
         }
 

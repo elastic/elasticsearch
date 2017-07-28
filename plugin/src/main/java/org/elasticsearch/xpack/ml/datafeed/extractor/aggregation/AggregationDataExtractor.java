@@ -105,7 +105,8 @@ class AggregationDataExtractor implements DataExtractor {
     }
 
     private void initAggregationProcessor(Aggregations aggs) throws IOException {
-        aggregationToJsonProcessor = new AggregationToJsonProcessor(context.timeField, context.fields, context.includeDocCount);
+        aggregationToJsonProcessor = new AggregationToJsonProcessor(context.timeField, context.fields, context.includeDocCount,
+                context.start);
         aggregationToJsonProcessor.process(aggs);
     }
 
@@ -114,11 +115,19 @@ class AggregationDataExtractor implements DataExtractor {
     }
 
     private SearchRequestBuilder buildSearchRequest() {
+        long histogramSearchStartTime = context.start;
+        if (context.aggs.getPipelineAggregatorFactories().isEmpty() == false) {
+            // For derivative aggregations the first bucket will always be null
+            // so query one extra histogram bucket back and hope there is data
+            // in that bucket
+            histogramSearchStartTime = Math.max(0, context.start - getHistogramInterval());
+        }
+
         SearchRequestBuilder searchRequestBuilder = SearchAction.INSTANCE.newRequestBuilder(client)
                 .setIndices(context.indices)
                 .setTypes(context.types)
                 .setSize(0)
-                .setQuery(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, context.start, context.end));
+                .setQuery(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, histogramSearchStartTime, context.end));
 
         context.aggs.getAggregatorFactories().forEach(searchRequestBuilder::addAggregation);
         context.aggs.getPipelineAggregatorFactories().forEach(searchRequestBuilder::addAggregation);
@@ -146,5 +155,9 @@ class AggregationDataExtractor implements DataExtractor {
 
         hasNext = aggregationToJsonProcessor.writeDocs(BATCH_KEY_VALUE_PAIRS, outputStream);
         return new ByteArrayInputStream(outputStream.toByteArray());
+    }
+
+    private long getHistogramInterval() {
+        return ExtractorUtils.getHistogramIntervalMillis(context.aggs);
     }
 }

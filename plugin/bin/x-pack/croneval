@@ -9,7 +9,15 @@ source "`dirname "$0"`"/../elasticsearch-env
 source "`dirname "$0"`"/x-pack-env
 
 cd "$ES_HOME" > /dev/null
-"$JAVA" $ES_JAVA_OPTS -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" org.elasticsearch.xpack.watcher.trigger.schedule.tool.CronEvalTool "$@"
+
+"$JAVA" \
+  $ES_JAVA_OPTS \
+  -Des.path.home="$ES_HOME" \
+  -Des.path.conf="$CONF_DIR" \
+  -cp "$ES_CLASSPATH" \
+  org.elasticsearch.xpack.watcher.trigger.schedule.tool.CronEvalTool \
+  "$@"
+  
 status=$?
 cd - > /dev/null
 exit $status

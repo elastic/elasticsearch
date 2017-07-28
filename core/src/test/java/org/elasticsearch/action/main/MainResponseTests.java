@@ -22,28 +22,29 @@ package org.elasticsearch.action.main;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Date;
 
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.hamcrest.Matchers.equalTo;
 
-public class MainResponseTests extends ESTestCase {
+public class MainResponseTests extends AbstractStreamableXContentTestCase<MainResponse> {
 
-    public static MainResponse createTestItem() {
+    @Override
+    protected MainResponse getExpectedFromXContent(MainResponse testInstance) {
+        // we cannot recreate the "available" flag from xContent, but should be "true" if request came through
+        testInstance.available = true;
+        return testInstance;
+    }
+
+    @Override
+    protected MainResponse createTestInstance() {
         String clusterUuid = randomAlphaOfLength(10);
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
@@ -53,40 +54,14 @@ public class MainResponseTests extends ESTestCase {
         return new MainResponse(nodeName, version, clusterName, clusterUuid , build, available);
     }
 
-    public void testSerialization() throws IOException {
-        final MainResponse mainResponse = createTestItem();
-        BytesStreamOutput streamOutput = new BytesStreamOutput();
-        mainResponse.writeTo(streamOutput);
-        final MainResponse serialized = new MainResponse();
-        serialized.readFrom(streamOutput.bytes().streamInput());
-
-        assertThat(serialized.getNodeName(), equalTo(mainResponse.getNodeName()));
-        assertThat(serialized.getClusterName(), equalTo(mainResponse.getClusterName()));
-        assertThat(serialized.getBuild(), equalTo(mainResponse.getBuild()));
-        assertThat(serialized.isAvailable(), equalTo(mainResponse.isAvailable()));
-        assertThat(serialized.getVersion(), equalTo(mainResponse.getVersion()));
+    @Override
+    protected MainResponse createBlankInstance() {
+        return new MainResponse();
     }
 
-    public void testFromXContent() throws IOException {
-        MainResponse mainResponse = createTestItem();
-        XContentType xContentType = randomFrom(XContentType.values());
-        boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toShuffledXContent(mainResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-        // we add a few random fields to check that parser is lenient on new fields
-        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
-        MainResponse parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
-            parsed = MainResponse.fromXContent(parser);
-            assertNull(parser.nextToken());
-        }
-        assertEquals(mainResponse.getClusterUuid(), parsed.getClusterUuid());
-        assertEquals(mainResponse.getClusterName(), parsed.getClusterName());
-        assertEquals(mainResponse.getNodeName(), parsed.getNodeName());
-        assertEquals(mainResponse.getBuild(), parsed.getBuild());
-        assertEquals(mainResponse.getVersion(), parsed.getVersion());
-        // we cannot recreate the "available" flag from xContent, but should be "true" if request came through
-        assertEquals(true, parsed.isAvailable());
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+    @Override
+    protected MainResponse doParseInstance(XContentParser parser) {
+        return MainResponse.fromXContent(parser);
     }
 
     public void testToXContent() throws IOException {
@@ -112,8 +87,10 @@ public class MainResponseTests extends ESTestCase {
           + "}", builder.string());
     }
 
+    //TODO this should be removed and the metehod from AbstractStreamableTestCase should be
+    //used instead once https://github.com/elastic/elasticsearch/pull/25910 goes in
     public void testEqualsAndHashcode() {
-        MainResponse original = createTestItem();
+        MainResponse original = createTestInstance();
         checkEqualsAndHashCode(original, MainResponseTests::copy, MainResponseTests::mutate);
     }
 
@@ -151,5 +128,4 @@ public class MainResponseTests extends ESTestCase {
         }
         return new MainResponse(nodeName, version, clusterName, clusterUuid, build, available);
     }
-
 }

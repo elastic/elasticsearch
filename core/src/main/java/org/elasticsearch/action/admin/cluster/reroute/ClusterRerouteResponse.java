@@ -22,13 +22,14 @@ package org.elasticsearch.action.admin.cluster.reroute;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.List;
-
-import static java.util.Collections.emptyList;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Response returned after a cluster reroute request
@@ -37,21 +38,15 @@ public class ClusterRerouteResponse extends AcknowledgedResponse {
 
     private ClusterState state;
     private RoutingExplanations explanations;
-    private List<String> messages;
 
     ClusterRerouteResponse() {
 
     }
 
     ClusterRerouteResponse(boolean acknowledged, ClusterState state, RoutingExplanations explanations) {
-        this(acknowledged, state, explanations, emptyList());
-    }
-
-    ClusterRerouteResponse(boolean acknowledged, ClusterState state, RoutingExplanations explanations, List<String> messages) {
         super(acknowledged);
         this.state = state;
         this.explanations = explanations;
-        this.messages = messages;
     }
 
     /**
@@ -66,7 +61,12 @@ public class ClusterRerouteResponse extends AcknowledgedResponse {
     }
 
     public List<String> getMessages() {
-        return this.messages;
+        return explanations.explanations().stream()
+            .filter(explanation -> explanation.decisions().type().equals(Decision.Type.YES))
+            .map(explanation -> explanation.command().getMessage())
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
     }
 
     @Override
@@ -75,7 +75,6 @@ public class ClusterRerouteResponse extends AcknowledgedResponse {
         state = ClusterState.readFrom(in, null);
         readAcknowledged(in);
         explanations = RoutingExplanations.readFrom(in);
-        messages = in.readList(StreamInput::readString);
     }
 
     @Override
@@ -84,6 +83,5 @@ public class ClusterRerouteResponse extends AcknowledgedResponse {
         state.writeTo(out);
         writeAcknowledged(out);
         RoutingExplanations.writeTo(explanations, out);
-        out.writeStringList(messages);
     }
 }

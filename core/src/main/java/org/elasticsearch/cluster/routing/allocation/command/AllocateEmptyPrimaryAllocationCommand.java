@@ -40,6 +40,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableList;
@@ -52,6 +53,7 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
     public static final String NAME = "allocate_empty_primary";
     public static final ParseField COMMAND_NAME_FIELD = new ParseField(NAME);
 
+    // todo this formatting has leading space
     private static final String MESSAGE = "Allocating an empty primary for [%1s][%2s] on node [%3s]. This action can cause " +
         "data loss. If the old primary rejoins the cluster, its copy of this shard will be deleted.";
 
@@ -141,7 +143,7 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
     }
 
     @Override
-    public List<String> getMessages() {
-        return unmodifiableList(singletonList(String.format(Locale.ROOT, MESSAGE, index, shardId, node)));
+    public Optional<String> getMessage() {
+        return Optional.of(String.format(Locale.ROOT, MESSAGE, index, shardId, node));
     }
 }

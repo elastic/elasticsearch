@@ -37,6 +37,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableList;
@@ -135,8 +136,8 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
     }
 
     @Override
-    public List<String> getMessages() {
-        return unmodifiableList(singletonList(String.format(Locale.ROOT, MESSAGE, index, shardId, node)));
+    public Optional<String> getMessage() {
+        return Optional.of(String.format(Locale.ROOT, MESSAGE, index, shardId, node));
     }
 
 }

@@ -27,12 +27,16 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -63,6 +67,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -302,6 +307,43 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(((MoveAllocationCommand)explanation.command()).fromNode(), equalTo(cmd.fromNode()));
         assertThat(((MoveAllocationCommand)explanation.command()).toNode(), equalTo(cmd.toNode()));
         assertThat(explanation.decisions().type(), equalTo(Decision.Type.YES));
+    }
+
+    public void testMessages() {
+        final Settings settings = Settings.builder()
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name())
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE.name())
+            .build();
+
+        final String nodeName1 = internalCluster().startNode(settings);
+        assertThat(cluster().size(), equalTo(1));
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("1")
+            .execute().actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
+
+        final String nodeName2 = internalCluster().startNode(settings);
+        assertThat(cluster().size(), equalTo(2));
+        healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
+
+        final String indexName = "fake_index";
+        client().admin().indices().prepareCreate(indexName).setWaitForActiveShards(ActiveShardCount.NONE)
+            .setSettings(Settings.builder()
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 2)
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1))
+        .execute().actionGet();
+
+        AllocationCommand allocateEmptyPrimaryCommand1 = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
+        AllocationCommand allocateEmptyPrimaryCommand2 = new AllocateEmptyPrimaryAllocationCommand(indexName, 1, nodeName2, true);
+        ClusterRerouteResponse response = client().admin().cluster().prepareReroute()
+            .setExplain(randomBoolean())
+            .add(allocateEmptyPrimaryCommand1)
+            .add(allocateEmptyPrimaryCommand2)
+            .execute().actionGet();
+
+        assertThat(response.getMessages().size(), equalTo(2));
+        assertThat(response.getMessages().get(0), containsString("Allocating an empty primary"));
+        assertThat(response.getMessages().get(1), containsString("Allocating an empty primary"));
     }
 
     public void testClusterRerouteWithBlocks() throws Exception {

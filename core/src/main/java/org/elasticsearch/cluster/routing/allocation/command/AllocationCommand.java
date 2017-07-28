@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * A command to move shards in some way.
@@ -67,7 +68,7 @@ public interface AllocationCommand extends NamedWriteable, ToXContent {
     /**
      * Returns any information from the command that is relevant to the user
      */
-    default List<String> getMessages() {
-        return Collections.emptyList();
+    default Optional<String> getMessage() {
+        return Optional.empty();
     }
 }

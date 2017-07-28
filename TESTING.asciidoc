@@ -541,11 +541,7 @@ Read your IDE documentation for how to attach a debugger to a JVM process.
 
 If you try to run the unit tests from IntelliJ, you might suffer from a Jar Hell issue.
 
-To fix it, add `idea.no.launcher=true` to your `idea.properties` and restart IntelliJ:
-
----------------------------------------------------------------------------
-echo idea.no.launcher=true >> ~/Library/Preferences/IntelliJIdea2017.1/idea.properties
----------------------------------------------------------------------------
+To fix it, open `Help -> Edit Custom Properties...` menu and add `idea.no.launcher=true` and restart IntelliJ
 
 == Building with extra plugins
 Additional plugins may be built alongside elasticsearch, where their

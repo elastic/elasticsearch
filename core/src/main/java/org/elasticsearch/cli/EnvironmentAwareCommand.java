@@ -66,12 +66,16 @@ public abstract class EnvironmentAwareCommand extends Command {
         putSystemPropertyIfSettingIsMissing(settings, "path.home", "es.path.home");
         putSystemPropertyIfSettingIsMissing(settings, "path.logs", "es.path.logs");
 
-        final String pathConf = System.getProperty("es.path.conf");
-        if (pathConf == null) {
+        execute(terminal, options, createEnv(terminal, settings));
+    }
+
+    /** Create an {@link Environment} for the command to use. Overrideable for tests. */
+    protected Environment createEnv(final Terminal terminal, final Map<String, String> settings) throws UserException {
+        final String esPathConf = System.getProperty("es.path.conf");
+        if (esPathConf == null) {
             throw new UserException(ExitCodes.CONFIG, "the system property es.path.conf must be set");
         }
-
-        execute(terminal, options, createEnv(terminal, settings, getConfigPath(pathConf)));
+        return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings, getConfigPath(esPathConf));
     }
 
     @SuppressForbidden(reason = "need path to construct environment")
@@ -79,13 +83,8 @@ public abstract class EnvironmentAwareCommand extends Command {
         return Paths.get(pathConf);
     }
 
-    /** Create an {@link Environment} for the command to use. Overrideable for tests. */
-    protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path configPath) {
-        return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings, configPath);
-    }
-
     /** Ensure the given setting exists, reading it from system properties if not already set. */
-    protected static void putSystemPropertyIfSettingIsMissing(final Map<String, String> settings, final String setting, final String key) {
+    private static void putSystemPropertyIfSettingIsMissing(final Map<String, String> settings, final String setting, final String key) {
         final String value = System.getProperty(key);
         if (value != null) {
             if (settings.containsKey(setting)) {

@@ -38,13 +38,10 @@ import java.util.Map;
 public abstract class EnvironmentAwareCommand extends Command {
 
     private final OptionSpec<KeyValuePair> settingOption;
-    private final OptionSpec<String> pathConfOption;
 
     public EnvironmentAwareCommand(String description) {
         super(description);
         this.settingOption = parser.accepts("E", "Configure a setting").withRequiredArg().ofType(KeyValuePair.class);
-        this.pathConfOption =
-                parser.acceptsAll(Arrays.asList("c", "path.conf"), "Configure config path").withRequiredArg().ofType(String.class);
     }
 
     @Override
@@ -70,13 +67,9 @@ public abstract class EnvironmentAwareCommand extends Command {
         putSystemPropertyIfSettingIsMissing(settings, "path.home", "es.path.home");
         putSystemPropertyIfSettingIsMissing(settings, "path.logs", "es.path.logs");
 
-        final String pathConf = pathConfOption.value(options);
-        execute(terminal, options, createEnv(terminal, settings, getConfigPath(pathConf)));
-    }
+        final Path pathConf = Paths.get(System.getProperty("es.path.conf"));
 
-    @SuppressForbidden(reason = "need path to construct environment")
-    private static Path getConfigPath(final String pathConf) {
-        return pathConf == null ? null : Paths.get(pathConf);
+        execute(terminal, options, createEnv(terminal, settings, pathConf));
     }
 
     /** Create an {@link Environment} for the command to use. Overrideable for tests. */

@@ -593,7 +593,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             if (binaryDocValues == null) {
                 return docId -> null;
             }
-            if (indexVersion.onOrAfter(Version.V_6_0_0_beta1)) {
+            if (indexVersion.onOrAfter(Version.V_6_1_0)) {
                 return docId -> {
                     if (binaryDocValues.advanceExact(docId)) {
                         BytesRef qbSource = binaryDocValues.binaryValue();

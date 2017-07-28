@@ -84,7 +84,7 @@ which is rendered as:
 {
 "query": {
   "terms": {
-    "status": [ "", "pending", "", published", "" ] <1>
+    "status": [ "", "pending", "", "published", "" ] <1>
   }
 }
 ------------------------------------------

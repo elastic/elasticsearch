@@ -21,6 +21,7 @@ import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.security.SecurityClusterClientYamlTestCase;
+import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 import org.elasticsearch.xpack.test.rest.XPackRestTestCase;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
@@ -107,22 +108,50 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assertThat(toStr(client().performRequest("GET", docLocation)), containsString(doc));
     }
 
+    @SuppressWarnings("unchecked")
     public void testSecurityNativeRealm() throws Exception {
         if (runningAgainstOldCluster) {
             createUser("preupgrade_user");
             createRole("preupgrade_role");
         } else {
             waitForYellow(".security");
-            // without upgrade, an error should be thrown
-            try {
-                createUser("postupgrade_user");
-                fail("should not be able to add a user when upgrade hasn't taken place");
-            } catch (ResponseException e) {
-                assertThat(e.getMessage(), containsString("Security index is not on the current version - " +
-                    "the native realm will not be operational until the upgrade API is run on the security index"));
+            Response settingsResponse = client().performRequest("GET", "/.security/_settings/index.format");
+            Map<String, Object> settingsResponseMap = toMap(settingsResponse);
+            logger.info("settings response map {}", settingsResponseMap);
+            final boolean needsUpgrade;
+            final String concreteSecurityIndex;
+            if (settingsResponseMap.isEmpty()) {
+                needsUpgrade = true;
+                concreteSecurityIndex = ".security";
+            } else {
+                concreteSecurityIndex = settingsResponseMap.keySet().iterator().next();
+                Map<String, Object> indexSettingsMap =
+                        (Map<String, Object>) settingsResponseMap.get(concreteSecurityIndex);
+                Map<String, Object> settingsMap = (Map<String, Object>) indexSettingsMap.get("settings");
+                logger.info("settings map {}", settingsMap);
+                if (settingsMap.containsKey("index")) {
+                    int format = Integer.parseInt(String.valueOf(((Map<String, Object>)settingsMap.get("index")).get("format")));
+                    needsUpgrade = format == IndexLifecycleManager.INTERNAL_INDEX_FORMAT ? false : true;
+                } else {
+                    needsUpgrade = true;
+                }
             }
-            // run upgrade API
-            client().performRequest("POST", "_xpack/migration/upgrade/.security");
+
+            if (needsUpgrade) {
+                logger.info("upgrading security index {}", concreteSecurityIndex);
+                // without upgrade, an error should be thrown
+                try {
+                    createUser("postupgrade_user");
+                    fail("should not be able to add a user when upgrade hasn't taken place");
+                } catch (ResponseException e) {
+                    assertThat(e.getMessage(), containsString("Security index is not on the current version - " +
+                            "the native realm will not be operational until the upgrade API is run on the security index"));
+                }
+                // run upgrade API
+                Response upgradeResponse = client().performRequest("POST", "_xpack/migration/upgrade/" + concreteSecurityIndex);
+                logger.info("upgrade response:\n{}", toStr(upgradeResponse));
+            }
+
             // create additional user and role
             createUser("postupgrade_user");
             createRole("postupgrade_role");
@@ -159,28 +188,33 @@ public class FullClusterRestartIT extends ESRestTestCase {
             logger.info("testing against {}", oldClusterVersion);
             waitForYellow(".watches,bwc_watch_index,.watcher-history*");
 
-            logger.info("checking that upgrade procedure on the new cluster is required");
+            logger.info("checking if the upgrade procedure on the new cluster is required");
             Map<String, Object> response = toMap(client().performRequest("GET", "/_xpack/migration/assistance"));
             logger.info(response);
 
             @SuppressWarnings("unchecked") Map<String, Object> indices = (Map<String, Object>) response.get("indices");
-            assertThat(indices.entrySet().size(), greaterThanOrEqualTo(1));
-            assertThat(indices.get(".watches"), notNullValue());
-            @SuppressWarnings("unchecked") Map<String, Object> index = (Map<String, Object>) indices.get(".watches");
-            assertThat(index.get("action_required"), equalTo("upgrade"));
+            if (indices.containsKey(".watches")) {
+                logger.info("upgrade procedure is required for watcher");
+                assertThat(indices.entrySet().size(), greaterThanOrEqualTo(1));
+                assertThat(indices.get(".watches"), notNullValue());
+                @SuppressWarnings("unchecked") Map<String, Object> index = (Map<String, Object>) indices.get(".watches");
+                assertThat(index.get("action_required"), equalTo("upgrade"));
 
-            logger.info("starting upgrade procedure on the new cluster");
+                logger.info("starting upgrade procedure on the new cluster");
 
-            Map<String, String> params = Collections.singletonMap("error_trace", "true");
-            Map<String, Object> upgradeResponse = toMap(client().performRequest("POST", "_xpack/migration/upgrade/.watches", params));
-            assertThat(upgradeResponse.get("timed_out"), equalTo(Boolean.FALSE));
-            // we posted 3 watches, but monitoring can post a few more
-            assertThat((int)upgradeResponse.get("total"), greaterThanOrEqualTo(3));
+                Map<String, String> params = Collections.singletonMap("error_trace", "true");
+                Map<String, Object> upgradeResponse = toMap(client().performRequest("POST", "_xpack/migration/upgrade/.watches", params));
+                assertThat(upgradeResponse.get("timed_out"), equalTo(Boolean.FALSE));
+                // we posted 3 watches, but monitoring can post a few more
+                assertThat((int) upgradeResponse.get("total"), greaterThanOrEqualTo(3));
 
-            logger.info("checking that upgrade procedure on the new cluster is no longer required");
-            Map<String, Object> responseAfter = toMap(client().performRequest("GET", "/_xpack/migration/assistance"));
-            @SuppressWarnings("unchecked") Map<String, Object> indicesAfter = (Map<String, Object>) responseAfter.get("indices");
-            assertNull(indicesAfter.get(".watches"));
+                logger.info("checking that upgrade procedure on the new cluster is no longer required");
+                Map<String, Object> responseAfter = toMap(client().performRequest("GET", "/_xpack/migration/assistance"));
+                @SuppressWarnings("unchecked") Map<String, Object> indicesAfter = (Map<String, Object>) responseAfter.get("indices");
+                assertNull(indicesAfter.get(".watches"));
+            } else {
+                logger.info("upgrade procedure is not required for watcher");
+            }
 
             // Wait for watcher to actually start....
             Map<String, Object> startWatchResponse = toMap(client().performRequest("POST", "_xpack/watcher/_start"));

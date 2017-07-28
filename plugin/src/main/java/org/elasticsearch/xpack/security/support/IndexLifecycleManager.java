@@ -49,7 +49,7 @@ import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY
 public class IndexLifecycleManager extends AbstractComponent {
 
     public static final String INTERNAL_SECURITY_INDEX = ".security-v6";
-    private static final int INTERNAL_INDEX_FORMAT = 6;
+    public static final int INTERNAL_INDEX_FORMAT = 6;
     private static final String SECURITY_VERSION_STRING = "security-version";
     public static final String TEMPLATE_VERSION_PATTERN =
             Pattern.quote("${security.template.version}");
@@ -68,10 +68,6 @@ public class IndexLifecycleManager extends AbstractComponent {
     private volatile boolean canWriteToIndex;
     private volatile boolean mappingIsUpToDate;
     private volatile Version mappingVersion;
-
-    public enum UpgradeState {
-        NOT_STARTED, IN_PROGRESS, COMPLETE, FAILED
-    }
 
     public IndexLifecycleManager(Settings settings, InternalClient client, String indexName, String templateName) {
         super(settings);
@@ -124,7 +120,7 @@ public class IndexLifecycleManager extends AbstractComponent {
         this.templateIsUpToDate = TemplateUtils.checkTemplateExistsAndIsUpToDate(templateName,
             SECURITY_VERSION_STRING, state, logger);
         this.mappingIsUpToDate = checkIndexMappingUpToDate(state);
-        this.canWriteToIndex = templateIsUpToDate && mappingIsUpToDate;
+        this.canWriteToIndex = templateIsUpToDate && (mappingIsUpToDate || isIndexUpToDate);
         this.mappingVersion = oldestIndexMappingVersion(state);
     }
 

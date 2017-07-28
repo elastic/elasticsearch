@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ml.MlParserType;
+import org.elasticsearch.xpack.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -224,97 +225,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
      * Returns the histogram's interval as epoch millis.
      */
     public long getHistogramIntervalMillis() {
-        AggregationBuilder histogramAggregation = getHistogramAggregation(aggregations.getAggregatorFactories());
-        return getHistogramIntervalMillis(histogramAggregation);
-    }
-
-    private static long getHistogramIntervalMillis(AggregationBuilder histogramAggregation) {
-        if (histogramAggregation instanceof HistogramAggregationBuilder) {
-            return (long) ((HistogramAggregationBuilder) histogramAggregation).interval();
-        } else if (histogramAggregation instanceof DateHistogramAggregationBuilder) {
-            return validateAndGetDateHistogramInterval((DateHistogramAggregationBuilder) histogramAggregation);
-        } else {
-            throw new IllegalStateException("Invalid histogram aggregation [" + histogramAggregation.getName() + "]");
-        }
-    }
-
-    static AggregationBuilder getHistogramAggregation(List<AggregationBuilder> aggregations) {
-        if (aggregations.isEmpty()) {
-            throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM));
-        }
-        if (aggregations.size() != 1) {
-            throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM_NO_SIBLINGS);
-        }
-
-        AggregationBuilder agg = aggregations.get(0);
-        if (isHistogram(agg)) {
-            return agg;
-        } else {
-            return getHistogramAggregation(agg.getSubAggregations());
-        }
-    }
-
-    private static boolean isHistogram(AggregationBuilder aggregationBuilder) {
-        return aggregationBuilder instanceof HistogramAggregationBuilder
-                || aggregationBuilder instanceof DateHistogramAggregationBuilder;
-    }
-
-    /**
-     * Returns the date histogram interval as epoch millis if valid, or throws
-     * an {@link ElasticsearchException} with the validation error
-     */
-    private static long validateAndGetDateHistogramInterval(DateHistogramAggregationBuilder dateHistogram) {
-        if (dateHistogram.timeZone() != null && dateHistogram.timeZone().equals(DateTimeZone.UTC) == false) {
-            throw ExceptionsHelper.badRequestException("ML requires date_histogram.time_zone to be UTC");
-        }
-
-        if (dateHistogram.dateHistogramInterval() != null) {
-            return validateAndGetCalendarInterval(dateHistogram.dateHistogramInterval().toString());
-        } else {
-            return dateHistogram.interval();
-        }
-    }
-
-    private static long validateAndGetCalendarInterval(String calendarInterval) {
-        TimeValue interval;
-        DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(calendarInterval);
-        if (dateTimeUnit != null) {
-            switch (dateTimeUnit) {
-                case WEEK_OF_WEEKYEAR:
-                    interval = new TimeValue(7, TimeUnit.DAYS);
-                    break;
-                case DAY_OF_MONTH:
-                    interval = new TimeValue(1, TimeUnit.DAYS);
-                    break;
-                case HOUR_OF_DAY:
-                    interval = new TimeValue(1, TimeUnit.HOURS);
-                    break;
-                case MINUTES_OF_HOUR:
-                    interval = new TimeValue(1, TimeUnit.MINUTES);
-                    break;
-                case SECOND_OF_MINUTE:
-                    interval = new TimeValue(1, TimeUnit.SECONDS);
-                    break;
-                case MONTH_OF_YEAR:
-                case YEAR_OF_CENTURY:
-                case QUARTER:
-                    throw ExceptionsHelper.badRequestException(invalidDateHistogramCalendarIntervalMessage(calendarInterval));
-                default:
-                    throw ExceptionsHelper.badRequestException("Unexpected dateTimeUnit [" + dateTimeUnit + "]");
-            }
-        } else {
-            interval = TimeValue.parseTimeValue(calendarInterval, "date_histogram.interval");
-        }
-        if (interval.days() > 7) {
-            throw ExceptionsHelper.badRequestException(invalidDateHistogramCalendarIntervalMessage(calendarInterval));
-        }
-        return interval.millis();
-    }
-
-    private static String invalidDateHistogramCalendarIntervalMessage(String interval) {
-        throw ExceptionsHelper.badRequestException("When specifying a date_histogram calendar interval ["
-                + interval + "], ML does not accept intervals longer than a week because of " +
-                "variable lengths of periods greater than a week");
+        return ExtractorUtils.getHistogramIntervalMillis(aggregations);
     }
 
     /**
@@ -570,7 +481,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
             }
 
-            AggregationBuilder histogramAggregation = getHistogramAggregation(aggregatorFactories);
+            AggregationBuilder histogramAggregation = ExtractorUtils.getHistogramAggregation(aggregatorFactories);
             checkNoMoreHistogramAggregations(histogramAggregation.getSubAggregations());
             checkHistogramAggregationHasChildMaxTimeAgg(histogramAggregation);
             checkHistogramIntervalIsPositive(histogramAggregation);
@@ -578,7 +489,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
         private static void checkNoMoreHistogramAggregations(List<AggregationBuilder> aggregations) {
             for (AggregationBuilder agg : aggregations) {
-                if (isHistogram(agg)) {
+                if (ExtractorUtils.isHistogram(agg)) {
                     throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_MAX_ONE_DATE_HISTOGRAM);
                 }
                 checkNoMoreHistogramAggregations(agg.getSubAggregations());
@@ -605,7 +516,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
 
         private static void checkHistogramIntervalIsPositive(AggregationBuilder histogramAggregation) {
-            long interval = getHistogramIntervalMillis(histogramAggregation);
+            long interval = ExtractorUtils.getHistogramIntervalMillis(histogramAggregation);
             if (interval <= 0) {
                 throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
             }
@@ -616,8 +527,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 if (aggregations == null) {
                     chunkingConfig = ChunkingConfig.newAuto();
                 } else {
-                    AggregationBuilder histogramAggregation = getHistogramAggregation(aggregations.getAggregatorFactories());
-                    long histogramIntervalMillis = getHistogramIntervalMillis(histogramAggregation);
+                    long histogramIntervalMillis = ExtractorUtils.getHistogramIntervalMillis(aggregations);
                     chunkingConfig = ChunkingConfig.newManual(TimeValue.timeValueMillis(
                             DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis));
                 }

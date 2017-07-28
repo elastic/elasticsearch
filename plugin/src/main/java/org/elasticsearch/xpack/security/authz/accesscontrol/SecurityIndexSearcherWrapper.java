@@ -352,7 +352,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
     static void failIfQueryUsesClient(QueryBuilder queryBuilder, QueryRewriteContext original)
             throws IOException {
         QueryRewriteContext copy = new QueryRewriteContext(
-                original.getXContentRegistry(), null, original::nowInMillis);
+                original.getXContentRegistry(), original.getWriteableRegistry(), null, original::nowInMillis);
         Rewriteable.rewrite(queryBuilder, copy);
         if (copy.hasAsyncActions()) {
             throw new IllegalStateException("role queries are not allowed to execute additional requests");

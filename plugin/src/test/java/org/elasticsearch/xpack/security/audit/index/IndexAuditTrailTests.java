@@ -164,6 +164,13 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                     return builder.build();
                 }
             }
+
+            @Override
+            protected void addDefaultSecurityTransportType(Settings.Builder builder, Settings settings) {
+                if (useSecurity) {
+                    super.addDefaultSecurityTransportType(builder, settings);
+                }
+            }
         };
 
 

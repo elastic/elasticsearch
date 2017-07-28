@@ -82,10 +82,10 @@ An analysis configuration object has the following properties:
   typically between `5m` and `1h`. The default value is `5m`.
 
 `categorization_field_name`::
-  (string) If not null, the values of the specified field will be categorized.
-  The resulting categories can be used in a detector by setting `by_field_name`,
-  `over_field_name`, or `partition_field_name` to the keyword `mlcategory`.
-  For more information, see
+  (string) If this property is specified, the values of the specified field will
+  be categorized. The resulting categories must be used in a detector by setting
+  `by_field_name`, `over_field_name`, or `partition_field_name` to the keyword
+  `mlcategory`. For more information, see
   {xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
 //<<ml-configuring-categories>>.
 
@@ -117,8 +117,11 @@ no analysis can occur and an error is returned.
   aggregates results for each influencer entity.
 
 `latency`::
-  (unsigned integer) The size of the window, in seconds, in which to expect data
-  that is out of time order. The default value is 0 (no latency). +
+  (time units) The size of the window in which to expect data that is out of
+  time order. The default value is 0 (no latency). If you specify a non-zero
+  value, it must be greater than or equal to one second. For more information
+  about time units, see
+  {ref}/common-options.html#time-units[Time Units]. +
 
 NOTE: Latency is only applicable when you send data by using
 the <<ml-post-data,post data>> API.
@@ -138,10 +141,10 @@ NOTE: To use the `multivariate_by_fields` property, you must also specify
 `by_field_name` in your detector.
 
 `summary_count_field_name`::
-  (string) If not null, the data that is fed to the job is expected to be
-  pre-summarized. This property value is the name of the field that contains
-  the count of raw data points that have been summarized.
-  The same `summary_count_field_name` applies to all detectors in the job. +
+  (string) If this property is specified, the data that is fed to the job is
+  expected to be pre-summarized. This property value is the name of the field
+  that contains the count of raw data points that have been summarized. The same
+  `summary_count_field_name` applies to all detectors in the job. +
 
 NOTE: The `summary_count_field_name` property cannot be used with the `metric`
 function.

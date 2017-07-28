@@ -9,12 +9,7 @@ The update model snapshot API enables you to update certain properties of a snap
 `POST _xpack/ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_update`
 
 
-==== Description
-
-//TBD. Is the following still true? - not sure but close/open would be the method
-Updates to the configuration are only applied after the job has been closed
-and re-opened.
-
+//==== Description
 
 ==== Path Parameters
 

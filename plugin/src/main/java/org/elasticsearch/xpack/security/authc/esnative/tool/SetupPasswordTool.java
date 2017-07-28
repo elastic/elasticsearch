@@ -59,10 +59,18 @@ public class SetupPasswordTool extends MultiCommand {
     SetupPasswordTool(Function<Environment, CommandLineHttpClient> clientFunction,
                       CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
         super("Sets the passwords for reserved users");
-        subcommands.put("auto", new AutoSetup());
-        subcommands.put("interactive", new InteractiveSetup());
+        subcommands.put("auto", newAutoSetup());
+        subcommands.put("interactive", newInteractiveSetup());
         this.clientFunction = clientFunction;
         this.keyStoreFunction = keyStoreFunction;
+    }
+
+    protected AutoSetup newAutoSetup() {
+        return new AutoSetup();
+    }
+
+    protected InteractiveSetup newInteractiveSetup() {
+        return new InteractiveSetup();
     }
 
     public static void main(String[] args) throws Exception {
@@ -73,7 +81,7 @@ public class SetupPasswordTool extends MultiCommand {
      * This class sets the passwords using automatically generated random passwords. The passwords will be
      * printed to the console.
      */
-    private class AutoSetup extends SetupCommand {
+    class AutoSetup extends SetupCommand {
 
         AutoSetup() {
             super("Uses randomly generated passwords");
@@ -116,7 +124,7 @@ public class SetupPasswordTool extends MultiCommand {
     /**
      * This class sets the passwords using password entered manually by the user from the console.
      */
-    private class InteractiveSetup extends SetupCommand {
+    class InteractiveSetup extends SetupCommand {
 
         InteractiveSetup() {
             super("Uses passwords entered by a user");

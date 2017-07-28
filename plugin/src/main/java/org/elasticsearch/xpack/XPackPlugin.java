@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -106,6 +107,7 @@ import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.WatcherFeatureSet;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.GeneralSecurityException;
@@ -207,7 +209,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     protected Graph graph;
     protected MachineLearning machineLearning;
     protected Logstash logstash;
-    protected CryptoService cryptoService;
+
     protected Deprecation deprecation;
     protected Upgrade upgrade;
     protected SqlPlugin sql;
@@ -237,7 +239,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         } else {
             this.extensionsService = null;
         }
-        cryptoService = ENCRYPT_SENSITIVE_DATA_SETTING.get(settings) ? new CryptoService(settings) : null;
     }
 
     // For tests only
@@ -270,7 +271,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry) {
+                                               NamedXContentRegistry xContentRegistry, Environment environment,
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         List<Object> components = new ArrayList<>();
         components.add(sslService);
 
@@ -290,6 +292,13 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         }
         components.addAll(monitoring.createComponents(internalClient, threadPool, clusterService, licenseService, sslService));
 
+        final CryptoService cryptoService;
+        try {
+            cryptoService = ENCRYPT_SENSITIVE_DATA_SETTING.get(settings) ? new CryptoService(settings) : null;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
         // watcher http stuff
         Map<String, HttpAuthFactory> httpAuthFactories = new HashMap<>();
         httpAuthFactories.put(BasicAuth.TYPE, new BasicAuthFactory(cryptoService));
@@ -301,7 +310,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         components.add(httpClient);
 
         Collection<Object> notificationComponents = createNotificationComponents(clusterService.getClusterSettings(), httpClient,
-                httpTemplateParser, scriptService, httpAuthRegistry);
+                httpTemplateParser, scriptService, httpAuthRegistry, cryptoService);
         components.addAll(notificationComponents);
 
         components.addAll(watcher.createComponents(getClock(), scriptService, internalClient, licenseState,
@@ -328,7 +337,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
     private Collection<Object> createNotificationComponents(ClusterSettings clusterSettings, HttpClient httpClient,
                                                             HttpRequestTemplate.Parser httpTemplateParser, ScriptService scriptService,
-                                                            HttpAuthRegistry httpAuthRegistry) {
+                                                            HttpAuthRegistry httpAuthRegistry, CryptoService cryptoService) {
         List<Object> components = new ArrayList<>();
         components.add(new EmailService(settings, cryptoService, clusterSettings));
         components.add(new HipChatService(settings, httpClient, clusterSettings));

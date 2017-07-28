@@ -10,7 +10,11 @@ import com.google.common.jimfs.Jimfs;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.junit.After;
@@ -19,6 +23,7 @@ import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
+import java.util.Map;
 import java.util.Set;
 
 public class SystemKeyToolTests extends CommandTestCase {
@@ -41,7 +46,14 @@ public class SystemKeyToolTests extends CommandTestCase {
 
     @Override
     protected Command newCommand() {
-        return new SystemKeyTool();
+        return new SystemKeyTool() {
+
+            @Override
+            protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+                return new Environment(Settings.builder().put(settings).build());
+            }
+
+        };
     }
 
     public void testGenerate() throws Exception {

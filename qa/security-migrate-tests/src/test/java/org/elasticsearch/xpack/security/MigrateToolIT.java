@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.user.User;
 import org.junit.Before;
 
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -50,8 +51,10 @@ public class MigrateToolIT extends MigrateToolTestCase {
     }
 
     public void testRunMigrateTool() throws Exception {
-        logger.info("--> CONF: {}", System.getProperty("tests.config.dir"));
-        Settings settings = Settings.builder().put("path.home", PathUtils.get(System.getProperty("tests.config.dir")).getParent()).build();
+        final String testConfigDir = System.getProperty("tests.config.dir");
+        logger.info("--> CONF: {}", testConfigDir);
+        final Path configPath = PathUtils.get(testConfigDir);
+        Settings settings = Settings.builder().put("path.home", configPath.getParent()).build();
         // Cluster should already be up
         String url = "http://" + getHttpURL();
         logger.info("--> using URL: {}", url);
@@ -59,9 +62,8 @@ public class MigrateToolIT extends MigrateToolTestCase {
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
         OptionParser parser = muor.getParser();
 
-        OptionSet options = parser.parse("-u", "test_admin", "-p", "x-pack-test-password", "-U", url,
-                "--path.conf", System.getProperty("tests.config.dir"));
-        muor.execute(t, options, new Environment(settings));
+        OptionSet options = parser.parse("-u", "test_admin", "-p", "x-pack-test-password", "-U", url);
+        muor.execute(t, options, new Environment(settings, configPath));
 
         logger.info("--> output:\n{}", t.getOutput());
 

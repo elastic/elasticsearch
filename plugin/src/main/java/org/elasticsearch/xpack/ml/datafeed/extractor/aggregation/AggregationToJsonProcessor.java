@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -45,6 +46,7 @@ class AggregationToJsonProcessor {
     private final LinkedHashMap<String, Object> keyValuePairs;
     private long keyValueWrittenCount;
     private SortedMap<Long, List<Map<String, Object>>> docsByBucketTimestamp;
+    private long startTime;
 
     /**
      * Constructs a processor that processes aggregations into JSON
@@ -52,8 +54,9 @@ class AggregationToJsonProcessor {
      * @param timeField the time field
      * @param fields the fields to convert into JSON
      * @param includeDocCount whether to include the doc_count
+     * @param startTime buckets with a timestamp before this time are discarded
      */
-    AggregationToJsonProcessor(String timeField, Set<String> fields, boolean includeDocCount)
+    AggregationToJsonProcessor(String timeField, Set<String> fields, boolean includeDocCount, long startTime)
             throws IOException {
         this.timeField = Objects.requireNonNull(timeField);
         this.fields = Objects.requireNonNull(fields);
@@ -61,6 +64,7 @@ class AggregationToJsonProcessor {
         keyValuePairs = new LinkedHashMap<>();
         docsByBucketTimestamp = new TreeMap<>();
         keyValueWrittenCount = 0;
+        this.startTime = startTime;
     }
 
     public void process(Aggregations aggs) throws IOException {
@@ -145,11 +149,38 @@ class AggregationToJsonProcessor {
                     "[" + agg.getName() + "] is another instance of a Date histogram");
         }
 
+        // buckets are ordered by time, once we get to a bucket past the
+        // start time we no longer need to check the time.
+        boolean checkBucketTime = true;
         for (Histogram.Bucket bucket : agg.getBuckets()) {
-            List<Aggregation> childAggs = bucket.getAggregations().asList();
+            if (checkBucketTime) {
+                if (toHistogramKeyToEpoch(bucket.getKey()) < startTime) {
+                    // skip buckets outside the required time range
+                    continue;
+                } else {
+                    checkBucketTime = false;
+                }
+            }
 
+            List<Aggregation> childAggs = bucket.getAggregations().asList();
             processAggs(bucket.getDocCount(), childAggs);
             keyValuePairs.remove(timeField);
+        }
+    }
+
+    /*
+     * Date Histograms have a {@link DateTime} object as the key,
+     * Histograms have either a Double or Long.
+     */
+    private long toHistogramKeyToEpoch(Object key) {
+        if (key instanceof DateTime) {
+            return ((DateTime)key).getMillis();
+        } else if (key instanceof Double) {
+            return ((Double)key).longValue();
+        } else if (key instanceof Long){
+            return (Long)key;
+        } else {
+            throw new IllegalStateException("Histogram key [" + key + "] cannot be converted to a timestamp");
         }
     }
 

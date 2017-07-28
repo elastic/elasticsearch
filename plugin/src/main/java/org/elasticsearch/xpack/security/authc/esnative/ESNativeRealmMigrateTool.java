@@ -81,7 +81,11 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
 
     public ESNativeRealmMigrateTool() {
         super("Imports file-based users and roles to the native security realm");
-        subcommands.put("native", new MigrateUserOrRoles());
+        subcommands.put("native", newMigrateUserOrRoles());
+    }
+
+    protected MigrateUserOrRoles newMigrateUserOrRoles() {
+        return new MigrateUserOrRoles();
     }
 
     /**

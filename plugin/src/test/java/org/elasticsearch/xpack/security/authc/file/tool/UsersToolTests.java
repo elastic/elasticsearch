@@ -10,7 +10,9 @@ import com.google.common.jimfs.Jimfs;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -19,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.security.authc.UserTokenTests;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -36,6 +39,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class UsersToolTests extends CommandTestCase {
@@ -102,7 +106,57 @@ public class UsersToolTests extends CommandTestCase {
 
     @Override
     protected Command newCommand() {
-        return new UsersTool();
+        return new UsersTool() {
+            @Override
+            protected AddUserCommand newAddUserCommand() {
+                return new AddUserCommand() {
+                    @Override
+                    protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+                        return new Environment(UsersToolTests.this.settings, confDir.getParent());
+                    }
+                };
+            }
+
+            @Override
+            protected DeleteUserCommand newDeleteUserCommand() {
+                return new DeleteUserCommand() {
+                    @Override
+                    protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+                        return new Environment(UsersToolTests.this.settings, confDir.getParent());
+                    }
+                };
+            }
+
+            @Override
+            protected PasswordCommand newPasswordCommand() {
+                return new PasswordCommand() {
+                    @Override
+                    protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+                        return new Environment(UsersToolTests.this.settings, confDir.getParent());
+                    }
+                };
+            }
+
+            @Override
+            protected RolesCommand newRolesCommand() {
+                return new RolesCommand() {
+                    @Override
+                    protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+                        return new Environment(UsersToolTests.this.settings, confDir.getParent());
+                    }
+                };
+            }
+
+            @Override
+            protected ListCommand newListCommand() {
+                return new ListCommand() {
+                    @Override
+                    protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+                        return new Environment(UsersToolTests.this.settings, confDir.getParent());
+                    }
+                };
+            }
+        };
     }
 
     /** checks the user exists with the given password */

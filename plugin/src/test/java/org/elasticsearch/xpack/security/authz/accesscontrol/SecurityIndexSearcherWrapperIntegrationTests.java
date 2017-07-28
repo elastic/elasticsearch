@@ -72,7 +72,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, null, null, mapperService, null,
-                null, xContentRegistry(), client, null, () -> nowInMillis, null);
+                null, xContentRegistry(), writableRegistry(), client, null, () -> nowInMillis, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {

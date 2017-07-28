@@ -353,73 +353,18 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         TermsAggregationBuilder nestedTerms = AggregationBuilders.terms("nested_terms");
 
         DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("time");
-        AggregationBuilder histogramAggregationBuilder = DatafeedConfig.getHistogramAggregation(
-                new AggregatorFactories.Builder().addAggregator(dateHistogram).getAggregatorFactories());
-        assertEquals(dateHistogram, histogramAggregationBuilder);
 
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         dateHistogram.subAggregation(avg).subAggregation(nestedTerms).subAggregation(maxTime).field("time");
-        histogramAggregationBuilder = DatafeedConfig.getHistogramAggregation(
-                new AggregatorFactories.Builder().addAggregator(dateHistogram).getAggregatorFactories());
-        assertEquals(dateHistogram, histogramAggregationBuilder);
 
         TermsAggregationBuilder toplevelTerms = AggregationBuilders.terms("top_level");
         toplevelTerms.subAggregation(dateHistogram);
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("foo", "bar");
         builder.setAggregations(new AggregatorFactories.Builder().addAggregator(toplevelTerms));
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> builder.validateAggregations());
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::validateAggregations);
 
         assertEquals("Aggregations can only have 1 date_histogram or histogram aggregation", e.getMessage());
-    }
-
-    public void testGetHistogramAggregation_MissingHistogramAgg() {
-        TermsAggregationBuilder terms = AggregationBuilders.terms("top_level");
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> DatafeedConfig.getHistogramAggregation(
-                new AggregatorFactories.Builder().addAggregator(terms).getAggregatorFactories()));
-        assertEquals("A date_histogram (or histogram) aggregation is required", e.getMessage());
-    }
-
-    public void testGetHistogramAggregation_DateHistogramHasSibling() {
-        AvgAggregationBuilder avg = AggregationBuilders.avg("avg");
-        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("time");
-
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> DatafeedConfig.getHistogramAggregation(
-                        new AggregatorFactories.Builder().addAggregator(avg).addAggregator(dateHistogram).getAggregatorFactories()));
-        assertEquals("The date_histogram (or histogram) aggregation cannot have sibling aggregations", e.getMessage());
-
-        TermsAggregationBuilder terms = AggregationBuilders.terms("terms");
-        terms.subAggregation(dateHistogram);
-        terms.subAggregation(avg);
-        e = expectThrows(ElasticsearchException.class,
-                () -> DatafeedConfig.getHistogramAggregation(
-                        new AggregatorFactories.Builder().addAggregator(terms).getAggregatorFactories()));
-        assertEquals("The date_histogram (or histogram) aggregation cannot have sibling aggregations", e.getMessage());
-    }
-
-    public void testGetHistogramAggregation() {
-        AvgAggregationBuilder avg = AggregationBuilders.avg("avg");
-        TermsAggregationBuilder nestedTerms = AggregationBuilders.terms("nested_terms");
-
-        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("time");
-        AggregationBuilder histogramAggregationBuilder = DatafeedConfig.getHistogramAggregation(
-                new AggregatorFactories.Builder().addAggregator(dateHistogram).getAggregatorFactories());
-        assertEquals(dateHistogram, histogramAggregationBuilder);
-
-        dateHistogram.subAggregation(avg).subAggregation(nestedTerms);
-        histogramAggregationBuilder = DatafeedConfig.getHistogramAggregation(
-                new AggregatorFactories.Builder().addAggregator(dateHistogram).getAggregatorFactories());
-        assertEquals(dateHistogram, histogramAggregationBuilder);
-
-        TermsAggregationBuilder toplevelTerms = AggregationBuilders.terms("top_level");
-        toplevelTerms.subAggregation(dateHistogram);
-        histogramAggregationBuilder = DatafeedConfig.getHistogramAggregation(
-                new AggregatorFactories.Builder().addAggregator(toplevelTerms).getAggregatorFactories());
-
-        assertEquals(dateHistogram, histogramAggregationBuilder);
     }
 
     public static String randomValidDatafeedId() {

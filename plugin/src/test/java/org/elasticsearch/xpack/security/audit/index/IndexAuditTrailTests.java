@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.audit.index;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -313,12 +312,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         auditor.start(true);
     }
 
-    public void testEmptyTestToDeleteAfterResolvingAwaitsFix() {
-        // At least one test must run for the test suite to pass
-        assertTrue(true);
-    }
-
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testAnonymousAccessDeniedTransport() throws Exception {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
@@ -342,7 +335,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testAnonymousAccessDeniedRest() throws Exception {
         initialize();
         RestRequest request = mockRestRequest();
@@ -357,7 +349,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertRequestBody(sourceMap);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testAuthenticationFailedTransport() throws Exception {
         initialize();
         TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
@@ -378,7 +369,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testAuthenticationFailedTransportNoToken() throws Exception {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
@@ -403,7 +393,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testAuthenticationFailedRest() throws Exception {
         initialize();
         RestRequest request = mockRestRequest();
@@ -419,7 +408,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertRequestBody(sourceMap);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testAuthenticationFailedRestNoToken() throws Exception {
         initialize();
         RestRequest request = mockRestRequest();
@@ -435,7 +423,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertRequestBody(sourceMap);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testAuthenticationFailedTransportRealm() throws Exception {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
@@ -462,7 +449,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testAuthenticationFailedRestRealm() throws Exception {
         initialize();
         RestRequest request = mockRestRequest();
@@ -478,7 +464,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertRequestBody(sourceMap);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testAccessGranted() throws Exception {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
@@ -509,7 +494,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testSystemAccessGranted() throws Exception {
         initialize(new String[] { "system_access_granted" }, null);
         TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
@@ -524,7 +508,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testAccessDenied() throws Exception {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
@@ -555,7 +538,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testTamperedRequestRest() throws Exception {
         initialize();
         RestRequest request = mockRestRequest();
@@ -571,7 +553,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertRequestBody(sourceMap);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testTamperedRequest() throws Exception {
         initialize();
         TransportRequest message = new RemoteHostMockTransportRequest();
@@ -586,7 +567,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testTamperedRequestWithUser() throws Exception {
         initialize();
         TransportRequest message = new RemoteHostMockTransportRequest();
@@ -614,7 +594,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testConnectionGranted() throws Exception {
         initialize();
         InetAddress inetAddress = InetAddress.getLoopbackAddress();
@@ -629,7 +608,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals("default", sourceMap.get("transport_profile"));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testConnectionDenied() throws Exception {
         initialize();
         InetAddress inetAddress = InetAddress.getLoopbackAddress();
@@ -644,7 +622,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals("default", sourceMap.get("transport_profile"));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testRunAsGranted() throws Exception {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
@@ -661,7 +638,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testRunAsDenied() throws Exception {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
@@ -678,7 +654,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testAuthenticationSuccessRest() throws Exception {
         initialize();
         RestRequest request = mockRestRequest();
@@ -706,7 +681,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals("_realm", sourceMap.get("realm"));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2115")
     public void testAuthenticationSuccessTransport() throws Exception {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());

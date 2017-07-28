@@ -799,7 +799,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testWithInvalidScores() {
-        IndexSearcher localSearcher = newSearcher(reader);
+        IndexSearcher localSearcher = new IndexSearcher(reader);
         FunctionScoreQuery query1 = new FunctionScoreQuery(new TermQuery(new Term(FIELD, "out")),
             new ConstantScoreFunction(Float.NaN), CombineFunction.REPLACE, null, Float.POSITIVE_INFINITY);
         ElasticsearchException exc = expectThrows(ElasticsearchException.class, () -> localSearcher.search(query1, 1));

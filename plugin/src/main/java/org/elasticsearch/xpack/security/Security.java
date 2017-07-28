@@ -659,6 +659,10 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         for (Map.Entry<String, Settings> tribeSettings : tribesSettings.entrySet()) {
             String tribePrefix = "tribe." + tribeSettings.getKey() + ".";
 
+            if (TribeService.TRIBE_SETTING_KEYS.stream().anyMatch(s -> s.startsWith(tribePrefix))) {
+                continue;
+            }
+
             final String tribeEnabledSetting = tribePrefix + XPackSettings.SECURITY_ENABLED.getKey();
             if (settings.get(tribeEnabledSetting) != null) {
                 boolean enabled = XPackSettings.SECURITY_ENABLED.get(tribeSettings.getValue());

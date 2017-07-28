@@ -27,11 +27,13 @@ dependencyLicenses {
   mapping from: /bc.*/, to: 'bouncycastle'
   mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
   mapping from: /transport-netty.*/, to: 'elasticsearch'
+  mapping from: /tribe.*/, to: 'elasticsearch'
   mapping from: /elasticsearch-rest-client.*/, to: 'elasticsearch'
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
   ignoreSha 'elasticsearch-rest-client'
   ignoreSha 'transport-netty4'
+  ignoreSha 'tribe'
   ignoreSha 'elasticsearch-rest-client-sniffer'
 }
 
@@ -54,6 +56,7 @@ configurations {
 
 dependencies {
   // security deps
+  compile project(path: ':modules:tribe', configuration: 'runtime')
   compile project(path: ':modules:transport-netty4', configuration: 'runtime')
   compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
   compile 'org.bouncycastle:bcprov-jdk15on:1.55'

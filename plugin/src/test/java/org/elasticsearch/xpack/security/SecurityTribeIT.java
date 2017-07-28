@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.MockNode;
@@ -27,6 +28,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
+import org.elasticsearch.tribe.TribePlugin;
 import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.action.user.PutUserResponse;
@@ -37,7 +40,9 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -45,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
@@ -81,6 +87,14 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
                                     .put(super.nodeSettings(nodeOrdinal))
                                     .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                                     .build();
+                        }
+
+                        @Override
+                        public Collection<Class<? extends Plugin>> nodePlugins() {
+                            ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+                            plugins.add(MockTribePlugin.class);
+                            plugins.add(TribeAwareTestZenDiscoveryPlugin.class);
+                            return plugins;
                         }
                     };
 
@@ -147,6 +161,47 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
     @Override
     protected boolean shouldSetReservedUserPasswords() {
         return false;
+    }
+
+    @Override
+    protected boolean addTestZenDiscovery() {
+        return false;
+    }
+
+    public static class TribeAwareTestZenDiscoveryPlugin extends TestZenDiscovery.TestPlugin {
+
+        public TribeAwareTestZenDiscoveryPlugin(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        public Settings additionalSettings() {
+            if (settings.getGroups("tribe", true).isEmpty()) {
+                return super.additionalSettings();
+            } else {
+                return Settings.EMPTY;
+            }
+        }
+    }
+
+    public static class MockTribePlugin extends TribePlugin {
+
+        public MockTribePlugin(Settings settings) {
+            super(settings);
+        }
+
+        protected Function<Settings, Node> nodeBuilder(Path configPath) {
+            return settings -> new MockNode(new Environment(settings, configPath), internalCluster().getPlugins());
+        }
+
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(MockTribePlugin.class);
+        plugins.add(TribeAwareTestZenDiscoveryPlugin.class);
+        return plugins;
     }
 
     private void setupTribeNode(Settings settings) throws Exception {

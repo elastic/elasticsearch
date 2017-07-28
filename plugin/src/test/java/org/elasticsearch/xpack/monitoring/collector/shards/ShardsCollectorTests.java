@@ -92,6 +92,7 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
         assertThat(replicas, equalTo(expectedReplicas));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/96")
     public void testShardsCollectorMultipleIndices() throws Exception {
         final String indexPrefix = "test-shards-";
         final int nbIndices = randomIntBetween(1, 3);

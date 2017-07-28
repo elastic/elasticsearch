@@ -44,7 +44,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 
 import java.util.Collections;
 
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -100,7 +99,6 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         assertThat(target.toString(), equalTo(source.toString()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25870")
     public void testSnapshotDeletionsInProgressSerialization() throws Exception {
 
         boolean includeRestore = randomBoolean();
@@ -140,7 +138,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         // serialize with old version
         outStream = new BytesStreamOutput();
-        outStream.setVersion(Version.CURRENT.minimumIndexCompatibilityVersion());
+        outStream.setVersion(Version.V_5_0_0);
         diffs.writeTo(outStream);
         inStream = outStream.bytes().streamInput();
         inStream = new NamedWriteableAwareStreamInput(inStream, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));

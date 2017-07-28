@@ -1,6 +1,10 @@
 [[client]]
 == Client
 
+deprecated::[6.0.0, The `TransportClient` is deprecated in favor of the
+ {java-rest}/java-rest-high.html[Java High Level REST Client], which
+ sends HTTP requests instead of using the transport layer.]
+
 You can use the *Java client* in multiple ways:
 
 * Perform standard <<java-docs-index,index>>, <<java-docs-get,get>>,
@@ -22,11 +26,6 @@ be supported.  Ideally, the client should have the same version as the
 cluster.
 
 ==============================
-
-NOTE: The `TransportClient` is aimed to be replaced by the Java High Level REST
-Client, which executes HTTP requests instead of serialized Java requests. The
-`TransportClient` will be deprecated in upcoming versions of Elasticsearch and it
-is advised to use the Java High Level REST Client instead.
 
 [[transport-client]]
 === Transport Client

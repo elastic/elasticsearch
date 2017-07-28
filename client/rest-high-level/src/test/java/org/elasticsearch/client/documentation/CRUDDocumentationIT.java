@@ -92,28 +92,6 @@ import static java.util.Collections.singletonMap;
  */
 public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
-    public void testMain() throws IOException {
-        RestHighLevelClient client = highLevelClient();
-        {
-            //tag::main-execute
-            MainResponse response = client.info();
-            //end::main-execute
-            assertTrue(response.isAvailable());
-            //tag::main-response
-            ClusterName clusterName = response.getClusterName(); // <1>
-            String clusterUuid = response.getClusterUuid(); // <2>
-            String nodeName = response.getNodeName(); // <3>
-            Version version = response.getVersion(); // <4>
-            Build build = response.getBuild(); // <5>
-            //end::main-response
-            assertNotNull(clusterName);
-            assertNotNull(clusterUuid);
-            assertNotNull(nodeName);
-            assertNotNull(version);
-            assertNotNull(build);
-        }
-    }
-
     public void testIndex() throws IOException {
         RestHighLevelClient client = highLevelClient();
 

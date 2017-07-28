@@ -167,13 +167,27 @@ Will return, for example:
          "available_in_bytes": 34802409472
       },
       "plugins": [
-         // all plugins installed on nodes
-         {
-            "name": "analysis-stempel",
-            "version": "{version}",
-            "description": "The Stempel (Polish) Analysis plugin integrates Lucene stempel (polish) analysis module into elasticsearch.",
-            "classname": "org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin"
-         }
+        {
+          "name": "analysis-icu",
+          "version": "{version}",
+          "description": "The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.",
+          "classname": "org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin",
+          "has_native_controller": false
+        },
+        {
+          "name": "ingest-geoip",
+          "version": "{version}",
+          "description": "Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database",
+          "classname": "org.elasticsearch.ingest.geoip.IngestGeoIpPlugin",
+          "has_native_controller": false
+        },
+        {
+          "name": "ingest-user-agent",
+          "version": "{version}",
+          "description": "Ingest processor that extracts information from a user agent",
+          "classname": "org.elasticsearch.ingest.useragent.IngestUserAgentPlugin",
+          "has_native_controller": false
+        }
       ]
    }
 }

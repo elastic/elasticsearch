@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsCatalog;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
-import org.elasticsearch.xpack.sql.session.SqlSettings;
 
 import java.util.function.Supplier;
 

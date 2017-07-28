@@ -20,6 +20,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -31,6 +32,7 @@ import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
+import org.elasticsearch.tribe.TribePlugin;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -42,6 +44,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
@@ -71,8 +74,45 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected final Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.<Class<? extends Plugin>>singletonList(XPackPlugin.class);
+    protected boolean addTestZenDiscovery() {
+        return false;
+    }
+
+    public static class TribeAwareTestZenDiscoveryPlugin extends TestZenDiscovery.TestPlugin {
+
+        public TribeAwareTestZenDiscoveryPlugin(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        public Settings additionalSettings() {
+            if (settings.getGroups("tribe", true).isEmpty()) {
+                return super.additionalSettings();
+            } else {
+                return Settings.EMPTY;
+            }
+        }
+    }
+
+    public static class MockTribePlugin extends TribePlugin {
+
+        public MockTribePlugin(Settings settings) {
+            super(settings);
+        }
+
+        protected Function<Settings, Node> nodeBuilder(Path configPath) {
+            return settings -> new MockNode(new Environment(settings, configPath), internalCluster().getPlugins());
+        }
+
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>();
+        plugins.add(MockTribePlugin.class);
+        plugins.add(TribeAwareTestZenDiscoveryPlugin.class);
+        plugins.add(XPackPlugin.class);
+        return plugins;
     }
 
     @Override
@@ -158,8 +198,8 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
                 .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
                 .build();
 
-        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(TestZenDiscovery.TestPlugin.class, MockTcpTransportPlugin.class,
-                XPackPlugin.class);
+        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(MockTribePlugin.class, TribeAwareTestZenDiscoveryPlugin.class,
+                MockTcpTransportPlugin.class, XPackPlugin.class);
         final Node tribeNode = new MockNode(merged, mockPlugins).start();
         Client tribeClient = tribeNode.client();
 

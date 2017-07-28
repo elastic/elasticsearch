@@ -8,11 +8,22 @@ package org.elasticsearch.xpack.monitoring;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.MockNode;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
+import org.elasticsearch.tribe.TribePlugin;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.hamcrest.Matchers.equalTo;
@@ -28,6 +39,47 @@ public class MonitoringPluginTests extends MonitoringIntegTestCase {
     @Override
     protected void stopMonitoringService() {
         // do nothing as monitoring is sometime unbound
+    }
+
+    @Override
+    protected boolean addTestZenDiscovery() {
+        return false;
+    }
+
+    public static class TribeAwareTestZenDiscoveryPlugin extends TestZenDiscovery.TestPlugin {
+
+        public TribeAwareTestZenDiscoveryPlugin(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        public Settings additionalSettings() {
+            if (settings.getGroups("tribe", true).isEmpty()) {
+                return super.additionalSettings();
+            } else {
+                return Settings.EMPTY;
+            }
+        }
+    }
+
+    public static class MockTribePlugin extends TribePlugin {
+
+        public MockTribePlugin(Settings settings) {
+            super(settings);
+        }
+
+        protected Function<Settings, Node> nodeBuilder(Path configPath) {
+            return settings -> new MockNode(new Environment(settings, configPath), internalCluster().getPlugins());
+        }
+
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(MockTribePlugin.class);
+        plugins.add(TribeAwareTestZenDiscoveryPlugin.class);
+        return plugins;
     }
 
     @Override

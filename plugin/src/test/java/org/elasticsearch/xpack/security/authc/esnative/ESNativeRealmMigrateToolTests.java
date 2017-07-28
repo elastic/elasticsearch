@@ -11,7 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -24,6 +26,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -36,7 +39,19 @@ public class ESNativeRealmMigrateToolTests extends CommandTestCase {
 
     @Override
     protected Command newCommand() {
-        return new ESNativeRealmMigrateTool();
+        return new ESNativeRealmMigrateTool() {
+            @Override
+            protected MigrateUserOrRoles newMigrateUserOrRoles() {
+                return new MigrateUserOrRoles() {
+
+                    @Override
+                    protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+                        return new Environment(Settings.builder().put(settings).build());
+                    }
+
+                };
+            }
+        };
     }
 
     public void testUserJson() throws Exception {

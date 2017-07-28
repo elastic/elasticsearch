@@ -8,12 +8,15 @@ package org.elasticsearch.xpack.security.authc.esnative.tool;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
@@ -25,6 +28,7 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.util.Map;
 
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.contains;
@@ -60,7 +64,29 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
     @Override
     protected Command newCommand() {
-        return new SetupPasswordTool((e) -> httpClient, (e) -> keyStore);
+        return new SetupPasswordTool((e) -> httpClient, (e) -> keyStore) {
+
+            @Override
+            protected AutoSetup newAutoSetup() {
+                return new AutoSetup() {
+                    @Override
+                    protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+                        return new Environment(Settings.builder().put(settings).build());
+                    }
+                };
+            }
+
+            @Override
+            protected InteractiveSetup newInteractiveSetup() {
+                return new InteractiveSetup() {
+                    @Override
+                    protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+                        return new Environment(Settings.builder().put(settings).build());
+                    }
+                };
+            }
+
+        };
     }
 
     public void testAutoSetup() throws Exception {

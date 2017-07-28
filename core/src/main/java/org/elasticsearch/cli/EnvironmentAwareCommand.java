@@ -33,6 +33,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 /** A cli command which requires an {@link org.elasticsearch.env.Environment} to use current paths and settings. */
 public abstract class EnvironmentAwareCommand extends Command {
@@ -67,9 +68,12 @@ public abstract class EnvironmentAwareCommand extends Command {
         putSystemPropertyIfSettingIsMissing(settings, "path.home", "es.path.home");
         putSystemPropertyIfSettingIsMissing(settings, "path.logs", "es.path.logs");
 
-        final Path pathConf = Paths.get(System.getProperty("es.path.conf"));
+        execute(terminal, options, createEnv(terminal, settings, getConfigPath(System.getProperty("es.path.conf"))));
+    }
 
-        execute(terminal, options, createEnv(terminal, settings, pathConf));
+    @SuppressForbidden(reason = "need path to construct environment")
+    private static Path getConfigPath(final String pathConf) {
+        return Paths.get(Objects.requireNonNull(pathConf));
     }
 
     /** Create an {@link Environment} for the command to use. Overrideable for tests. */

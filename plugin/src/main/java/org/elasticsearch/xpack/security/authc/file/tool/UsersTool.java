@@ -47,11 +47,31 @@ public class UsersTool extends MultiCommand {
 
     UsersTool() {
         super("Manages elasticsearch native users");
-        subcommands.put("useradd", new AddUserCommand());
-        subcommands.put("userdel", new DeleteUserCommand());
-        subcommands.put("passwd", new PasswordCommand());
-        subcommands.put("roles", new RolesCommand());
-        subcommands.put("list", new ListCommand());
+        subcommands.put("useradd", newAddUserCommand());
+        subcommands.put("userdel", newDeleteUserCommand());
+        subcommands.put("passwd", newPasswordCommand());
+        subcommands.put("roles", newRolesCommand());
+        subcommands.put("list", newListCommand());
+    }
+
+    protected AddUserCommand newAddUserCommand() {
+        return new AddUserCommand();
+    }
+
+    protected DeleteUserCommand newDeleteUserCommand() {
+        return new DeleteUserCommand();
+    }
+
+    protected PasswordCommand newPasswordCommand() {
+        return new PasswordCommand();
+    }
+
+    protected RolesCommand newRolesCommand() {
+        return new RolesCommand();
+    }
+
+    protected ListCommand newListCommand() {
+        return new ListCommand();
     }
 
     static class AddUserCommand extends EnvironmentAwareCommand {

@@ -17,14 +17,39 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio.channel;
+package org.elasticsearch.http.nio;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.transport.nio.WriteOperation;
+import org.elasticsearch.transport.nio.channel.NioChannel;
+import org.elasticsearch.transport.nio.channel.WriteContext;
 
 import java.io.IOException;
 
-public interface ReadContext {
+public class HttpWriteContext implements WriteContext {
+    @Override
+    public void sendMessage(BytesReference reference, ActionListener<NioChannel> listener) {
 
-    int DEFAULT_READ_LENGTH = 1 << 14;
+    }
 
-    int read() throws IOException;
+    @Override
+    public void queueWriteOperations(WriteOperation writeOperation) {
 
+    }
+
+    @Override
+    public void flushChannel() throws IOException {
+
+    }
+
+    @Override
+    public boolean hasQueuedWriteOps() {
+        return false;
+    }
+
+    @Override
+    public void clearQueuedWriteOps(Exception e) {
+
+    }
 }

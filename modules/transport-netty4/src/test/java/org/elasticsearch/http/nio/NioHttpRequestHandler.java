@@ -17,38 +17,41 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio.http;
+package org.elasticsearch.http.nio;
 
 import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.Channel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.http.netty4.Netty4HttpChannel;
 import org.elasticsearch.http.netty4.Netty4HttpRequest;
+import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 
-public class NioHttpRequestHandler extends SimpleChannelInboundHandler<Object> {
+public class NioHttpRequestHandler {
 
     private final NioHttpTransport transport;
     private final NamedXContentRegistry xContentRegistry;
     private final ThreadContext threadContext;
+    private final Netty4CorsConfig corsConfig;
     private final boolean detailedErrorsEnabled;
     private final boolean httpPipeliningEnabled;
+    private final boolean resetCookies;
 
     public NioHttpRequestHandler(NioHttpTransport transport, NamedXContentRegistry xContentRegistry, boolean detailedErrorsEnabled,
-                                 ThreadContext threadContext, boolean httpPipeliningEnabled) {
+                                 ThreadContext threadContext, boolean httpPipeliningEnabled, Netty4CorsConfig corsConfig,
+                                 boolean resetCookies) {
         this.transport = transport;
         this.detailedErrorsEnabled = detailedErrorsEnabled;
         this.threadContext = threadContext;
         this.httpPipeliningEnabled = httpPipeliningEnabled;
         this.xContentRegistry = xContentRegistry;
+        this.corsConfig = corsConfig;
+        this.resetCookies = resetCookies;
     }
 
-    @Override
-    protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
+    public void handleMessage(Channel nettyChannel, Object msg) {
         final FullHttpRequest request;
         final HttpPipelinedRequest pipelinedRequest;
         if (this.httpPipeliningEnabled && msg instanceof HttpPipelinedRequest) {
@@ -67,8 +70,9 @@ public class NioHttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 Unpooled.copiedBuffer(request.content()),
                 request.headers(),
                 request.trailingHeaders());
-        final Netty4HttpRequest httpRequest = new Netty4HttpRequest(xContentRegistry, copy, ctx.channel());
-        final Netty4HttpChannel channel = new Netty4HttpChannel(null, httpRequest, pipelinedRequest, detailedErrorsEnabled, threadContext);
+        final Netty4HttpRequest httpRequest = new Netty4HttpRequest(xContentRegistry, copy, nettyChannel);
+        final NioHttpChannel channel = new NioHttpChannel(httpRequest, pipelinedRequest, detailedErrorsEnabled, threadContext, corsConfig,
+            resetCookies);
 
         if (request.decoderResult().isSuccess()) {
             transport.dispatchRequest(httpRequest, channel);
@@ -76,12 +80,5 @@ public class NioHttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             assert request.decoderResult().isFailure();
             transport.dispatchBadRequest(httpRequest, channel, request.decoderResult().cause());
         }
-
-    }
-
-    @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        NioHttpNettyAdaptor.ESNettyChannel channel = (NioHttpNettyAdaptor.ESNettyChannel) ctx.channel();
-        transport.exceptionCaught(channel.getNioSocketChannel(), cause);
     }
 }

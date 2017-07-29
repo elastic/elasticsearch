@@ -26,12 +26,9 @@ import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.LinkedList;
 
 public class TcpReadContext implements ReadContext {
-
-    private static final int DEFAULT_READ_LENGTH = 1 << 14;
 
     private final TcpReadHandler handler;
     private final NioSocketChannel channel;

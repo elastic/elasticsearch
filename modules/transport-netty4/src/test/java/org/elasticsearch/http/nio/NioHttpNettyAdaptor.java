@@ -18,9 +18,12 @@
  */
 
 
-package org.elasticsearch.transport.nio.http;
+package org.elasticsearch.http.nio;
 
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelOutboundHandlerAdapter;
+import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
@@ -29,17 +32,15 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.http.netty4.pipelining.HttpPipeliningHandler;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import java.util.function.BiConsumer;
+
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
@@ -49,45 +50,34 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MA
 public class NioHttpNettyAdaptor {
 
 
-    private final NioHttpTransport transport;
-    private final Netty4CorsConfig config;
-    private final int maxContentLength;
-    private final NioHttpRequestHandler requestHandler;
+    private final BiConsumer<NioSocketChannel, Throwable> exceptionHandler;
     private final Netty4CorsConfig corsConfig;
+    private final int maxContentLength;
     private final boolean compression;
     private final int compressionLevel;
-    private final boolean detailedErrorsEnabled;
-    private final boolean corsEnabled;
     private boolean pipelining;
     private final int pipeliningMaxEvents;
     private final int maxChunkSize;
     private final int maxHeaderSize;
     private final int maxInitialLineLength;
 
-    protected NioHttpNettyAdaptor(NioHttpTransport transport, NamedXContentRegistry xContentRegistry, ThreadContext threadContext,
-                                  Settings settings, Netty4CorsConfig config, int maxContentLength) {
-        this.transport = transport;
-        this.config = config;
+    protected NioHttpNettyAdaptor(Settings settings, BiConsumer<NioSocketChannel, Throwable> exceptionHandler, Netty4CorsConfig config,
+                                  int maxContentLength) {
+        this.exceptionHandler = exceptionHandler;
         this.maxContentLength = maxContentLength;
-        this.detailedErrorsEnabled = SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings);
-
-        this.requestHandler = new NioHttpRequestHandler(transport, xContentRegistry, detailedErrorsEnabled, threadContext, pipelining);
+        this.corsConfig = config;
 
         this.compression = SETTING_HTTP_COMPRESSION.get(settings);
         this.compressionLevel = SETTING_HTTP_COMPRESSION_LEVEL.get(settings);
         this.pipelining = SETTING_PIPELINING.get(settings);
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
-        this.corsConfig = config;
         this.maxChunkSize = Math.toIntExact(SETTING_HTTP_MAX_CHUNK_SIZE.get(settings).getBytes());
         this.maxHeaderSize = Math.toIntExact(SETTING_HTTP_MAX_HEADER_SIZE.get(settings).getBytes());
         this.maxInitialLineLength = Math.toIntExact(SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings).getBytes());
-        this.corsEnabled = SETTING_CORS_ENABLED.get(settings);
     }
 
-    protected void initChannel(NioSocketChannel channel) throws Exception {
-        pipelining = false;
-
-        EmbeddedChannel ch = new ESNettyChannel(channel);
+    protected EmbeddedChannel getAdaptor(NioSocketChannel channel) {
+        EmbeddedChannel ch = new EmbeddedChannel();
 
         final HttpRequestDecoder decoder = new HttpRequestDecoder(maxInitialLineLength, maxHeaderSize, maxChunkSize);
         ch.pipeline().addLast(decoder);
@@ -103,24 +93,29 @@ public class NioHttpNettyAdaptor {
             ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(compressionLevel));
         }
         if (corsConfig.isCorsSupportEnabled()) {
-            ch.pipeline().addLast("cors", new Netty4CorsHandler(config));
+            ch.pipeline().addLast("cors", new Netty4CorsHandler(corsConfig));
         }
         if (pipelining) {
             ch.pipeline().addLast("pipelining", new HttpPipeliningHandler(pipeliningMaxEvents));
         }
-        ch.pipeline().addLast("handler", requestHandler);
-    }
+        ch.pipeline().addLast("read_exception_handler", new ChannelInboundHandlerAdapter() {
+            @Override
+            public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+                exceptionHandler.accept(channel, cause);
+            }
+        });
+        ch.pipeline().addLast("writer", new ChannelOutboundHandlerAdapter() {
+            @Override
+            public void flush(ChannelHandlerContext ctx) throws Exception {
+                super.flush(ctx);
+            }
 
-    public static class ESNettyChannel extends EmbeddedChannel {
+            @Override
+            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+                super.write(ctx, msg, promise);
+            }
+        });
 
-        private final NioSocketChannel nioSocketChannel;
-
-        private ESNettyChannel(NioSocketChannel nioSocketChannel) {
-            this.nioSocketChannel = nioSocketChannel;
-        }
-
-        public NioSocketChannel getNioSocketChannel() {
-            return nioSocketChannel;
-        }
+        return ch;
     }
 }

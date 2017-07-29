@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio.http;
+package org.elasticsearch.http.nio;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
@@ -45,6 +45,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.netty4.Netty4HttpChannel;
 import org.elasticsearch.http.netty4.Netty4HttpRequest;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.nio.AcceptingSelector;
@@ -186,14 +187,14 @@ public class NioHttpTransport extends AbstractLifecycleComponent implements Http
             ? 0 : openChannels.getAcceptedChannels().size() + serverChannelsCount);
     }
 
-    public void dispatchRequest(Netty4HttpRequest httpRequest, Netty4HttpChannel channel) {
+    public void dispatchRequest(Netty4HttpRequest httpRequest, RestChannel channel) {
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             dispatcher.dispatchRequest(httpRequest, channel, threadContext);
         }
     }
 
-    public void dispatchBadRequest(Netty4HttpRequest httpRequest, Netty4HttpChannel channel, Throwable cause) {
+    public void dispatchBadRequest(Netty4HttpRequest httpRequest, RestChannel channel, Throwable cause) {
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             dispatcher.dispatchBadRequest(httpRequest, channel, threadContext, cause);

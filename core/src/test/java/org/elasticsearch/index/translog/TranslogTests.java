@@ -115,6 +115,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
@@ -2429,8 +2430,8 @@ public class TranslogTests extends ESTestCase {
         assertFileIsPresent(translog, generation + rolls);
     }
 
-    public void testMinGenerationForSeqNo() throws IOException {
-        final int operations = randomIntBetween(1, 4096);
+    public void testMinSeqNoBasedAPI() throws IOException {
+        final int operations = randomIntBetween(1, 512);
         final List<Long> shuffledSeqNos = LongStream.range(0, operations).boxed().collect(Collectors.toList());
         Randomness.shuffle(shuffledSeqNos);
         final List<Tuple<Long, Long>> seqNos = new ArrayList<>();
@@ -2448,30 +2449,50 @@ public class TranslogTests extends ESTestCase {
             }
         }
 
-        Map<Long, Set<Tuple<Long, Long>>> generations = new HashMap<>();
+        final Map<Long, Set<Tuple<Long, Long>>> seqNoPerGeneration = new HashMap<>();
+        final Map<Long, Integer> opCountPerGeneration = new HashMap<>();
         // one extra roll to make sure that all ops so far are available via a reader and a translog-{gen}.ckp
         // file in a consistent way, in order to simplify checking code.
         translog.rollGeneration();
         for (long seqNo = 0; seqNo < operations; seqNo++) {
             final Set<Tuple<Long, Long>> seenSeqNos = new HashSet<>();
             final long generation = translog.getMinGenerationForSeqNo(seqNo).translogFileGeneration;
+            int expectedSnapshotOps = 0;
             for (long g = generation; g < translog.currentFileGeneration(); g++) {
-                if (!generations.containsKey(g)) {
+                if (!seqNoPerGeneration.containsKey(g)) {
                     final Set<Tuple<Long, Long>> generationSeenSeqNos = new HashSet<>();
+                    int opCount = 0;
                     final Checkpoint checkpoint = Checkpoint.read(translog.location().resolve(Translog.getCommitCheckpointFileName(g)));
                     try (TranslogReader reader = translog.openReader(translog.location().resolve(Translog.getFilename(g)), checkpoint)) {
                         TranslogSnapshot snapshot = reader.newSnapshot();
                         Translog.Operation operation;
                         while ((operation = snapshot.next()) != null) {
                             generationSeenSeqNos.add(Tuple.tuple(operation.seqNo(), operation.primaryTerm()));
+                            opCount++;
                         }
+                        assertThat(opCount, equalTo(reader.totalOperations()));
+                        assertThat(opCount, equalTo(checkpoint.numOps));
                     }
-                    generations.put(g, generationSeenSeqNos);
-
+                    opCountPerGeneration.put(g, opCount);
+                    seqNoPerGeneration.put(g, generationSeenSeqNos);
                 }
-                seenSeqNos.addAll(generations.get(g));
+                final Set<Tuple<Long, Long>> generationSeqNo = seqNoPerGeneration.get(g);
+                if (generationSeqNo.stream().map(Tuple::v1).max(Long::compareTo).orElse(Long.MIN_VALUE) >= seqNo) {
+                    expectedSnapshotOps += opCountPerGeneration.get(g);
+                }
+                seenSeqNos.addAll(generationSeqNo);
             }
-
+            assertThat(translog.estimateTotalOperationsFromMinSeq(seqNo), equalTo(expectedSnapshotOps));
+            int readFromSnapshot = 0;
+            try (Translog.Snapshot snapshot = translog.newSnapshotFromMinSeqNo(seqNo)) {
+                assertThat(snapshot.totalOperations(), equalTo(expectedSnapshotOps));
+                Translog.Operation op;
+                while ((op = snapshot.next()) != null) {
+                    assertThat(Tuple.tuple(op.seqNo(), op.primaryTerm()), isIn(seenSeqNos));
+                    readFromSnapshot++;
+                }
+            }
+            assertThat(readFromSnapshot, equalTo(expectedSnapshotOps));
             final long seqNoLowerBound = seqNo;
             final Set<Tuple<Long, Long>> expected = seqNos.stream().filter(t -> t.v1() >= seqNoLowerBound).collect(Collectors.toSet());
             seenSeqNos.retainAll(expected);

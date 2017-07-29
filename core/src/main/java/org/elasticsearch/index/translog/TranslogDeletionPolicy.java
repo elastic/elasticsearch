@@ -21,7 +21,6 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
@@ -36,7 +35,11 @@ public class TranslogDeletionPolicy {
     private final Map<Object, RuntimeException> openTranslogRef;
 
     public void assertNoOpenTranslogRefs() {
-        ExceptionsHelper.rethrowAndSuppress(openTranslogRef.values());
+        if (openTranslogRef.isEmpty() == false) {
+            AssertionError e = new AssertionError("not all translog generations have been released");
+            openTranslogRef.values().forEach(e::addSuppressed);
+            throw e;
+        }
     }
 
     /**

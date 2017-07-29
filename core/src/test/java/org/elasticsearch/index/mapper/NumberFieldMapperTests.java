@@ -345,10 +345,9 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     public void testOutOfRangeValues() throws IOException {
         final List<OutOfRangeSpec<Object>> inputs = Arrays.asList(
-            // TODO fix min/max value validation for short, integer and long and uncomment tests
             OutOfRangeSpec.of(NumberType.BYTE, "128", "is out of range for a byte"),
-            //OutOfRangeSpec.of(NumberType.SHORT, "32768", "is out of range for a short"),
-            //OutOfRangeSpec.of(NumberType.INTEGER, "2147483648", "For input string"),
+            OutOfRangeSpec.of(NumberType.SHORT, "32768", "is out of range for a short"),
+            OutOfRangeSpec.of(NumberType.INTEGER, "2147483648", "is out of range for an integer"),
             OutOfRangeSpec.of(NumberType.LONG, "9223372036854775808", "out of range for a long"),
 
             OutOfRangeSpec.of(NumberType.HALF_FLOAT, "65504.1", "[half_float] supports only finite values"),

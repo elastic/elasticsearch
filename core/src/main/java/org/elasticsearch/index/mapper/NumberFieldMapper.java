@@ -505,7 +505,8 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             Short parse(XContentParser parser, boolean coerce) throws IOException {
-                return parser.shortValue(coerce);
+                parser.shortValue(coerce); // keep initial validation
+                return parse(parser.objectText().toString(), coerce);
             }
 
             @Override
@@ -557,7 +558,8 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             Integer parse(XContentParser parser, boolean coerce) throws IOException {
-                return parser.intValue(coerce);
+                parser.intValue(coerce); // keep initial validation
+                return parse(parser.objectText().toString(), coerce);
             }
 
             @Override
@@ -660,14 +662,10 @@ public class NumberFieldMapper extends FieldMapper {
                 BigDecimal bigDecimalValue = new BigDecimal(stringValue);
                 final BigInteger bigIntegerValue;
 
-                if (!coerce) {
-                    try {
-                        bigIntegerValue = bigDecimalValue.toBigIntegerExact();
-                    } catch (ArithmeticException e) {
-                        throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");
-                    }
-                } else {
-                    bigIntegerValue = bigDecimalValue.toBigInteger();
+                try {
+                    bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
+                } catch (ArithmeticException e) {
+                    throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");
                 }
 
                 if (bigIntegerValue.compareTo(MAX_VALUE) == 1 || bigIntegerValue.compareTo(MIN_VALUE) == -1) {

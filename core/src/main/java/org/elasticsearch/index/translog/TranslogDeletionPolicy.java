@@ -98,7 +98,11 @@ public class TranslogDeletionPolicy {
     }
 
     private boolean assertAddTranslogRef(Object reference) {
-        return openTranslogRef.put(reference, new RuntimeException()) == null;
+        final RuntimeException existing = openTranslogRef.put(reference, new RuntimeException());
+        if (existing != null) {
+            throw new AssertionError("double adding of closing reference", existing);
+        }
+        return true;
     }
 
     private boolean assertRemoveTranslogRef(Object reference) {

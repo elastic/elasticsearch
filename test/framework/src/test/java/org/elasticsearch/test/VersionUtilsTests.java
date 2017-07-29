@@ -32,6 +32,10 @@ import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+/**
+ * Tests VersionUtils. Note: this test should remain unchanged across major versions
+ * it uses the hardcoded versions on purpose.
+ */
 public class VersionUtilsTests extends ESTestCase {
 
     public void testAllVersionsSorted() {
@@ -149,12 +153,14 @@ public class VersionUtilsTests extends ESTestCase {
     }
 
     static class TestUnstableBranch {
+        public static final Version V_5_3_0 = Version.fromString("5.3.0");
+        public static final Version V_5_3_1 = Version.fromString("5.3.1");
+        public static final Version V_5_3_2 = Version.fromString("5.3.2");
+        public static final Version V_5_4_0 = Version.fromString("5.4.0");
         public static final Version V_6_0_0_alpha1 = Version.fromString("6.0.0-alpha1");
         public static final Version V_6_0_0_alpha2 = Version.fromString("6.0.0-alpha2");
         public static final Version V_6_0_0_beta1 = Version.fromString("6.0.0-beta1");
-        public static final Version V_6_1_0 = Version.fromString("6.1.0");
-        public static final Version V_7_0_0_alpha1 = Version.fromString("7.0.0-alpha1");
-        public static final Version CURRENT = V_7_0_0_alpha1;
+        public static final Version CURRENT = V_6_0_0_beta1;
     }
 
     public void testResolveReleasedVersionsForUnstableBranch() {
@@ -162,9 +168,9 @@ public class VersionUtilsTests extends ESTestCase {
                 TestUnstableBranch.class);
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
-        assertEquals(Arrays.asList(TestUnstableBranch.V_6_0_0_alpha1, TestUnstableBranch.V_6_0_0_alpha2), released);
-        assertEquals(Arrays.asList(TestUnstableBranch.V_6_0_0_beta1, TestUnstableBranch.V_6_1_0, TestUnstableBranch.V_7_0_0_alpha1),
-            unreleased);
+        assertEquals(Arrays.asList(TestUnstableBranch.V_5_3_0, TestUnstableBranch.V_5_3_1,
+                TestUnstableBranch.V_6_0_0_alpha1, TestUnstableBranch.V_6_0_0_alpha2), released);
+        assertEquals(Arrays.asList(TestUnstableBranch.V_5_3_2, TestUnstableBranch.V_5_4_0, TestUnstableBranch.V_6_0_0_beta1), unreleased);
     }
 
     /**

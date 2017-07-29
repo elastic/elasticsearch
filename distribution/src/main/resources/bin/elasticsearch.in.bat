@@ -30,4 +30,8 @@ IF ERRORLEVEL 1 (
     EXIT /B 1
 )
 
-set ES_PARAMS=-Delasticsearch -Des.path.home="%ES_HOME%"
+if "%CONF_DIR%" == "" (
+set "CONF_DIR=%~dp0\..\config"
+)
+
+set ES_PARAMS=-Delasticsearch -Des.path.home="%ES_HOME%" -Des.path.conf="%CONF_DIR%"

@@ -1128,7 +1128,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : snapshotEntry.shards()) {
                             ShardSnapshotStatus status = shardEntry.value;
                             if (!status.state().completed()) {
-                                shardsBuilder.put(shardEntry.key, new ShardSnapshotStatus(status.nodeId(), State.ABORTED));
+                                shardsBuilder.put(shardEntry.key, new ShardSnapshotStatus(status.nodeId(), State.ABORTED,
+                                    "aborted by snapshot deletion"));
                             } else {
                                 shardsBuilder.put(shardEntry.key, status);
                             }

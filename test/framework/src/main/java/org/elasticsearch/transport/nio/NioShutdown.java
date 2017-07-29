@@ -34,10 +34,10 @@ public class NioShutdown {
         this.logger = logger;
     }
 
-    void orderlyShutdown(OpenChannels openChannels, NioClient client, ArrayList<AcceptingSelector> acceptors,
+    public void orderlyShutdown(OpenChannels openChannels, NioClient client, ArrayList<AcceptingSelector> acceptors,
                          ArrayList<SocketSelector> socketSelectors) {
         // Close the client. This ensures that no new send connections will be opened. Client could be null if exception was
-        // throw on start up
+        // throw on start up. Additionally, the http transport does not have a client
         if (client != null) {
             client.close();
         }

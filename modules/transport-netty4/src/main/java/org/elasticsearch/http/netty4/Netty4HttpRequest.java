@@ -45,7 +45,7 @@ public class Netty4HttpRequest extends RestRequest {
     private final Channel channel;
     private final BytesReference content;
 
-    Netty4HttpRequest(NamedXContentRegistry xContentRegistry, FullHttpRequest request, Channel channel) {
+    public Netty4HttpRequest(NamedXContentRegistry xContentRegistry, FullHttpRequest request, Channel channel) {
         super(xContentRegistry, request.uri(), new HttpHeadersMap(request.headers()));
         this.request = request;
         this.channel = channel;

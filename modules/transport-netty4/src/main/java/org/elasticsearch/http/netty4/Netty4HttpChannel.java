@@ -53,7 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-final class Netty4HttpChannel extends AbstractRestChannel {
+public final class Netty4HttpChannel extends AbstractRestChannel {
 
     private final Netty4HttpServerTransport transport;
     private final Channel channel;
@@ -69,7 +69,7 @@ final class Netty4HttpChannel extends AbstractRestChannel {
      * @param detailedErrorsEnabled true iff error messages should include stack traces.
      * @param threadContext         the thread context for the channel
      */
-    Netty4HttpChannel(
+    public Netty4HttpChannel(
             final Netty4HttpServerTransport transport,
             final Netty4HttpRequest request,
             final HttpPipelinedRequest pipelinedRequest,

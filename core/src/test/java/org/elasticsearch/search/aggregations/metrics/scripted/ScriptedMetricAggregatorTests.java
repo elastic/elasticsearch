@@ -199,6 +199,6 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
         ScriptService scriptService =  new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
         return new QueryShardContext(0, mapperService.getIndexSettings(), null, null, mapperService, null, scriptService,
-                xContentRegistry(), null, null, System::currentTimeMillis, null);
+                xContentRegistry(), writableRegistry(), null, null, System::currentTimeMillis, null);
     }
 }

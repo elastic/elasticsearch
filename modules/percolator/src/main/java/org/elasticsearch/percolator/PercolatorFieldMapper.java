@@ -39,9 +39,11 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -69,6 +71,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -331,16 +334,32 @@ public class PercolatorFieldMapper extends FieldMapper {
         Rewriteable.rewriteAndFetch(queryBuilder, queryShardContext, future);
         queryBuilder = future.actionGet();
 
-        try (XContentBuilder builder = XContentFactory.contentBuilder(QUERY_BUILDER_CONTENT_TYPE)) {
-            queryBuilder.toXContent(builder, new MapParams(Collections.emptyMap()));
-            builder.flush();
-            byte[] queryBuilderAsBytes = BytesReference.toBytes(builder.bytes());
-            context.doc().add(new Field(queryBuilderField.name(), queryBuilderAsBytes, queryBuilderField.fieldType()));
-        }
-
+        Version indexVersion = context.mapperService().getIndexSettings().getIndexVersionCreated();
+        createQueryBuilderField(indexVersion, queryBuilderField, queryBuilder, context);
         Query query = toQuery(queryShardContext, mapUnmappedFieldAsString, queryBuilder);
         processQuery(query, context);
         return null;
+    }
+
+    static void createQueryBuilderField(Version indexVersion, BinaryFieldMapper qbField,
+                                        QueryBuilder queryBuilder, ParseContext context) throws IOException {
+        if (indexVersion.onOrAfter(Version.V_6_0_0_beta1)) {
+            try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
+                try (OutputStreamStreamOutput out  = new OutputStreamStreamOutput(stream)) {
+                    out.setVersion(indexVersion);
+                    out.writeNamedWriteable(queryBuilder);
+                    byte[] queryBuilderAsBytes = stream.toByteArray();
+                    qbField.parse(context.createExternalValueContext(queryBuilderAsBytes));
+                }
+            }
+        } else {
+            try (XContentBuilder builder = XContentFactory.contentBuilder(QUERY_BUILDER_CONTENT_TYPE)) {
+                queryBuilder.toXContent(builder, new MapParams(Collections.emptyMap()));
+                builder.flush();
+                byte[] queryBuilderAsBytes = BytesReference.toBytes(builder.bytes());
+                context.doc().add(new Field(qbField.name(), queryBuilderAsBytes, qbField.fieldType()));
+            }
+        }
     }
 
     void processQuery(Query query, ParseContext context) {

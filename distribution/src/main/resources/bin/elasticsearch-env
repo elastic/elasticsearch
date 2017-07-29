@@ -21,13 +21,14 @@ done
 # bin, and then strip bin (there is an assumption here that there is no nested
 # directory under bin also named bin)
 ES_HOME=`dirname "$SCRIPT"`
+
+# now make ES_HOME absolute
+ES_HOME=`cd "$ES_HOME"; pwd`
+
 while [ "`basename "$ES_HOME"`" != "bin" ]; do
   ES_HOME=`dirname "$ES_HOME"`
 done
 ES_HOME=`dirname "$ES_HOME"`
-
-# now make ES_HOME absolute
-ES_HOME=`cd "$ES_HOME"; pwd`
 
 # now set the classpath
 ES_CLASSPATH="$ES_HOME/lib/*"

@@ -1,29 +1,8 @@
 @echo off
-SETLOCAL enabledelayedexpansion
 
-TITLE Elasticsearch Service ${project.version}
+setlocal enabledelayedexpansion
 
-IF DEFINED JAVA_HOME (
-  SET JAVA="%JAVA_HOME%\bin\java.exe"
-) ELSE (
-  FOR %%I IN (java.exe) DO set JAVA=%%~$PATH:I
-)
-IF NOT EXIST %JAVA% (
-  ECHO Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME 1>&2
-  EXIT /B 1
-)
-IF DEFINED JAVA_HOME GOTO :cont
-
-IF NOT %JAVA:~-13% == "\bin\java.exe" (
-  FOR /f "tokens=2 delims=[]" %%I IN ('dir %JAVA%') DO @set JAVA=%%I
-)
-IF %JAVA:~-13% == "\bin\java.exe" (
-  SET JAVA_HOME=%JAVA:~0,-13%
-)
-
-:cont
-set SCRIPT_DIR=%~dp0
-for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
+call "%~dp0elasticsearch-env.bat"
 
 set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe
 set SERVICE_ID=elasticsearch-service-x64
@@ -112,20 +91,12 @@ rem Check 'server' JRE (JRE installed on Windows Server)
 if exist "%JAVA_HOME%\bin\server\jvm.dll" (
 	set JVM_DLL=\bin\server\jvm.dll
 	goto foundJVM
-)
-
-rem Fallback to 'client' JRE
-if exist "%JAVA_HOME%\bin\client\jvm.dll" (
-	set JVM_DLL=\bin\client\jvm.dll
-	echo Warning: JAVA_HOME points to a JRE and not JDK installation; a client (not a server^) JVM will be used...
 ) else (
-	echo JAVA_HOME points to an invalid Java installation (no jvm.dll found in "%JAVA_HOME%"^). Exiting...
-	goto:eof
+  	echo JAVA_HOME points to an invalid Java installation (no jvm.dll found in "%JAVA_HOME%"^). Exiting...
+  	goto:eof
 )
 
 :foundJVM
-CALL "%ES_HOME%\bin\elasticsearch.in.bat"
-
 set ES_JVM_OPTIONS=%CONF_DIR%\jvm.options
 
 if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS: =;%
@@ -294,4 +265,4 @@ set /a conv=%conv% * 1024 * 1024
 set "%~2=%conv%"
 goto:eof
 
-ENDLOCAL
+endlocal

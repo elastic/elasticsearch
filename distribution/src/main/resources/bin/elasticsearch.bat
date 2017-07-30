@@ -1,7 +1,6 @@
 @echo off
 
-SETLOCAL enabledelayedexpansion
-TITLE Elasticsearch ${project.version}
+setlocal enabledelayedexpansion
 
 SET params='%*'
 
@@ -33,9 +32,7 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 	)
 )
 
-SET HOSTNAME=%COMPUTERNAME%
-
-CALL "%~dp0elasticsearch.in.bat"
+CALL "%~dp0elasticsearch-env.bat"
 IF ERRORLEVEL 1 (
 	IF NOT DEFINED nopauseonerror (
 		PAUSE
@@ -51,6 +48,6 @@ rem such options are the lines beginning with '-', thus "findstr /b"
 for /F "usebackq delims=" %%a in (`findstr /b \- "%ES_JVM_OPTIONS%"`) do set JVM_OPTIONS=!JVM_OPTIONS! %%a
 @endlocal & set ES_JAVA_OPTS=%JVM_OPTIONS% %ES_JAVA_OPTS%
 
-%JAVA% %ES_JAVA_OPTS% %ES_PARAMS% -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
+%JAVA% %ES_JAVA_OPTS% -Delasticsearch -Des.path.home="%ES_HOME%" -Des.path.conf="%CONF_DIR%" -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
 
-ENDLOCAL
+endlocal

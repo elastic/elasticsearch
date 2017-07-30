@@ -223,14 +223,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         request.settings(updatedSettingsBuilder.build());
 
         clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]",
-            new IndexCreationTask(logger, allocationService, request, listener,
-                indicesService, aliasValidator, xContentRegistry, settings,
-                (req, state) -> {
-                    validateIndexName(req.index(), state);
-                    validateIndexSettings(req.index(), req.settings());
-                }
-            )
-        );
+            new IndexCreationTask(logger, allocationService, request, listener, indicesService, aliasValidator, xContentRegistry, settings,
+                this::validate));
     }
 
     static class IndexCreationTask extends AckedClusterStateUpdateTask<ClusterStateUpdateResponse> {
@@ -316,12 +310,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         // handle custom
                         for (ObjectObjectCursor<String, Custom> cursor : template.customs()) {
                             String type = cursor.key;
-                            Custom custom = cursor.value;
-                            Custom existing = customs.get(type);
+                            IndexMetaData.Custom custom = cursor.value;
+                            IndexMetaData.Custom existing = customs.get(type);
                             if (existing == null) {
                                 customs.put(type, custom);
                             } else {
-                                Custom merged = existing.mergeWith(custom);
+                                IndexMetaData.Custom merged = existing.mergeWith(custom);
                                 customs.put(type, merged);
                             }
                         }
@@ -568,6 +562,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             CollectionUtil.timSort(templateMetadata, Comparator.comparingInt(IndexTemplateMetaData::order).reversed());
             return templateMetadata;
         }
+    }
+
+    private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
+        validateIndexName(request.index(), state);
+        validateIndexSettings(request.index(), request.settings());
     }
 
     public void validateIndexSettings(String indexName, Settings settings) throws IndexCreationException {

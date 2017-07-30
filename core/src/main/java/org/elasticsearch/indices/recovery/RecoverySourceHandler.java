@@ -158,7 +158,6 @@ public class RecoverySourceHandler {
                 try {
                     phase1Snapshot = shard.acquireIndexCommit(false);
                 } catch (final Exception e) {
-                    IOUtils.closeWhileHandlingException();
                     throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
                 }
                 // we set this to unassigned to create a translog roughly according to the retention policy

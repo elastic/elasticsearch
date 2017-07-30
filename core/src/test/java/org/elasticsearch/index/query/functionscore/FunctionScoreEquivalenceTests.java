@@ -25,10 +25,6 @@ import org.apache.lucene.search.RandomApproximationQuery;
 import org.apache.lucene.search.SearchEquivalenceTestBase;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
-import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery.FilterFunction;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery.ScoreMode;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
 public class FunctionScoreEquivalenceTests extends SearchEquivalenceTestBase {
@@ -45,11 +41,10 @@ public class FunctionScoreEquivalenceTests extends SearchEquivalenceTestBase {
         Term term = randomTerm();
         Query query = new TermQuery(term);
 
-        FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, 0f, null, Float.POSITIVE_INFINITY);
+        FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, Float.POSITIVE_INFINITY);
         assertSameScores(query, fsq);
 
-        FiltersFunctionScoreQuery ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0], Float.POSITIVE_INFINITY,
-                0f, CombineFunction.MULTIPLY);
+        FunctionScoreQuery ffsq = new FunctionScoreQuery(query, 0f, Float.POSITIVE_INFINITY);
         assertSameScores(query, ffsq);
     }
 
@@ -57,12 +52,8 @@ public class FunctionScoreEquivalenceTests extends SearchEquivalenceTestBase {
         Term term = randomTerm();
         Query query = new TermQuery(term);
 
-        FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, Float.POSITIVE_INFINITY, null, Float.POSITIVE_INFINITY);
+        FunctionScoreQuery fsq = new FunctionScoreQuery(query, Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY);
         assertSameScores(new MatchNoDocsQuery(), fsq);
-
-        FiltersFunctionScoreQuery ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0], Float.POSITIVE_INFINITY,
-                Float.POSITIVE_INFINITY, CombineFunction.MULTIPLY);
-        assertSameScores(new MatchNoDocsQuery(), ffsq);
     }
 
     public void testTwoPhaseMinScore() throws Exception {
@@ -70,16 +61,12 @@ public class FunctionScoreEquivalenceTests extends SearchEquivalenceTestBase {
         Query query = new TermQuery(term);
         Float minScore = random().nextFloat();
 
-        FunctionScoreQuery fsq1 = new FunctionScoreQuery(query, null, minScore, null, Float.POSITIVE_INFINITY);
-        FunctionScoreQuery fsq2 = new FunctionScoreQuery(new RandomApproximationQuery(query, random()), null, minScore, null,
-                Float.POSITIVE_INFINITY);
+        FunctionScoreQuery fsq1 = new FunctionScoreQuery(query, minScore, Float.POSITIVE_INFINITY);
+        FunctionScoreQuery fsq2 = new FunctionScoreQuery(new RandomApproximationQuery(query, random()), minScore, Float.POSITIVE_INFINITY);
         assertSameScores(fsq1, fsq2);
 
-        FiltersFunctionScoreQuery ffsq1 = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0],
-                Float.POSITIVE_INFINITY, minScore, CombineFunction.MULTIPLY);
-        FiltersFunctionScoreQuery ffsq2 = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0],
-                Float.POSITIVE_INFINITY, minScore, CombineFunction.MULTIPLY);
+        FunctionScoreQuery ffsq1 = new FunctionScoreQuery(query, minScore, Float.POSITIVE_INFINITY);
+        FunctionScoreQuery ffsq2 = new FunctionScoreQuery(query, minScore, Float.POSITIVE_INFINITY);
         assertSameScores(ffsq1, ffsq2);
     }
-
 }

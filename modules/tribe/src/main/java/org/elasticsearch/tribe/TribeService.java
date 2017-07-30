@@ -22,13 +22,13 @@ package org.elasticsearch.tribe;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.MergableCustomMetaData;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.hash.MurmurHash3;
@@ -59,8 +58,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
@@ -68,7 +65,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -78,7 +74,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -87,10 +82,6 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * The tribe service holds a list of node clients connected to a list of tribe members, and uses their
  * cluster state events to update this local node cluster state with the merged view of it.
- * <p>
- * The {@link #processSettings(org.elasticsearch.common.settings.Settings)} method should be called before
- * starting the node, so it will make sure to configure this current node properly with the relevant tribe node
- * settings.
  * <p>
  * The tribe node settings make sure the discovery used is "local", but with no master elected. This means no
  * write level master node operations will work ({@link org.elasticsearch.discovery.MasterNotDiscoveredException}
@@ -108,63 +99,6 @@ public class TribeService extends AbstractLifecycleComponent {
         false, RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE));
     public static final ClusterBlock TRIBE_WRITE_BLOCK = new ClusterBlock(11, "tribe node, write not allowed", false, false,
         false, RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.WRITE));
-
-    public static Settings processSettings(Settings settings) {
-        if (TRIBE_NAME_SETTING.exists(settings)) {
-            // if its a node client started by this service as tribe, remove any tribe group setting
-            // to avoid recursive configuration
-            Settings.Builder sb = Settings.builder().put(settings);
-            for (String s : settings.getAsMap().keySet()) {
-                if (s.startsWith("tribe.") && !s.equals(TRIBE_NAME_SETTING.getKey())) {
-                    sb.remove(s);
-                }
-            }
-            return sb.build();
-        }
-        Map<String, Settings> nodesSettings = settings.getGroups("tribe", true);
-        if (nodesSettings.isEmpty()) {
-            return settings;
-        }
-        // its a tribe configured node..., force settings
-        Settings.Builder sb = Settings.builder().put(settings);
-        sb.put(Node.NODE_MASTER_SETTING.getKey(), false);
-        sb.put(Node.NODE_DATA_SETTING.getKey(), false);
-        sb.put(Node.NODE_INGEST_SETTING.getKey(), false);
-        if (!NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.exists(settings)) {
-            sb.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), nodesSettings.size());
-        }
-        sb.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "tribe"); // there is a special discovery implementation for tribe
-        // nothing is going to be discovered, since no master will be elected
-        sb.put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0);
-        if (sb.get("cluster.name") == null) {
-            sb.put("cluster.name", "tribe_" + UUIDs.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
-        }
-        sb.put(TransportMasterNodeReadAction.FORCE_LOCAL_SETTING.getKey(), true);
-        return sb.build();
-    }
-
-    /**
-     * Interface to allow merging {@link org.elasticsearch.cluster.metadata.MetaData.Custom} in tribe node
-     * When multiple Mergable Custom metadata of the same type is found (from underlying clusters), the
-     * Custom metadata will be merged using {@link #merge(MetaData.Custom)} and the result will be stored
-     * in the tribe cluster state
-     *
-     * @param <T> type of custom meta data
-     */
-    public interface MergableCustomMetaData<T extends MetaData.Custom> {
-
-        /**
-         * Merges this custom metadata with other, returning either this or <code>other</code> custom metadata
-         * for tribe cluster state. This method should not mutate either <code>this</code> or the
-         * <code>other</code> custom metadata.
-         *
-         * @param other custom meta data
-         * @return the same instance or <code>other</code> custom metadata based on implementation
-         *         if both the instances are considered equal, implementations should return this
-         *         instance to avoid redundant cluster state changes.
-         */
-        T merge(T other);
-    }
 
     // internal settings only
     public static final Setting<String> TRIBE_NAME_SETTING = Setting.simpleString("tribe.name", Property.NodeScope);
@@ -200,7 +134,8 @@ public class TribeService extends AbstractLifecycleComponent {
         Setting.listSetting("tribe.blocks.metadata.indices", Collections.emptyList(), Function.identity(), Property.NodeScope);
 
     public static final Set<String> TRIBE_SETTING_KEYS = Sets.newHashSet(TRIBE_NAME_SETTING.getKey(), ON_CONFLICT_SETTING.getKey(),
-            BLOCKS_METADATA_INDICES_SETTING.getKey(), BLOCKS_METADATA_SETTING.getKey(), BLOCKS_READ_INDICES_SETTING.getKey(), BLOCKS_WRITE_INDICES_SETTING.getKey(), BLOCKS_WRITE_SETTING.getKey());
+            BLOCKS_METADATA_INDICES_SETTING.getKey(), BLOCKS_METADATA_SETTING.getKey(), BLOCKS_READ_INDICES_SETTING.getKey(),
+            BLOCKS_WRITE_INDICES_SETTING.getKey(), BLOCKS_WRITE_SETTING.getKey());
 
     // these settings should be passed through to each tribe client, if they are not set explicitly
     private static final List<Setting<?>> PASS_THROUGH_SETTINGS = Arrays.asList(
@@ -218,8 +153,8 @@ public class TribeService extends AbstractLifecycleComponent {
 
     private final NamedWriteableRegistry namedWriteableRegistry;
 
-    public TribeService(Settings settings, Path configPath, ClusterService clusterService, final String tribeNodeId,
-                        NamedWriteableRegistry namedWriteableRegistry, BiFunction<Settings, Path, Node> clientNodeBuilder) {
+    public TribeService(Settings settings, NodeEnvironment nodeEnvironment, ClusterService clusterService,
+                        NamedWriteableRegistry namedWriteableRegistry, Function<Settings, Node> clientNodeBuilder) {
         super(settings);
         this.clusterService = clusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -227,8 +162,21 @@ public class TribeService extends AbstractLifecycleComponent {
         nodesSettings.remove("blocks"); // remove prefix settings that don't indicate a client
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
-            Settings clientSettings = buildClientSettings(entry.getKey(), tribeNodeId, settings, entry.getValue());
-            nodes.add(clientNodeBuilder.apply(clientSettings, configPath));
+            Settings clientSettings = buildClientSettings(entry.getKey(), nodeEnvironment.nodeId(), settings, entry.getValue());
+            try {
+                nodes.add(clientNodeBuilder.apply(clientSettings));
+            } catch (Exception e) {
+                // calling close is safe for non started nodes, we can just iterate over all
+                for (Node otherNode : nodes) {
+                    try {
+                        otherNode.close();
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to close node {} on failed start", otherNode), inner);
+                    }
+                }
+                throw ExceptionsHelper.convertToRuntime(e);
+            }
         }
 
         this.blockIndicesMetadata = BLOCKS_METADATA_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
@@ -279,7 +227,6 @@ public class TribeService extends AbstractLifecycleComponent {
         return sb.build();
     }
 
-
     @Override
     protected void doStart() {
 
@@ -300,10 +247,7 @@ public class TribeService extends AbstractLifecycleComponent {
                         logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to close node {} on failed start", otherNode), inner);
                     }
                 }
-                if (e instanceof RuntimeException) {
-                    throw (RuntimeException) e;
-                }
-                throw new ElasticsearchException(e);
+                throw ExceptionsHelper.convertToRuntime(e);
             }
         }
     }

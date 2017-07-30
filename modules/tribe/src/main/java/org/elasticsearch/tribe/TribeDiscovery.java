@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.discovery;
+package org.elasticsearch.tribe;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.single.SingleNodeDiscovery;
 import org.elasticsearch.transport.TransportService;
 
@@ -37,7 +38,7 @@ import static org.elasticsearch.tribe.TribeService.TRIBE_METADATA_BLOCK;
 import static org.elasticsearch.tribe.TribeService.TRIBE_WRITE_BLOCK;
 
 /**
- * A {@link Discovery} implementation that is used by {@link org.elasticsearch.tribe.TribeService}. This implementation
+ * A {@link Discovery} implementation that is used by {@link TribeService}. This implementation
  * doesn't support any clustering features. Most notably {@link #startInitialJoin()} does nothing and
  * {@link #publish(ClusterChangedEvent, AckListener)} delegates state updates directly to the
  * {@link org.elasticsearch.cluster.service.ClusterApplierService}.

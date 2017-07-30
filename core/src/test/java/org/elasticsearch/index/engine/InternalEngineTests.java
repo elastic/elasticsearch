@@ -2484,7 +2484,7 @@ public class InternalEngineTests extends ESTestCase {
             // since we rollback the IW we are writing the same segment files again after starting IW but MDW prevents
             // this so we have to disable the check explicitly
             boolean started = false;
-            final int numIters = 1;//randomIntBetween(10, 20);
+            final int numIters = randomIntBetween(10, 20);
             for (int i = 0; i < numIters; i++) {
                 directory.setRandomIOExceptionRateOnOpen(randomDouble());
                 directory.setRandomIOExceptionRate(randomDouble());

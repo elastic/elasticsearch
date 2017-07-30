@@ -227,6 +227,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 this::validate));
     }
 
+    interface IndexValidator {
+        void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state);
+    }
+
     static class IndexCreationTask extends AckedClusterStateUpdateTask<ClusterStateUpdateResponse> {
 
         private final IndicesService indicesService;
@@ -672,9 +676,5 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             .put(IndexMetaData.SETTING_ROUTING_PARTITION_SIZE, sourceMetaData.getRoutingPartitionSize())
             .put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME.getKey(), shrinkFromIndex.getName())
             .put(IndexMetaData.INDEX_SHRINK_SOURCE_UUID.getKey(), shrinkFromIndex.getUUID());
-    }
-
-    interface IndexValidator {
-        void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state);
     }
 }

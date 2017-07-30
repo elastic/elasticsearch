@@ -399,8 +399,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         double doubleValue = numericValue.doubleValue();
         if (Double.isFinite(doubleValue) == false) {
-            // since we encode to a long, we have no way to carry NaNs and infinities
-            throw new IllegalArgumentException("[scaled_float] only supports finite values, but got [" + doubleValue + "]");
+            if (ignoreMalformed.value()) {
+                return;
+            } else {
+                // since we encode to a long, we have no way to carry NaNs and infinities
+                throw new IllegalArgumentException("[scaled_float] only supports finite values, but got [" + doubleValue + "]");
+            }
         }
         long scaledValue = Math.round(doubleValue * fieldType().getScalingFactor());
 

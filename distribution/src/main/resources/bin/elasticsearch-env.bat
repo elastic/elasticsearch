@@ -1,6 +1,6 @@
 set SCRIPT=%0
 
-rem determine Elasticsearch home; to do this, we strip from the path util we
+rem determine Elasticsearch home; to do this, we strip from the path until we
 rem find bin, and then strip bin (there is an assumption here that there is no
 rem nested directory under bin also named bin)
 for %%I in (%SCRIPT%) do set ES_HOME=%%~dpI

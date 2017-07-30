@@ -24,6 +24,7 @@ import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
 import org.elasticsearch.Build;
+import org.elasticsearch.Version;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
@@ -100,7 +101,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
             if (options.has(daemonizeOption) || options.has(pidfileOption)) {
                 throw new UserException(ExitCodes.USAGE, "Elasticsearch version option is mutually exclusive with any other option");
             }
-            terminal.println("Version: " + org.elasticsearch.Version.CURRENT
+            terminal.println("Version: " + Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot())
                     + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date()
                     + ", JVM: " + JvmInfo.jvmInfo().version());
             return;

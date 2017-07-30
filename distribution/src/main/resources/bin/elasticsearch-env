@@ -54,8 +54,8 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# don't let JAVA_TOOL_OPTIONS slip in (e.g. agents in Ubuntu); works around
-# https://bugs.launchpad.net/ubuntu/+source/jayatana/+bug/1441487
+# don't let JAVA_TOOL_OPTIONS slip in (e.g., agents in Ubuntu so this works
+# around https://bugs.launchpad.net/ubuntu/+source/jayatana/+bug/1441487)
 if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
   echo "warning: ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
   unset JAVA_TOOL_OPTIONS

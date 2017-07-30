@@ -37,6 +37,13 @@ if errorlevel 1 (
   exit /B 1
 )
 
+rem don't let JAVA_TOOL_OPTIONS slip in (e.g., agents in Ubuntu so this works
+rem around https://bugs.launchpad.net/ubuntu/+source/jayatana/+bug/1441487)
+if not "%JAVA_TOOL_OPTIONS%" == "" (
+  echo "warning: ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
+  set JAVA_TOOL_OPTIONS=
+)
+
 rem JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we
 rem warn them that we are not observing the value of %JAVA_OPTS%
 if not "%JAVA_OPTS%" == "" (

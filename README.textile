@@ -165,7 +165,7 @@ Search (and similar operations) are multi index aware. This means that we can ea
 index (twitter user), for example:
 
 <pre>
-curl -XGET 'http://localhost:9200/kimchy,another_user/_search?pretty=true' -H 'Content-Type: application/json' -d '
+curl -XGET 'http://localhost:9200/twitter,another_user/_search?pretty=true' -H 'Content-Type: application/json' -d '
 {
     "query" : {
         "match_all" : {}

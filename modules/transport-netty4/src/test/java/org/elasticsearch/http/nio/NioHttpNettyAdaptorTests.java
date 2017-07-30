@@ -28,17 +28,21 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestEncoder;
 import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
+import org.elasticsearch.transport.nio.channel.WriteContext;
 
 import java.util.function.BiConsumer;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class NioHttpNettyAdaptorTests extends ESTestCase {
 
@@ -68,19 +72,28 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
     public void testEncodeHttpResponse() {
         NioHttpNettyAdaptor nioHttpNettyAdaptor = new NioHttpNettyAdaptor(Settings.EMPTY, mock(BiConsumer.class),
             Netty4CorsConfigBuilder.forAnyOrigin().build(), 1024);
-        EmbeddedChannel adaptor = nioHttpNettyAdaptor.getAdaptor(mock(NioSocketChannel.class));
+        NioSocketChannel nioSocketChannel = mock(NioSocketChannel.class);
+        when(nioSocketChannel.getWriteContext()).thenReturn(mock(WriteContext.class));
+        EmbeddedChannel adaptor = nioHttpNettyAdaptor.getAdaptor(nioSocketChannel);
 
-
+        // Must send a request through pipeline inorder to handle response
         HttpRequest defaultFullHttpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "localhost:9090/got/got");
-        EmbeddedChannel ch = new EmbeddedChannel(new HttpRequestEncoder());
-        ch.writeOutbound(defaultFullHttpRequest);
-        ByteBuf buf = ch.readOutbound();
+        EmbeddedChannel encodingChannel = new EmbeddedChannel(new HttpRequestEncoder());
+        encodingChannel.writeOutbound(defaultFullHttpRequest);
+        ByteBuf buf = encodingChannel.readOutbound();
         adaptor.writeInbound(buf);
 
 
         HttpResponse defaultFullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
 
         adaptor.writeOutbound(defaultFullHttpResponse);
-        Object encodedResponse = adaptor.readOutbound();
+        ByteBuf encodedResponse = adaptor.readOutbound();
+
+        EmbeddedChannel decodingChannel = new EmbeddedChannel(new HttpResponseDecoder());
+        decodingChannel.writeInbound(encodedResponse);
+        HttpResponse response = decodingChannel.readInbound();
+
+        assertEquals(HttpResponseStatus.OK, response.status());
+        assertEquals(HttpVersion.HTTP_1_1, response.protocolVersion());
     }
 }

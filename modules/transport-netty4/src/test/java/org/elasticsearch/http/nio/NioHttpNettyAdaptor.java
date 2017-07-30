@@ -88,6 +88,7 @@ public class NioHttpNettyAdaptor {
     }
 
     protected EmbeddedChannel getAdaptor(NioSocketChannel channel) {
+        // TODO: Need to ensure that messages are removed from channel eventually
         EmbeddedChannel ch = new EmbeddedChannel();
         // TODO: Implement Netty allocator that allocates our byte references
         ch.config().setAllocator(UnpooledByteBufAllocator.DEFAULT);
@@ -95,6 +96,24 @@ public class NioHttpNettyAdaptor {
         final HttpRequestDecoder decoder = new HttpRequestDecoder(maxInitialLineLength, maxHeaderSize, maxChunkSize);
         ch.pipeline().addLast(decoder);
         ch.pipeline().addLast(new HttpContentDecompressor());
+        ch.pipeline().addLast("writer", new ChannelOutboundHandlerAdapter() {
+
+            @Override
+            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+                channel.getWriteContext().sendMessage(Netty4Utils.toBytesReference((ByteBuf) msg), new ActionListener<NioChannel>() {
+                    @Override
+                    public void onResponse(NioChannel nioChannel) {
+                        promise.setSuccess();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        promise.setFailure(e);
+                    }
+                });
+                ctx.write(msg, promise);
+            }
+        });
         ch.pipeline().addLast(new HttpResponseEncoder());
         decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
         final HttpObjectAggregator aggregator = new HttpObjectAggregator(maxContentLength);
@@ -117,24 +136,7 @@ public class NioHttpNettyAdaptor {
                 exceptionHandler.accept(channel, cause);
             }
         });
-        ch.pipeline().addLast("writer", new ChannelOutboundHandlerAdapter() {
 
-            @Override
-            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-                channel.getWriteContext().sendMessage(Netty4Utils.toBytesReference((ByteBuf) msg), new ActionListener<NioChannel>() {
-                    @Override
-                    public void onResponse(NioChannel nioChannel) {
-                        promise.setSuccess();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        promise.setFailure(e);
-                    }
-                });
-                ctx.write(msg, promise);
-            }
-        });
 
         return ch;
     }

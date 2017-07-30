@@ -22,10 +22,13 @@ package org.elasticsearch.http.nio;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestEncoder;
+import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
@@ -44,7 +47,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
             Netty4CorsConfigBuilder.forAnyOrigin().build(), 1024);
         EmbeddedChannel adaptor = nioHttpNettyAdaptor.getAdaptor(mock(NioSocketChannel.class));
 
-        HttpRequest defaultFullHttpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_0, HttpMethod.GET, "localhost:9090/got/got");
+        HttpRequest defaultFullHttpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "localhost:9090/got/got");
 
         EmbeddedChannel ch = new EmbeddedChannel(new HttpRequestEncoder());
         ch.writeOutbound(defaultFullHttpRequest);
@@ -60,5 +63,24 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
         FullHttpRequest fullHttpRequest = (FullHttpRequest) decodedRequest.last();
         assertEquals(defaultFullHttpRequest.protocolVersion(), fullHttpRequest.protocolVersion());
         assertEquals(defaultFullHttpRequest.method(), fullHttpRequest.method());
+    }
+
+    public void testEncodeHttpResponse() {
+        NioHttpNettyAdaptor nioHttpNettyAdaptor = new NioHttpNettyAdaptor(Settings.EMPTY, mock(BiConsumer.class),
+            Netty4CorsConfigBuilder.forAnyOrigin().build(), 1024);
+        EmbeddedChannel adaptor = nioHttpNettyAdaptor.getAdaptor(mock(NioSocketChannel.class));
+
+
+        HttpRequest defaultFullHttpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "localhost:9090/got/got");
+        EmbeddedChannel ch = new EmbeddedChannel(new HttpRequestEncoder());
+        ch.writeOutbound(defaultFullHttpRequest);
+        ByteBuf buf = ch.readOutbound();
+        adaptor.writeInbound(buf);
+
+
+        HttpResponse defaultFullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+
+        adaptor.writeOutbound(defaultFullHttpResponse);
+        Object encodedResponse = adaptor.readOutbound();
     }
 }

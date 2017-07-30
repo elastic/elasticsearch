@@ -25,7 +25,7 @@ if defined JAVA_HOME (
 
 if not exist %JAVA% (
   echo could not find java; set JAVA_HOME or ensure java is in PATH 1>&2
-  exit /B 1
+  exit /b 1
 )
 
 rem check the Java version
@@ -34,7 +34,7 @@ rem check the Java version
 if errorlevel 1 (
   echo|set /p="the minimum required Java version is 8; "
   echo your Java version from %JAVA% does not meet this requirement
-  exit /B 1
+  exit /b 1
 )
 
 rem JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we

@@ -19,28 +19,27 @@
 
 package org.elasticsearch.http.nio;
 
-import io.netty.buffer.Unpooled;
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestEncoder;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
+import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
-import java.util.Queue;
 import java.util.function.BiConsumer;
 
 import static org.mockito.Mockito.mock;
 
 public class NioHttpNettyAdaptorTests extends ESTestCase {
 
-    public void testThing() {
+    public void testDecodeHttpRequest() {
         NioHttpNettyAdaptor nioHttpNettyAdaptor = new NioHttpNettyAdaptor(Settings.EMPTY, mock(BiConsumer.class),
             Netty4CorsConfigBuilder.forAnyOrigin().build(), 1024);
         EmbeddedChannel adaptor = nioHttpNettyAdaptor.getAdaptor(mock(NioSocketChannel.class));
@@ -49,12 +48,17 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
 
         EmbeddedChannel ch = new EmbeddedChannel(new HttpRequestEncoder());
         ch.writeOutbound(defaultFullHttpRequest);
-        Object o = ch.readOutbound();
-        int i = 0;
+        ByteBuf buf = ch.readOutbound();
 
-        adaptor.writeInbound(o);
+        adaptor.writeInbound(buf.slice(0, 5).retainedDuplicate());
 
-        Object o1 = adaptor.readInbound();
-        int j = 0;
+        assertNull(adaptor.readInbound());
+
+        adaptor.writeInbound(buf.slice(5, buf.writerIndex() - 5).retainedDuplicate());
+        HttpPipelinedRequest decodedRequest = adaptor.readInbound();
+
+        FullHttpRequest fullHttpRequest = (FullHttpRequest) decodedRequest.last();
+        assertEquals(defaultFullHttpRequest.protocolVersion(), fullHttpRequest.protocolVersion());
+        assertEquals(defaultFullHttpRequest.method(), fullHttpRequest.method());
     }
 }

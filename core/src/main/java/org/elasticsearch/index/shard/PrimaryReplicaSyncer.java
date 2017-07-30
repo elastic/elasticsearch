@@ -80,7 +80,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         this.chunkSize = chunkSize;
     }
 
-    public void resync(IndexShard indexShard, ActionListener<ResyncTask> listener) throws IOException {
+    public void resync(IndexShard indexShard, ActionListener<ResyncTask> listener) {
         try {
             final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
             Translog.Snapshot snapshot = indexShard.getTranslog().newSnapshotFromMinSeqNo(startingSeqNo);
@@ -110,9 +110,11 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
 
                 @Override
                 public synchronized Translog.Operation next() throws IOException {
-                    if (indexShard.state() != IndexShardState.STARTED) {
-                        assert indexShard.state() != IndexShardState.RELOCATED : "resync should never happen on a relocated shard";
-                        throw new IndexShardNotStartedException(shardId, indexShard.state());
+                    IndexShardState state = indexShard.state();
+                    if (state == IndexShardState.CLOSED) {
+                        throw new IndexShardClosedException(shardId);
+                    } else {
+                        assert state == IndexShardState.STARTED : "resync should only happen on a started shard, but state was: " + state;
                     }
                     return snapshot.next();
                 }

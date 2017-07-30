@@ -66,7 +66,7 @@ public class QueryShardContextTests extends ESTestCase {
         QueryShardContext context = new QueryShardContext(
             0, indexSettings, null, mappedFieldType ->
                 mappedFieldType.fielddataBuilder().build(indexSettings, mappedFieldType, null, null, null)
-                , mapperService, null, null, xContentRegistry(), null, null,
+                , mapperService, null, null, xContentRegistry(), writableRegistry(), null, null,
             () -> nowInMillis, null);
 
         context.setAllowUnmappedFields(false);
@@ -111,7 +111,7 @@ public class QueryShardContextTests extends ESTestCase {
         QueryShardContext context = new QueryShardContext(
             0, indexSettings, null, mappedFieldType ->
             mappedFieldType.fielddataBuilder().build(indexSettings, mappedFieldType, null, null, mapperService)
-            , mapperService, null, null, xContentRegistry(), null, null,
+            , mapperService, null, null, xContentRegistry(), writableRegistry(), null, null,
             () -> nowInMillis, clusterAlias);
 
         IndexFieldData<?> forField = context.getForField(mapper.fieldType());

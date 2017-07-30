@@ -453,7 +453,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 client,
                 indicesQueryCache,
                 mapperRegistry,
-                indicesFieldDataCache);
+                indicesFieldDataCache,
+                namedWriteableRegistry);
     }
 
     /**
@@ -1232,7 +1233,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * Returns a new {@link QueryRewriteContext} with the given <tt>now</tt> provider
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
-        return new QueryRewriteContext(xContentRegistry, client, nowInMillis);
+        return new QueryRewriteContext(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
     }
 
     /**

@@ -20,8 +20,6 @@
 package org.apache.lucene.search.uhighlight;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -39,7 +37,6 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
 import java.io.IOException;
@@ -213,8 +210,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             return Collections.singletonList(new TermQuery(atq.getTerm()));
         } else if (query instanceof FunctionScoreQuery) {
             return Collections.singletonList(((FunctionScoreQuery) query).getSubQuery());
-        } else if (query instanceof FiltersFunctionScoreQuery) {
-            return Collections.singletonList(((FiltersFunctionScoreQuery) query).getSubQuery());
         } else {
             return null;
         }

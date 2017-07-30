@@ -52,7 +52,7 @@ public class TestZenDiscovery extends ZenDiscovery {
 
     /** A plugin which installs mock discovery and configures it to be used. */
     public static class TestPlugin extends Plugin implements DiscoveryPlugin {
-        private Settings settings;
+        protected final Settings settings;
         public TestPlugin(Settings settings) {
             this.settings = settings;
         }

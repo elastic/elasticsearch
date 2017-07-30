@@ -73,7 +73,7 @@ public abstract class EnvironmentAwareCommand extends Command {
     protected Environment createEnv(final Terminal terminal, final Map<String, String> settings) throws UserException {
         final String esPathConf = System.getProperty("es.path.conf");
         if (esPathConf == null) {
-            throw new UserException(ExitCodes.CONFIG, "the system property es.path.conf must be set");
+            throw new UserException(ExitCodes.CONFIG, "the system property [es.path.conf] must be set");
         }
         return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings, getConfigPath(esPathConf));
     }

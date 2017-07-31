@@ -22,11 +22,8 @@ https://www.elastic.co/blog/state-of-the-official-elasticsearch-java-clients[sta
 
 === Prerequisite
 
-The Java High Level Rest Client requires Java `1.8`. It can be used to send requests
-to an Elasticsearch cluster that is in version 5.6.0 or 6.0.0. When using the high-level
-client in version 5.x to talk to a cluster in version 6.0.0, breaking changes in the REST
-API may cause unexpected results and new APIs provided by Elasticsearch won't be known by
-the high-level client (but could be used with the Low-Level Rest Client).
+The Java High Level Rest Client requires Java `1.8` and can be used to send requests
+to an <<java-rest-high-compatibility,Elasticsearch cluster in a compatible version>>.
 
 === How to migrate
 
@@ -39,7 +36,7 @@ requires the following steps:
 
 === Updating the dependencies
 
-Java application that uses the `TransportClient` depend on the
+Java application that uses the `TransportClient` depends on the
 `org.elasticsearch.client:transport` artifact. This dependency
 must be replaced by a new dependency on the high-level client.
 
@@ -50,7 +47,7 @@ The <<java-rest-high-usage,Getting Started>> page shows
 
 === Changing the client's initialization code
 
-The `TransportClient` is typically initialized with something as follows:
+The `TransportClient` is typically initialized as follows:
 [source,java]
 --------------------------------------------------
 Settings settings = Settings.builder()
@@ -107,7 +104,7 @@ lowLevelRestClient.close();
 
 === Changing the application's code
 
-The `RestHighLevelClient` supports the same request and response object
+The `RestHighLevelClient` supports the same request and response objects
 as the `TransportClient`, but exposes slightly different methods to
 send the requests.
 

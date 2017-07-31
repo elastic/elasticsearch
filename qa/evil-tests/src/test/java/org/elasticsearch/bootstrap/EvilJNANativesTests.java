@@ -93,7 +93,7 @@ public class EvilJNANativesTests extends ESTestCase {
                     return;
                 }
             }
-            fail("should have read max file from /proc/self/limits");
+            fail("should have read max file size from /proc/self/limits");
         } else if (Constants.MAC_OS_X) {
             assertThat(
                     JNANatives.MAX_FILE_SIZE,

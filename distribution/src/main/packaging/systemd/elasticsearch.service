@@ -32,6 +32,9 @@ LimitNOFILE=65536
 # Specifies the maximum number of processes
 LimitNPROC=4096
 
+# Specifies the maximum file size
+LimitFSIZE=infinity
+
 # Disable timeout logic and wait until process is stopped
 TimeoutStopSec=0
 

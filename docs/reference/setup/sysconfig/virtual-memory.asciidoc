@@ -1,8 +1,8 @@
 [[vm-max-map-count]]
 === Virtual memory
 
-Elasticsearch uses a <<default_fs,`hybrid mmapfs / niofs`>> directory by
-default to store its indices.  The default operating system limits on mmap
+Elasticsearch uses a <<default_fs,`mmapfs`>> directory by
+default for 64bit systems to store its indices.  The default operating system limits on mmap
 counts is likely to be too low, which may result in out of memory exceptions.
 
 On Linux, you can increase the limits by running the following command as

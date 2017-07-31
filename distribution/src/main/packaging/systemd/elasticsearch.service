@@ -32,6 +32,9 @@ LimitNOFILE=65536
 # Specifies the maximum number of processes
 LimitNPROC=4096
 
+# Specifies the maximum size of virtual memory
+LimitAS=infinity
+
 # Specifies the maximum file size
 LimitFSIZE=infinity
 

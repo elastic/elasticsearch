@@ -10,24 +10,29 @@ as `node.name` and paths), or settings which a node requires in order to be
 able to join a cluster, such as `cluster.name` and `network.host`.
 
 [float]
-=== Config file location
+=== Config files location
 
-Elasticsearch has two configuration files:
+Elasticsearch has three configuration files:
 
-* `elasticsearch.yml` for configuring Elasticsearch, and
-* `log4j2.properties` for configuring Elasticsearch logging.
+* `elasticsearch.yml` for configuring Elasticsearch
+* `log4j2.properties` for configuring Elasticsearch logging
+* `jvm.options` for configuring Elasticsearch JVM settings
 
 These files are located in the config directory, whose location defaults to
-`$ES_HOME/config/`.  The Debian and RPM packages set the config directory
-location to `/etc/elasticsearch/`.
+`$ES_HOME/config/`.
 
-The location of the config directory can be changed with the `path.conf`
-flag, as follows:
+The location of the config directory can be changed via the `CONF_DIR`
+environment variable as follows:
 
 [source,sh]
 -------------------------------
-./bin/elasticsearch --path.conf /path/to/my/config/
+CONF_DIR=/path/to/my/config ./bin/elasticsearch
 -------------------------------
+
+If you are running Elasticsearch as a service via the Debian or RPM packages, to
+set `CONF_DIR` you should edit `/etc/default/elasticsearch` (on Debian-based
+systems) or `/etc/sysconfig/elasticsearch` (on RPM-based systems). The Debian
+and RPM packages default the config directory location to `/etc/elasticsearch/`.
 
 [float]
 === Config file format

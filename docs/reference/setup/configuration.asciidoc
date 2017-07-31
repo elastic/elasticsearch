@@ -20,7 +20,7 @@ Elasticsearch has three configuration files:
 
 These files are located in the config directory, whose default location depends
 on whether or not the installation is from an archive distribution (`tar.gz` or
-`zip`) or a package distribution (the Debian and RPM packages).
+`zip`) or a package distribution (Debian or RPM packages).
 
 For the archive distributions, the config directory location defaults to
 `$ES_HOME/config`. The location of the config directory can be changed via the

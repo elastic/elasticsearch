@@ -39,8 +39,8 @@ The following sections lists all the different storage types supported.
 `fs`::
 
 Default file system implementation. This will pick the best implementation
-depending on the operating environment: `simplefs` on Windows 32bit, `niofs`
-on other 32bit systems and `mmapfs` on 64bit systems.
+depending on the operating environment, which is currently `mmapfs` on all
+supported systems but is subject to change.
 
 [[simplefs]]`simplefs`::
 

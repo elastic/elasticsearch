@@ -193,6 +193,9 @@ final class BootstrapChecks {
         if (Constants.LINUX || Constants.MAC_OS_X) {
             checks.add(new MaxSizeVirtualMemoryCheck());
         }
+        if (Constants.LINUX || Constants.MAC_OS_X) {
+            checks.add(new MaxFileSizeCheck());
+        }
         if (Constants.LINUX) {
             checks.add(new MaxMapCountCheck());
         }
@@ -363,6 +366,36 @@ final class BootstrapChecks {
         // visible for testing
         long getMaxSizeVirtualMemory() {
             return JNANatives.MAX_SIZE_VIRTUAL_MEMORY;
+        }
+
+    }
+
+    /**
+     * Bootstrap check that the maximum file size is unlimited (otherwise Elasticsearch could run in to an I/O exception writing files).
+     */
+    static class MaxFileSizeCheck implements BootstrapCheck {
+
+        @Override
+        public boolean check() {
+            final long maxFileSize = getMaxFileSize();
+            return maxFileSize != Long.MIN_VALUE && maxFileSize != getRlimInfinity();
+        }
+
+        @Override
+        public String errorMessage() {
+            return String.format(
+                    Locale.ROOT,
+                    "max file size [%d] for user [%s] is too low, increase to [unlimited]",
+                    getMaxFileSize(),
+                    BootstrapInfo.getSystemProperties().get("user.name"));
+        }
+
+        long getRlimInfinity() {
+            return JNACLibrary.RLIM_INFINITY;
+        }
+
+        long getMaxFileSize() {
+            return JNANatives.MAX_FILE_SIZE;
         }
 
     }

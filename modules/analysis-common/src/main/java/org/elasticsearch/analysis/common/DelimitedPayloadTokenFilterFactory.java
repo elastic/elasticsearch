@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilter;
@@ -28,6 +28,7 @@ import org.apache.lucene.analysis.payloads.PayloadEncoder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 
 public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFactory {
 
@@ -37,11 +38,10 @@ public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFacto
     static final String ENCODING = "encoding";
     static final String DELIMITER = "delimiter";
 
-    char delimiter;
-    PayloadEncoder encoder;
+    private final char delimiter;
+    private final PayloadEncoder encoder;
 
-    public DelimitedPayloadTokenFilterFactory(IndexSettings indexSettings, Environment env, String name,
-            Settings settings) {
+    DelimitedPayloadTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         String delimiterConf = settings.get(DELIMITER);
         if (delimiterConf != null) {
@@ -57,6 +57,8 @@ public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFacto
                 encoder = new IntegerEncoder();
             } else if (settings.get(ENCODING).equals("identity")) {
                 encoder = new IdentityEncoder();
+            } else {
+                encoder = DEFAULT_ENCODER;
             }
         } else {
             encoder = DEFAULT_ENCODER;
@@ -65,8 +67,7 @@ public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFacto
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        DelimitedPayloadTokenFilter filter = new DelimitedPayloadTokenFilter(tokenStream, delimiter, encoder);
-        return filter;
+        return new DelimitedPayloadTokenFilter(tokenStream, delimiter, encoder);
     }
 
 }

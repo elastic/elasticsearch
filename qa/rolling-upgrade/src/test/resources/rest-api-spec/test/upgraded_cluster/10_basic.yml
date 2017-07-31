@@ -63,4 +63,3 @@
       ingest.get_pipeline:
         id: "my_pipeline"
   - match: { my_pipeline.description: "_description" }
-

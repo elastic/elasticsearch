@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -35,10 +34,10 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RandomQueryBuilder;
@@ -228,7 +227,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             break;
         case DATE_FIELD_NAME:
             origin = new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000), DateTimeZone.UTC).toString();
-            scale = randomTimeValue(1, 1000, new String[]{"d", "h", "ms", "s", "m"});
+            scale = randomTimeValue(1, 1000, "d", "h", "ms", "s", "m");
             offset = randomPositiveTimeValue();
             break;
         default:
@@ -334,7 +333,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
          * given that we copy part of the decay functions as bytes, we test that fromXContent and toXContent both work no matter what the
          * initial format was
          */
-        for (int i = 0; i <= XContentType.values().length; i++) {
+        for (XContentType xContentType : XContentType.values()) {
             assertThat(queryBuilder, instanceOf(FunctionScoreQueryBuilder.class));
             FunctionScoreQueryBuilder functionScoreQueryBuilder = (FunctionScoreQueryBuilder) queryBuilder;
             assertThat(functionScoreQueryBuilder.query(), instanceOf(TermQueryBuilder.class));
@@ -369,12 +368,9 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             assertThat(functionScoreQueryBuilder.scoreMode(), equalTo(FunctionScoreQuery.ScoreMode.AVG));
             assertThat(functionScoreQueryBuilder.boostMode(), equalTo(CombineFunction.REPLACE));
             assertThat(functionScoreQueryBuilder.maxBoost(), equalTo(10f));
-
-            if (i < XContentType.values().length) {
-                BytesReference bytes = ((AbstractQueryBuilder) queryBuilder).buildAsBytes(XContentType.values()[i]);
-                try (XContentParser parser = createParser(XContentType.values()[i].xContent(), bytes)) {
-                    queryBuilder = parseQuery(parser);
-                }
+            BytesReference bytes = XContentHelper.toXContent(queryBuilder, xContentType, false);
+            try (XContentParser parser = createParser(xContentType.xContent(), bytes)) {
+                queryBuilder = parseQuery(parser);
             }
         }
     }
@@ -405,7 +401,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
          * given that we copy part of the decay functions as bytes, we test that fromXContent and toXContent both work no matter what the
          * initial format was
          */
-        for (int i = 0; i <= XContentType.values().length; i++) {
+        for (XContentType xContentType : XContentType.values()) {
             assertThat(queryBuilder, instanceOf(FunctionScoreQueryBuilder.class));
             FunctionScoreQueryBuilder functionScoreQueryBuilder = (FunctionScoreQueryBuilder) queryBuilder;
             assertThat(functionScoreQueryBuilder.query(), instanceOf(TermQueryBuilder.class));
@@ -424,12 +420,9 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             assertThat(functionScoreQueryBuilder.scoreMode(), equalTo(FunctionScoreQuery.ScoreMode.AVG));
             assertThat(functionScoreQueryBuilder.boostMode(), equalTo(CombineFunction.REPLACE));
             assertThat(functionScoreQueryBuilder.maxBoost(), equalTo(10f));
-
-            if (i < XContentType.values().length) {
-                BytesReference bytes = ((AbstractQueryBuilder) queryBuilder).buildAsBytes(XContentType.values()[i]);
-                try (XContentParser parser = createParser(XContentType.values()[i].xContent(), bytes)) {
-                    queryBuilder = parseQuery(parser);
-                }
+            BytesReference bytes = XContentHelper.toXContent(queryBuilder, xContentType, false);
+            try (XContentParser parser = createParser(xContentType.xContent(), bytes)) {
+                queryBuilder = parseQuery(parser);
             }
         }
     }
@@ -647,7 +640,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                     "  }\n" +
                     "}";
 
-        FunctionScoreQueryBuilder expectedParsed = (FunctionScoreQueryBuilder) parseQuery(json);
+        FunctionScoreQueryBuilder expectedParsed = (FunctionScoreQueryBuilder) parseQuery(expected);
         assertEquals(expectedParsed, parsed);
 
         assertEquals(json, 2, parsed.filterFunctionBuilders().length);

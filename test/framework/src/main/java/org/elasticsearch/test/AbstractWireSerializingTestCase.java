@@ -26,11 +26,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 
 import java.io.IOException;
 import java.util.Collections;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractWireSerializingTestCase<T extends Writeable> extends ESTestCase {
     protected static final int NUMBER_OF_TEST_RUNS = 20;
@@ -48,35 +48,31 @@ public abstract class AbstractWireSerializingTestCase<T extends Writeable> exten
     protected abstract Reader<T> instanceReader();
 
     /**
+     * Returns a {@link CopyFunction} that can be used to make an exact copy of
+     * the given instance. This defaults to a function that uses
+     * {@link #copyInstance(Writeable)} to create the copy.
+     */
+    protected CopyFunction<T> getCopyFunction() {
+        return (original) -> copyInstance(original);
+    }
+
+    /**
+     * Returns a {@link MutateFunction} that can be used to make create a copy
+     * of the given instance that is different to this instance. This defaults
+     * to null.
+     */
+    // TODO: Make this abstract when all sub-classes implement this (https://github.com/elastic/elasticsearch/issues/25929)
+    protected MutateFunction<T> getMutateFunction() {
+        return null;
+    }
+
+    /**
      * Tests that the equals and hashcode methods are consistent and copied
      * versions of the instance have are equal.
      */
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            T firstInstance = createTestInstance();
-            assertFalse("instance is equal to null", firstInstance.equals(null));
-            assertFalse("instance is equal to incompatible type", firstInstance.equals(""));
-            assertEquals("instance is not equal to self", firstInstance, firstInstance);
-            assertThat("same instance's hashcode returns different values if called multiple times", firstInstance.hashCode(),
-                    equalTo(firstInstance.hashCode()));
-
-            T secondInstance = copyInstance(firstInstance);
-            assertEquals("instance is not equal to self", secondInstance, secondInstance);
-            assertEquals("instance is not equal to its copy", firstInstance, secondInstance);
-            assertEquals("equals is not symmetric", secondInstance, firstInstance);
-            assertThat("instance copy's hashcode is different from original hashcode", secondInstance.hashCode(),
-                    equalTo(firstInstance.hashCode()));
-
-            T thirdInstance = copyInstance(secondInstance);
-            assertEquals("instance is not equal to self", thirdInstance, thirdInstance);
-            assertEquals("instance is not equal to its copy", secondInstance, thirdInstance);
-            assertThat("instance copy's hashcode is different from original hashcode", secondInstance.hashCode(),
-                    equalTo(thirdInstance.hashCode()));
-            assertEquals("equals is not transitive", firstInstance, thirdInstance);
-            assertThat("instance copy's hashcode is different from original hashcode", firstInstance.hashCode(),
-                    equalTo(thirdInstance.hashCode()));
-            assertEquals("equals is not symmetric", thirdInstance, secondInstance);
-            assertEquals("equals is not symmetric", thirdInstance, firstInstance);
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), getCopyFunction(), getMutateFunction());
         }
     }
 

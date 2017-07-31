@@ -23,31 +23,22 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasToString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
@@ -62,7 +53,7 @@ public class NodeTests extends ESTestCase {
         if (name != null) {
             settings.put(Node.NODE_NAME_SETTING.getKey(), name);
         }
-        try (Node node = new MockNode(settings.build(), Collections.singleton(MockTcpTransportPlugin.class))) {
+        try (Node node = new MockNode(settings.build(), Collections.singleton(randomTestTransportPlugin()))) {
             final Settings nodeSettings = randomBoolean() ? node.settings() : node.getEnvironment().settings();
             if (name == null) {
                 assertThat(Node.NODE_NAME_SETTING.get(nodeSettings), equalTo(node.getNodeEnvironment().nodeId().substring(0, 7)));
@@ -97,7 +88,7 @@ public class NodeTests extends ESTestCase {
             settings.put(Node.NODE_NAME_SETTING.getKey(), name);
         }
         AtomicBoolean executed = new AtomicBoolean(false);
-        try (Node node = new MockNode(settings.build(), Arrays.asList(MockTcpTransportPlugin.class, CheckPlugin.class)) {
+        try (Node node = new MockNode(settings.build(), Arrays.asList(randomTestTransportPlugin(), CheckPlugin.class)) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress,
                                                                List<BootstrapCheck> bootstrapChecks) throws NodeValidationException {
@@ -139,7 +130,7 @@ public class NodeTests extends ESTestCase {
     public void testNodeAttributes() throws IOException {
         String attr = randomAlphaOfLength(5);
         Settings.Builder settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
-        try (Node node = new MockNode(settings.build(), Collections.singleton(MockTcpTransportPlugin.class))) {
+        try (Node node = new MockNode(settings.build(), Collections.singleton(randomTestTransportPlugin()))) {
             final Settings nodeSettings = randomBoolean() ? node.settings() : node.getEnvironment().settings();
             assertEquals(attr, Node.NODE_ATTRIBUTES.get(nodeSettings).getAsMap().get("test_attr"));
         }
@@ -147,7 +138,7 @@ public class NodeTests extends ESTestCase {
         // leading whitespace not allowed
         attr = " leading";
         settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
-        try (Node node = new MockNode(settings.build(), Collections.singleton(MockTcpTransportPlugin.class))) {
+        try (Node node = new MockNode(settings.build(), Collections.singleton(randomTestTransportPlugin()))) {
             fail("should not allow a node attribute with leading whitespace");
         } catch (IllegalArgumentException e) {
             assertEquals("node.attr.test_attr cannot have leading or trailing whitespace [ leading]", e.getMessage());
@@ -156,7 +147,7 @@ public class NodeTests extends ESTestCase {
         // trailing whitespace not allowed
         attr = "trailing ";
         settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
-        try (Node node = new MockNode(settings.build(), Collections.singleton(MockTcpTransportPlugin.class))) {
+        try (Node node = new MockNode(settings.build(), Collections.singleton(randomTestTransportPlugin()))) {
             fail("should not allow a node attribute with trailing whitespace");
         } catch (IllegalArgumentException e) {
             assertEquals("node.attr.test_attr cannot have leading or trailing whitespace [trailing ]", e.getMessage());

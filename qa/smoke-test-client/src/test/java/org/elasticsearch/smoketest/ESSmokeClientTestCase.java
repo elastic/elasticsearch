@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -48,6 +47,8 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
+import static org.elasticsearch.test.ESTestCase.randomTestTransportKey;
+import static org.elasticsearch.test.ESTestCase.randomTestTransportPlugin;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -82,8 +83,8 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
         final Collection<Class<? extends Plugin>> plugins;
         if (random().nextBoolean()) {
-            builder.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
-            plugins = Collections.singleton(MockTcpTransportPlugin.class);
+            builder.put(NetworkModule.TRANSPORT_TYPE_KEY, randomTestTransportKey());
+            plugins = Collections.singleton(randomTestTransportPlugin());
         } else {
             plugins = Collections.emptyList();
         }

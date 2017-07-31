@@ -39,6 +39,7 @@ import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.TestRuleMarkFailure;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
@@ -91,6 +92,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -132,6 +134,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -885,8 +888,25 @@ public abstract class ESTestCase extends LuceneTestCase {
         return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
     }
 
-    public static String randomTestTransport() {
-        return randomBoolean() ? NioTransportPlugin.NIO_TRANSPORT_NAME : MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
+    private static final SetOnce<Boolean> useNio = new SetOnce<>();
+
+    private static boolean getUseNio() {
+        if (useNio.get() == null) {
+            synchronized (useNio) {
+                if (useNio.get() == null) {
+                    useNio.set(randomBoolean());
+                }
+            }
+        }
+        return useNio.get();
+    }
+
+    public static String randomTestTransportKey() {
+        return getUseNio() ? NioTransportPlugin.NIO_TRANSPORT_NAME : MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
+    }
+
+    public static Class<? extends Plugin> randomTestTransportPlugin() {
+        return getUseNio() ? NioTransportPlugin.class : MockTcpTransportPlugin.class;
     }
 
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();

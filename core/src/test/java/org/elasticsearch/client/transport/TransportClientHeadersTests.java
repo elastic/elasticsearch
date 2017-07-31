@@ -42,7 +42,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
@@ -53,7 +52,6 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.NioTransportPlugin;
 
 import java.util.Collections;
 import java.util.List;
@@ -82,7 +80,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
         transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null);
         transportService.start();
         transportService.acceptIncomingRequests();
-        String transport = randomTestTransport();
+        String transport = randomTestTransportKey();
         TransportClient client = new MockTransportClient(Settings.builder()
                 .put("client.transport.sniff", false)
                 .put("cluster.name", "cluster1")
@@ -99,7 +97,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
     }
 
     public void testWithSniffing() throws Exception {
-        String transport = randomTestTransport();
+        String transport = randomTestTransportKey();
         try (TransportClient client = new MockTransportClient(
                 Settings.builder()
                         .put("client.transport.sniff", true)

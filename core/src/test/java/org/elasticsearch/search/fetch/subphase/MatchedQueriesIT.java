@@ -20,8 +20,13 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -321,9 +326,13 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "1").setSource("content", "Lorem ipsum dolor sit amet").get();
         refresh();
 
+        MatchQueryBuilder matchQueryBuilder = matchQuery("content", "amet").queryName("abc");
+        BytesReference matchBytes = XContentHelper.toXContent(matchQueryBuilder, XContentType.JSON, false);
+        TermQueryBuilder termQueryBuilder = termQuery("content", "amet").queryName("abc");
+        BytesReference termBytes = XContentHelper.toXContent(termQueryBuilder, XContentType.JSON, false);
         QueryBuilder[] queries = new QueryBuilder[]{
-                wrapperQuery(matchQuery("content", "amet").queryName("abc").buildAsBytes().utf8ToString()),
-                constantScoreQuery(wrapperQuery(termQuery("content", "amet").queryName("abc").buildAsBytes().utf8ToString()))
+                wrapperQuery(matchBytes),
+                constantScoreQuery(wrapperQuery(termBytes))
         };
         for (QueryBuilder query : queries) {
             SearchResponse searchResponse = client().prepareSearch()

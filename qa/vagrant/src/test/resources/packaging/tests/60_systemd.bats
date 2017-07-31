@@ -200,3 +200,21 @@ setup() {
 
     systemctl unmask systemd-sysctl.service
 }
+
+@test "[SYSTEMD] service file sets limits" {
+    clean_before_test
+    install_package
+    systemctl start elasticsearch.service
+    wait_for_elasticsearch_status
+    local pid=$(cat /var/run/elasticsearch/elasticsearch.pid)
+    local max_file_size=$(cat /proc/$pid/limits | grep "Max file size" | awk '{ print $4 }')
+    [ "$max_file_size" == "unlimited" ]
+    local max_processes=$(cat /proc/$pid/limits | grep "Max processes" | awk '{ print $3 }')
+    [ "$max_processes" == "4096" ]
+    local max_open_files=$(cat /proc/$pid/limits | grep "Max open files" | awk '{ print $4 }')
+    [ "$max_open_files" == "65536" ]
+    local max_address_space=$(cat /proc/$pid/limits | grep "Max address space" | awk '{ print $4 }')
+    [ "$max_address_space" == "unlimited" ]
+    systemctl stop elasticsearch.service
+}
+

@@ -263,18 +263,23 @@ public class FetchPhase implements SearchPhase {
                 String nestedPath = nested.getField().string();
                 current.put(nestedPath, new HashMap<>());
                 Object extractedValue = XContentMapValues.extractValue(nestedPath, sourceAsMap);
-                List<Map<String, Object>> nestedParsedSource;
+                List<?> nestedParsedSource;
                 if (extractedValue instanceof List) {
                     // nested field has an array value in the _source
-                    nestedParsedSource = (List<Map<String, Object>>) extractedValue;
+                    nestedParsedSource = (List<?>) extractedValue;
                 } else if (extractedValue instanceof Map) {
                     // nested field has an object value in the _source. This just means the nested field has just one inner object,
                     // which is valid, but uncommon.
-                    nestedParsedSource = Collections.singletonList((Map<String, Object>) extractedValue);
+                    nestedParsedSource = Collections.singletonList(extractedValue);
                 } else {
                     throw new IllegalStateException("extracted source isn't an object or an array");
                 }
-                sourceAsMap = nestedParsedSource.get(nested.getOffset());
+                if ((nestedParsedSource.get(0) instanceof Map) == false &&
+                    nestedObjectMapper.parentObjectMapperAreNested(context.mapperService()) == false) {
+                    throw new IllegalArgumentException("Cannot execute inner hits. One or more parent object fields of nested field [" +
+                        nestedObjectMapper.name() + "] are not nested. All parent fields need to be nested fields too");
+                }
+                sourceAsMap = (Map<String, Object>) nestedParsedSource.get(nested.getOffset());
                 if (nested.getChild() == null) {
                     current.put(nestedPath, sourceAsMap);
                 } else {

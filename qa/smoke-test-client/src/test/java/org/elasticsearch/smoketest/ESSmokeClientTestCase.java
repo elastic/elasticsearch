@@ -30,7 +30,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -47,8 +49,6 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
-import static org.elasticsearch.test.ESTestCase.randomTestTransportKey;
-import static org.elasticsearch.test.ESTestCase.randomTestTransportPlugin;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -82,9 +82,19 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
             .put("client.transport.ignore_cluster_name", true)
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
         final Collection<Class<? extends Plugin>> plugins;
+        boolean usNio = random().nextBoolean();
+        String transportKey;
+        Class<? extends Plugin> transportPlugin;
+        if (usNio) {
+            transportKey = NioTransportPlugin.NIO_TRANSPORT_NAME;
+            transportPlugin = NioTransportPlugin.class;
+        } else {
+            transportKey = MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
+            transportPlugin = MockTcpTransportPlugin.class;
+        }
         if (random().nextBoolean()) {
-            builder.put(NetworkModule.TRANSPORT_TYPE_KEY, randomTestTransportKey());
-            plugins = Collections.singleton(randomTestTransportPlugin());
+            builder.put(NetworkModule.TRANSPORT_TYPE_KEY, transportKey);
+            plugins = Collections.singleton(transportPlugin);
         } else {
             plugins = Collections.emptyList();
         }

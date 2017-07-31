@@ -11,8 +11,11 @@ import org.elasticsearch.xpack.sql.SqlException;
 
 import static java.lang.String.format;
 
+/**
+ * Thrown when we accidentally attempt to resolve something on on an unresolved entity. Throwing this
+ * is always a bug.
+ */
 public class UnresolvedException extends SqlException {
-
     public UnresolvedException(String action, Object target) {
         super(format(Locale.ROOT, "Invalid call to %s on an unresolved object %s", action, target));
     }

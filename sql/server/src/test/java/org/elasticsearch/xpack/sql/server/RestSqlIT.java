@@ -24,6 +24,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 
 public class RestSqlIT extends ESRestTestCase {
@@ -70,20 +71,25 @@ public class RestSqlIT extends ESRestTestCase {
         client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
 
-        // NOCOMMIT test the error messages
-        expectSqlThrows(() -> runSql("SELECT foo FROM test.test"), containsString("500"));
-        expectSqlThrows(() -> runSql("SELECT DAY_OF_YEAR(foo) FROM test.test"), containsString("500"));
-        expectSqlThrows(() -> runSql("SELECT foo, * FROM test.test GROUP BY DAY_OF_YEAR(foo)"), containsString("500"));
-        expectSqlThrows(() -> runSql("SELECT * FROM test.test WHERE foo = 1"), containsString("500"));
-        expectSqlThrows(() -> runSql("SELECT * FROM test.test WHERE DAY_OF_YEAR(foo) = 1"), containsString("500"));
-        expectSqlThrows(() -> runSql("SELECT * FROM test.test ORDER BY foo"), containsString("500"));
-        expectSqlThrows(() -> runSql("SELECT * FROM test.test ORDER BY DAY_OF_YEAR(foo)"), containsString("500"));
+        // NOCOMMIT "unresolved" should probably be changed to something users will understand like "missing"
+        expectBadRequest(() -> runSql("SELECT foo FROM test.test"), containsString("1:8: Unresolved item 'foo'"));
+        // NOCOMMIT the ones below one should include (foo) but it looks like the function is missing
+        expectBadRequest(() -> runSql("SELECT DAY_OF_YEAR(foo) FROM test.test"), containsString("1:20: Unresolved item 'DAY_OF_YEAR'"));
+        expectBadRequest(() -> runSql("SELECT foo, * FROM test.test GROUP BY DAY_OF_YEAR(foo)"),
+                both(containsString("1:8: Unresolved item 'foo'"))
+                    .and(containsString("1:51: Unresolved item 'DAY_OF_YEAR'")));
+        // NOCOMMIT broken because we bail on the resolution phase if we can't resolve something in a previous phase
+//        expectBadRequest(() -> runSql("SELECT * FROM test.test WHERE foo = 1"), containsString("500"));
+//        expectBadRequest(() -> runSql("SELECT * FROM test.test WHERE DAY_OF_YEAR(foo) = 1"), containsString("500"));
+        // NOCOMMIT this should point to the column, no the (incorrectly capitalized) start or ORDER BY
+        expectBadRequest(() -> runSql("SELECT * FROM test.test ORDER BY foo"), containsString("line 1:34: Unresolved item 'Order'"));
+        expectBadRequest(() -> runSql("SELECT * FROM test.test ORDER BY DAY_OF_YEAR(foo)"),
+                containsString("line 1:46: Unresolved item 'Order'"));
     }
 
-    private void expectSqlThrows(ThrowingRunnable code, Matcher<String> errorMessageMatcher) {
+    private void expectBadRequest(ThrowingRunnable code, Matcher<String> errorMessageMatcher) {
         ResponseException e = expectThrows(ResponseException.class, code);
-        assertThat(e.getMessage(), containsString("500"));
-        // NOCOMMIT This should return a 400 or 422
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), errorMessageMatcher);
     }
 

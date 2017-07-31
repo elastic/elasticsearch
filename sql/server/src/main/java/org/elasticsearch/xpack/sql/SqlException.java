@@ -5,16 +5,13 @@
  */
 package org.elasticsearch.xpack.sql;
 
+import org.elasticsearch.ElasticsearchException;
+
 import java.util.Locale;
 
 import static java.lang.String.format;
 
-public class SqlException extends RuntimeException {
-
-    public SqlException() {
-        super();
-    }
-
+public class SqlException extends ElasticsearchException {
     public SqlException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
     }

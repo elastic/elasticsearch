@@ -108,7 +108,7 @@ abstract class Verifier {
                 }
             }));
 
-            // consider only nodes that are by themselves unresolved (to avoid unresolved dependees)
+            // consider only nodes that are by themselves unresolved (to avoid unresolved dependencies)
             if (p.childrenResolved() && p.expressionsResolved() && !p.resolved()) {
                 localFailures.add(fail(p, "Unresolved item '%s'", p.nodeString()));
             }

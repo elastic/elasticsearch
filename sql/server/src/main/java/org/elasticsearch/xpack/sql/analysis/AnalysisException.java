@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.analysis;
 
 import java.util.Locale;
 
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.sql.SqlException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.Node;
@@ -35,6 +36,11 @@ public class AnalysisException extends SqlException {
 
     public int getColumnNumber() {
         return column;
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 
     @Override

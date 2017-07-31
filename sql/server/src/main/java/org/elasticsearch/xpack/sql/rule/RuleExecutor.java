@@ -34,6 +34,8 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         }
 
         private boolean reached(int runs, long duration) {
+            // NOCOMMIT we should probably be throwing exceptions rather than stopping
+            // NOCOMMIT including time here seems like it'd cause very unpredictable behavior
             return runs >= this.runs || duration >= this.duration;
         }
     }

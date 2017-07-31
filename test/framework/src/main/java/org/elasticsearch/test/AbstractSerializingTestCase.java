@@ -39,7 +39,7 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
             T testInstance = createTestInstance();
             XContentType xContentType = randomFrom(XContentType.values());
             BytesReference shuffled = toShuffledXContent(testInstance, xContentType, ToXContent.EMPTY_PARAMS,
-                    randomBoolean(), getShuffleFieldsExceptions());
+                    false, getShuffleFieldsExceptions());
             assertParsedInstance(xContentType, shuffled, testInstance);
         }
     }

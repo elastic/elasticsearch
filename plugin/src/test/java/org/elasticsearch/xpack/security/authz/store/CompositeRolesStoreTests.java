@@ -12,9 +12,12 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.license.TestUtils.UpdatableLicenseState;
@@ -27,6 +30,7 @@ import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -54,7 +58,7 @@ import static org.mockito.Mockito.when;
 
 public class CompositeRolesStoreTests extends ESTestCase {
 
-    public void testRolesWhenDlsFlsUnlicensed() {
+    public void testRolesWhenDlsFlsUnlicensed() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
         RoleDescriptor flsRole = new RoleDescriptor("fls", null, new IndicesPrivileges[] {
@@ -65,11 +69,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
                         .privileges("read")
                         .build()
         }, null);
+        BytesReference matchAllBytes = XContentHelper.toXContent(QueryBuilders.matchAllQuery(), XContentType.JSON, false);
         RoleDescriptor dlsRole = new RoleDescriptor("dls", null, new IndicesPrivileges[] {
                 IndicesPrivileges.builder()
                         .indices("*")
                         .privileges("read")
-                        .query(QueryBuilders.matchAllQuery().buildAsBytes())
+                        .query(matchAllBytes)
                         .build()
         }, null);
         RoleDescriptor flsDlsRole = new RoleDescriptor("fls_dls", null, new IndicesPrivileges[] {
@@ -78,7 +83,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                         .privileges("read")
                         .grantedFields("*")
                         .deniedFields("foo")
-                        .query(QueryBuilders.matchAllQuery().buildAsBytes())
+                        .query(matchAllBytes)
                         .build()
         }, null);
         RoleDescriptor noFlsDlsRole = new RoleDescriptor("no_fls_dls", null, new IndicesPrivileges[] {
@@ -113,7 +118,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertNotEquals(Role.EMPTY, roleFuture.actionGet());
     }
 
-    public void testRolesWhenDlsFlsLicensed() {
+    public void testRolesWhenDlsFlsLicensed() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         RoleDescriptor flsRole = new RoleDescriptor("fls", null, new IndicesPrivileges[] {
@@ -124,11 +129,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
                         .privileges("read")
                         .build()
         }, null);
+        BytesReference matchAllBytes = XContentHelper.toXContent(QueryBuilders.matchAllQuery(), XContentType.JSON, false);
         RoleDescriptor dlsRole = new RoleDescriptor("dls", null, new IndicesPrivileges[] {
                 IndicesPrivileges.builder()
                         .indices("*")
                         .privileges("read")
-                        .query(QueryBuilders.matchAllQuery().buildAsBytes())
+                        .query(matchAllBytes)
                         .build()
         }, null);
         RoleDescriptor flsDlsRole = new RoleDescriptor("fls_dls", null, new IndicesPrivileges[] {
@@ -137,7 +143,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                         .privileges("read")
                         .grantedFields("*")
                         .deniedFields("foo")
-                        .query(QueryBuilders.matchAllQuery().buildAsBytes())
+                        .query(matchAllBytes)
                         .build()
         }, null);
         RoleDescriptor noFlsDlsRole = new RoleDescriptor("no_fls_dls", null, new IndicesPrivileges[] {

@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations;
 
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -136,5 +137,10 @@ public abstract class AggregationBuilder
     /** Common xcontent fields shared among aggregator builders */
     public static final class CommonFields extends ParseField.CommonFields {
         public static final ParseField VALUE_TYPE = new ParseField("value_type");
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -741,15 +742,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     /**
-     * Generic test that checks that the toString method renders the XContent
-     * correctly.
+     * Generic test that checks that the <code>Strings.toString()</code> method
+     * renders the XContent correctly.
      */
-    public void testToString() throws IOException {
+    public void testValidOutput() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QB testQuery = createTestQueryBuilder();
             XContentType xContentType = XContentType.JSON;
-            String toString = randomBoolean() ? Strings.toString(testQuery) : testQuery.toString();
+            String toString = Strings.toString(testQuery);
             assertParsedQuery(createParser(xContentType.xContent(), toString), testQuery);
+            BytesReference bytes = XContentHelper.toXContent(testQuery, xContentType, false);
+            assertParsedQuery(createParser(xContentType.xContent(), bytes), testQuery);
         }
     }
 

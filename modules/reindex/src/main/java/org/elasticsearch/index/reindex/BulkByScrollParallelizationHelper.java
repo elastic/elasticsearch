@@ -48,10 +48,15 @@ class BulkByScrollParallelizationHelper {
 
     private BulkByScrollParallelizationHelper() {}
 
+    /**
+     * Figures out how many slices to use when handling this request. If the {@code request} has slices set as a number, that number
+     * will be used. If set to {@code "auto"}, it will compute it from the source indices' properties. The given consumer is passed the
+     * resulting number of slices in either case.
+     */
     public static <Request extends AbstractBulkByScrollRequest<Request>> void
         computeSlicing(Client client, Request request, ActionListener<BulkByScrollResponse> listener, Consumer<Integer> slicedBehavior) {
 
-        SlicesCount slices = request.getSlices();
+        Slices slices = request.getSlices();
         if (slices.isAuto()) {
             client.admin().cluster().prepareSearchShards(request.getSearchRequest().indices()).execute(ActionListener.wrap(
                 response -> slicedBehavior.accept(sliceBasedOnShards(response)),
@@ -80,14 +85,15 @@ class BulkByScrollParallelizationHelper {
                                BulkByScrollTask task,
                                Request request,
                                ActionListener<BulkByScrollResponse> listener) {
-        int totalSlices = task.getParentWorker().getSlices();
+        ParentBulkByScrollWorker worker = task.getParentWorker();
+        int totalSlices = worker.getSlices();
         TaskId parentTaskId = new TaskId(localNodeId, task.getId());
         for (final SearchRequest slice : sliceIntoSubRequests(request.getSearchRequest(), UidFieldMapper.NAME, totalSlices)) {
             // TODO move the request to the correct node. maybe here or somehow do it as part of startup for reindex in general....
             Request requestForSlice = request.forSlice(parentTaskId, slice, totalSlices);
             ActionListener<BulkByScrollResponse> sliceListener = ActionListener.wrap(
-                    r -> task.getParentWorker().onSliceResponse(listener, slice.source().slice().getId(), r),
-                    e -> task.getParentWorker().onSliceFailure(listener, slice.source().slice().getId(), e));
+                    r -> worker.onSliceResponse(listener, slice.source().slice().getId(), r),
+                    e -> worker.onSliceFailure(listener, slice.source().slice().getId(), e));
             client.execute(action, requestForSlice, sliceListener);
         }
     }

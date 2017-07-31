@@ -235,16 +235,14 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         );
         assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 7);
 
-        logger.error("SHARDSCOUNT {}", getNumShards("test").numPrimaries);
-
         // Deletes the two docs that matches "foo:a"
-        assertThat(deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).setSlices(SlicesCount.of(5)).get(),
+        assertThat(deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).setSlices(Slices.of(5)).get(),
                 matcher().deleted(2).slices(hasSize(5)));
         assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 5);
 
         // Delete remaining docs
         DeleteByQueryRequestBuilder request = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true)
-                .setSlices(SlicesCount.of(5));
+                .setSlices(Slices.of(5));
         assertThat(request.get(), matcher().deleted(5).slices(hasSize(5)));
         assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 0);
     }
@@ -263,7 +261,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
 
         NumShards numShards = getNumShards("test");
         int numSlicesExpected = numShards.numPrimaries > 1
-                                ? numShards.numPrimaries
+                                ? Math.min(numShards.numPrimaries, BulkByScrollParallelizationHelper.AUTO_SLICE_CEILING)
                                 : 0;
 
         // Deletes the two docs that matches "foo:a"
@@ -272,7 +270,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
                 .source("test")
                 .filter(termQuery("foo", "a"))
                 .refresh(true)
-                .setSlices(SlicesCount.AUTO).get(),
+                .setSlices(Slices.AUTO).get(),
             matcher()
                 .deleted(2)
                 .slices(hasSize(numSlicesExpected)));
@@ -283,7 +281,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
                 .source("test")
                 .filter(QueryBuilders.matchAllQuery())
                 .refresh(true)
-                .setSlices(SlicesCount.AUTO).get(),
+                .setSlices(Slices.AUTO).get(),
             matcher()
                 .deleted(5)
                 .slices(hasSize(numSlicesExpected)));

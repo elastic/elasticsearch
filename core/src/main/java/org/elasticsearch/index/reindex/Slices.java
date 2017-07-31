@@ -28,35 +28,45 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public final class SlicesCount implements ToXContent, Writeable {
+/**
+ * Represents the setting for the number of slices used by a BulkByScrollRequest. Valid values are positive integers and "auto". The
+ * "auto" setting defers choosing the number of slices to the request handler.
+ */
+public final class Slices implements ToXContent, Writeable {
 
     private static final int AUTO_COUNT = -1;
 
     public static final String FIELD_NAME = "slices";
     public static final String AUTO_VALUE = "auto";
 
-    public static final SlicesCount AUTO = new SlicesCount(AUTO_COUNT);
-    public static final SlicesCount ONE = of(1);
-    public static final SlicesCount DEFAULT = ONE;
+    public static final Slices AUTO = new Slices(AUTO_COUNT);
+    public static final Slices ONE = of(1);
+    public static final Slices DEFAULT = ONE;
 
     private final int count;
 
-    private SlicesCount(int count) {
+    private Slices(int count) {
         this.count = count;
     }
 
-    public SlicesCount(StreamInput stream) throws IOException {
+    public Slices(StreamInput stream) throws IOException {
         count = stream.readVInt();
     }
 
-    public static SlicesCount of(int count) {
+    /**
+     * Creates a new {@link Slices} as a concrete number. The given number must be a positive integer.
+     */
+    public static Slices of(int count) {
         if (count < 1) {
             throw new IllegalArgumentException("[slices] must be at least 1");
         }
-        return new SlicesCount(count);
+        return new Slices(count);
     }
 
-    public static SlicesCount parse(String slicesString) {
+    /**
+     * Parse a string to a valid {@link Slices} value
+     */
+    public static Slices parse(String slicesString) {
         Objects.requireNonNull(slicesString);
 
         if (AUTO_VALUE.equals(slicesString)) {
@@ -71,14 +81,23 @@ public final class SlicesCount implements ToXContent, Writeable {
         }
     }
 
+    /**
+     * Returns true if this value is set as "auto", false otherwise
+     */
     public boolean isAuto() {
         return count == AUTO_COUNT;
     }
 
+    /**
+     * Returns true if this value is set as a number, false otherwise
+     */
     public boolean isNumber() {
         return !isAuto();
     }
 
+    /**
+     * Returns the number value this {@link Slices} has, if it is set as a number. Otherwise throws IllegalStateException
+     */
     public int number() {
         if (isAuto()) {
             throw new IllegalStateException("Slice count is set as \"auto\", not a number");
@@ -113,7 +132,7 @@ public final class SlicesCount implements ToXContent, Writeable {
             return false;
         }
 
-        SlicesCount other = (SlicesCount) obj;
+        Slices other = (Slices) obj;
         return other.count == count;
     }
 

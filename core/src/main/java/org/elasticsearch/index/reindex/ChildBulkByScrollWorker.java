@@ -199,8 +199,10 @@ public class ChildBulkByScrollWorker implements SuccessfullyProcessed {
         this.requestsPerSecond = requestsPerSecond;
     }
 
+    /**
+     * Apply {@code newRequestsPerSecond} as the new rate limit for this task's search requests
+     */
     public void rethrottle(float newRequestsPerSecond) {
-        logger.warn("[{}]: STARTING CHILD RETHROTTLE", task.getId());
         synchronized (delayedPrepareBulkRequestReference) {
             logger.debug("[{}]: rethrottling to [{}] requests per second", task.getId(), newRequestsPerSecond);
             setRequestsPerSecond(newRequestsPerSecond);
@@ -214,7 +216,6 @@ public class ChildBulkByScrollWorker implements SuccessfullyProcessed {
 
             this.delayedPrepareBulkRequestReference.set(delayedPrepareBulkRequest.rethrottle(newRequestsPerSecond));
         }
-        logger.warn("[{}]: FINISH CHILD RETHROTTLE HANDLING TASK", task.getId());
     }
 
     class DelayedPrepareBulkRequest {

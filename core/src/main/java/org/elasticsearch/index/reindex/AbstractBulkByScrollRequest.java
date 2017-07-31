@@ -102,7 +102,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
      */
-    private SlicesCount slices = SlicesCount.DEFAULT;
+    private Slices slices = Slices.DEFAULT;
 
     /**
      * Constructor for deserialization.
@@ -152,7 +152,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
                             + size + "]",
                     e);
         }
-        if (searchRequest.source().slice() != null && !slices.equals(SlicesCount.DEFAULT)) {
+        if (searchRequest.source().slice() != null && !slices.equals(Slices.DEFAULT)) {
             e = addValidationError("can't specify both slice and workers", e);
         }
         return e;
@@ -340,7 +340,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
      */
-    public Self setSlices(SlicesCount slices) {
+    public Self setSlices(Slices slices) {
         this.slices = slices;
         return self();
     }
@@ -348,7 +348,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
      */
-    public SlicesCount getSlices() {
+    public Slices getSlices() {
         return slices;
     }
 
@@ -366,9 +366,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
                 // Parent task will store result
                 .setShouldStoreResult(false)
                 // Split requests per second between all slices
-                .setRequestsPerSecond(requestsPerSecond / totalSlices) //todo need to have computed the actual thing here
+                .setRequestsPerSecond(requestsPerSecond / totalSlices)
                 // Sub requests don't have workers
-                .setSlices(SlicesCount.ONE);
+                .setSlices(Slices.ONE);
         if (size != -1) {
             // Size is split between workers. This means the size might round
             // down!
@@ -382,15 +382,6 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-        /*if (slices.isAuto() || slices.number() > 1) { todo remove this
-            return new ParentBulkByScrollTask(id, type, action, getDescription(), parentTaskId);
-        }
-        *//* Extract the slice from the search request so it'll be available in the status. This is potentially useful for users that manually
-         * slice their search requests so they can keep track of it and **absolutely** useful for automatically sliced reindex requests so
-         * they can properly track the responses. *//*
-        Integer sliceId = searchRequest.source().slice() == null ? null : searchRequest.source().slice().getId();
-        return new WorkingBulkByScrollTask(id, type, action, getDescription(), parentTaskId, sliceId, requestsPerSecond);*/
-
         return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId);
     }
 
@@ -408,9 +399,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         maxRetries = in.readVInt();
         requestsPerSecond = in.readFloat();
         if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
-            slices = new SlicesCount(in);
+            slices = new Slices(in);
         } else {
-            slices = SlicesCount.DEFAULT;
+            slices = Slices.DEFAULT;
         }
     }
 

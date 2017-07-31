@@ -73,18 +73,18 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
         assertEquals(1, client().prepareGet("test", "test", "4").get().getVersion());
 
         // Reindex all the docs
-        assertThat(updateByQuery().source("test").refresh(true).setSlices(SlicesCount.of(5)).get(), matcher().updated(4).slices(hasSize(5)));
+        assertThat(updateByQuery().source("test").refresh(true).setSlices(Slices.of(5)).get(), matcher().updated(4).slices(hasSize(5)));
         assertEquals(2, client().prepareGet("test", "test", "1").get().getVersion());
         assertEquals(2, client().prepareGet("test", "test", "4").get().getVersion());
 
         // Now none of them
-        assertThat(updateByQuery().source("test").filter(termQuery("foo", "no_match")).setSlices(SlicesCount.of(5)).refresh(true).get(),
+        assertThat(updateByQuery().source("test").filter(termQuery("foo", "no_match")).setSlices(Slices.of(5)).refresh(true).get(),
                 matcher().updated(0).slices(hasSize(5)));
         assertEquals(2, client().prepareGet("test", "test", "1").get().getVersion());
         assertEquals(2, client().prepareGet("test", "test", "4").get().getVersion());
 
         // Now half of them
-        assertThat(updateByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).setSlices(SlicesCount.of(5)).get(),
+        assertThat(updateByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).setSlices(Slices.of(5)).get(),
                 matcher().updated(2).slices(hasSize(5)));
         assertEquals(3, client().prepareGet("test", "test", "1").get().getVersion());
         assertEquals(3, client().prepareGet("test", "test", "2").get().getVersion());
@@ -103,7 +103,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
 
         NumShards numShards = getNumShards("test");
         int numSlicesExpected = numShards.numPrimaries > 1
-                                ? numShards.numPrimaries
+                                ? Math.min(numShards.numPrimaries, BulkByScrollParallelizationHelper.AUTO_SLICE_CEILING)
                                 : 0;
 
         // Reindex all the docs
@@ -111,7 +111,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
             updateByQuery()
                 .source("test")
                 .refresh(true)
-                .setSlices(SlicesCount.AUTO).get(),
+                .setSlices(Slices.AUTO).get(),
             matcher()
                 .updated(4)
                 .slices(hasSize(numSlicesExpected)));
@@ -123,7 +123,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
             updateByQuery()
                 .source("test")
                 .filter(termQuery("foo", "no_match"))
-                .setSlices(SlicesCount.AUTO)
+                .setSlices(Slices.AUTO)
                 .refresh(true).get(),
             matcher()
                 .updated(0)
@@ -137,7 +137,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
                 .source("test")
                 .filter(termQuery("foo", "a"))
                 .refresh(true)
-                .setSlices(SlicesCount.AUTO).get(),
+                .setSlices(Slices.AUTO).get(),
             matcher()
                 .updated(2)
                 .slices(hasSize(numSlicesExpected)));

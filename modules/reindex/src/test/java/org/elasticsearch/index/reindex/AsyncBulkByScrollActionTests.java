@@ -143,7 +143,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         scrollId = null;
         taskManager = new TaskManager(Settings.EMPTY);
         testTask = (BulkByScrollTask) taskManager.register("don'tcare", "hereeither", testRequest);
-        testTask.setChild(null, testRequest.getRequestsPerSecond()); // todo this is awkward - is there a way to set this stuff in the task or somewhere else
+        testTask.setChild(null, testRequest.getRequestsPerSecond());
         worker = testTask.getChildWorker();
 
         localNode = new DiscoveryNode("thenode", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
@@ -590,7 +590,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertNull("No refresh was attempted", client.lastRefreshRequest.get());
     }
 
-    /*
+    /**
      * Tests that we can cancel the request during its throttling delay. This can't use {@link #cancelTaskCase(Consumer)} because it needs
      * to send the request un-canceled and cancel it at a specific time.
      */

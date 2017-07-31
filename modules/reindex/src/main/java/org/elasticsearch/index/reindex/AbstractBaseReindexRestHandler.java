@@ -91,9 +91,9 @@ public abstract class AbstractBaseReindexRestHandler<
         request.setRefresh(restRequest.paramAsBoolean("refresh", request.isRefresh()));
         request.setTimeout(restRequest.paramAsTime("timeout", request.getTimeout()));
 
-        String slices = restRequest.param(SlicesCount.FIELD_NAME);
+        String slices = restRequest.param(Slices.FIELD_NAME);
         if (slices != null) {
-            request.setSlices(SlicesCount.parse(slices));
+            request.setSlices(Slices.parse(slices));
         }
 
         String waitForActiveShards = restRequest.param("wait_for_active_shards");

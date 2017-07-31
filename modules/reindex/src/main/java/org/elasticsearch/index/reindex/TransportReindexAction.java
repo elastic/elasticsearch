@@ -80,9 +80,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.list;
 import static java.util.Collections.synchronizedList;
-import static java.util.Objects.compare;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
@@ -132,21 +130,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), bulkTask);
                 new AsyncIndexBySearchAction(bulkTask, logger, assigningClient, threadPool, request, scriptService, state, listener).start();
             }
-
-/*            if (slices > 1) {
-                ParentBulkByScrollTask parentTask = (ParentBulkByScrollTask) task;
-                parentTask.setSlices(slices);
-                BulkByScrollParallelizationHelper.startSlices(client, taskManager, ReindexAction.INSTANCE,
-                    clusterService.localNode().getId(), parentTask, request, slices, listener);
-            } else {
-                checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
-                ClusterState state = clusterService.state();
-                validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(),
-                    indexNameExpressionResolver, autoCreateIndex, state);
-                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
-                new AsyncIndexBySearchAction((WorkingBulkByScrollTask) task, logger, assigningClient, threadPool, request, scriptService,
-                    state, listener).start();
-            }*/
         });
     }
 

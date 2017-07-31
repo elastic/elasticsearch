@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -40,11 +39,15 @@ import java.util.Objects;
 
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 
 /**
  * Task storing information about a currently running BulkByScroll request.
+ *
+ * When the request is not sliced, this task is the only task created, and starts an action to perform search requests.
+ *
+ * When the request is sliced, this task can either represent a parent coordinating task (using {@link BulkByScrollTask#setParent(int)}) or
+ * a child task that performs search queries (using {@link BulkByScrollTask#setChild(Integer, float)}).
  */
 public class BulkByScrollTask extends CancellableTask {
 
@@ -72,10 +75,16 @@ public class BulkByScrollTask extends CancellableTask {
         return new Status(Collections.emptyList(), getReasonCancelled());
     }
 
+    /**
+     * Returns true if this task is a parent of other sliced tasks. False otherwise
+     */
     public boolean isParent() {
         return parentWorker != null;
     }
 
+    /**
+     * Sets this task to be a parent task for {@code slices} sliced subtasks
+     */
     public void setParent(int slices) {
         if (isParent()) {
             throw new IllegalStateException("Parent worker is already set");
@@ -87,14 +96,29 @@ public class BulkByScrollTask extends CancellableTask {
         parentWorker = new ParentBulkByScrollWorker(this, slices);
     }
 
+    /**
+     * Returns the worker object that tracks the state of sliced subtasks. Throws IllegalStateException if this task is not set to be
+     * a parent task.
+     */
     public ParentBulkByScrollWorker getParentWorker() {
+        if (!isParent()) {
+            throw new IllegalStateException("This task is not set as a parent worker");
+        }
         return parentWorker;
     }
 
+    /**
+     * Returns true if this task is a child task that performs search requests. False otherwise
+     */
     public boolean isChild() {
         return childWorker != null;
     }
 
+    /**
+     * Sets this task to be a child task that performs search requests
+     * @param sliceId If this is is a sliced task, which slice number this task corresponds to
+     * @param requestsPerSecond How many search requests per second this task should make
+     */
     public void setChild(Integer sliceId, float requestsPerSecond) {
         if (isChild()) {
             throw new IllegalStateException("Child worker is already set");
@@ -106,7 +130,14 @@ public class BulkByScrollTask extends CancellableTask {
         childWorker = new ChildBulkByScrollWorker(this, sliceId, requestsPerSecond);
     }
 
+    /**
+     * Returns the worker object that manages sending search requests. Throws IllegalStateException if this task is not set to be a
+     * child task.
+     */
     public ChildBulkByScrollWorker getChildWorker() {
+        if (!isChild()) {
+            throw new IllegalStateException("This task is not set as a child worker");
+        }
         return childWorker;
     }
 

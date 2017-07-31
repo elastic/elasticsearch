@@ -81,19 +81,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
                 new AsyncIndexBySearchAction(bulkTask, logger, client, threadPool, request, scriptService, state, listener).start();
             }
-
-
-/*            if (slices > 1) {
-                ParentBulkByScrollTask parentTask = (ParentBulkByScrollTask) task;
-                parentTask.setSlices(slices);
-                BulkByScrollParallelizationHelper.startSlices(client, taskManager, UpdateByQueryAction.INSTANCE,
-                    clusterService.localNode().getId(), parentTask, request, slices, listener);
-            } else {
-                ClusterState state = clusterService.state();
-                ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
-                new AsyncIndexBySearchAction((WorkingBulkByScrollTask) task, logger, client, threadPool, request, scriptService, state,
-                    listener).start();
-            }*/
         });
     }
 

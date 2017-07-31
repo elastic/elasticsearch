@@ -30,6 +30,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.unmodifiableList;
 
+/**
+ * Tracks the state of sliced subtasks and provides unified status information for a sliced BulkByScrollRequest.
+ */
 public class ParentBulkByScrollWorker {
 
     private final BulkByScrollTask task;
@@ -40,17 +43,20 @@ public class ParentBulkByScrollWorker {
      */
     private final AtomicArray<Result> results;
     /**
-     * How many subtasks are still running TODO rename this
+     * How many subtasks are still running
      */
-    private final AtomicInteger counter;
+    private final AtomicInteger runningSubtasks;
 
     public ParentBulkByScrollWorker(BulkByScrollTask task, int slices) {
         this.task = task;
         this.slices = slices;
         results = new AtomicArray<>(slices);
-        counter = new AtomicInteger(slices);
+        runningSubtasks = new AtomicInteger(slices);
     }
 
+    /**
+     * Returns the number of slices this BulkByScrollRequest will use
+     */
     public int getSlices() {
         return slices;
     }
@@ -62,10 +68,16 @@ public class ParentBulkByScrollWorker {
         return new BulkByScrollTask.Status(unmodifiableList(statuses), task.getReasonCancelled());
     }
 
+    /**
+     * The number of sliced subtasks that are still running
+     */
     public int runningSliceSubTasks() {
-        return counter.get();
+        return runningSubtasks.get();
     }
 
+    /**
+     * Build the status for this task given a snapshot of the information of running slices.
+     */
     public TaskInfo getStatusGivenSlicesTaskInfo(String localNodeId, List<TaskInfo> sliceInfo) {
         /* Merge the list of finished sub requests with the provided info. If a slice is both finished and in the list then we prefer the
          * finished status because we don't expect them to change after the task is finished. */
@@ -109,7 +121,7 @@ public class ParentBulkByScrollWorker {
     }
 
     private void recordSliceCompletionAndRespondIfAllDone(ActionListener<BulkByScrollResponse> listener) {
-        if (counter.decrementAndGet() != 0) {
+        if (runningSubtasks.decrementAndGet() != 0) {
             return;
         }
         List<BulkByScrollResponse> responses = new ArrayList<>(results.length());

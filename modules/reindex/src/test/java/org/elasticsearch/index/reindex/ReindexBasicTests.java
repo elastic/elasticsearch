@@ -100,7 +100,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
 
         // Copy all the docs
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "type").refresh(true).setSlices(SlicesCount.of(workers));
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "type").refresh(true).setSlices(Slices.of(workers));
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         assertThat(copy.get(), matcher().created(max).batches(greaterThanOrEqualTo(max / 5)).slices(hasSize(workers)));
@@ -108,7 +108,7 @@ public class ReindexBasicTests extends ReindexTestCase {
 
         // Copy some of the docs
         int half = max / 2;
-        copy = reindex().source("source").destination("dest_half", "type").refresh(true).setSlices(SlicesCount.of(workers));
+        copy = reindex().source("source").destination("dest_half", "type").refresh(true).setSlices(Slices.of(workers));
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         copy.size(half); // The real "size" of the request.
@@ -129,16 +129,16 @@ public class ReindexBasicTests extends ReindexTestCase {
 
         NumShards numShards = getNumShards("source");
         int numSlicesExpected = numShards.numPrimaries > 1
-                                ? numShards.numPrimaries
+                                ? Math.min(numShards.numPrimaries, BulkByScrollParallelizationHelper.AUTO_SLICE_CEILING)
                                 : 0;
 
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "type").refresh(true).setSlices(SlicesCount.AUTO);
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "type").refresh(true).setSlices(Slices.AUTO);
         copy.source().setSize(5);
         assertThat(copy.get(), matcher().created(max).batches(greaterThanOrEqualTo(max / 5)).slices(hasSize(numSlicesExpected)));
         assertHitCount(client().prepareSearch("dest").setTypes("type").setSize(0).get(), max);
 
         int half = max / 2;
-        copy = reindex().source("source").destination("dest_half", "type").refresh(true).setSlices(SlicesCount.AUTO);
+        copy = reindex().source("source").destination("dest_half", "type").refresh(true).setSlices(Slices.AUTO);
         copy.source().setSize(5);
         copy.size(half);
         BulkByScrollResponse response = copy.get();

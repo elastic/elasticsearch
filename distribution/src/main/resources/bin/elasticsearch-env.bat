@@ -28,8 +28,7 @@ if not exist %JAVA% (
   exit /B 1
 )
 
-rem don't let JAVA_TOOL_OPTIONS slip in (e.g., agents in Ubuntu so this works
-rem around https://bugs.launchpad.net/ubuntu/+source/jayatana/+bug/1441487)
+rem do not let JAVA_TOOL_OPTIONS slip in (as the JVM does by default)
 if not "%JAVA_TOOL_OPTIONS%" == "" (
   echo "warning: ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
   set JAVA_TOOL_OPTIONS=

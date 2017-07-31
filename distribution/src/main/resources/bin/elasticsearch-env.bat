@@ -28,15 +28,6 @@ if not exist %JAVA% (
   exit /B 1
 )
 
-rem check the Java version
-%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.JavaVersionChecker"
-
-if errorlevel 1 (
-  echo|set /p="the minimum required Java version is 8; "
-  echo your Java version from %JAVA% does not meet this requirement
-  exit /B 1
-)
-
 rem don't let JAVA_TOOL_OPTIONS slip in (e.g., agents in Ubuntu so this works
 rem around https://bugs.launchpad.net/ubuntu/+source/jayatana/+bug/1441487)
 if not "%JAVA_TOOL_OPTIONS%" == "" (
@@ -49,6 +40,15 @@ rem warn them that we are not observing the value of %JAVA_OPTS%
 if not "%JAVA_OPTS%" == "" (
   echo|set /p="warning: ignoring JAVA_OPTS=%JAVA_OPTS%; "
   echo pass JVM parameters via ES_JAVA_OPTS
+)
+
+rem check the Java version
+%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.JavaVersionChecker"
+
+if errorlevel 1 (
+  echo|set /p="the minimum required Java version is 8; "
+  echo your Java version from %JAVA% does not meet this requirement
+  exit /B 1
 )
 
 if "%CONF_DIR%" == "" (

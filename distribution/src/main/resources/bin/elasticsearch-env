@@ -45,15 +45,6 @@ if [ ! -x "$JAVA" ]; then
   exit 1
 fi
 
-# check the Java version
-"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.JavaVersionChecker
-
-if [ $? -ne 0 ]; then
-  echo -n "the minimum required Java version is 8; "
-  echo "your Java version from $JAVA does not meet this requirement"
-  exit 1
-fi
-
 # don't let JAVA_TOOL_OPTIONS slip in (e.g., agents in Ubuntu so this works
 # around https://bugs.launchpad.net/ubuntu/+source/jayatana/+bug/1441487)
 if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
@@ -66,6 +57,15 @@ fi
 if [ "x$JAVA_OPTS" != "x" ]; then
   echo -n "warning: ignoring JAVA_OPTS=$JAVA_OPTS; "
   echo "pass JVM parameters via ES_JAVA_OPTS"
+fi
+
+# check the Java version
+"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.JavaVersionChecker
+
+if [ $? -ne 0 ]; then
+  echo -n "the minimum required Java version is 8; "
+  echo "your Java version from $JAVA does not meet this requirement"
+  exit 1
 fi
 
 ${source.path.env}

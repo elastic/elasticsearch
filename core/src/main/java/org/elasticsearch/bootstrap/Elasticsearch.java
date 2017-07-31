@@ -97,9 +97,6 @@ class Elasticsearch extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
         }
         if (options.has(versionOption)) {
-            if (options.has(daemonizeOption) || options.has(pidfileOption)) {
-                throw new UserException(ExitCodes.USAGE, "Elasticsearch version option is mutually exclusive with any other option");
-            }
             terminal.println("Version: " + org.elasticsearch.Version.CURRENT
                     + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date()
                     + ", JVM: " + JvmInfo.jvmInfo().version());

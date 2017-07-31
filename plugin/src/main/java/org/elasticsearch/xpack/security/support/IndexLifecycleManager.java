@@ -19,10 +19,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -265,11 +266,12 @@ public class IndexLifecycleManager extends AbstractComponent {
             andThen.run();
         } else {
             CreateIndexRequest request = new CreateIndexRequest(INTERNAL_SECURITY_INDEX);
+            request.alias(new Alias(SECURITY_INDEX_NAME));
             client.admin().indices().create(request, new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse createIndexResponse) {
                     if (createIndexResponse.isAcknowledged()) {
-                        setSecurityIndexAlias(listener, andThen);
+                        andThen.run();
                     } else {
                         listener.onFailure(new ElasticsearchException("Failed to create security index"));
                     }
@@ -277,7 +279,8 @@ public class IndexLifecycleManager extends AbstractComponent {
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (e instanceof ResourceAlreadyExistsException) {
+                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof ResourceAlreadyExistsException) {
                         // the index already exists - it was probably just created so this
                         // node hasn't yet received the cluster state update with the index
                         andThen.run();
@@ -287,32 +290,5 @@ public class IndexLifecycleManager extends AbstractComponent {
                 }
             });
         }
-    }
-
-    /**
-     * Sets the security index alias to .security after it has been created.  This is required
-     * because we cannot add the alias as part of the security index template, as the security
-     * template is also used when the new security index is created during the upgrade API, at
-     * which point the old .security index already exists and is being reindexed from, so the
-     * alias cannot be added as part of the template, hence the alias creation has to happen
-     * manually here after index creation.
-     */
-    private <T> void setSecurityIndexAlias(final ActionListener<T> listener, final Runnable andThen) {
-        client.admin().indices().prepareAliases().addAlias(INTERNAL_SECURITY_INDEX, SECURITY_INDEX_NAME)
-              .execute(new ActionListener<IndicesAliasesResponse>() {
-                  @Override
-                  public void onResponse(IndicesAliasesResponse response) {
-                      if (response.isAcknowledged()) {
-                          andThen.run();
-                      } else {
-                          listener.onFailure(new ElasticsearchException("Failed to set security index alias"));
-                      }
-                  }
-
-                  @Override
-                  public void onFailure(Exception e) {
-                      listener.onFailure(e);
-                  }
-              });
     }
 }

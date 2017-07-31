@@ -83,16 +83,14 @@ public class EvilJNANativesTests extends ESTestCase {
     public void testSetMaxFileSize() throws IOException {
         if (Constants.LINUX) {
             final List<String> lines = Files.readAllLines(PathUtils.get("/proc/self/limits"));
-            if (!lines.isEmpty()) {
-                for (final String line : lines) {
-                    if (line != null && line.startsWith("Max file size")) {
-                        final String[] fields = line.split("\\s+");
-                        final String limit = fields[3];
-                        assertThat(
-                                JNANatives.rlimitToString(JNANatives.MAX_FILE_SIZE),
-                                equalTo(limit));
-                        return;
-                    }
+            for (final String line : lines) {
+                if (line != null && line.startsWith("Max file size")) {
+                    final String[] fields = line.split("\\s+");
+                    final String limit = fields[3];
+                    assertThat(
+                            JNANatives.rlimitToString(JNANatives.MAX_FILE_SIZE),
+                            equalTo(limit));
+                    return;
                 }
             }
             fail("should have read max file from /proc/self/limits");

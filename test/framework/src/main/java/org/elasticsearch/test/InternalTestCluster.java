@@ -25,6 +25,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -1117,6 +1118,7 @@ public final class InternalTestCluster extends TestCluster {
         assertShardIndexCounter();
         //check that shards that have same sync id also contain same number of documents
         assertSameSyncIdSameDocs();
+        assertOpenTranslogReferences();
     }
 
     private void assertSameSyncIdSameDocs() {
@@ -1167,6 +1169,24 @@ public final class InternalTestCluster extends TestCluster {
                             } catch (IOException e) {
                                 throw new RuntimeException("caught exception while building response [" + response + "]", e);
                             }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    private void assertOpenTranslogReferences() throws Exception {
+        assertBusy(() -> {
+            final Collection<NodeAndClient> nodesAndClients = nodes.values();
+            for (NodeAndClient nodeAndClient : nodesAndClients) {
+                IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
+                for (IndexService indexService : indexServices) {
+                    for (IndexShard indexShard : indexService) {
+                        try {
+                            indexShard.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
+                        } catch (AlreadyClosedException ok) {
+                            // all good
                         }
                     }
                 }

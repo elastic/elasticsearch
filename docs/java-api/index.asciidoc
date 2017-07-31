@@ -17,6 +17,9 @@ Additionally, operations on a client may be accumulated and executed in
 Note, all the APIs are exposed through the
 Java API (actually, the Java API is used internally to execute them).
 
+== Javadoc
+
+The javadoc for the transport client can be found at {transport-client-javadoc}/index.html.
 
 == Maven Repository
 

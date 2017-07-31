@@ -9,6 +9,7 @@ The configuration files should contain settings which are node-specific (such
 as `node.name` and paths), or settings which a node requires in order to be
 able to join a cluster, such as `cluster.name` and `network.host`.
 
+[[config-files-location]]
 [float]
 === Config files location
 

@@ -381,6 +381,10 @@ public class Version implements Comparable<Version> {
         return sb.toString();
     }
 
+    public static String displayVersion(final Version version, final boolean isSnapshot) {
+        return version + (isSnapshot ? "-SNAPSHOT" : "");
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {

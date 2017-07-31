@@ -14,18 +14,6 @@
 #
 #   ES_JAVA_OPTS="-Xms8g -Xmx8g" ./bin/elasticsearch
 
-# Check to see if you are trying to run this without building it first. Gradle
-# will replace the project.name with _something_.
-
-if echo '${project.name}' | grep project.name > /dev/null; then
-  cat >&2 << EOF
-Error: You must build the project with Gradle or download a pre-built package
-before you can run Elasticsearch. See 'Building from Source' in README.textile
-or visit https://www.elastic.co/download to get a pre-built package.
-EOF
-  exit 1
-fi
-
 parse_jvm_options() {
   if [ -f "$1" ]; then
     echo "$(grep "^-" "$1" | tr '\n' ' ')"

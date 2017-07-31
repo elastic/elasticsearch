@@ -1,6 +1,6 @@
 set SCRIPT=%0
 
-rem determine Elasticsearch home; to do this, we strip from the path util we
+rem determine Elasticsearch home; to do this, we strip from the path until we
 rem find bin, and then strip bin (there is an assumption here that there is no
 rem nested directory under bin also named bin)
 for %%I in (%SCRIPT%) do set ES_HOME=%%~dpI
@@ -28,6 +28,13 @@ if not exist %JAVA% (
   exit /B 1
 )
 
+rem JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we
+rem warn them that we are not observing the value of %JAVA_OPTS%
+if not "%JAVA_OPTS%" == "" (
+  echo|set /p="warning: ignoring JAVA_OPTS=%JAVA_OPTS%; "
+  echo pass JVM parameters via ES_JAVA_OPTS
+)
+
 rem check the Java version
 %JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.JavaVersionChecker"
 
@@ -35,13 +42,6 @@ if errorlevel 1 (
   echo|set /p="the minimum required Java version is 8; "
   echo your Java version from %JAVA% does not meet this requirement
   exit /B 1
-)
-
-rem JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we
-rem warn them that we are not observing the value of %JAVA_OPTS%
-if not "%JAVA_OPTS%" == "" (
-  echo|set /p="warning: ignoring JAVA_OPTS=%JAVA_OPTS%; "
-  echo pass JVM parameters via ES_JAVA_OPTS
 )
 
 if "%CONF_DIR%" == "" (

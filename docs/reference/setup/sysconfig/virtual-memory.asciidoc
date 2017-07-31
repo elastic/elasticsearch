@@ -2,7 +2,7 @@
 === Virtual memory
 
 Elasticsearch uses a <<default_fs,`mmapfs`>> directory by
-default for 64bit systems to store its indices.  The default operating system limits on mmap
+default to store its indices.  The default operating system limits on mmap
 counts is likely to be too low, which may result in out of memory exceptions.
 
 On Linux, you can increase the limits by running the following command as

@@ -15,15 +15,16 @@ secured cluster:
 * <<http-clients, HTTP Clients>>
 
 
-{security} enables you to secure you Elasticsearch cluster. But Elasticsearch
-itself is only one product within the Elastic Stack. It is often the case that
-other products in the stack are connected to the cluster and therefore need to
-be secured as well, or at least communicate with the cluster in a secured way:
+{security} enables you to secure your {es} cluster. But {es} itself is only one
+product within the Elastic Stack. It is often the case that other products in
+the stack are connected to the cluster and therefore need to be secured as well,
+or at least communicate with the cluster in a secured way:
 
 * <<hadoop, Apache Hadoop>>
 * <<logstash, Logstash>>
 * <<kibana, Kibana>>
 * <<secure-monitoring, Monitoring>>
+* {kibana-ref}/secure-reporting.html[Reporting]
 
 include::tribe-clients-integrations/cross-cluster.asciidoc[]
 
@@ -42,5 +43,3 @@ include::tribe-clients-integrations/beats.asciidoc[]
 include::tribe-clients-integrations/kibana.asciidoc[]
 
 include::tribe-clients-integrations/monitoring.asciidoc[]
-
-include::tribe-clients-integrations/reporting.asciidoc[]

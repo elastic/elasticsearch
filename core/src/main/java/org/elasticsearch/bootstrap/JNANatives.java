@@ -55,6 +55,8 @@ class JNANatives {
 
     static long MAX_SIZE_VIRTUAL_MEMORY = Long.MIN_VALUE;
 
+    static long MAX_FILE_SIZE = Long.MIN_VALUE;
+
     static void tryMlockall() {
         int errno = Integer.MIN_VALUE;
         String errMsg = null;
@@ -134,6 +136,17 @@ class JNANatives {
                 MAX_SIZE_VIRTUAL_MEMORY = rlimit.rlim_cur.longValue();
             } else {
                 logger.warn("unable to retrieve max size virtual memory [" + JNACLibrary.strerror(Native.getLastError()) + "]");
+            }
+        }
+    }
+
+    static void trySetMaxFileSize() {
+        if (Constants.LINUX || Constants.MAC_OS_X) {
+            final JNACLibrary.Rlimit rlimit = new JNACLibrary.Rlimit();
+            if (JNACLibrary.getrlimit(JNACLibrary.RLIMIT_FSIZE, rlimit) == 0) {
+                MAX_FILE_SIZE = rlimit.rlim_cur.longValue();
+            } else {
+                logger.warn("unable to retrieve max file size [" + JNACLibrary.strerror(Native.getLastError()) + "]");
             }
         }
     }

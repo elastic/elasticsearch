@@ -80,4 +80,27 @@ public class EvilJNANativesTests extends ESTestCase {
         }
     }
 
+    public void testSetMaxFileSize() throws IOException {
+        if (Constants.LINUX) {
+            final List<String> lines = Files.readAllLines(PathUtils.get("/proc/self/limits"));
+            for (final String line : lines) {
+                if (line != null && line.startsWith("Max file size")) {
+                    final String[] fields = line.split("\\s+");
+                    final String limit = fields[3];
+                    assertThat(
+                            JNANatives.rlimitToString(JNANatives.MAX_FILE_SIZE),
+                            equalTo(limit));
+                    return;
+                }
+            }
+            fail("should have read max file size from /proc/self/limits");
+        } else if (Constants.MAC_OS_X) {
+            assertThat(
+                    JNANatives.MAX_FILE_SIZE,
+                    anyOf(equalTo(Long.MIN_VALUE), greaterThanOrEqualTo(0L)));
+        } else {
+            assertThat(JNANatives.MAX_FILE_SIZE, equalTo(Long.MIN_VALUE));
+        }
+    }
+
 }

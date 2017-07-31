@@ -85,7 +85,7 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         if (runningSubtasks > 0) {
             RethrottleRequest subRequest = new RethrottleRequest();
             subRequest.setRequestsPerSecond(newRequestsPerSecond / runningSubtasks);
-            subRequest.setParentTask(new TaskId(localNodeId, task.getId()));
+            subRequest.setParentTaskId(new TaskId(localNodeId, task.getId()));
             logger.debug("rethrottling children of task [{}] to [{}] requests per second", task.getId(),
                 subRequest.getRequestsPerSecond());
             client.execute(RethrottleAction.INSTANCE, subRequest, ActionListener.wrap(
@@ -96,6 +96,7 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
                 listener::onFailure));
         } else {
             logger.debug("children of task [{}] are already finished, nothing to rethrottle", task.getId());
+            listener.onResponse(task.taskInfo(localNodeId, true));
         }
     }
 

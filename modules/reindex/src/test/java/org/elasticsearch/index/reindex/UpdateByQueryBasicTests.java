@@ -102,21 +102,45 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
         assertEquals(1, client().prepareGet("test", "test", "4").get().getVersion());
 
         NumShards numShards = getNumShards("test");
+        int numSlicesExpected = numShards.numPrimaries > 1
+                                ? numShards.numPrimaries
+                                : 0;
 
         // Reindex all the docs
-        assertThat(updateByQuery().source("test").refresh(true).setSlices(SlicesCount.AUTO).get(), matcher().updated(4).slices(hasSize(numShards.numPrimaries)));
+        assertThat(
+            updateByQuery()
+                .source("test")
+                .refresh(true)
+                .setSlices(SlicesCount.AUTO).get(),
+            matcher()
+                .updated(4)
+                .slices(hasSize(numSlicesExpected)));
         assertEquals(2, client().prepareGet("test", "test", "1").get().getVersion());
         assertEquals(2, client().prepareGet("test", "test", "4").get().getVersion());
 
         // Now none of them
-        assertThat(updateByQuery().source("test").filter(termQuery("foo", "no_match")).setSlices(SlicesCount.AUTO).refresh(true).get(),
-            matcher().updated(0).slices(hasSize(numShards.numPrimaries)));
+        assertThat(
+            updateByQuery()
+                .source("test")
+                .filter(termQuery("foo", "no_match"))
+                .setSlices(SlicesCount.AUTO)
+                .refresh(true).get(),
+            matcher()
+                .updated(0)
+                .slices(hasSize(numSlicesExpected)));
         assertEquals(2, client().prepareGet("test", "test", "1").get().getVersion());
         assertEquals(2, client().prepareGet("test", "test", "4").get().getVersion());
 
         // Now half of them
-        assertThat(updateByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).setSlices(SlicesCount.AUTO).get(),
-            matcher().updated(2).slices(hasSize(numShards.numPrimaries)));
+        assertThat(
+            updateByQuery()
+                .source("test")
+                .filter(termQuery("foo", "a"))
+                .refresh(true)
+                .setSlices(SlicesCount.AUTO).get(),
+            matcher()
+                .updated(2)
+                .slices(hasSize(numSlicesExpected)));
         assertEquals(3, client().prepareGet("test", "test", "1").get().getVersion());
         assertEquals(3, client().prepareGet("test", "test", "2").get().getVersion());
         assertEquals(2, client().prepareGet("test", "test", "3").get().getVersion());

@@ -114,7 +114,7 @@ public class RethrottleTests extends ReindexTestCase {
             });
         }
 
-        logger.info("Rethrottling tasks");
+        logger.info("Rethrottling task [{}]", taskToRethrottle.getId());
 
         // Now rethrottle it so it'll finish
         float newRequestsPerSecond = randomBoolean() ? Float.POSITIVE_INFINITY : between(1, 1000) * 100000; // No throttle or "very fast"

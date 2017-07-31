@@ -51,7 +51,7 @@ public final class SlicesCount implements ToXContent, Writeable {
 
     public static SlicesCount of(int count) {
         if (count < 1) {
-            throw new IllegalArgumentException("Slice count must be at least 1");
+            throw new IllegalArgumentException("[slices] must be at least 1");
         }
         return new SlicesCount(count);
     }
@@ -67,7 +67,7 @@ public final class SlicesCount implements ToXContent, Writeable {
             int slicesNumber = Integer.parseInt(slicesString);
             return of(slicesNumber);
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Slices must be a positive integer or the string \"auto\"");
+            throw new IllegalArgumentException("[slices] must be a positive integer or the string \"auto\"");
         }
     }
 

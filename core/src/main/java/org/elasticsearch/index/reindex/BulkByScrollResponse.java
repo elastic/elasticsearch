@@ -190,7 +190,8 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContent {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("BulkIndexByScrollResponse[");
+        builder.append(getClass().getSimpleName());
+        builder.append("[");
         builder.append("took=").append(took).append(',');
         builder.append("timed_out=").append(timedOut).append(',');
         status.innerToString(builder);

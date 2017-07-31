@@ -262,17 +262,31 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 7);
 
         NumShards numShards = getNumShards("test");
-        logger.error("SHARDSCOUNT {}", numShards.numPrimaries);
+        int numSlicesExpected = numShards.numPrimaries > 1
+                                ? numShards.numPrimaries
+                                : 0;
 
         // Deletes the two docs that matches "foo:a"
-        assertThat(deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).setSlices(SlicesCount.AUTO).get(),
-            matcher().deleted(2).slices(hasSize(numShards.numPrimaries)));
+        assertThat(
+            deleteByQuery()
+                .source("test")
+                .filter(termQuery("foo", "a"))
+                .refresh(true)
+                .setSlices(SlicesCount.AUTO).get(),
+            matcher()
+                .deleted(2)
+                .slices(hasSize(numSlicesExpected)));
         assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 5);
 
         // Delete remaining docs
-        DeleteByQueryRequestBuilder request = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true)
-            .setSlices(SlicesCount.AUTO);
-        assertThat(request.get(), matcher().deleted(5).slices(hasSize(numShards.numPrimaries)));
+        assertThat(deleteByQuery()
+                .source("test")
+                .filter(QueryBuilders.matchAllQuery())
+                .refresh(true)
+                .setSlices(SlicesCount.AUTO).get(),
+            matcher()
+                .deleted(5)
+                .slices(hasSize(numSlicesExpected)));
         assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 0);
     }
 

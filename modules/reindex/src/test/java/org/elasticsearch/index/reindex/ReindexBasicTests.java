@@ -128,10 +128,13 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
 
         NumShards numShards = getNumShards("source");
+        int numSlicesExpected = numShards.numPrimaries > 1
+                                ? numShards.numPrimaries
+                                : 0;
 
         ReindexRequestBuilder copy = reindex().source("source").destination("dest", "type").refresh(true).setSlices(SlicesCount.AUTO);
         copy.source().setSize(5);
-        assertThat(copy.get(), matcher().created(max).batches(greaterThanOrEqualTo(max / 5)).slices(hasSize(numShards.numPrimaries)));
+        assertThat(copy.get(), matcher().created(max).batches(greaterThanOrEqualTo(max / 5)).slices(hasSize(numSlicesExpected)));
         assertHitCount(client().prepareSearch("dest").setTypes("type").setSize(0).get(), max);
 
         int half = max / 2;
@@ -139,7 +142,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         copy.source().setSize(5);
         copy.size(half);
         BulkByScrollResponse response = copy.get();
-        assertThat(response, matcher().created(lessThanOrEqualTo((long) half)).slices(hasSize(numShards.numPrimaries)));
+        assertThat(response, matcher().created(lessThanOrEqualTo((long) half)).slices(hasSize(numSlicesExpected)));
         assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), response.getCreated());
     }
 

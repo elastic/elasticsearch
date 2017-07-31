@@ -1,0 +1,24 @@
+[[java-rest-high-search-queries]]
+=== Search Queries
+
+This page lists all the available search type with their corresponding `QueryBuilder` class name and helper method name in the
+`QueryBuilders` utility class.
+
+
+==== Match All Query
+[options="header"]
+|======
+| Search Query                                            | Corresponding QueryBuilder class name | QueryBuilders helper method
+| {ref}/query-dsl-match-all-query.html[Match All]         | {elasticsearch-javadoc}/org/elasticsearch/index/query/MatchAllQueryBuilder.html[MatchAllQueryBuilder]     | {elasticsearch-javadoc}/org/elasticsearch/index/query/QueryBuilders.html#matchAllQuery--[QueryBuilders.matchAllQuery()]
+|======
+
+==== Full Text Queries
+[options="header"]
+|======
+| Search Query                                                 | Corresponding QueryBuilder class name | QueryBuilders helper method
+| {ref}/query-dsl-match-query.html[Match Query]                | {elasticsearch-javadoc}/org/elasticsearch/index/query/MatchQueryBuilder.html[MatchQueryBuilder]     | {elasticsearch-javadoc}/org/elasticsearch/index/query/QueryBuilders.html#matchQuery-java.lang.String-java.lang.Object-[QueryBuilders.matchQuery()]
+| {ref}/query-dsl-match-query-phrase.html[Match Phrase Query]  | {elasticsearch-javadoc}/org/elasticsearch/index/query/MatchPhraseQueryBuilder.html[MatchPhraseQueryBuilder]     | {elasticsearch-javadoc}/org/elasticsearch/index/query/QueryBuilders.html#matchPhraseQuery-java.lang.String-java.lang.Object-[QueryBuilders.matchPhraseQuery()]
+|======
+
+
+

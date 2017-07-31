@@ -63,7 +63,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
             .withRequiredArg()
             .withValuesConvertedBy(new PathConverter());
         quietOption = parser.acceptsAll(Arrays.asList("q", "quiet"),
-            "Turns off standard ouput/error streams logging in console")
+            "Turns off standard output/error streams logging in console")
             .availableUnless(versionOption)
             .availableUnless(daemonizeOption);
     }
@@ -98,9 +98,6 @@ class Elasticsearch extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
         }
         if (options.has(versionOption)) {
-            if (options.has(daemonizeOption) || options.has(pidfileOption)) {
-                throw new UserException(ExitCodes.USAGE, "Elasticsearch version option is mutually exclusive with any other option");
-            }
             terminal.println("Version: " + Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot())
                     + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date()
                     + ", JVM: " + JvmInfo.jvmInfo().version());

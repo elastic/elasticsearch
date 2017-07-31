@@ -335,7 +335,6 @@ public class BootstrapChecksTests extends ESTestCase {
             }
         };
 
-
         final NodeValidationException e = expectThrows(
                 NodeValidationException.class,
                 () -> BootstrapChecks.check(true, Collections.singletonList(check), "testMaxSizeVirtualMemory"));
@@ -345,10 +344,38 @@ public class BootstrapChecksTests extends ESTestCase {
 
         BootstrapChecks.check(true, Collections.singletonList(check), "testMaxSizeVirtualMemory");
 
-        // nothing should happen if max size virtual memory is not
-        // available
+        // nothing should happen if max size virtual memory is not available
         maxSizeVirtualMemory.set(Long.MIN_VALUE);
         BootstrapChecks.check(true, Collections.singletonList(check), "testMaxSizeVirtualMemory");
+    }
+
+    public void testMaxFileSizeCheck() throws NodeValidationException {
+        final long rlimInfinity = Constants.MAC_OS_X ? 9223372036854775807L : -1L;
+        final AtomicLong maxFileSize = new AtomicLong(randomIntBetween(0, Integer.MAX_VALUE));
+        final BootstrapChecks.MaxFileSizeCheck check = new BootstrapChecks.MaxFileSizeCheck() {
+            @Override
+            long getMaxFileSize() {
+                return maxFileSize.get();
+            }
+
+            @Override
+            long getRlimInfinity() {
+                return rlimInfinity;
+            }
+        };
+
+        final NodeValidationException e = expectThrows(
+                NodeValidationException.class,
+                () -> BootstrapChecks.check(true, Collections.singletonList(check), "testMaxFileSize"));
+        assertThat(e.getMessage(), containsString("max file size"));
+
+        maxFileSize.set(rlimInfinity);
+
+        BootstrapChecks.check(true, Collections.singletonList(check), "testMaxFileSize");
+
+        // nothing should happen if max file size is not available
+        maxFileSize.set(Long.MIN_VALUE);
+        BootstrapChecks.check(true, Collections.singletonList(check), "testMaxFileSize");
     }
 
     public void testMaxMapCountCheck() throws NodeValidationException {

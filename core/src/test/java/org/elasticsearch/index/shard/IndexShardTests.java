@@ -74,6 +74,8 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapping;
@@ -88,6 +90,8 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogTests;
 import org.elasticsearch.indices.IndicesQueryCache;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.IndexId;
@@ -125,12 +129,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -339,7 +345,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // promote the replica
         final ShardRouting replicaRouting = indexShard.routingEntry();
         final ShardRouting primaryRouting =
-                TestShardRouting.newShardRouting(
+                newShardRouting(
                         replicaRouting.shardId(),
                         replicaRouting.currentNodeId(),
                         null,
@@ -416,7 +422,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // promote the replica
         final ShardRouting replicaRouting = indexShard.routingEntry();
         final ShardRouting primaryRouting =
-                TestShardRouting.newShardRouting(
+                newShardRouting(
                         replicaRouting.shardId(),
                         replicaRouting.currentNodeId(),
                         null,
@@ -458,13 +464,13 @@ public class IndexShardTests extends IndexShardTestCase {
 
         if (randomBoolean()) {
             // relocation target
-            indexShard = newShard(TestShardRouting.newShardRouting(shardId, "local_node", "other node",
+            indexShard = newShard(newShardRouting(shardId, "local_node", "other node",
                 true, ShardRoutingState.INITIALIZING, AllocationId.newRelocation(AllocationId.newInitializing())));
         } else if (randomBoolean()) {
             // simulate promotion
             indexShard = newStartedShard(false);
             ShardRouting replicaRouting = indexShard.routingEntry();
-            ShardRouting primaryRouting = TestShardRouting.newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), null,
+            ShardRouting primaryRouting = newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), null,
                 true, ShardRoutingState.STARTED, replicaRouting.allocationId());
             indexShard.updateShardState(primaryRouting, indexShard.getPrimaryTerm() + 1, (shard, listener) -> {}, 0L,
                 Collections.singleton(indexShard.routingEntry().allocationId().getId()),
@@ -520,7 +526,7 @@ public class IndexShardTests extends IndexShardTestCase {
             case 1: {
                 // initializing replica / primary
                 final boolean relocating = randomBoolean();
-                ShardRouting routing = TestShardRouting.newShardRouting(shardId, "local_node",
+                ShardRouting routing = newShardRouting(shardId, "local_node",
                     relocating ? "sourceNode" : null,
                     relocating ? randomBoolean() : false,
                     ShardRoutingState.INITIALIZING,
@@ -533,7 +539,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 // relocation source
                 indexShard = newStartedShard(true);
                 ShardRouting routing = indexShard.routingEntry();
-                routing = TestShardRouting.newShardRouting(routing.shardId(), routing.currentNodeId(), "otherNode",
+                routing = newShardRouting(routing.shardId(), routing.currentNodeId(), "otherNode",
                     true, ShardRoutingState.RELOCATING, AllocationId.newRelocation(routing.allocationId()));
                 IndexShardTestCase.updateRoutingEntry(indexShard, routing);
                 indexShard.relocated("test", primaryContext -> {});
@@ -612,7 +618,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 long localCheckPoint = indexShard.getGlobalCheckpoint() + randomInt(100);
                 // advance local checkpoint
                 for (int i = 0; i <= localCheckPoint; i++) {
-                    indexShard.markSeqNoAsNoop(i, indexShard.getPrimaryTerm(), "dummy doc");
+                    indexShard.markSeqNoAsNoop(i, "dummy doc");
                 }
                 newGlobalCheckPoint = randomIntBetween((int) indexShard.getGlobalCheckpoint(), (int) localCheckPoint);
             }
@@ -1377,6 +1383,47 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testRecoverFromStoreWithOutOfOrderDelete() throws IOException {
+        final IndexShard shard = newStartedShard(false);
+        final Consumer<Mapping> mappingConsumer = getMappingUpdater(shard, "test");
+        shard.applyDeleteOperationOnReplica(1, 2, "test", "id", VersionType.EXTERNAL, mappingConsumer);
+        shard.getEngine().rollTranslogGeneration(); // isolate the delete in it's own generation
+        shard.applyIndexOperationOnReplica(0, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+            SourceToParse.source(shard.shardId().getIndexName(), "test", "id", new BytesArray("{}"), XContentType.JSON), mappingConsumer);
+
+        // index a second item into the second generation, skipping seq# 2. Local checkpoint is now 1, which will make this generation stick
+        // around
+        shard.applyIndexOperationOnReplica(3, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+            SourceToParse.source(shard.shardId().getIndexName(), "test", "id2", new BytesArray("{}"), XContentType.JSON), mappingConsumer);
+
+        final int translogOps;
+        if (randomBoolean()) {
+            logger.info("--> flushing shard");
+            flushShard(shard);
+            translogOps = 2;
+        } else if (randomBoolean())  {
+            shard.getEngine().rollTranslogGeneration();
+            translogOps = 3;
+        } else {
+            translogOps = 3;
+        }
+
+        final ShardRouting replicaRouting = shard.routingEntry();
+        IndexShard newShard = reinitShard(shard,
+            newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), true, ShardRoutingState.INITIALIZING,
+                RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE));
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
+        assertTrue(newShard.recoverFromStore());
+        assertEquals(translogOps, newShard.recoveryState().getTranslog().recoveredOperations());
+        assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperations());
+        assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperationsOnStart());
+        assertEquals(100.0f, newShard.recoveryState().getTranslog().recoveredPercent(), 0.01f);
+        updateRoutingEntry(newShard, ShardRoutingHelper.moveToStarted(newShard.routingEntry()));
+        assertDocCount(newShard, 1);
+        closeShards(newShard);
+    }
+
     public void testRecoverFromStore() throws IOException {
         final IndexShard shard = newStartedShard(true);
         int totalOps = randomInt(10);
@@ -1434,7 +1481,7 @@ public class IndexShardTests extends IndexShardTestCase {
         updateMappings(otherShard, shard.indexSettings().getIndexMetaData());
         SourceToParse sourceToParse = SourceToParse.source(shard.shardId().getIndexName(), "test", "1",
             new BytesArray("{}"), XContentType.JSON);
-        otherShard.applyIndexOperationOnReplica(1, 1, 1,
+        otherShard.applyIndexOperationOnReplica(1, 1,
             VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse, update -> {});
 
         final ShardRouting primaryShardRouting = shard.routingEntry();
@@ -1447,17 +1494,18 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(1, newShard.recoveryState().getTranslog().totalOperations());
         assertEquals(1, newShard.recoveryState().getTranslog().totalOperationsOnStart());
         assertEquals(100.0f, newShard.recoveryState().getTranslog().recoveredPercent(), 0.01f);
-        Translog.Snapshot snapshot = newShard.getTranslog().newSnapshot();
-        Translog.Operation operation;
-        int numNoops = 0;
-        while((operation = snapshot.next()) != null) {
-            if (operation.opType() == Translog.Operation.Type.NO_OP) {
-                numNoops++;
-                assertEquals(newShard.getPrimaryTerm(), operation.primaryTerm());
-                assertEquals(0, operation.seqNo());
+        try (Translog.Snapshot snapshot = newShard.getTranslog().newSnapshot()) {
+            Translog.Operation operation;
+            int numNoops = 0;
+            while ((operation = snapshot.next()) != null) {
+                if (operation.opType() == Translog.Operation.Type.NO_OP) {
+                    numNoops++;
+                    assertEquals(newShard.getPrimaryTerm(), operation.primaryTerm());
+                    assertEquals(0, operation.seqNo());
+                }
             }
+            assertEquals(1, numNoops);
         }
-        assertEquals(1, numNoops);
         IndexShardTestCase.updateRoutingEntry(newShard, newShard.routingEntry().moveToStarted());
         assertDocCount(newShard, 1);
         assertDocCount(shard, 2);
@@ -1678,7 +1726,11 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // test global ordinals are evicted
         MappedFieldType foo = shard.mapperService().fullName("foo");
-        IndexFieldData.Global ifd = shard.indexFieldDataService().getForField(foo);
+        IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(shard.indexSettings.getNodeSettings(),
+            new IndexFieldDataCache.Listener() {});
+        IndexFieldDataService indexFieldDataService = new IndexFieldDataService(shard.indexSettings, indicesFieldDataCache,
+            new NoneCircuitBreakerService(), shard.mapperService());
+        IndexFieldData.Global ifd = indexFieldDataService.getForField(foo);
         FieldDataStats before = shard.fieldData().stats("foo");
         assertThat(before.getMemorySizeInBytes(), equalTo(0L));
         FieldDataStats after = null;
@@ -1840,6 +1892,11 @@ public class IndexShardTests extends IndexShardTestCase {
         Translog.Snapshot snapshot = new Translog.Snapshot() {
 
             @Override
+            public void close() {
+
+            }
+
+            @Override
             public int totalOperations() {
                 return numTotalEntries;
             }
@@ -1939,7 +1996,7 @@ public class IndexShardTests extends IndexShardTestCase {
         sourceShard.refresh("test");
 
 
-        ShardRouting targetRouting = TestShardRouting.newShardRouting(new ShardId("index_1", "index_1", 0), "n1", true,
+        ShardRouting targetRouting = newShardRouting(new ShardId("index_1", "index_1", 0), "n1", true,
             ShardRoutingState.INITIALIZING, RecoverySource.LocalShardsRecoverySource.INSTANCE);
 
         final IndexShard targetShard;
@@ -2127,11 +2184,11 @@ public class IndexShardTests extends IndexShardTestCase {
         int max = offset;
         boolean gap = false;
         for (int i = offset + 1; i < operations; i++) {
-            if (!rarely()) {
+            if (!rarely() || i == operations - 1) { // last operation can't be a gap as it's not a gap anymore
                 final String id = Integer.toString(i);
                 SourceToParse sourceToParse = SourceToParse.source(indexShard.shardId().getIndexName(), "test", id,
                         new BytesArray("{}"), XContentType.JSON);
-                indexShard.applyIndexOperationOnReplica(i, indexShard.getPrimaryTerm(),
+                indexShard.applyIndexOperationOnReplica(i,
                         1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse,
                         getMappingUpdater(indexShard, sourceToParse.type()));
                 if (!gap && i == localCheckpoint + 1) {

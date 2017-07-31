@@ -1,0 +1,52 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: single_doc_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+---
+teardown:
+
+  - do:
+      indices.delete:
+        index: single_doc_index
+        ignore_unavailable: true
+
+---
+"Test that remote indices are maintained when we aggregate on _index":
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "single_doc_index", "_type": "test_type"}}'
+            - '{"f1": "local_cluster", "sort_field": 0}'
+
+  - do:
+     search:
+       index: "single_doc_index,my_remote_cluster:single_doc_index"
+       body:
+         sort: "sort_field"
+         aggs:
+            idx_terms:
+              terms:
+                field: "_index"
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._index: "single_doc_index"}
+  - match: { hits.hits.1._index: "my_remote_cluster:single_doc_index"}
+  - match: { hits.total: 2 }
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }
+  - match: { _shards.skipped : 0}
+  - match: { _shards.failed: 0 }
+  - length: { aggregations.idx_terms.buckets: 2 }
+  - match: { aggregations.idx_terms.buckets.0.key: "my_remote_cluster:single_doc_index" }
+  - match: { aggregations.idx_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.idx_terms.buckets.1.key: "single_doc_index" }
+  - match: { aggregations.idx_terms.buckets.1.doc_count: 1 }

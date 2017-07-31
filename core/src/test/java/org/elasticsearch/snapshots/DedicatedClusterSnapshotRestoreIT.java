@@ -767,6 +767,67 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertEquals(0, snapshotInfo.failedShards());
     }
 
+
+    public void testMasterAndDataShutdownDuringSnapshot() throws Exception {
+        logger.info("-->  starting three master nodes and two data nodes");
+        internalCluster().startMasterOnlyNodes(3);
+        internalCluster().startDataOnlyNodes(2);
+
+        final Client client = client();
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+            .setType("mock").setSettings(Settings.builder()
+                .put("location", randomRepoPath())
+                .put("compress", randomBoolean())
+                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+
+        assertAcked(prepareCreate("test-idx", 0, Settings.builder().put("number_of_shards", between(1, 20))
+            .put("number_of_replicas", 0)));
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        final int numdocs = randomIntBetween(10, 100);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex("test-idx", "type1", Integer.toString(i)).setSource("field1", "bar " + i);
+        }
+        indexRandom(true, builders);
+        flushAndRefresh();
+
+        final int numberOfShards = getNumShards("test-idx").numPrimaries;
+        logger.info("number of shards: {}", numberOfShards);
+
+        final String masterNode = blockMasterFromFinalizingSnapshotOnSnapFile("test-repo");
+        final String dataNode = blockNodeWithIndex("test-repo", "test-idx");
+
+        dataNodeClient().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
+
+        logger.info("--> stopping data node {}", dataNode);
+        stopNode(dataNode);
+        logger.info("--> stopping master node {} ", masterNode);
+        internalCluster().stopCurrentMasterNode();
+
+        logger.info("--> wait until the snapshot is done");
+
+        assertBusy(() -> {
+            GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get();
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+            assertTrue(snapshotInfo.state().completed());
+        }, 1, TimeUnit.MINUTES);
+
+        logger.info("--> verify that snapshot was partial");
+
+        GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get();
+        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+        assertEquals(SnapshotState.PARTIAL, snapshotInfo.state());
+        assertNotEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
+        assertThat(snapshotInfo.failedShards(), greaterThan(0));
+        for (SnapshotShardFailure failure : snapshotInfo.shardFailures()) {
+            assertNotNull(failure.reason());
+        }
+    }
+
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25281")
     public void testMasterShutdownDuringFailedSnapshot() throws Exception {
         logger.info("-->  starting two master nodes and two data nodes");
@@ -800,7 +861,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             assertEquals(ClusterHealthStatus.RED, client().admin().cluster().prepareHealth().get().getStatus()),
             30, TimeUnit.SECONDS);
 
-        final String masterNode = blockMasterFromFinalizingSnapshot("test-repo");
+        final String masterNode = blockMasterFromFinalizingSnapshotOnIndexFile("test-repo");
 
         logger.info("-->  snapshot");
         client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")

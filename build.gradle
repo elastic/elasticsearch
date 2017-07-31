@@ -268,7 +268,7 @@ subprojects {
 // the dependency is added.
 gradle.projectsEvaluated {
   allprojects {
-    if (project.path == ':test:framework') {
+    if (project.path == ':test:framework' || project.path == ':client:test') {
       // :test:framework:test cannot run before and after :core:test
       return
     }

@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -72,7 +73,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
 
     @Override
     protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder result = QueryBuilder.rewriteQuery(filter, queryShardContext);
+        QueryBuilder result = Rewriteable.rewrite(filter, queryShardContext);
         if (result != filter) {
             return new FilterAggregationBuilder(getName(), result);
         }

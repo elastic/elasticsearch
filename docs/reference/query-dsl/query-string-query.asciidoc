@@ -18,7 +18,7 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
-The `query_string` query parses the input and splits text around logical operators.
+The `query_string` query parses the input and splits text around operators.
 Each textual part is analyzed independently of each other. For instance the following query:
 
 [source,js]
@@ -28,14 +28,14 @@ GET /_search
     "query": {
         "query_string" : {
             "default_field" : "content",
-            "query" : "(new york) AND ny"
+            "query" : "field:new york AND city"
         }
     }
 }
 --------------------------------------------------
 // CONSOLE
 
-... will be splitted in `new york` and `ny` and each part is analyzed independently.
+... will be splitted in `new`, `york` and `city` and each part is analyzed independently.
 When multiple fields are provided it is also possible to modify how the different
 field queries are combined inside each textual part using the `type` parameter.
 The possible modes are described <<multi-match-types, here>> and the default is `best_fields`.
@@ -50,7 +50,10 @@ The `query_string` top level parameters include:
 
 |`default_field` |The default field for query terms if no prefix field
 is specified. Defaults to the `index.query.default_field` index
-settings, which in turn defaults to `_all`.
+settings, which in turn defaults to `*`.
+`*` extracts all fields in the mapping that are eligible to term queries
+and filters the metadata fields. All extracted fields are then combined
+to build a query when no prefix field is provided.
 
 |`default_operator` |The default operator used if no explicit operator
 is specified. For example, with a default operator of `OR`, the query
@@ -107,7 +110,8 @@ the query string. This allows to use a field that has a different analysis chain
 for exact matching. Look <<mixing-exact-search-with-stemming,here>> for a
 comprehensive example.
 
-|`all_fields` | Perform the query on all fields detected in the mapping that can
+|`all_fields` | deprecated[6.0.0, set `default_field` to `*` instead]
+Perform the query on all fields detected in the mapping that can
 be queried. Will be used by default when the `_all` field is disabled and no
 `default_field` is specified (either in the index settings or in the request
 body) and no `fields` are specified.
@@ -124,11 +128,9 @@ parameter.
 
 When not explicitly specifying the field to search on in the query
 string syntax, the `index.query.default_field` will be used to derive
-which field to search on. It defaults to `_all` field.
-
-If the `_all` field is disabled, the `query_string` query will automatically
-attempt to determine the existing fields in the index's mapping that are
-queryable, and perform the search on those fields. Note that this will not
+which field to search on. If the `index.query.default_field` is not specified,
+the `query_string` will automatically attempt to determine the existing fields in the index's
+mapping that are queryable, and perform the search on those fields. Note that this will not
 include nested documents, use a nested query to search those documents.
 
 [float]

@@ -69,34 +69,6 @@ public interface ActionListener<Response> {
         };
     }
 
-    static <Response> ActionListener<Response> chain(ActionListener<Response> first, ActionListener<Response> second) {
-        return new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                try {
-                    first.onResponse(response);
-                } catch (Exception e) {
-                    onFailure(e);
-                }
-                try {
-                    second.onResponse(response);
-                } catch (Exception e) {
-                    second.onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    first.onFailure(e);
-                } catch (Exception suppressed) {
-                    e.addSuppressed(suppressed);
-                }
-                second.onFailure(e);
-            }
-        };
-    }
-
     /**
      * Notifies every given listener with the response passed to {@link #onResponse(Object)}. If a listener itself throws an exception
      * the exception is forwarded to {@link #onFailure(Exception)}. If in turn {@link #onFailure(Exception)} fails all remaining

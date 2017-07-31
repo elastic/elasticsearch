@@ -49,8 +49,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Objects.requireNonNull;
-import static org.elasticsearch.action.ActionListener.chain;
-import static org.elasticsearch.action.ActionListener.wrap;
 
 public class PrimaryReplicaSyncer extends AbstractComponent {
 
@@ -80,17 +78,33 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         this.chunkSize = chunkSize;
     }
 
-    public void resync(IndexShard indexShard, ActionListener<ResyncTask> listener) {
+    public void resync(final IndexShard indexShard, final ActionListener<ResyncTask> listener) {
+        ActionListener<ResyncTask> resyncListener = null;
         try {
             final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
             Translog.Snapshot snapshot = indexShard.getTranslog().newSnapshotFromMinSeqNo(startingSeqNo);
-            listener = chain(wrap(r -> snapshot.close(), e -> {
-                try {
-                    snapshot.close();
-                } catch (IOException e1) {
-                    e.addSuppressed(e1);
+            resyncListener = new ActionListener<ResyncTask>() {
+                @Override
+                public void onResponse(final ResyncTask resyncTask) {
+                    try {
+                        snapshot.close();
+                        listener.onResponse(resyncTask);
+                    } catch (final Exception e) {
+                        onFailure(e);
+                    }
                 }
-            }), listener);
+
+                @Override
+                public void onFailure(final Exception e) {
+                    try {
+                        snapshot.close();
+                    } catch (final Exception inner) {
+                        e.addSuppressed(inner);
+                    } finally {
+                        listener.onFailure(e);
+                    }
+                }
+            };
             ShardId shardId = indexShard.shardId();
 
             // Wrap translog snapshot to make it synchronized as it is accessed by different threads through SnapshotSender.
@@ -120,9 +134,13 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                 }
             };
             resync(shardId, indexShard.routingEntry().allocationId().getId(), indexShard.getPrimaryTerm(), wrappedSnapshot,
-                startingSeqNo, listener);
+                startingSeqNo, resyncListener);
         } catch (Exception e) {
-            listener.onFailure(e);
+            if (resyncListener != null) {
+                resyncListener.onFailure(e);
+            } else {
+                listener.onFailure(e);
+            }
         }
     }
 

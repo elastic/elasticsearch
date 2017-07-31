@@ -737,7 +737,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
     private static void randomLocalCheckpointUpdate(GlobalCheckpointTracker gcp) {
         String allocationId = randomFrom(gcp.localCheckpoints.keySet());
         long currentLocalCheckpoint = gcp.localCheckpoints.get(allocationId).getLocalCheckpoint();
-        gcp.updateLocalCheckpoint(allocationId, currentLocalCheckpoint + randomInt(5));
+        gcp.updateLocalCheckpoint(allocationId, Math.max(SequenceNumbersService.NO_OPS_PERFORMED, currentLocalCheckpoint + randomInt(5)));
     }
 
     private static void randomMarkInSync(GlobalCheckpointTracker gcp) {

@@ -19,6 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.document.DoubleRange;
 import org.apache.lucene.document.FloatRange;
 import org.apache.lucene.document.InetAddressPoint;
@@ -29,10 +30,12 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeType;
@@ -80,7 +83,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         QueryShardContext context = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
-                null, null, () -> nowInMillis);
+            writableRegistry(), null, null, () -> nowInMillis, null);
         RangeFieldMapper.RangeFieldType ft = new RangeFieldMapper.RangeFieldType(type, Version.CURRENT);
         ft.setName(FIELDNAME);
         ft.setIndexOptions(IndexOptions.DOCS);
@@ -266,5 +269,11 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             default:
                 return (Float)from + DISTANCE;
         }
+    }
+
+    public void testParseIp() {
+        assertEquals(InetAddresses.forString("::1"), RangeFieldMapper.RangeType.IP.parse(InetAddresses.forString("::1"), randomBoolean()));
+        assertEquals(InetAddresses.forString("::1"), RangeFieldMapper.RangeType.IP.parse("::1", randomBoolean()));
+        assertEquals(InetAddresses.forString("::1"), RangeFieldMapper.RangeType.IP.parse(new BytesRef("::1"), randomBoolean()));
     }
 }

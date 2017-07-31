@@ -20,14 +20,18 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermContext;
+import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lease.Releasable;
@@ -40,6 +44,8 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.profile.query.QueryTimingType;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -58,6 +64,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     // TODO revisit moving the profiler to inheritance or wrapping model in the future
     private QueryProfiler profiler;
 
+    private Runnable checkCancelled;
+
     public ContextIndexSearcher(Engine.Searcher searcher,
             QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) {
         super(searcher.reader());
@@ -74,6 +82,14 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     public void setProfiler(QueryProfiler profiler) {
         this.profiler = profiler;
+    }
+
+    /**
+     * Set a {@link Runnable} that will be run on a regular basis while
+     * collecting documents.
+     */
+    public void setCheckCancelled(Runnable checkCancelled) {
+        this.checkCancelled = checkCancelled;
     }
 
     public void setAggregatedDfs(AggregatedDfs aggregatedDfs) {
@@ -131,6 +147,43 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // needs to be 'super', not 'in' in order to use aggregated DFS
             return super.createWeight(query, needsScores, boost);
         }
+    }
+
+    @Override
+    protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+        final Weight cancellableWeight;
+        if (checkCancelled != null) {
+            cancellableWeight = new Weight(weight.getQuery()) {
+
+                @Override
+                public void extractTerms(Set<Term> terms) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public Scorer scorer(LeafReaderContext context) throws IOException {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
+                    BulkScorer in = weight.bulkScorer(context);
+                    if (in != null) {
+                        return new CancellableBulkScorer(in, checkCancelled);
+                    } else {
+                        return null;
+                    }
+                }
+            };
+        } else {
+            cancellableWeight = weight;
+        }
+        super.search(leaves, cancellableWeight, collector);
     }
 
     @Override

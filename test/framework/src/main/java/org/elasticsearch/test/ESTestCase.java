@@ -102,6 +102,8 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -883,6 +885,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
     }
 
+    public static String randomTestTransport() {
+        return randomBoolean() ? NioTransportPlugin.NIO_TRANSPORT_NAME : MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
+    }
+
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
 
     public static class GeohashGenerator extends CodepointSetGenerator {
@@ -1105,6 +1111,13 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
+    }
+
+    /**
+     * The {@link NamedWriteableRegistry} to use for this test. Subclasses should override and use liberally.
+     */
+    protected NamedWriteableRegistry writableRegistry() {
+        return new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
     }
 
     /**

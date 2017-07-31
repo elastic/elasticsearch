@@ -57,7 +57,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final boolean shard2 = randomBoolean();
 
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null) {
+            Settings.builder().put("search.remote.connect", false).build(), null, null) {
 
             @Override
             public void sendCanMatch(Transport.Connection connection, ShardSearchTransportRequest request, SearchTask task,
@@ -105,14 +105,13 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
     public void testOldNodesTriggerException() {
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null);
-        DiscoveryNode node = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), VersionUtils.getPreviousVersion(Version
-            .CURRENT.minimumCompatibilityVersion()));
+            Settings.builder().put("search.remote.connect", false).build(), null, null);
+        DiscoveryNode node = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), VersionUtils.randomVersionBetween(random(),
+            VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_5_6_0)));
         SearchAsyncActionTests.MockConnection mockConnection = new SearchAsyncActionTests.MockConnection(node);
         IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
             () -> searchTransportService.sendCanMatch(mockConnection, null, null, null));
-        assertEquals("can_match is not supported on pre " + Version
-            .CURRENT.minimumCompatibilityVersion() + " nodes", illegalArgumentException.getMessage());
+        assertEquals("can_match is not supported on pre 5.6 nodes", illegalArgumentException.getMessage());
     }
 
     public void testFilterWithFailure() throws InterruptedException {
@@ -125,7 +124,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
         final boolean shard1 = randomBoolean();
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null) {
+            Settings.builder().put("search.remote.connect", false).build(), null, null) {
 
             @Override
             public void sendCanMatch(Transport.Connection connection, ShardSearchTransportRequest request, SearchTask task,

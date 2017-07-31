@@ -49,7 +49,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -85,7 +84,6 @@ import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
@@ -170,7 +168,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ShardIndexWarmerService shardWarmerService;
     private final ShardRequestCache requestCacheStats;
     private final ShardFieldData shardFieldData;
-    private final IndexFieldDataService indexFieldDataService;
     private final ShardBitsetFilterCache shardBitsetFilterCache;
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
@@ -235,7 +232,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public IndexShard(ShardRouting shardRouting, IndexSettings indexSettings, ShardPath path, Store store,
                       Supplier<Sort> indexSortSupplier, IndexCache indexCache, MapperService mapperService, SimilarityService similarityService,
-                      IndexFieldDataService indexFieldDataService, @Nullable EngineFactory engineFactory,
+                      @Nullable EngineFactory engineFactory,
                       IndexEventListener indexEventListener, IndexSearcherWrapper indexSearcherWrapper, ThreadPool threadPool, BigArrays bigArrays,
                       Engine.Warmer warmer, List<SearchOperationListener> searchOperationListener, List<IndexingOperationListener> listeners) throws IOException {
         super(shardRouting.shardId(), indexSettings);
@@ -264,7 +261,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.requestCacheStats = new ShardRequestCache();
         this.shardFieldData = new ShardFieldData();
-        this.indexFieldDataService = indexFieldDataService;
         this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
         state = IndexShardState.CREATED;
         this.path = path;
@@ -291,6 +287,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
     }
 
+    public ThreadPool getThreadPool() {
+        return this.threadPool;
+    }
+
     public Store store() {
         return this.store;
     }
@@ -314,10 +314,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public ShardBitsetFilterCache shardBitsetFilterCache() {
         return shardBitsetFilterCache;
-    }
-
-    public IndexFieldDataService indexFieldDataService() {
-        return indexFieldDataService;
     }
 
     public MapperService mapperService() {
@@ -363,7 +359,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @Override
     public void updateShardState(final ShardRouting newRouting,
                                  final long newPrimaryTerm,
-                                 final CheckedBiConsumer<IndexShard, ActionListener<ResyncTask>, IOException> primaryReplicaSyncer,
+                                 final BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
                                  final long applyingClusterStateVersion,
                                  final Set<String> inSyncAllocationIds,
                                  final IndexShardRoutingTable routingTable,
@@ -473,7 +469,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  */
                                 getEngine().restoreLocalCheckpointFromTranslog();
                                 getEngine().fillSeqNoGaps(newPrimaryTerm);
-                                updateLocalCheckpointForShard(currentRouting.allocationId().getId(),
+                                getEngine().seqNoService().updateLocalCheckpointForShard(currentRouting.allocationId().getId(),
                                     getEngine().seqNoService().getLocalCheckpoint());
                                 primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
                                     @Override
@@ -638,10 +634,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             isRetry, Engine.Operation.Origin.PRIMARY, sourceToParse, onMappingUpdate);
     }
 
-    public Engine.IndexResult applyIndexOperationOnReplica(long seqNo, long opPrimaryTerm, long version, VersionType versionType,
+    public Engine.IndexResult applyIndexOperationOnReplica(long seqNo, long version, VersionType versionType,
                                                            long autoGeneratedTimeStamp, boolean isRetry, SourceToParse sourceToParse,
                                                            Consumer<Mapping> onMappingUpdate) throws IOException {
-        return applyIndexOperation(seqNo, opPrimaryTerm, version, versionType, autoGeneratedTimeStamp, isRetry,
+        return applyIndexOperation(seqNo, primaryTerm, version, versionType, autoGeneratedTimeStamp, isRetry,
             Engine.Operation.Origin.REPLICA, sourceToParse, onMappingUpdate);
     }
 
@@ -708,7 +704,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return result;
     }
 
-    public Engine.NoOpResult markSeqNoAsNoop(long seqNo, long primaryTerm, String reason) throws IOException {
+    public Engine.NoOpResult markSeqNoAsNoop(long seqNo, String reason) throws IOException {
         return markSeqNoAsNoop(seqNo, primaryTerm, reason, Engine.Operation.Origin.REPLICA);
     }
 
@@ -735,7 +731,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             Engine.Operation.Origin.PRIMARY, onMappingUpdate);
     }
 
-    public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long primaryTerm, long version, String type, String id,
+    public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long version, String type, String id,
                                                              VersionType versionType,
                                                              Consumer<Mapping> onMappingUpdate) throws IOException {
         return applyDeleteOperation(seqNo, primaryTerm, version, type, id, versionType, Engine.Operation.Origin.REPLICA, onMappingUpdate);
@@ -1657,6 +1653,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void updateLocalCheckpointForShard(final String allocationId, final long checkpoint) {
         verifyPrimary();
+        verifyNotClosed();
         getEngine().seqNoService().updateLocalCheckpointForShard(allocationId, checkpoint);
     }
 
@@ -1729,6 +1726,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public ReplicationGroup getReplicationGroup() {
         verifyPrimary();
+        verifyNotClosed();
         return getEngine().seqNoService().getReplicationGroup();
     }
 

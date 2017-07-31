@@ -71,7 +71,6 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.monitor.jvm.JvmGcMonitorService;
 import org.elasticsearch.monitor.jvm.JvmService;
@@ -91,7 +90,6 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Arrays;
@@ -369,13 +367,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ThreadContext.DEFAULT_HEADERS_SETTING,
                     ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING,
                     ESLoggerFactory.LOG_LEVEL_SETTING,
-                    TribeService.BLOCKS_METADATA_SETTING,
-                    TribeService.BLOCKS_WRITE_SETTING,
-                    TribeService.BLOCKS_WRITE_INDICES_SETTING,
-                    TribeService.BLOCKS_READ_INDICES_SETTING,
-                    TribeService.BLOCKS_METADATA_INDICES_SETTING,
-                    TribeService.ON_CONFLICT_SETTING,
-                    TribeService.TRIBE_NAME_SETTING,
                     NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
                     NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING,
                     OsService.REFRESH_INTERVAL_SETTING,

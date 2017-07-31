@@ -38,19 +38,31 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ScaledFloatFieldMapper;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
@@ -61,25 +73,36 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
+import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
+import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
 /**
  * A {@link XQueryParser} that uses the {@link MapperService} in order to build smarter
  * queries based on the mapping information.
- * This class uses {@link MultiMatchQuery} to build the text query around logical operators and {@link XQueryParser}
+ * This class uses {@link MultiMatchQuery} to build the text query around operators and {@link XQueryParser}
  * to assemble the result logically.
  */
 public class QueryStringQueryParser extends XQueryParser {
-    private static final Map<String, FieldQueryExtension> FIELD_QUERY_EXTENSIONS;
+    // Mapping types the "all-ish" query can be executed against
+    private static final Set<String> ALLOWED_QUERY_MAPPER_TYPES;
+    private static final String EXISTS_FIELD = "_exists_";
 
     static {
-        Map<String, FieldQueryExtension> fieldQueryExtensions = new HashMap<>();
-        fieldQueryExtensions.put(ExistsFieldQueryExtension.NAME, new ExistsFieldQueryExtension());
-        FIELD_QUERY_EXTENSIONS = unmodifiableMap(fieldQueryExtensions);
+        ALLOWED_QUERY_MAPPER_TYPES = new HashSet<>();
+        ALLOWED_QUERY_MAPPER_TYPES.add(DateFieldMapper.CONTENT_TYPE);
+        ALLOWED_QUERY_MAPPER_TYPES.add(IpFieldMapper.CONTENT_TYPE);
+        ALLOWED_QUERY_MAPPER_TYPES.add(KeywordFieldMapper.CONTENT_TYPE);
+        for (NumberFieldMapper.NumberType nt : NumberFieldMapper.NumberType.values()) {
+            ALLOWED_QUERY_MAPPER_TYPES.add(nt.typeName());
+        }
+        ALLOWED_QUERY_MAPPER_TYPES.add(ScaledFloatFieldMapper.CONTENT_TYPE);
+        ALLOWED_QUERY_MAPPER_TYPES.add(TextFieldMapper.CONTENT_TYPE);
     }
 
     private final QueryShardContext context;
@@ -134,7 +157,18 @@ public class QueryStringQueryParser extends XQueryParser {
         this(context, null, fieldsAndWeights, lenient, context.getMapperService().searchAnalyzer());
     }
 
-    private QueryStringQueryParser(QueryShardContext context, String defaultField, Map<String, Float> fieldsAndWeights,
+    /**
+     * Defaults to all queryiable fields extracted from the mapping for query terms
+     * @param context The query shard context
+     * @param lenient If set to `true` will cause format based failures (like providing text to a numeric field) to be ignored.
+     */
+    public QueryStringQueryParser(QueryShardContext context, boolean lenient) {
+        this(context, "*", resolveMappingField(context, "*", 1.0f, false, false),
+                lenient, context.getMapperService().searchAnalyzer());
+    }
+
+    private QueryStringQueryParser(QueryShardContext context, String defaultField,
+                                   Map<String, Float> fieldsAndWeights,
                                    boolean lenient, Analyzer analyzer) {
         super(defaultField, analyzer);
         this.context = context;
@@ -142,6 +176,69 @@ public class QueryStringQueryParser extends XQueryParser {
         this.queryBuilder = new MultiMatchQuery(context);
         queryBuilder.setLenient(lenient);
         this.lenient = lenient;
+    }
+
+
+    private static FieldMapper getFieldMapper(MapperService mapperService, String field) {
+        for (DocumentMapper mapper : mapperService.docMappers(true)) {
+            FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper(field);
+            if (fieldMapper != null) {
+                return fieldMapper;
+            }
+        }
+        return null;
+    }
+
+    public static Map<String, Float> resolveMappingFields(QueryShardContext context, Map<String, Float> fieldsAndWeights) {
+        Map<String, Float> resolvedFields = new HashMap<>();
+        for (Map.Entry<String, Float> fieldEntry : fieldsAndWeights.entrySet()) {
+            boolean allField = Regex.isMatchAllPattern(fieldEntry.getKey());
+            boolean multiField = Regex.isSimpleMatchPattern(fieldEntry.getKey());
+            float weight = fieldEntry.getValue() == null ? 1.0f : fieldEntry.getValue();
+            Map<String, Float> fieldMap = resolveMappingField(context, fieldEntry.getKey(), weight,  !multiField, !allField);
+            resolvedFields.putAll(fieldMap);
+        }
+        return resolvedFields;
+    }
+
+    public static Map<String, Float> resolveMappingField(QueryShardContext context, String field, float weight,
+                                                         boolean acceptMetadataField, boolean acceptAllTypes) {
+        return resolveMappingField(context, field, weight, acceptMetadataField, acceptAllTypes, false, null);
+    }
+
+    /**
+     * Given a shard context, return a map of all fields in the mappings that
+     * can be queried. The map will be field name to a float of 1.0f.
+     */
+    private static Map<String, Float> resolveMappingField(QueryShardContext context, String field, float weight,
+                                                          boolean acceptAllTypes, boolean acceptMetadataField,
+                                                          boolean quoted, String quoteFieldSuffix) {
+        Collection<String> allFields = context.simpleMatchToIndexNames(field);
+        Map<String, Float> fields = new HashMap<>();
+        for (String fieldName : allFields) {
+            if (quoted && quoteFieldSuffix != null && context.fieldMapper(fieldName + quoteFieldSuffix) != null) {
+                fieldName = fieldName + quoteFieldSuffix;
+            }
+            FieldMapper mapper = getFieldMapper(context.getMapperService(), fieldName);
+            if (mapper == null) {
+                // Unmapped fields are not ignored
+                fields.put(field, weight);
+                continue;
+            }
+            if (acceptMetadataField == false && mapper instanceof MetadataFieldMapper) {
+                // Ignore metadata fields
+                continue;
+            }
+            // Ignore fields that are not in the allowed mapper types. Some
+            // types do not support term queries, and thus we cannot generate
+            // a special query for them.
+            String mappingType = mapper.fieldType().typeName();
+            if (acceptAllTypes == false && ALLOWED_QUERY_MAPPER_TYPES.contains(mappingType) == false) {
+                continue;
+            }
+            fields.put(fieldName, weight);
+        }
+        return fields;
     }
 
     @Override
@@ -234,18 +331,15 @@ public class QueryStringQueryParser extends XQueryParser {
 
     private Map<String, Float> extractMultiFields(String field, boolean quoted) {
         if (field != null) {
-            Collection<String> fields = queryBuilder.context.simpleMatchToIndexNames(field);
-            Map<String, Float> weights = new HashMap<>();
-            for (String fieldName : fields) {
-                Float weight = fieldsAndWeights.get(fieldName);
-                if (quoted && quoteFieldSuffix != null
-                        && queryBuilder.context.fieldMapper(fieldName + quoteFieldSuffix) != null) {
-                    fieldName = fieldName + quoteFieldSuffix;
-                    weight = fieldsAndWeights.get(fieldName);
-                }
-                weights.put(fieldName, weight == null ? 1.0f : weight);
+            boolean allFields = Regex.isMatchAllPattern(field);
+            if (allFields && this.field != null && this.field.equals(field)) {
+                // "*" is the default field
+                return fieldsAndWeights;
             }
-            return weights;
+            boolean multiFields = Regex.isSimpleMatchPattern(field);
+            // Filters unsupported fields if a pattern is requested
+            // Filters metadata fields if all fields are requested
+            return resolveMappingField(context, field, 1.0f, !allFields, !multiFields, quoted, quoteFieldSuffix);
         } else {
             return fieldsAndWeights;
         }
@@ -269,12 +363,12 @@ public class QueryStringQueryParser extends XQueryParser {
 
     @Override
     public Query getFieldQuery(String field, String queryText, boolean quoted) throws ParseException {
-        FieldQueryExtension fieldQueryExtension = FIELD_QUERY_EXTENSIONS.get(field);
-        if (fieldQueryExtension != null) {
-            return fieldQueryExtension.query(queryBuilder.context, queryText);
-        }
         if (quoted) {
             return getFieldQuery(field, queryText, getPhraseSlop());
+        }
+
+        if (field != null && EXISTS_FIELD.equals(field)) {
+            return existsQuery(queryText);
         }
 
         // Detects additional operators '<', '<=', '>', '>=' to handle range query with one side unbounded.
@@ -305,7 +399,7 @@ public class QueryStringQueryParser extends XQueryParser {
             // the requested fields do not match any field in the mapping
             // happens for wildcard fields only since we cannot expand to a valid field name
             // if there is no match in the mappings.
-            return new MatchNoDocsQuery("empty fields");
+            return newUnmappedFieldQuery(field);
         }
         Analyzer oldAnalyzer = queryBuilder.analyzer;
         try {
@@ -324,7 +418,7 @@ public class QueryStringQueryParser extends XQueryParser {
     protected Query getFieldQuery(String field, String queryText, int slop) throws ParseException {
         Map<String, Float> fields = extractMultiFields(field, true);
         if (fields.isEmpty()) {
-            return new MatchNoDocsQuery("empty fields");
+            return newUnmappedFieldQuery(field);
         }
         final Query query;
         Analyzer oldAnalyzer = queryBuilder.analyzer;
@@ -357,20 +451,18 @@ public class QueryStringQueryParser extends XQueryParser {
         }
 
         Map<String, Float> fields = extractMultiFields(field, false);
-        if (fields == null) {
-            return getRangeQuerySingle(field, part1, part2, startInclusive, endInclusive, queryBuilder.context);
+        if (fields.isEmpty()) {
+            return newUnmappedFieldQuery(field);
         }
 
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
             Query q = getRangeQuerySingle(entry.getKey(), part1, part2, startInclusive, endInclusive, context);
-            if (q != null) {
-                queries.add(applyBoost(q, entry.getValue()));
-            }
+            assert q != null;
+            queries.add(applyBoost(q, entry.getValue()));
         }
-        if (queries.size() == 0) {
-            return null;
-        } else if (queries.size() == 1) {
+
+        if (queries.size() == 1) {
             return queries.get(0);
         }
         float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
@@ -380,28 +472,28 @@ public class QueryStringQueryParser extends XQueryParser {
     private Query getRangeQuerySingle(String field, String part1, String part2,
                                       boolean startInclusive, boolean endInclusive, QueryShardContext context) {
         currentFieldType = context.fieldMapper(field);
-        if (currentFieldType != null) {
-            try {
-                Analyzer normalizer = forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer;
-                BytesRef part1Binary = part1 == null ? null : normalizer.normalize(field, part1);
-                BytesRef part2Binary = part2 == null ? null : normalizer.normalize(field, part2);
-                Query rangeQuery;
-                if (currentFieldType instanceof DateFieldMapper.DateFieldType && timeZone != null) {
-                    DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) this.currentFieldType;
-                    rangeQuery = dateFieldType.rangeQuery(part1Binary, part2Binary,
-                        startInclusive, endInclusive, timeZone, null, context);
-                } else {
-                    rangeQuery = currentFieldType.rangeQuery(part1Binary, part2Binary, startInclusive, endInclusive, context);
-                }
-                return rangeQuery;
-            } catch (RuntimeException e) {
-                if (lenient) {
-                    return null;
-                }
-                throw e;
-            }
+        if (currentFieldType == null) {
+            return newUnmappedFieldQuery(field);
         }
-        return newRangeQuery(field, part1, part2, startInclusive, endInclusive);
+        try {
+            Analyzer normalizer = forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer;
+            BytesRef part1Binary = part1 == null ? null : normalizer.normalize(field, part1);
+            BytesRef part2Binary = part2 == null ? null : normalizer.normalize(field, part2);
+            Query rangeQuery;
+            if (currentFieldType instanceof DateFieldMapper.DateFieldType && timeZone != null) {
+                DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) this.currentFieldType;
+                rangeQuery = dateFieldType.rangeQuery(part1Binary, part2Binary,
+                    startInclusive, endInclusive, timeZone, null, context);
+            } else {
+                rangeQuery = currentFieldType.rangeQuery(part1Binary, part2Binary, startInclusive, endInclusive, context);
+            }
+            return rangeQuery;
+        } catch (RuntimeException e) {
+            if (lenient) {
+                return newLenientFieldQuery(field, e);
+            }
+            throw e;
+        }
     }
 
     @Override
@@ -415,39 +507,40 @@ public class QueryStringQueryParser extends XQueryParser {
     @Override
     protected Query getFuzzyQuery(String field, String termStr, float minSimilarity) throws ParseException {
         Map<String, Float> fields = extractMultiFields(field, false);
-        float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
+        if (fields.isEmpty()) {
+            return newUnmappedFieldQuery(field);
+        }
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
             Query q = getFuzzyQuerySingle(entry.getKey(), termStr, minSimilarity);
-            if (q != null) {
-                queries.add(applyBoost(q, entry.getValue()));
-            }
+            assert q != null;
+            queries.add(applyBoost(q, entry.getValue()));
         }
-        if (queries.size() == 0) {
-            return null;
-        } else if (queries.size() == 1) {
+
+        if (queries.size() == 1) {
             return queries.get(0);
         } else {
+            float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
             return new DisjunctionMaxQuery(queries, tiebreaker);
         }
     }
 
     private Query getFuzzyQuerySingle(String field, String termStr, float minSimilarity) throws ParseException {
         currentFieldType = context.fieldMapper(field);
-        if (currentFieldType != null) {
-            try {
-                Analyzer normalizer = forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer;
-                BytesRef term = termStr == null ? null : normalizer.normalize(field, termStr);
-                return currentFieldType.fuzzyQuery(term, Fuzziness.fromEdits((int) minSimilarity),
-                    getFuzzyPrefixLength(), fuzzyMaxExpansions, FuzzyQuery.defaultTranspositions);
-            } catch (RuntimeException e) {
-                if (lenient) {
-                    return null;
-                }
-                throw e;
-            }
+        if (currentFieldType == null) {
+            return newUnmappedFieldQuery(field);
         }
-        return super.getFuzzyQuery(field, termStr, minSimilarity);
+        try {
+            Analyzer normalizer = forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer;
+            BytesRef term = termStr == null ? null : normalizer.normalize(field, termStr);
+            return currentFieldType.fuzzyQuery(term, Fuzziness.fromEdits((int) minSimilarity),
+                getFuzzyPrefixLength(), fuzzyMaxExpansions, FuzzyQuery.defaultTranspositions);
+        } catch (RuntimeException e) {
+            if (lenient) {
+                return newLenientFieldQuery(field, e);
+            }
+            throw e;
+        }
     }
 
     @Override
@@ -462,24 +555,20 @@ public class QueryStringQueryParser extends XQueryParser {
     @Override
     protected Query getPrefixQuery(String field, String termStr) throws ParseException {
         Map<String, Float> fields = extractMultiFields(field, false);
-        if (fields != null) {
-            float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
-            List<Query> queries = new ArrayList<>();
-            for (Map.Entry<String, Float> entry : fields.entrySet()) {
-                Query q = getPrefixQuerySingle(entry.getKey(), termStr);
-                if (q != null) {
-                    queries.add(applyBoost(q, entry.getValue()));
-                }
-            }
-            if (queries.size() == 0) {
-                return null;
-            } else if (queries.size() == 1) {
-                return queries.get(0);
-            } else {
-                return new DisjunctionMaxQuery(queries, tiebreaker);
-            }
+        if (fields.isEmpty()) {
+            return newUnmappedFieldQuery(termStr);
+        }
+        List<Query> queries = new ArrayList<>();
+        for (Map.Entry<String, Float> entry : fields.entrySet()) {
+            Query q = getPrefixQuerySingle(entry.getKey(), termStr);
+            assert q != null;
+            queries.add(applyBoost(q, entry.getValue()));
+        }
+        if (queries.size() == 1) {
+            return queries.get(0);
         } else {
-            return getPrefixQuerySingle(field, termStr);
+            float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
+            return new DisjunctionMaxQuery(queries, tiebreaker);
         }
     }
 
@@ -502,7 +591,7 @@ public class QueryStringQueryParser extends XQueryParser {
             return getPossiblyAnalyzedPrefixQuery(field, termStr);
         } catch (RuntimeException e) {
             if (lenient) {
-                return null;
+                return newLenientFieldQuery(field, e);
             }
             throw e;
         } finally {
@@ -551,7 +640,7 @@ public class QueryStringQueryParser extends XQueryParser {
         }
 
         if (tlist.size() == 0) {
-            return null;
+            return new MatchNoDocsQuery("analysis was empty for " + field + ":" + termStr);
         }
 
         if (tlist.size() == 1 && tlist.get(0).size() == 1) {
@@ -591,6 +680,17 @@ public class QueryStringQueryParser extends XQueryParser {
         return getBooleanQuery(clauses);
     }
 
+    private Query existsQuery(String fieldName) {
+        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
+            (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
+        if (fieldNamesFieldType.isEnabled() == false) {
+            // The field_names_field is disabled so we switch to a wildcard query that matches all terms
+            return new WildcardQuery(new Term(fieldName, "*"));
+        }
+
+        return ExistsQueryBuilder.newFilter(context, fieldName);
+    }
+
     @Override
     protected Query getWildcardQuery(String field, String termStr) throws ParseException {
         if (termStr.equals("*") && field != null) {
@@ -598,7 +698,7 @@ public class QueryStringQueryParser extends XQueryParser {
              * We rewrite _all:* to a match all query.
              * TODO: We can remove this special case when _all is completely removed.
              */
-            if ("*".equals(field) || AllFieldMapper.NAME.equals(field)) {
+            if (Regex.isMatchAllPattern(field) || AllFieldMapper.NAME.equals(field)) {
                 return newMatchAllDocsQuery();
             }
             String actualField = field;
@@ -606,35 +706,31 @@ public class QueryStringQueryParser extends XQueryParser {
                 actualField = this.field;
             }
             // effectively, we check if a field exists or not
-            return FIELD_QUERY_EXTENSIONS.get(ExistsFieldQueryExtension.NAME).query(queryBuilder.context, actualField);
+            return existsQuery(actualField);
         }
 
         Map<String, Float> fields = extractMultiFields(field, false);
-        if (fields != null) {
-            float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
-            List<Query> queries = new ArrayList<>();
-            for (Map.Entry<String, Float> entry : fields.entrySet()) {
-                Query q = getWildcardQuerySingle(entry.getKey(), termStr);
-                if (q != null) {
-                    queries.add(applyBoost(q, entry.getValue()));
-                }
-            }
-            if (queries.size() == 0) {
-                return null;
-            } else if (queries.size() == 1) {
-                return queries.get(0);
-            } else {
-                return new DisjunctionMaxQuery(queries, tiebreaker);
-            }
+        if (fields.isEmpty()) {
+            return newUnmappedFieldQuery(termStr);
+        }
+        List<Query> queries = new ArrayList<>();
+        for (Map.Entry<String, Float> entry : fields.entrySet()) {
+            Query q = getWildcardQuerySingle(entry.getKey(), termStr);
+            assert q != null;
+            queries.add(applyBoost(q, entry.getValue()));
+        }
+        if (queries.size() == 1) {
+            return queries.get(0);
         } else {
-            return getWildcardQuerySingle(field, termStr);
+            float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
+            return new DisjunctionMaxQuery(queries, tiebreaker);
         }
     }
 
     private Query getWildcardQuerySingle(String field, String termStr) throws ParseException {
         if ("*".equals(termStr)) {
             // effectively, we check if a field exists or not
-            return FIELD_QUERY_EXTENSIONS.get(ExistsFieldQueryExtension.NAME).query(queryBuilder.context, field);
+            return existsQuery(field);
         }
         String indexedNameField = field;
         currentFieldType = null;
@@ -648,7 +744,7 @@ public class QueryStringQueryParser extends XQueryParser {
             return super.getWildcardQuery(indexedNameField, termStr);
         } catch (RuntimeException e) {
             if (lenient) {
-                return null;
+                return newLenientFieldQuery(field, e);
             }
             throw e;
         } finally {
@@ -659,24 +755,20 @@ public class QueryStringQueryParser extends XQueryParser {
     @Override
     protected Query getRegexpQuery(String field, String termStr) throws ParseException {
         Map<String, Float> fields = extractMultiFields(field, false);
-        if (fields != null) {
-            float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
-            List<Query> queries = new ArrayList<>();
-            for (Map.Entry<String, Float> entry : fields.entrySet()) {
-                Query q = getRegexpQuerySingle(entry.getKey(), termStr);
-                if (q != null) {
-                    queries.add(applyBoost(q, entry.getValue()));
-                }
-            }
-            if (queries.size() == 0) {
-                return null;
-            } else if (queries.size() == 1) {
-                return queries.get(0);
-            } else {
-                return new DisjunctionMaxQuery(queries, tiebreaker);
-            }
+        if (fields.isEmpty()) {
+            return newUnmappedFieldQuery(termStr);
+        }
+        List<Query> queries = new ArrayList<>();
+        for (Map.Entry<String, Float> entry : fields.entrySet()) {
+            Query q = getRegexpQuerySingle(entry.getKey(), termStr);
+            assert q != null;
+            queries.add(applyBoost(q, entry.getValue()));
+        }
+        if (queries.size() == 1) {
+            return queries.get(0);
         } else {
-            return getRegexpQuerySingle(field, termStr);
+            float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
+            return new DisjunctionMaxQuery(queries, tiebreaker);
         }
     }
 
@@ -693,7 +785,7 @@ public class QueryStringQueryParser extends XQueryParser {
             return super.getRegexpQuery(field, termStr);
         } catch (RuntimeException e) {
             if (lenient) {
-                return null;
+                return newLenientFieldQuery(field, e);
             }
             throw e;
         } finally {

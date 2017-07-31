@@ -3,8 +3,6 @@
 
 An aggregation that returns interesting or unusual occurrences of terms in a set.
 
-experimental[The `significant_terms` aggregation can be very heavy when run on large indices.  Work is in progress to provide more lightweight sampling techniques.  As a result, the API for this feature may change in non-backwards compatible ways]
-
 .Example use cases:
 * Suggesting "H5N1" when users search for "bird flu" in text
 * Identifying the merchant that is the "common point of compromise" from the transaction history of credit card owners reporting loss

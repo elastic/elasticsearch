@@ -24,6 +24,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -38,7 +39,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.cluster.service.MasterServiceTests;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -46,7 +47,6 @@ import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -84,6 +84,12 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.RoutingTableTests.updateActiveAllocations;
 import static org.elasticsearch.cluster.service.MasterServiceTests.discoveryState;
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.VersionUtils.allVersions;
+import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
+import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -566,7 +572,7 @@ public class NodeJoinControllerTests extends ESTestCase {
             randomBoolean() ? existing.getAddress() : buildNewFakeTransportAddress(),
             randomBoolean() ? existing.getAttributes() : Collections.singletonMap("attr", "other"),
             randomBoolean() ? existing.getRoles() : new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
-            randomBoolean() ? existing.getVersion() : VersionUtils.randomVersion(random()));
+            existing.getVersion());
 
         ExecutionException e = expectThrows(ExecutionException.class, () -> joinNode(other_node));
         assertThat(e.getMessage(), containsString("found existing node"));
@@ -583,6 +589,102 @@ public class NodeJoinControllerTests extends ESTestCase {
 
         ExecutionException e = expectThrows(ExecutionException.class, () -> joinNode(other_node));
         assertThat(e.getMessage(), containsString("found existing node"));
+    }
+
+    public void testRejectingJoinWithIncompatibleVersion() throws InterruptedException, ExecutionException {
+        addNodes(randomInt(5));
+        final Version badVersion;
+        if (randomBoolean()) {
+            badVersion = getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion());
+        } else {
+            badVersion = randomFrom(allVersions().stream().filter(v -> v.major < Version.CURRENT.major).collect(Collectors.toList()));
+        }
+        final DiscoveryNode badNode = new DiscoveryNode("badNode", buildNewFakeTransportAddress(), emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), badVersion);
+
+        final Version goodVersion =
+            randomFrom(allVersions().stream().filter(v -> v.major >= Version.CURRENT.major).collect(Collectors.toList()));
+        final DiscoveryNode goodNode = new DiscoveryNode("goodNode", buildNewFakeTransportAddress(), emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), goodVersion);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        // block cluster state
+        masterService.submitStateUpdateTask("test", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                latch.await();
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+
+        final SimpleFuture badJoin;
+        final SimpleFuture goodJoin;
+        if (randomBoolean()) {
+            badJoin = joinNodeAsync(badNode);
+            goodJoin = joinNodeAsync(goodNode);
+        } else {
+            goodJoin = joinNodeAsync(goodNode);
+            badJoin = joinNodeAsync(badNode);
+        }
+        assert goodJoin.isDone() == false;
+        assert badJoin.isDone() == false;
+        latch.countDown();
+        goodJoin.get();
+        ExecutionException e = expectThrows(ExecutionException.class, badJoin::get);
+        assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(e.getCause().getMessage(), allOf(containsString("node version"), containsString("not supported")));
+    }
+
+    public void testRejectingJoinWithIncompatibleVersionWithUnrecoveredState() throws InterruptedException, ExecutionException {
+        addNodes(randomInt(5));
+        ClusterState.Builder builder = ClusterState.builder(discoveryState(masterService));
+        builder.blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
+        setState(masterService, builder.build());
+        final Version badVersion = getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion());
+        final DiscoveryNode badNode = new DiscoveryNode("badNode", buildNewFakeTransportAddress(), emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), badVersion);
+
+        final Version goodVersion = randomFrom(randomCompatibleVersion(random(), Version.CURRENT));
+        final DiscoveryNode goodNode = new DiscoveryNode("goodNode", buildNewFakeTransportAddress(), emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), goodVersion);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        // block cluster state
+        masterService.submitStateUpdateTask("test", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                latch.await();
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+
+        final SimpleFuture badJoin;
+        final SimpleFuture goodJoin;
+        if (randomBoolean()) {
+            badJoin = joinNodeAsync(badNode);
+            goodJoin = joinNodeAsync(goodNode);
+        } else {
+            goodJoin = joinNodeAsync(goodNode);
+            badJoin = joinNodeAsync(badNode);
+        }
+        assert goodJoin.isDone() == false;
+        assert badJoin.isDone() == false;
+        latch.countDown();
+        goodJoin.get();
+        ExecutionException e = expectThrows(ExecutionException.class, badJoin::get);
+        assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(e.getCause().getMessage(), allOf(containsString("node version"), containsString("not supported")));
     }
 
     /**

@@ -47,7 +47,7 @@ specific index module:
 `index.shard.check_on_startup`::
 +
 --
-experimental[] Whether or not shards should be checked for corruption before opening. When
+Whether or not shards should be checked for corruption before opening. When
 corruption is detected, it will prevent the shard from being opened. Accepts:
 
 `false`::
@@ -69,7 +69,7 @@ corruption is detected, it will prevent the shard from being opened. Accepts:
     as corrupted will be automatically removed. This option *may result in data loss*.
     Use with extreme caution!
 
-Checking shards may take a lot of time on large indices.
+WARNING: Expert only. Checking shards may take a lot of time on large indices.
 --
 
 [[index-codec]] `index.codec`::

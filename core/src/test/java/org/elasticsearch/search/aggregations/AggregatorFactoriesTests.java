@@ -267,7 +267,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
         AggregatorFactories.Builder builder = new AggregatorFactories.Builder().addAggregator(filterAggBuilder)
                 .addPipelineAggregator(pipelineAgg);
         AggregatorFactories.Builder rewritten = builder
-                .rewrite(new QueryRewriteContext(null, null, null, xContentRegistry, null, null, () -> 0L));
+                .rewrite(new QueryRewriteContext(xContentRegistry, null, null, () -> 0L));
         assertNotSame(builder, rewritten);
         List<AggregationBuilder> aggregatorFactories = rewritten.getAggregatorFactories();
         assertEquals(1, aggregatorFactories.size());
@@ -278,10 +278,10 @@ public class AggregatorFactoriesTests extends ESTestCase {
         // Check the filter was rewritten from a wrapper query to a terms query
         QueryBuilder rewrittenFilter = rewrittenFilterAggBuilder.getFilter();
         assertThat(rewrittenFilter, instanceOf(TermsQueryBuilder.class));
-        
+
         // Check that a further rewrite returns the same aggregation factories builder
         AggregatorFactories.Builder secondRewritten = rewritten
-                .rewrite(new QueryRewriteContext(null, null, null, xContentRegistry, null, null, () -> 0L));
+                .rewrite(new QueryRewriteContext(xContentRegistry, null, null, () -> 0L));
         assertSame(rewritten, secondRewritten);
     }
 

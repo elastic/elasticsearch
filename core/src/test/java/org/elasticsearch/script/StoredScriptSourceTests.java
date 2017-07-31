@@ -48,7 +48,7 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
             if (randomBoolean()) {
                 options.put(Script.CONTENT_TYPE_OPTION, xContentType.mediaType());
             }
-            return StoredScriptSource.parse(lang, template.bytes(), xContentType);
+            return StoredScriptSource.parse(template.bytes(), xContentType);
         } catch (IOException e) {
             throw new AssertionError("Failed to create test instance", e);
         }

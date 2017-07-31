@@ -48,7 +48,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -304,7 +303,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
      * Checks the request parameters against enabled settings for error trace support
      * @return true if the request does not have any parameters that conflict with system settings
      */
-    boolean checkRequestParameters(final RestRequest request, final RestChannel channel) {
+    boolean checkErrorTraceParameter(final RestRequest request, final RestChannel channel) {
         // error_trace cannot be used when we disable detailed errors
         // we consume the error_trace parameter first to ensure that it is always consumed
         if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
@@ -324,10 +323,10 @@ public class RestController extends AbstractComponent implements HttpServerTrans
         // Request execution flag
         boolean requestHandled = false;
 
-        if (checkRequestParameters(request, channel) == false) {
-            channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel,
-                BAD_REQUEST, "error traces in responses are disabled."));
-            requestHandled = true;
+        if (checkErrorTraceParameter(request, channel) == false) {
+            channel.sendResponse(
+                    BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, "error traces in responses are disabled."));
+            return;
         }
 
         // Loop through all possible handlers, attempting to dispatch the request

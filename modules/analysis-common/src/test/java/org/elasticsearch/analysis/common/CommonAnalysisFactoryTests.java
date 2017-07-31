@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory;
 import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
 import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
+import org.elasticsearch.index.analysis.SoraniNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.SynonymTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
@@ -106,6 +107,16 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("commongramsquery", CommonGramsTokenFilterFactory.class);
         filters.put("patternreplace", PatternReplaceTokenFilterFactory.class);
         filters.put("patterncapturegroup", PatternCaptureGroupTokenFilterFactory.class);
+        filters.put("arabicnormalization", ArabicNormalizationFilterFactory.class);
+        filters.put("germannormalization", GermanNormalizationFilterFactory.class);
+        filters.put("hindinormalization", HindiNormalizationFilterFactory.class);
+        filters.put("indicnormalization", IndicNormalizationFilterFactory.class);
+        filters.put("persiannormalization", PersianNormalizationFilterFactory.class);
+        filters.put("scandinaviannormalization", ScandinavianNormalizationFilterFactory.class);
+        filters.put("serbiannormalization", SerbianNormalizationFilterFactory.class);
+        filters.put("soraninormalization", SoraniNormalizationFilterFactory.class);
+        filters.put("cjkwidth", CJKWidthFilterFactory.class);
+        filters.put("cjkbigram", CJKBigramFilterFactory.class);
         return filters;
     }
 

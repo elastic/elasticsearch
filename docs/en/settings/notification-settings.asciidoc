@@ -19,9 +19,17 @@ Specifies the address of the proxy server to use to connect to HTTP services.
 `xpack.http.proxy.port`::
 Specifies the port number to use to connect to the proxy server.
 
+`xpack.http.default_connection_timeout`::
+The maximum period to wait until abortion of the request, when a
+connection is being initiated.
+
+`xpack.http.default_read_timeout`::
+The maximum period of inactivity between two data packets, before the
+request is aborted.
+
 `xpack.http.max_response_size`::
 Specifies the maximum size a HTTP response is allowed to have, defaults to
-`10mb`, max values is `50mb`.
+`10mb`, the maximum configurable value is `50mb`.
 
 [[ssl-notification-settings]]
 :ssl-prefix:             xpack.http

@@ -2,7 +2,7 @@
 
 setlocal enabledelayedexpansion
 
-call "%~dp0elasticsearch-env.bat"
+call "%~dp0elasticsearch-env.bat" || exit /b 1
 
 set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe
 set SERVICE_ID=elasticsearch-service-x64

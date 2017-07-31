@@ -24,6 +24,7 @@ import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
 import org.elasticsearch.Build;
+import org.elasticsearch.Version;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
@@ -97,7 +98,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
         }
         if (options.has(versionOption)) {
-            terminal.println("Version: " + org.elasticsearch.Version.CURRENT
+            terminal.println("Version: " + Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot())
                     + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date()
                     + ", JVM: " + JvmInfo.jvmInfo().version());
             return;

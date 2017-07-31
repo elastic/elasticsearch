@@ -378,4 +378,16 @@ public class VersionTests extends ESTestCase {
         VersionTests.assertUnknownVersion(VERSION_5_1_0_UNRELEASED);
     }
 
+    public void testDisplayVersion() {
+        final Version version = randomVersion(random());
+        {
+            final String displayVersion = Version.displayVersion(version, true);
+            assertThat(displayVersion, equalTo(version.toString() + "-SNAPSHOT"));
+        }
+        {
+            final String displayVersion = Version.displayVersion(version, false);
+            assertThat(displayVersion, equalTo(version.toString()));
+        }
+    }
+
 }

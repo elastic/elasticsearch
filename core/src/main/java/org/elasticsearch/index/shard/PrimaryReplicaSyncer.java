@@ -113,7 +113,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             Translog.Snapshot wrappedSnapshot = new Translog.Snapshot() {
 
                 @Override
-                public void close() throws IOException {
+                public synchronized void close() throws IOException {
                     snapshot.close();
                 }
 

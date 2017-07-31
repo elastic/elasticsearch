@@ -100,6 +100,7 @@ final class TranslogSnapshot extends BaseTranslogReader {
                 ", position=" + position +
                 ", estimateTotalOperations=" + totalOperations +
                 ", length=" + length +
+                ", generation=" + generation +
                 ", reusableBuffer=" + reusableBuffer +
                 '}';
     }

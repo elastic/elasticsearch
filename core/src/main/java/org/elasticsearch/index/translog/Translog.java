@@ -361,6 +361,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (readers.isEmpty()) {
                 return current.getGeneration();
             } else {
+                assert readers.stream().map(TranslogReader::getGeneration).min(Long::compareTo).get()
+                    .equals(readers.get(0).getGeneration()) : "the first translog isn't the one with the minimum generation:" + readers;
                 return readers.get(0).getGeneration();
             }
         }
@@ -610,12 +612,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             onClose = () -> {};
         } else {
             assert Arrays.stream(snapshots).map(BaseTranslogReader::getGeneration).min(Long::compareTo).get()
-                == snapshots[0].generation : "first reader generation of " + snapshots[0].generation + " is not the smallest";
+                == snapshots[0].generation : "first reader generation of " + snapshots + " is not the smallest";
             onClose = acquireTranslogGenFromDeletionPolicy(snapshots[0].generation);
         }
         boolean success = false;
         try {
-            Snapshot result  = new MultiSnapshot(snapshots, onClose);
+            Snapshot result = new MultiSnapshot(snapshots, onClose);
             success = true;
             return result;
         } finally {
@@ -1598,7 +1600,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     void closeFilesIfNoPendingRetentionLocks() throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             if (closed.get() && deletionPolicy.pendingTranslogRefCount() == 0) {
-                logger.trace("closing files. translog is closed and there are no pending views");
+                logger.trace("closing files. translog is closed and there are no pending retention locks");
                 ArrayList<Closeable> toClose = new ArrayList<>(readers);
                 toClose.add(current);
                 IOUtils.close(toClose);

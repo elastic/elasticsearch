@@ -142,7 +142,7 @@ public class RecoverySourceHandler {
             assert targetShardRouting.initializing() : "expected recovery target to be initializing but was " + targetShardRouting;
         });
 
-        try (Closeable translogRetentionLock = shard.acquireTranslogRetentionLock()) {
+        try (Closeable ignored = shard.acquireTranslogRetentionLock()) {
 
             final Translog translog = shard.getTranslog();
 
@@ -236,7 +236,7 @@ public class RecoverySourceHandler {
             logger.trace("all operations up to [{}] completed, checking translog content", endingSeqNo);
 
             final LocalCheckpointTracker tracker = new LocalCheckpointTracker(shard.indexSettings(), startingSeqNo, startingSeqNo - 1);
-            try(Translog.Snapshot snapshot = shard.getTranslog().newSnapshotFromMinSeqNo(startingSeqNo)) {
+            try (Translog.Snapshot snapshot = shard.getTranslog().newSnapshotFromMinSeqNo(startingSeqNo)) {
                 Translog.Operation operation;
                 while ((operation = snapshot.next()) != null) {
                     if (operation.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {

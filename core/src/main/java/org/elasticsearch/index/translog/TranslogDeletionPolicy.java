@@ -22,12 +22,12 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TranslogDeletionPolicy {
@@ -43,7 +43,7 @@ public class TranslogDeletionPolicy {
     }
 
     /**
-     * Records how many views are held against each
+     * Records how many retention locks are held against each
      * translog generation
      */
     private final Map<Long, Counter> translogRefCounts = new HashMap<>();
@@ -62,7 +62,7 @@ public class TranslogDeletionPolicy {
         this.retentionSizeInBytes = retentionSizeInBytes;
         this.retentionAgeInMillis = retentionAgeInMillis;
         if (Assertions.ENABLED) {
-            openTranslogRef = ConcurrentCollections.newConcurrentMap();
+            openTranslogRef = new ConcurrentHashMap<>();
         } else {
             openTranslogRef = null;
         }
@@ -85,16 +85,16 @@ public class TranslogDeletionPolicy {
     }
 
     /**
-     * acquires the basis generation for a new view or snapshot. Any translog generation above, and including, the returned generation
+     * acquires the basis generation for a new snapshot. Any translog generation above, and including, the returned generation
      * will not be deleted until the returned {@link Releasable} is closed.
      */
-    synchronized Releasable acquireTranslogGen(final long genForView) {
-        translogRefCounts.computeIfAbsent(genForView, l -> Counter.newCounter(false)).addAndGet(1);
+    synchronized Releasable acquireTranslogGen(final long translogGen) {
+        translogRefCounts.computeIfAbsent(translogGen, l -> Counter.newCounter(false)).addAndGet(1);
         final AtomicBoolean closed = new AtomicBoolean();
         assert assertAddTranslogRef(closed);
         return () -> {
             if (closed.compareAndSet(false, true)) {
-                releaseTranslogGenView(genForView);
+                releaseTranslogGen(translogGen);
                 assert assertRemoveTranslogRef(closed);
             }
         };
@@ -120,7 +120,7 @@ public class TranslogDeletionPolicy {
     /**
      * releases a generation that was acquired by {@link #acquireTranslogGen(long)}
      */
-    private synchronized void releaseTranslogGenView(long translogGen) {
+    private synchronized void releaseTranslogGen(long translogGen) {
         Counter current = translogRefCounts.get(translogGen);
         if (current == null || current.get() <= 0) {
             throw new IllegalArgumentException("translog gen [" + translogGen + "] wasn't acquired");
@@ -138,7 +138,7 @@ public class TranslogDeletionPolicy {
      * @param writer  current translog writer
      */
     synchronized long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) throws IOException {
-        long minByView = getMinTranslogGenRequiredByLocks();
+        long minByLocks = getMinTranslogGenRequiredByLocks();
         long minByAge = getMinTranslogGenByAge(readers, writer, retentionAgeInMillis, currentTime());
         long minBySize = getMinTranslogGenBySize(readers, writer, retentionSizeInBytes);
         final long minByAgeAndSize;
@@ -148,7 +148,7 @@ public class TranslogDeletionPolicy {
         } else {
             minByAgeAndSize = Math.max(minByAge, minBySize);
         }
-        return Math.min(minByAgeAndSize, Math.min(minByView, minTranslogGenerationForRecovery));
+        return Math.min(minByAgeAndSize, Math.min(minByLocks, minTranslogGenerationForRecovery));
     }
 
     static long getMinTranslogGenBySize(List<TranslogReader> readers, TranslogWriter writer, long retentionSizeInBytes) {

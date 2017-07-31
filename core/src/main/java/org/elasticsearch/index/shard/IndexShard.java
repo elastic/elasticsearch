@@ -1558,7 +1558,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Closeable acquireTranslogRetentionLock() {
         Engine engine = getEngine();
-        assert engine.getTranslog() != null : "translog must not be null";
         return engine.getTranslog().acquireRetentionLock();
     }
 

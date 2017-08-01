@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.ParsedExtend
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -114,5 +115,52 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
     @Override
     protected Writeable.Reader<InternalExtendedStats> instanceReader() {
         return InternalExtendedStats::new;
+    }
+
+    @Override
+    protected InternalExtendedStats mutateInstance(InternalExtendedStats instance) {
+        String name = instance.getName();
+        long count = instance.getCount();
+        double sum = instance.getSum();
+        double min = instance.getMin();
+        double max = instance.getMax();
+        double sumOfSqrs = instance.getSumOfSquares();
+        double sigma = instance.getSigma();
+        DocValueFormat formatter = instance.format;
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 7)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            count += between(1, 100);
+            break;
+        case 2:
+            sum += between(1, 100);
+            break;
+        case 3:
+            min += between(1, 100);
+            break;
+        case 4:
+            max += between(1, 100);
+            break;
+        case 5:
+            sumOfSqrs += between(1, 100);
+            break;
+        case 6:
+            sigma += between(1, 10);
+            break;
+        case 7:
+        default:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        }
+        return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, formatter, pipelineAggregators, metaData);
     }
 }

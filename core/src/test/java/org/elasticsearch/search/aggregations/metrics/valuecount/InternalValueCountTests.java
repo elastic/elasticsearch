@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -49,5 +50,31 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
     protected void assertFromXContent(InternalValueCount valueCount, ParsedAggregation parsedAggregation) {
         assertEquals(valueCount.getValue(), ((ParsedValueCount) parsedAggregation).getValue(), 0);
         assertEquals(valueCount.getValueAsString(), ((ParsedValueCount) parsedAggregation).getValueAsString());
+    }
+
+    @Override
+    protected InternalValueCount mutateInstance(InternalValueCount instance) {
+        String name = instance.getName();
+        long value = instance.getValue();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 2)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            value += between(1, 100);
+            break;
+        case 2:
+        default:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        }
+        return new InternalValueCount(name, value, pipelineAggregators, metaData);
     }
 }

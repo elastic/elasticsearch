@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.metrics.stats.ParsedStats;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -95,6 +96,45 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
     @Override
     protected Writeable.Reader<InternalStats> instanceReader() {
         return InternalStats::new;
+    }
+
+    @Override
+    protected InternalStats mutateInstance(InternalStats instance) {
+        String name = instance.getName();
+        long count = instance.getCount();
+        double sum = instance.getSum();
+        double min = instance.getMin();
+        double max = instance.getMax();
+        DocValueFormat formatter = instance.format;
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 5)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            count += between(1, 100);
+            break;
+        case 2:
+            sum += between(1, 100);
+            break;
+        case 3:
+            min += between(1, 100);
+            break;
+        case 4:
+            max += between(1, 100);
+            break;
+        case 5:
+        default:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        }
+        return new InternalStats(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
     }
 }
 

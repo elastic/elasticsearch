@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -63,5 +64,36 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         if (avg.getCount() != 0) {
             assertEquals(avg.getValueAsString(), parsed.getValueAsString());
         }
+    }
+
+    @Override
+    protected InternalAvg mutateInstance(InternalAvg instance) {
+        String name = instance.getName();
+        double sum = instance.getSum();
+        long count = instance.getCount();
+        DocValueFormat formatter = instance.getFormatter();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 2)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            sum += between(1, 100);
+            break;
+        case 2:
+            count += between(1, 100);
+            break;
+        case 3:
+        default:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        }
+        return new InternalAvg(name, sum, count, formatter, pipelineAggregators, metaData);
     }
 }

@@ -1,0 +1,28 @@
+import org.elasticsearch.gradle.test.RunTask
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+integTestCluster {
+  distribution = 'zip' // NOCOMMIT make double sure we want all the modules
+  plugin project(':x-pack-elasticsearch:plugin').path
+  /* Get a "clean" test without the other x-pack features here and check them
+   * all together later on. */
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'script.max_compilations_per_minute', '1000'
+}
+
+task run(type: RunTask) {
+  distribution = 'zip' // NOCOMMIT make double sure we want all the modules
+  plugin project(':x-pack-elasticsearch:plugin').path
+  /* Get a "clean" test without the other x-pack features here and check them
+   * all together later on. */
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'script.max_compilations_per_minute', '1000'
+}

@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.common.stats.Counters;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
@@ -74,7 +73,6 @@ public class ExecutionService extends AbstractComponent {
     private final Clock clock;
     private final TimeValue defaultThrottlePeriod;
     private final TimeValue maxStopTimeout;
-    private final ThreadPool threadPool;
     private final Watch.Parser parser;
     private final ClusterService clusterService;
     private final Client client;
@@ -84,8 +82,7 @@ public class ExecutionService extends AbstractComponent {
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     public ExecutionService(Settings settings, HistoryStore historyStore, TriggeredWatchStore triggeredWatchStore, WatchExecutor executor,
-                            Clock clock, ThreadPool threadPool, Watch.Parser parser, ClusterService clusterService,
-                            Client client) {
+                            Clock clock, Watch.Parser parser, ClusterService clusterService, Client client) {
         super(settings);
         this.historyStore = historyStore;
         this.triggeredWatchStore = triggeredWatchStore;
@@ -93,14 +90,13 @@ public class ExecutionService extends AbstractComponent {
         this.clock = clock;
         this.defaultThrottlePeriod = DEFAULT_THROTTLE_PERIOD_SETTING.get(settings);
         this.maxStopTimeout = Watcher.MAX_STOP_TIMEOUT_SETTING.get(settings);
-        this.threadPool = threadPool;
         this.parser = parser;
         this.clusterService = clusterService;
         this.client = client;
         this.indexDefaultTimeout = settings.getAsTime("xpack.watcher.internal.ops.index.default_timeout", TimeValue.timeValueSeconds(30));
     }
 
-    public void start(ClusterState state) throws Exception {
+    public void start() throws Exception {
         if (started.get()) {
             return;
         }
@@ -171,13 +167,13 @@ public class ExecutionService extends AbstractComponent {
             currentExecutions.add(watchExecution.createSnapshot());
         }
         // Lets show the longest running watch first:
-        Collections.sort(currentExecutions, Comparator.comparing(WatchExecutionSnapshot::executionTime));
+        currentExecutions.sort(Comparator.comparing(WatchExecutionSnapshot::executionTime));
         return currentExecutions;
     }
 
     public List<QueuedWatch> queuedWatches() {
         List<Runnable> snapshot = new ArrayList<>();
-        executor.tasks().forEach(t -> snapshot.add(t));
+        executor.tasks().forEach(snapshot::add);
         if (snapshot.isEmpty()) {
             return Collections.emptyList();
         }
@@ -189,8 +185,7 @@ public class ExecutionService extends AbstractComponent {
         }
 
         // Lets show the execution that pending the longest first:
-        // Note that the type parameters on comparing are required to make the comparing method work
-        Collections.sort(queuedWatches, Comparator.<QueuedWatch, DateTime>comparing(QueuedWatch::executionTime));
+        queuedWatches.sort(Comparator.comparing(QueuedWatch::executionTime));
         return queuedWatches;
     }
 
@@ -389,7 +384,7 @@ public class ExecutionService extends AbstractComponent {
     */
     private void executeAsync(WatchExecutionContext ctx, final TriggeredWatch triggeredWatch) {
         try {
-            executor.execute(new WatchExecutionTask(ctx));
+            executor.execute(new WatchExecutionTask(ctx, () -> execute(ctx)));
         } catch (EsRejectedExecutionException e) {
             String message = "failed to run triggered watch [" + triggeredWatch.id() + "] due to thread pool capacity";
             WatchRecord record = ctx.abortBeforeExecution(ExecutionState.FAILED, message);
@@ -543,33 +538,37 @@ public class ExecutionService extends AbstractComponent {
         }
     }
 
-    private final class WatchExecutionTask implements Runnable {
+    // the watch execution task takes another runnable as parameter
+    // the best solution would be to move the whole execute() method, which is handed over as ctor parameter
+    // over into this class, this is the quicker way though
+    static final class WatchExecutionTask implements Runnable {
 
         private final WatchExecutionContext ctx;
+        private final Runnable runnable;
 
-        private WatchExecutionTask(WatchExecutionContext ctx) {
+        WatchExecutionTask(WatchExecutionContext ctx, Runnable runnable) {
             this.ctx = ctx;
+            this.runnable = runnable;
         }
 
         @Override
         public void run() {
-            execute(ctx);
+            runnable.run();
         }
     }
 
-    public static class WatchExecution {
+    static class WatchExecution {
 
         private final WatchExecutionContext context;
         private final Thread executionThread;
 
-        public WatchExecution(WatchExecutionContext context, Thread executionThread) {
+        WatchExecution(WatchExecutionContext context, Thread executionThread) {
             this.context = context;
             this.executionThread = executionThread;
         }
 
-        public WatchExecutionSnapshot createSnapshot() {
+        WatchExecutionSnapshot createSnapshot() {
             return context.createSnapshot(executionThread);
         }
-
     }
 }

@@ -304,7 +304,7 @@ public class Watcher implements ActionPlugin {
         final Watch.Parser watchParser = new Watch.Parser(settings, triggerService, registry, inputRegistry, cryptoService, clock);
 
         final ExecutionService executionService = new ExecutionService(settings, historyStore, triggeredWatchStore, watchExecutor,
-                clock, threadPool, watchParser, clusterService, internalClient);
+                clock, watchParser, clusterService, internalClient);
 
         final Consumer<Iterable<TriggerEvent>> triggerEngineListener = getTriggerEngineListener(executionService);
         triggerService.register(triggerEngineListener);

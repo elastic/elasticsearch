@@ -11,17 +11,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.support.clock.ClockMock;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
@@ -39,34 +36,39 @@ import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.transform.Transform;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ExecutorService;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.joda.time.DateTime.now;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
@@ -87,7 +89,6 @@ public class ExecutionServiceTests extends ESTestCase {
     private HistoryStore historyStore;
     private ExecutionService executionService;
     private Clock clock;
-    private ThreadPool threadPool;
     private Client client;
     private Watch.Parser parser;
 
@@ -107,8 +108,6 @@ public class ExecutionServiceTests extends ESTestCase {
         when(executor.queue()).thenReturn(new ArrayBlockingQueue<>(1));
 
         clock = ClockMock.frozen();
-        threadPool = mock(ThreadPool.class);
-
         client = mock(Client.class);
         parser = mock(Watch.Parser.class);
 
@@ -117,11 +116,10 @@ public class ExecutionServiceTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(discoveryNode);
 
-        executionService = new ExecutionService(Settings.EMPTY, historyStore, triggeredWatchStore, executor, clock, threadPool,
-                parser, clusterService, client);
+        executionService = new ExecutionService(Settings.EMPTY, historyStore, triggeredWatchStore, executor, clock, parser,
+                clusterService, client);
 
-        ClusterState clusterState = mock(ClusterState.class);
-        executionService.start(clusterState);
+        executionService.start();
     }
 
     public void testExecute() throws Exception {
@@ -495,7 +493,7 @@ public class ExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteInner() throws Exception {
-        DateTime now = now(DateTimeZone.UTC);
+        DateTime now = now(UTC);
         Watch watch = mock(Watch.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
@@ -570,7 +568,7 @@ public class ExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteInnerThrottled() throws Exception {
-        DateTime now = now(DateTimeZone.UTC);
+        DateTime now = now(UTC);
         Watch watch = mock(Watch.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
@@ -621,7 +619,7 @@ public class ExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteInnerConditionNotMet() throws Exception {
-        DateTime now = now(DateTimeZone.UTC);
+        DateTime now = now(UTC);
         Watch watch = mock(Watch.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
@@ -682,7 +680,7 @@ public class ExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteInnerConditionNotMetDueToException() throws Exception {
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        DateTime now = DateTime.now(UTC);
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn(getTestName());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
@@ -737,7 +735,7 @@ public class ExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteConditionNotMet() throws Exception {
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        DateTime now = DateTime.now(UTC);
         Watch watch = mock(Watch.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
@@ -791,9 +789,6 @@ public class ExecutionServiceTests extends ESTestCase {
         doThrow(new ElasticsearchException("whatever")).when(historyStore).forcePut(any());
 
         Wid wid = new Wid(watch.id(), now());
-
-        final ExecutorService currentThreadExecutor = EsExecutors.newDirectExecutorService();
-        when(threadPool.generic()).thenReturn(currentThreadExecutor);
 
         TriggeredWatch triggeredWatch = new TriggeredWatch(wid, new ScheduleTriggerEvent(now() ,now()));
         executionService.executeTriggeredWatches(Collections.singleton(triggeredWatch));
@@ -910,6 +905,59 @@ public class ExecutionServiceTests extends ESTestCase {
 
         WatchRecord watchRecord = executionService.execute(ctx);
         assertThat(watchRecord.state(), is(ExecutionState.EXECUTION_NOT_NEEDED));
+    }
+
+    public void testCurrentExecutionSnapshots() throws Exception {
+        DateTime time = DateTime.now(UTC);
+        int snapshotCount = randomIntBetween(2, 8);
+        for (int i = 0; i < snapshotCount; i++) {
+            time = time.minusSeconds(10);
+            WatchExecutionContext ctx = createMockWatchExecutionContext("_id" + i, time);
+            executionService.getCurrentExecutions().put("_id" + i, new ExecutionService.WatchExecution(ctx, Thread.currentThread()));
+        }
+
+        List<WatchExecutionSnapshot> snapshots = executionService.currentExecutions();
+        assertThat(snapshots, hasSize(snapshotCount));
+        assertThat(snapshots.get(0).watchId(), is("_id" + (snapshotCount-1)));
+        assertThat(snapshots.get(snapshots.size() - 1).watchId(), is("_id0"));
+    }
+
+    public void testQueuedWatches() throws Exception {
+        Collection<Runnable> tasks = new ArrayList<>();
+        DateTime time = DateTime.now(UTC);
+        int queuedWatchCount = randomIntBetween(2, 8);
+        for (int i = 0; i < queuedWatchCount; i++) {
+            time = time.minusSeconds(10);
+            WatchExecutionContext ctx = createMockWatchExecutionContext("_id" + i, time);
+            tasks.add(new ExecutionService.WatchExecutionTask(ctx, () -> logger.info("this will never be called")));
+        }
+
+        when(executor.tasks()).thenReturn(tasks.stream());
+
+        List<QueuedWatch> queuedWatches = executionService.queuedWatches();
+        assertThat(queuedWatches, hasSize(queuedWatchCount));
+        assertThat(queuedWatches.get(0).watchId(), is("_id" + (queuedWatchCount-1)));
+        assertThat(queuedWatches.get(queuedWatches.size() - 1).watchId(), is("_id0"));
+    }
+
+    private WatchExecutionContext createMockWatchExecutionContext(String watchId, DateTime executionTime) {
+        WatchExecutionContext ctx = mock(WatchExecutionContext.class);
+        when(ctx.id()).thenReturn(new Wid(watchId, executionTime));
+        when(ctx.executionTime()).thenReturn(executionTime);
+        when(ctx.executionPhase()).thenReturn(ExecutionPhase.INPUT);
+
+        TriggerEvent triggerEvent = mock(TriggerEvent.class);
+        when(triggerEvent.triggeredTime()).thenReturn(executionTime.minusSeconds(1));
+        when(ctx.triggerEvent()).thenReturn(triggerEvent);
+
+        Watch watch = mock(Watch.class);
+        when(watch.id()).thenReturn(watchId);
+        when(ctx.watch()).thenReturn(watch);
+
+        WatchExecutionSnapshot snapshot = new WatchExecutionSnapshot(ctx, new StackTraceElement[]{});
+        when(ctx.createSnapshot(anyObject())).thenReturn(snapshot);
+
+        return ctx;
     }
 
     private Tuple<Condition, Condition.Result> whenCondition(final WatchExecutionContext context) {

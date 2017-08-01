@@ -10,6 +10,4 @@ integTestCluster {
   plugin ':x-pack-elasticsearch:plugin'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
-  // Need to allow more compilations per minute because of the integration tests
-  setting 'script.max_compilations_per_minute', '100'
 }

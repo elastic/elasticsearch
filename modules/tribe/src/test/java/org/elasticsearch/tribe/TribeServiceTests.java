@@ -33,7 +33,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestCustomMetaData;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -186,7 +185,7 @@ public class TribeServiceTests extends ESTestCase {
 
     public static class MockTribePlugin extends TribePlugin {
 
-        static List<Class<? extends Plugin>> classpathPlugins = Arrays.asList(MockTribePlugin.class, MockTcpTransportPlugin.class);
+        static List<Class<? extends Plugin>> classpathPlugins = Arrays.asList(MockTribePlugin.class, getTestTransportPlugin());
 
         public MockTribePlugin(Settings settings) {
             super(settings);
@@ -204,14 +203,14 @@ public class TribeServiceTests extends ESTestCase {
             .put("node.name", "test-node")
             .put("path.home", tempDir)
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-            .put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), "mock-socket-network");
+            .put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), getTestTransportType());
 
         final boolean tribeServiceEnable = randomBoolean();
         if (tribeServiceEnable) {
             String clusterName = "single-node-cluster";
             String tribeSetting = "tribe." + clusterName + ".";
             settings.put(tribeSetting + ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName)
-                .put(tribeSetting + NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), "mock-socket-network");
+                .put(tribeSetting + NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), getTestTransportType());
         }
         try (Node node = new MockNode(settings.build(), MockTribePlugin.classpathPlugins)) {
             if (tribeServiceEnable) {

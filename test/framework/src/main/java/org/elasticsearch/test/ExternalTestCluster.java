@@ -36,6 +36,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.MockTransportClient;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -45,6 +46,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.ESTestCase.getTestTransportType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
@@ -80,10 +82,16 @@ public final class ExternalTestCluster extends TestCluster {
         boolean addMockTcpTransport = additionalSettings.get(NetworkModule.TRANSPORT_TYPE_KEY) == null;
 
         if (addMockTcpTransport) {
-            clientSettingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
-            if (pluginClasses.contains(MockTcpTransportPlugin.class) == false) {
+            String transport = getTestTransportType();
+            clientSettingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, transport);
+            if (pluginClasses.contains(MockTcpTransportPlugin.class) == false &&
+                pluginClasses.contains(NioTransportPlugin.class) == false) {
                 pluginClasses = new ArrayList<>(pluginClasses);
-                pluginClasses.add(MockTcpTransportPlugin.class);
+                if (transport.equals(NioTransportPlugin.NIO_TRANSPORT_NAME)) {
+                    pluginClasses.add(NioTransportPlugin.class);
+                } else {
+                    pluginClasses.add(MockTcpTransportPlugin.class);
+                }
             }
         }
         Settings clientSettings = clientSettingsBuilder.build();

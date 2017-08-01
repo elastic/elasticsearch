@@ -160,7 +160,7 @@ public class NodeTests extends ESTestCase {
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
                 .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, "mock-socket-network")
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                 .put(Node.NODE_DATA_SETTING.getKey(), true);
     }
 

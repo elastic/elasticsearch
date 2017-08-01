@@ -37,7 +37,7 @@ import java.util.List;
 /**
  * Utility class to create search queries.
  */
-public class QueryBuilders {
+public final class QueryBuilders {
 
     private QueryBuilders() {
     }

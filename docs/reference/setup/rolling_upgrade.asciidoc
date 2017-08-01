@@ -88,9 +88,8 @@ To upgrade using a zip or compressed tarball:
     overwrite the `config` or `data` directories.
 
 *   Either copy the files in the `config` directory from your old installation
-    to your new installation, or set the environment variable `ES_JVM_OPTIONS`
-    to the location of the `jvm.options` file and use the `-E path.conf=`
-    option on the command line to point to an external config directory.
+    to your new installation, or set the environment variable
+    <<config-files-location,`CONF_DIR`>> to point to a custom config directory.
 
 *   Either copy the files in the `data` directory from your old installation
     to your new installation, or configure the location of the data directory

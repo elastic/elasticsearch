@@ -17,7 +17,7 @@
                     # here for now in the hopes of quickly understanding what is
                     # causing this test to fail and simply reverting the change
                     # here
-                    logger._root: info
+                    logger._root: null
 
 ---
 "refresh=true immediately makes changes are visible in search":

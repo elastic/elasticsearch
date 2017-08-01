@@ -462,6 +462,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
     }
 
+    public void testExistsQuery() {
+        
+    }
+
     public void testToQueryRegExpQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = queryStringQuery("/foo*bar/").defaultField(STRING_FIELD_NAME)
@@ -779,12 +783,15 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testExistsFieldQuery() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-
         QueryShardContext context = createShardContext();
         QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
         Query query = queryBuilder.toQuery(context);
-        Query expected = new ConstantScoreQuery(new TermQuery(new Term("_field_names", "foo")));
+        Query expected;
+        if (getCurrentTypes().length > 0) {
+            expected = new ConstantScoreQuery(new TermQuery(new Term("_field_names", "foo")));
+        } else {
+            expected = new MatchNoDocsQuery();
+        }
         assertThat(query, equalTo(expected));
 
         queryBuilder = new QueryStringQueryBuilder("_all:*");
@@ -804,6 +811,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testDisabledFieldNamesField() throws Exception {
+        assumeTrue("No types", getCurrentTypes().length > 0);
         QueryShardContext context = createShardContext();
         context.getMapperService().merge("doc",
             new CompressedXContent(
@@ -811,16 +819,20 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     "foo", "type=text",
                     "_field_names", "enabled=false").string()),
             MapperService.MergeReason.MAPPING_UPDATE, true);
-        QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
-        Query query = queryBuilder.toQuery(context);
-        Query expected = new WildcardQuery(new Term("foo", "*"));
-        assertThat(query, equalTo(expected));
-        context.getMapperService().merge("doc",
-            new CompressedXContent(
-                PutMappingRequest.buildFromSimplifiedDef("doc",
-                    "foo", "type=text",
-                    "_field_names", "enabled=true").string()),
-            MapperService.MergeReason.MAPPING_UPDATE, true);
+        try {
+            QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
+            Query query = queryBuilder.toQuery(context);
+            Query expected = new WildcardQuery(new Term("foo", "*"));
+            assertThat(query, equalTo(expected));
+        } finally {
+            // restore mappings as they were before
+            context.getMapperService().merge("doc",
+                new CompressedXContent(
+                    PutMappingRequest.buildFromSimplifiedDef("doc",
+                        "foo", "type=text",
+                        "_field_names", "enabled=true").string()),
+                MapperService.MergeReason.MAPPING_UPDATE, true);
+        }
     }
 
 

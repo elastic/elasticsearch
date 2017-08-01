@@ -12,7 +12,6 @@
 * <<watcher-api-stats>>
 * <<watcher-api-stop>>
 * <<watcher-api-start>>
-* <<watcher-api-restart>>
 
 include::watcher/put-watch.asciidoc[]
 include::watcher/get-watch.asciidoc[]

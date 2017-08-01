@@ -100,3 +100,14 @@ thirdPartyAudit.excludes = [
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener'
 ]
+
+javadoc {
+  dependsOn ':client:rest:javadoc'
+  String host;
+  if (version.endsWith("-SNAPSHOT")) {
+    host = "https://snapshots.elastic.co";
+  } else {
+    host = "https://artifacts.elastic.co";
+  }
+  options.linksOffline host + "/javadoc/org/elasticsearch/client/elasticsearch-rest-client/${version}", "../rest/build/docs/javadoc/"
+}

@@ -55,3 +55,15 @@ namingConventions {
   //we don't have integration tests
   skipIntegTestInDisguise = true
 }
+
+
+javadoc {
+  dependsOn ':core:javadoc'
+  String host;
+  if (version.endsWith("-SNAPSHOT")) {
+    host = "https://snapshots.elastic.co";
+  } else {
+    host = "https://artifacts.elastic.co";
+  }
+  options.linksOffline host + "/javadoc/org/elasticsearch/elasticsearch/${version}", "../../core/build/docs/javadoc/"
+}

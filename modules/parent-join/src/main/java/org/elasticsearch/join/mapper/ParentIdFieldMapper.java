@@ -134,7 +134,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
                                   Set<String> children,
                                   MappedFieldType fieldType,
                                   Settings indexSettings) {
-        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), null);
+        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), CopyTo.empty());
         this.parentName = parentName;
         this.children = children;
     }

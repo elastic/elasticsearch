@@ -21,3 +21,11 @@ way to reindex old indices is to use the `reindex` API.
 
 =========================================
 
+[float]
+=== Also see:
+
+* <<breaking_70_cluster_changes>>
+* <<breaking_70_indices_changes>>
+
+include::migrate_7_0/cluster.asciidoc[]
+include::migrate_7_0/indices.asciidoc[]

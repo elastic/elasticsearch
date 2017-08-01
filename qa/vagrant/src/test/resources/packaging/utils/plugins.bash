@@ -38,6 +38,14 @@ install_plugin() {
 
     assert_file_exist "$path"
 
+    if [ ! -z "$CONF_DIR" ] ; then
+        if is_dpkg; then
+            echo "CONF_DIR=$CONF_DIR" >> /etc/default/elasticsearch;
+        elif is_rpm; then
+            echo "CONF_DIR=$CONF_DIR" >> /etc/sysconfig/elasticsearch;
+        fi
+    fi
+
     if [ -z "$umask" ]; then
       sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install -batch "file://$path"
     else

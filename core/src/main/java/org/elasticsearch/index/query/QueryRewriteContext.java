@@ -20,6 +20,7 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -34,13 +35,17 @@ import java.util.function.LongSupplier;
  */
 public class QueryRewriteContext {
     private final NamedXContentRegistry xContentRegistry;
+    private final NamedWriteableRegistry writeableRegistry;
     protected final Client client;
     protected final LongSupplier nowInMillis;
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
 
+    public QueryRewriteContext(
+            NamedXContentRegistry xContentRegistry, NamedWriteableRegistry writeableRegistry,Client client,
+            LongSupplier nowInMillis) {
 
-    public QueryRewriteContext(NamedXContentRegistry xContentRegistry, Client client, LongSupplier nowInMillis) {
         this.xContentRegistry = xContentRegistry;
+        this.writeableRegistry = writeableRegistry;
         this.client = client;
         this.nowInMillis = nowInMillis;
     }
@@ -57,6 +62,10 @@ public class QueryRewriteContext {
      */
     public long nowInMillis() {
         return nowInMillis.getAsLong();
+    }
+
+    public NamedWriteableRegistry getWriteableRegistry() {
+        return writeableRegistry;
     }
 
     /**

@@ -167,14 +167,11 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     @Override
     protected void doAssertLuceneQuery(QueryStringQueryBuilder queryBuilder,
                                        Query query, SearchContext context) throws IOException {
-        if ("".equals(queryBuilder.queryString())) {
-            assertThat(query, instanceOf(MatchNoDocsQuery.class));
-        } else {
-            assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(AllTermQuery.class))
-                    .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class))
-                    .or(instanceOf(PhraseQuery.class)).or(instanceOf(BoostQuery.class))
-                    .or(instanceOf(MultiPhrasePrefixQuery.class)).or(instanceOf(PrefixQuery.class)).or(instanceOf(SpanQuery.class)));
-        }
+        assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(AllTermQuery.class))
+            .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class))
+            .or(instanceOf(PhraseQuery.class)).or(instanceOf(BoostQuery.class))
+            .or(instanceOf(MultiPhrasePrefixQuery.class)).or(instanceOf(PrefixQuery.class)).or(instanceOf(SpanQuery.class))
+            .or(instanceOf(MatchNoDocsQuery.class)));
     }
 
     public void testIllegalArguments() {
@@ -293,9 +290,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
         assertThat(dQuery.getDisjuncts().size(), equalTo(2));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(),
-            equalTo(new Term(STRING_FIELD_NAME, "test")));
-        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(),
             equalTo(new Term(STRING_FIELD_NAME_2, "test")));
+        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(),
+            equalTo(new Term(STRING_FIELD_NAME, "test")));
     }
 
     public void testToQueryDisMaxQuery() throws Exception {
@@ -310,7 +307,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertTermOrBoostQuery(disjuncts.get(1), STRING_FIELD_NAME_2, "test", 1.0f);
     }
 
-    public void testToQueryWildcarQuery() throws Exception {
+    public void testToQueryWildcardQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         for (Operator op : Operator.values()) {
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
@@ -676,10 +673,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(expectedQuery, equalTo(query));
 
         queryStringQueryBuilder =
-            new QueryStringQueryBuilder("field:foo bar").field("invalid*");
+            new QueryStringQueryBuilder(STRING_FIELD_NAME + ":foo bar").field("invalid*");
         query = queryStringQueryBuilder.toQuery(createShardContext());
         expectedQuery = new BooleanQuery.Builder()
-            .add(new TermQuery(new Term("field", "foo")), Occur.SHOULD)
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "foo")), Occur.SHOULD)
             .add(new MatchNoDocsQuery("empty fields"), Occur.SHOULD)
             .build();
         assertThat(expectedQuery, equalTo(query));
@@ -783,8 +780,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testExistsFieldQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        assumeTrue("5.x behaves differently, so skip on non-6.x indices",
-                indexVersionCreated.onOrAfter(Version.V_6_0_0_alpha1));
 
         QueryShardContext context = createShardContext();
         QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
@@ -804,11 +799,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
         queryBuilder = new QueryStringQueryBuilder("*");
         query = queryBuilder.toQuery(context);
-        List<Query> fieldQueries = new ArrayList<> ();
-        for (String type : QueryStringQueryBuilder.allQueryableDefaultFields(context).keySet()) {
-            fieldQueries.add(new ConstantScoreQuery(new TermQuery(new Term("_field_names", type))));
-        }
-        expected = new DisjunctionMaxQuery(fieldQueries, 0f);
+        expected = new MatchAllDocsQuery();
         assertThat(query, equalTo(expected));
     }
 
@@ -863,6 +854,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testExpandedTerms() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         // Prefix
         Query query = new QueryStringQueryBuilder("aBc*")
                 .field(STRING_FIELD_NAME)
@@ -914,31 +906,59 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertEquals(new TermRangeQuery(STRING_FIELD_NAME, new BytesRef("abc"), new BytesRef("bcd"), true, true), query);
     }
 
-    public void testAllFieldsWithFields() throws IOException {
-        String json =
-                "{\n" +
-                "  \"query_string\" : {\n" +
-                "    \"query\" : \"this AND that OR thus\",\n" +
-                "    \"fields\" : [\"foo\"],\n" +
-                "    \"all_fields\" : true\n" +
-                "  }\n" +
-                "}";
-
-        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+    public void testDefaultFieldsWithFields() throws IOException {
+        QueryShardContext context = createShardContext();
+        QueryStringQueryBuilder builder = new QueryStringQueryBuilder("aBc*")
+            .field("field")
+            .defaultField("*");
+        QueryValidationException e = expectThrows(QueryValidationException.class, () -> builder.toQuery(context));
         assertThat(e.getMessage(),
-                containsString("cannot use [all_fields] parameter in conjunction with [default_field] or [fields]"));
+            containsString("cannot use [fields] parameter in conjunction with [default_field]"));
+    }
 
-        String json2 =
-                "{\n" +
-                "  \"query_string\" : {\n" +
-                "    \"query\" : \"this AND that OR thus\",\n" +
-                "    \"default_field\" : \"foo\",\n" +
-                "    \"all_fields\" : true\n" +
-                "  }\n" +
-                "}";
+    public void testLenientRewriteToMatchNoDocs() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        // Term
+        Query query = new QueryStringQueryBuilder("hello")
+            .field(INT_FIELD_NAME)
+            .lenient(true)
+            .toQuery(createShardContext());
+        assertEquals(new MatchNoDocsQuery(""), query);
 
-        e = expectThrows(ParsingException.class, () -> parseQuery(json2));
-        assertThat(e.getMessage(),
-                containsString("cannot use [all_fields] parameter in conjunction with [default_field] or [fields]"));
+        // prefix
+        query = new QueryStringQueryBuilder("hello*")
+            .field(INT_FIELD_NAME)
+            .lenient(true)
+            .toQuery(createShardContext());
+        assertEquals(new MatchNoDocsQuery(""), query);
+
+        // Fuzzy
+        query = new QueryStringQueryBuilder("hello~2")
+            .field(INT_FIELD_NAME)
+            .lenient(true)
+            .toQuery(createShardContext());
+        assertEquals(new MatchNoDocsQuery(""), query);
+    }
+
+    public void testUnmappedFieldRewriteToMatchNoDocs() throws IOException {
+        // Default unmapped field
+        Query query = new QueryStringQueryBuilder("hello")
+            .field("unmapped_field")
+            .lenient(true)
+            .toQuery(createShardContext());
+        assertEquals(new MatchNoDocsQuery(""), query);
+
+        // Unmapped prefix field
+        query = new QueryStringQueryBuilder("unmapped_field:hello")
+            .lenient(true)
+            .toQuery(createShardContext());
+        assertEquals(new MatchNoDocsQuery(""), query);
+
+        // Unmapped fields
+        query = new QueryStringQueryBuilder("hello")
+            .lenient(true)
+            .field("unmapped_field")
+            .toQuery(createShardContext());
+        assertEquals(new MatchNoDocsQuery(""), query);
     }
 }

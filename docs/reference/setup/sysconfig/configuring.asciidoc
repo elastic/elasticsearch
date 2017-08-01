@@ -125,3 +125,16 @@ export ES_JAVA_OPTS="$ES_JAVA_OPTS -Djava.io.tmpdir=/path/to/temp/dir"
 
 When using the RPM or Debian packages, `ES_JAVA_OPTS` can be specified in the
 <<sysconfig,system configuration file>>.
+
+The JVM has a built-in mechanism for observing the `JAVA_TOOL_OPTIONS`
+environment variable. We intentionally ignore this environment variable in our
+packaging scripts. The primary reason for this is that on some OS (e.g., Ubuntu)
+there are agents installed by default via this environment variable that we do
+not want interfering with Elasticsearch.
+
+Additionally, some other Java programs support the `JAVA_OPTS` environment
+variable. This is *not* a mechanism built into the JVM but instead a convention
+in the ecosystem. However, we do not support this environment variable, instead
+supporting setting JVM options via the `jvm.options` file or the environment
+variable `ES_JAVA_OPTS` as above.
+

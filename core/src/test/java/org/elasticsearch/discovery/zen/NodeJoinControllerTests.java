@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -608,7 +609,8 @@ public class NodeJoinControllerTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         // block cluster state
-        masterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        masterService.submitStateUpdateTask("test", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 latch.await();
@@ -654,7 +656,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         // block cluster state
-        masterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        masterService.submitStateUpdateTask("test", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 latch.await();

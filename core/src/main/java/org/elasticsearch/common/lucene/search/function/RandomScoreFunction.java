@@ -70,7 +70,7 @@ public class RandomScoreFunction extends ScoreFunction {
             public double score(int docId, float subQueryScore) throws IOException {
                 int hash;
                 if (values == null) {
-                    hash = BitMixer.mix(ctx.docBase + docId);
+                    hash = BitMixer.mix(docId, saltedSeed);
                 } else if (values.advanceExact(docId)) {
                     hash = StringHelper.murmurhash3_x86_32(values.nextValue(), saltedSeed);
                 } else {
@@ -84,7 +84,7 @@ public class RandomScoreFunction extends ScoreFunction {
             public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
                 String field = fieldData == null ? null : fieldData.getFieldName();
                 return Explanation.match(
-                        CombineFunction.toFloat(score(docId, subQueryScore.getValue())),
+                        (float) score(docId, subQueryScore.getValue()),
                         "random score function (seed: " + originalSeed + ", field: " + field + ")");
             }
         };

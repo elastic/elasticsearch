@@ -423,6 +423,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 }
             }
 
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
+                validateCopyTo(fieldMappers, fullPathObjectMappers);
+            }
+
             if (reason == MergeReason.MAPPING_UPDATE) {
                 // this check will only be performed on the master node when there is
                 // a call to the update mapping API. For all other cases like
@@ -648,10 +652,58 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    private void checkIndexSortCompatibility(IndexSortConfig sortConfig, boolean hasNested) {
+    private static void checkIndexSortCompatibility(IndexSortConfig sortConfig, boolean hasNested) {
         if (sortConfig.hasIndexSort() && hasNested) {
             throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
         }
+    }
+
+    private static void validateCopyTo(List<FieldMapper> fieldMappers, Map<String, ObjectMapper> fullPathObjectMappers) {
+        for (FieldMapper mapper : fieldMappers) {
+            if (mapper.copyTo() != null && mapper.copyTo().copyToFields().isEmpty() == false) {
+                final String sourceScope = getNestedScope(mapper.name(), fullPathObjectMappers);
+                for (String copyTo : mapper.copyTo().copyToFields()) {
+                    if (fullPathObjectMappers.containsKey(copyTo)) {
+                        throw new IllegalArgumentException("Cannot copy to field [" + copyTo + "] since it is mapped as an object");
+                    }
+                    final String targetScope = getNestedScope(copyTo, fullPathObjectMappers);
+                    checkNestedScopeCompatibility(sourceScope, targetScope);
+                }
+            }
+        }
+    }
+
+    private static String getNestedScope(String path, Map<String, ObjectMapper> fullPathObjectMappers) {
+        for (String parentPath = parentObject(path); parentPath != null; parentPath = parentObject(parentPath)) {
+            ObjectMapper objectMapper = fullPathObjectMappers.get(parentPath);
+            if (objectMapper != null && objectMapper.nested().isNested()) {
+                return parentPath;
+            }
+        }
+        return null;
+    }
+
+    private static void checkNestedScopeCompatibility(String source, String target) {
+        boolean targetIsParentOfSource;
+        if (source == null || target == null) {
+            targetIsParentOfSource = target == null;
+        } else {
+            targetIsParentOfSource = source.startsWith(target + ".");
+        }
+        if (targetIsParentOfSource == false) {
+            throw new IllegalArgumentException(
+                    "Illegal combination of [copy_to] and [nested] mappings: [copy_to] may only copy data to the current nested " +
+                            "document or any of its parents, however one [copy_to] directive is trying to copy data from nested object [" +
+                            source + "] to [" + target + "]");
+        }
+    }
+
+    private static String parentObject(String field) {
+        int lastDot = field.lastIndexOf('.');
+        if (lastDot == -1) {
+            return null;
+        }
+        return field.substring(0, lastDot);
     }
 
     public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {

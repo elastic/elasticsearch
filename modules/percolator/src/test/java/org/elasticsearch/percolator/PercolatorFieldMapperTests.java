@@ -20,6 +20,11 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.HalfFloatPoint;
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -30,6 +35,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
@@ -38,13 +44,16 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.hash.MurmurHash3;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
@@ -63,8 +72,10 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.ScriptQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.join.query.HasChildQueryBuilder;
@@ -76,7 +87,10 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -87,7 +101,6 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -115,6 +128,11 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         return pluginList(InternalSettingsPlugin.class, PercolatorPlugin.class, FoolMeScriptPlugin.class, ParentJoinPlugin.class);
     }
 
+    @Override
+    protected NamedWriteableRegistry writableRegistry() {
+        return getInstanceFromNode(NamedWriteableRegistry.class);
+    }
+
     @Before
     public void init() throws Exception {
         indexService = createIndex("test");
@@ -128,7 +146,13 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("field2").field("type", "text").endObject()
                 .startObject("_field3").field("type", "text").endObject()
                 .startObject("field4").field("type", "text").endObject()
-                .startObject("number_field").field("type", "long").endObject()
+                .startObject("number_field1").field("type", "integer").endObject()
+                .startObject("number_field2").field("type", "long").endObject()
+                .startObject("number_field3").field("type", "long").endObject()
+                .startObject("number_field4").field("type", "half_float").endObject()
+                .startObject("number_field5").field("type", "float").endObject()
+                .startObject("number_field6").field("type", "double").endObject()
+                .startObject("number_field7").field("type", "ip").endObject()
                 .startObject("date_field").field("type", "date").endObject()
             .endObject().endObject().endObject().string();
         mapperService.merge("doc", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE, false);
@@ -165,6 +189,32 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fields.size(), equalTo(2));
         assertThat(fields.get(0).binaryValue().utf8ToString(), equalTo("field\u0000term1"));
         assertThat(fields.get(1).binaryValue().utf8ToString(), equalTo("field\u0000term2"));
+    }
+
+    public void testExtractRanges() throws Exception {
+        addQueryFieldMappings();
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
+        Query rangeQuery1 = mapperService.documentMapper("doc").mappers().getMapper("number_field1").fieldType()
+            .rangeQuery(10, 20, true, true, null);
+        bq.add(rangeQuery1, Occur.MUST);
+        Query rangeQuery2 = mapperService.documentMapper("doc").mappers().getMapper("number_field1").fieldType()
+            .rangeQuery(15, 20, true, true, null);
+        bq.add(rangeQuery2, Occur.MUST);
+
+        DocumentMapper documentMapper = mapperService.documentMapper("doc");
+        PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
+        ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(Settings.EMPTY,
+            mapperService.documentMapperParser(), documentMapper, null, null);
+        fieldMapper.processQuery(bq.build(), parseContext);
+        ParseContext.Document document = parseContext.doc();
+
+        PercolatorFieldMapper.FieldType fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
+        List<IndexableField> fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.rangeField.name())));
+        fields.sort(Comparator.comparing(IndexableField::binaryValue));
+        assertThat(fields.size(), equalTo(1));
+        assertThat(IntPoint.decodeDimension(fields.get(0).binaryValue().bytes, 12), equalTo(15));
+        assertThat(IntPoint.decodeDimension(fields.get(0).binaryValue().bytes, 28), equalTo(20));
     }
 
     public void testExtractTermsAndRanges_failed() throws Exception {
@@ -206,12 +256,12 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         memoryIndex.addField("field2", "some more text", new WhitespaceAnalyzer());
         memoryIndex.addField("_field3", "unhide me", new WhitespaceAnalyzer());
         memoryIndex.addField("field4", "123", new WhitespaceAnalyzer());
-        memoryIndex.addField(new LongPoint("number_field", 10L), new WhitespaceAnalyzer());
+        memoryIndex.addField(new LongPoint("number_field2", 10L), new WhitespaceAnalyzer());
 
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
         BooleanQuery candidateQuery = (BooleanQuery) fieldType.createCandidateQuery(indexReader);
-        assertEquals(2, candidateQuery.clauses().size());
+        assertEquals(3, candidateQuery.clauses().size());
         assertEquals(Occur.SHOULD, candidateQuery.clauses().get(0).getOccur());
         TermInSetQuery termsQuery = (TermInSetQuery) candidateQuery.clauses().get(0).getQuery();
 
@@ -236,6 +286,54 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(Occur.SHOULD, candidateQuery.clauses().get(1).getOccur());
         assertEquals(new TermQuery(new Term(fieldType.extractionResultField.name(), EXTRACTION_FAILED)),
                 candidateQuery.clauses().get(1).getQuery());
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(2).getOccur());
+        assertThat(candidateQuery.clauses().get(2).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:"));
+    }
+
+    public void testCreateCandidateQuery_numberFields() throws Exception {
+        addQueryFieldMappings();
+
+        MemoryIndex memoryIndex = new MemoryIndex(false);
+        memoryIndex.addField(new IntPoint("number_field1", 10), new WhitespaceAnalyzer());
+        memoryIndex.addField(new LongPoint("number_field2", 20L), new WhitespaceAnalyzer());
+        memoryIndex.addField(new LongPoint("number_field3", 30L), new WhitespaceAnalyzer());
+        memoryIndex.addField(new HalfFloatPoint("number_field4", 30f), new WhitespaceAnalyzer());
+        memoryIndex.addField(new FloatPoint("number_field5", 40f), new WhitespaceAnalyzer());
+        memoryIndex.addField(new DoublePoint("number_field6", 50f), new WhitespaceAnalyzer());
+        memoryIndex.addField(new InetAddressPoint("number_field7", InetAddresses.forString("192.168.1.12")), new WhitespaceAnalyzer());
+        memoryIndex.addField(new InetAddressPoint("number_field7", InetAddresses.forString("192.168.1.20")), new WhitespaceAnalyzer());
+        memoryIndex.addField(new InetAddressPoint("number_field7", InetAddresses.forString("192.168.1.24")), new WhitespaceAnalyzer());
+
+        IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
+
+        BooleanQuery candidateQuery = (BooleanQuery) fieldType.createCandidateQuery(indexReader);
+        assertEquals(8, candidateQuery.clauses().size());
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(0).getOccur());
+        assertEquals(new TermQuery(new Term(fieldType.extractionResultField.name(), EXTRACTION_FAILED)),
+            candidateQuery.clauses().get(0).getQuery());
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(1).getOccur());
+        assertThat(candidateQuery.clauses().get(1).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:[["));
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(2).getOccur());
+        assertThat(candidateQuery.clauses().get(2).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:[["));
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(3).getOccur());
+        assertThat(candidateQuery.clauses().get(3).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:[["));
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(4).getOccur());
+        assertThat(candidateQuery.clauses().get(4).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:[["));
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(5).getOccur());
+        assertThat(candidateQuery.clauses().get(5).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:[["));
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(6).getOccur());
+        assertThat(candidateQuery.clauses().get(6).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:[["));
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(7).getOccur());
+        assertThat(candidateQuery.clauses().get(7).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:[["));
     }
 
     private void assertTermIterator(PrefixCodedTerms.TermIterator termIterator, String expectedValue, String expectedField) {
@@ -283,7 +381,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         addQueryFieldMappings();
         QueryBuilder[] queries = new QueryBuilder[]{
                 termQuery("field", "value"), matchAllQuery(), matchQuery("field", "value"), matchPhraseQuery("field", "value"),
-                prefixQuery("field", "v"), wildcardQuery("field", "v*"), rangeQuery("number_field").gte(0).lte(9),
+                prefixQuery("field", "v"), wildcardQuery("field", "v*"), rangeQuery("number_field2").gte(0).lte(9),
                 rangeQuery("date_field").from("2015-01-01T00:00").to("2015-01-01T00:00")
         };
         // note: it important that range queries never rewrite, otherwise it will cause results to be wrong.
@@ -314,7 +412,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         QueryShardContext shardContext = indexService.newQueryShardContext(
             randomInt(20), null, () -> {
                 throw new UnsupportedOperationException();
-            });
+            }, null);
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(queryBuilder, shardContext, future);
         assertQueryBuilder(qbSource, future.get());
@@ -480,9 +578,18 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     private void assertQueryBuilder(BytesRef actual, QueryBuilder expected) throws IOException {
-        XContentParser sourceParser = createParser(PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent(),
-                new BytesArray(actual));
-        assertThat(parseInnerQueryBuilder(sourceParser), equalTo(expected));
+        try (InputStream in = new ByteArrayInputStream(actual.bytes, actual.offset, actual.length)) {
+            try (StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), writableRegistry())) {
+                // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
+                // to encode multiple binary values into a single binary doc values field.
+                // This is the reason we need to first need to read the number of values and
+                // then the length of the field value in bytes.
+                input.readVInt();
+                input.readVInt();
+                QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
+                assertThat(queryBuilder, equalTo(expected));
+            }
+        }
     }
 
     public void testEmptyName() throws Exception {
@@ -518,8 +625,18 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject().bytes(),
                         XContentType.JSON));
         BytesRef querySource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
-        Map<String, Object> parsedQuery = XContentHelper.convertToMap(new BytesArray(querySource), true).v2();
-        assertEquals(Script.DEFAULT_SCRIPT_LANG, XContentMapValues.extractValue("script.script.lang", parsedQuery));
+        try (InputStream in = new ByteArrayInputStream(querySource.bytes, querySource.offset, querySource.length)) {
+            try (StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), writableRegistry())) {
+                // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
+                // to encode multiple binary values into a single binary doc values field.
+                // This is the reason we need to first need to read the number of values and
+                // then the length of the field value in bytes.
+                input.readVInt();
+                input.readVInt();
+                ScriptQueryBuilder queryBuilder = (ScriptQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+                assertEquals(Script.DEFAULT_SCRIPT_LANG, queryBuilder.script().getLang());
+            }
+        }
 
         query = jsonBuilder();
         query.startObject();
@@ -546,9 +663,82 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject().bytes(),
                         XContentType.JSON));
         querySource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
-        parsedQuery = XContentHelper.convertToMap(new BytesArray(querySource), true).v2();
-        assertEquals(Script.DEFAULT_SCRIPT_LANG,
-                ((List) XContentMapValues.extractValue("function_score.functions.script_score.script.lang", parsedQuery)).get(0));
+        try (InputStream in = new ByteArrayInputStream(querySource.bytes, querySource.offset, querySource.length)) {
+            try (StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), writableRegistry())) {
+                input.readVInt();
+                input.readVInt();
+                FunctionScoreQueryBuilder queryBuilder = (FunctionScoreQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+                ScriptScoreFunctionBuilder function = (ScriptScoreFunctionBuilder)
+                    queryBuilder.filterFunctionBuilders()[0].getScoreFunction();
+                assertEquals(Script.DEFAULT_SCRIPT_LANG, function.getScript().getLang());
+            }
+        }
+    }
+
+    public void testEncodeRange() {
+        int iters = randomIntBetween(32, 256);
+        for (int i = 0; i < iters; i++) {
+            int encodingType = randomInt(1);
+
+            final int randomFrom = randomInt();
+            final byte[] encodedFrom;
+            switch (encodingType) {
+                case 0:
+                    encodedFrom = new byte[Integer.BYTES];
+                    IntPoint.encodeDimension(randomFrom, encodedFrom, 0);
+                    break;
+                case 1:
+                    encodedFrom = new byte[Long.BYTES];
+                    LongPoint.encodeDimension(randomFrom, encodedFrom, 0);
+                    break;
+                default:
+                    throw new AssertionError("unexpected encoding type [" + encodingType + "]");
+            }
+
+            final int randomTo = randomIntBetween(randomFrom, Integer.MAX_VALUE);
+            final byte[] encodedTo;
+            switch (encodingType) {
+                case 0:
+                    encodedTo = new byte[Integer.BYTES];
+                    IntPoint.encodeDimension(randomTo, encodedTo, 0);
+                    break;
+                case 1:
+                    encodedTo = new byte[Long.BYTES];
+                    LongPoint.encodeDimension(randomTo, encodedTo, 0);
+                    break;
+                default:
+                    throw new AssertionError("unexpected encoding type [" + encodingType + "]");
+            }
+
+            String fieldName = randomAlphaOfLength(5);
+            byte[] result = PercolatorFieldMapper.encodeRange(fieldName, encodedFrom, encodedTo);
+            assertEquals(32, result.length);
+
+            BytesRef fieldAsBytesRef = new BytesRef(fieldName);
+            MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
+            MurmurHash3.hash128(fieldAsBytesRef.bytes, fieldAsBytesRef.offset, fieldAsBytesRef.length, 0, hash);
+
+            switch (encodingType) {
+                case 0:
+                    assertEquals(hash.h1, ByteBuffer.wrap(subByteArray(result, 0, 8)).getLong());
+                    assertEquals(randomFrom, IntPoint.decodeDimension(subByteArray(result, 12, 4), 0));
+                    assertEquals(hash.h1, ByteBuffer.wrap(subByteArray(result, 16, 8)).getLong());
+                    assertEquals(randomTo, IntPoint.decodeDimension(subByteArray(result, 28, 4), 0));
+                    break;
+                case 1:
+                    assertEquals(hash.h1, ByteBuffer.wrap(subByteArray(result, 0, 8)).getLong());
+                    assertEquals(randomFrom, LongPoint.decodeDimension(subByteArray(result, 8, 8), 0));
+                    assertEquals(hash.h1, ByteBuffer.wrap(subByteArray(result, 16, 8)).getLong());
+                    assertEquals(randomTo, LongPoint.decodeDimension(subByteArray(result, 24, 8), 0));
+                    break;
+                default:
+                    throw new AssertionError("unexpected encoding type [" + encodingType + "]");
+            }
+        }
+    }
+
+    private static byte[] subByteArray(byte[] source, int offset, int length) {
+        return Arrays.copyOfRange(source, offset, offset + length);
     }
 
     // Just so that we store scripts in percolator queries, but not really execute these scripts.

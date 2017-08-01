@@ -175,20 +175,6 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(new BytesArray("{}"), serialized.source());
     }
 
-    public void testIndexRequestXContentSerializationBwc() throws IOException {
-        final byte[] data = Base64.getDecoder().decode("AAD////+AgQDZm9vAAAAAQNiYXIBATEAAAAAAnt9AP/////////9AAAA//////////8AAAAAAAA=");
-        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
-        try (StreamInput in = StreamInput.wrap(data)) {
-            in.setVersion(version);
-            IndexRequest serialized = new IndexRequest();
-            serialized.readFrom(in);
-            assertEquals(XContentType.JSON, serialized.getContentType());
-            assertEquals("{}", serialized.source().utf8ToString());
-            // don't test writing to earlier versions since output differs due to no timestamp
-        }
-    }
-
     // reindex makes use of index requests without a source so this needs to be handled
     public void testSerializationOfEmptyRequestWorks() throws IOException {
         IndexRequest request = new IndexRequest("index", "type");

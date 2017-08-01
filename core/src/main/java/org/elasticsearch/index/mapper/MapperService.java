@@ -424,7 +424,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
 
             if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
-                checkCopyToValidity(fieldMappers, fullPathObjectMappers);
+                validateCopyTo(fieldMappers, fullPathObjectMappers);
             }
 
             if (reason == MergeReason.MAPPING_UPDATE) {
@@ -658,7 +658,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    private static void checkCopyToValidity(List<FieldMapper> fieldMappers, Map<String, ObjectMapper> fullPathObjectMappers) {
+    private static void validateCopyTo(List<FieldMapper> fieldMappers, Map<String, ObjectMapper> fullPathObjectMappers) {
         for (FieldMapper mapper : fieldMappers) {
             if (mapper.copyTo() != null && mapper.copyTo().copyToFields().isEmpty() == false) {
                 final String sourceScope = getNestedScope(mapper.name(), fullPathObjectMappers);

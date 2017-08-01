@@ -30,7 +30,10 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE;
@@ -235,34 +238,10 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         );
         assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 7);
 
-        // Deletes the two docs that matches "foo:a"
-        assertThat(deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).setSlices(Slices.of(5)).get(),
-                matcher().deleted(2).slices(hasSize(5)));
-        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 5);
-
-        // Delete remaining docs
-        DeleteByQueryRequestBuilder request = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true)
-                .setSlices(Slices.of(5));
-        assertThat(request.get(), matcher().deleted(5).slices(hasSize(5)));
-        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 0);
-    }
-
-    public void testSlicesAuto() throws Exception {
-        indexRandom(true,
-            client().prepareIndex("test", "test", "1").setSource("foo", "a"),
-            client().prepareIndex("test", "test", "2").setSource("foo", "a"),
-            client().prepareIndex("test", "test", "3").setSource("foo", "b"),
-            client().prepareIndex("test", "test", "4").setSource("foo", "c"),
-            client().prepareIndex("test", "test", "5").setSource("foo", "d"),
-            client().prepareIndex("test", "test", "6").setSource("foo", "e"),
-            client().prepareIndex("test", "test", "7").setSource("foo", "f")
-        );
-        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 7);
-
-        NumShards numShards = getNumShards("test");
-        int numSlicesExpected = numShards.numPrimaries > 1
-                                ? Math.min(numShards.numPrimaries, BulkByScrollParallelizationHelper.AUTO_SLICE_CEILING)
-                                : 0;
+        Slices slices = randomBoolean()
+            ? Slices.AUTO
+            : Slices.of(between(2, 10));
+        int expectedSlices = expectedSlices(slices, "test");
 
         // Deletes the two docs that matches "foo:a"
         assertThat(
@@ -270,22 +249,65 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
                 .source("test")
                 .filter(termQuery("foo", "a"))
                 .refresh(true)
-                .setSlices(Slices.AUTO).get(),
+                .setSlices(slices).get(),
             matcher()
                 .deleted(2)
-                .slices(hasSize(numSlicesExpected)));
+                .slices(hasSize(expectedSlices)));
         assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 5);
 
         // Delete remaining docs
-        assertThat(deleteByQuery()
+        assertThat(
+            deleteByQuery()
                 .source("test")
                 .filter(QueryBuilders.matchAllQuery())
                 .refresh(true)
-                .setSlices(Slices.AUTO).get(),
+                .setSlices(slices).get(),
             matcher()
                 .deleted(5)
-                .slices(hasSize(numSlicesExpected)));
+                .slices(hasSize(expectedSlices)));
         assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 0);
+    }
+
+    public void testMultipleSources() throws Exception {
+        int sourceIndices = between(2, 5);
+
+        Map<String, List<IndexRequestBuilder>> docs = new HashMap<>();
+        for (int sourceIndex = 0; sourceIndex < sourceIndices; sourceIndex++) {
+            String indexName = "test" + sourceIndex;
+            docs.put(indexName, new ArrayList<>());
+            int numDocs = between(5, 15);
+            for (int i = 0; i < numDocs; i++) {
+                docs.get(indexName).add(client().prepareIndex(indexName, "test", Integer.toString(i)).setSource("foo", "a"));
+            }
+        }
+
+        List<IndexRequestBuilder> allDocs = docs.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
+        indexRandom(true, allDocs);
+        for (Map.Entry<String, List<IndexRequestBuilder>> entry : docs.entrySet()) {
+            assertHitCount(client().prepareSearch(entry.getKey()).setSize(0).get(), entry.getValue().size());
+        }
+
+        Slices slices = randomBoolean()
+            ? Slices.AUTO
+            : Slices.of(between(1, 10));
+        int expectedSlices = expectedSlices(slices, docs.keySet());
+
+        String[] sourceIndexNames = docs.keySet().toArray(new String[docs.size()]);
+
+        assertThat(
+            deleteByQuery()
+                .source(sourceIndexNames)
+                .filter(QueryBuilders.matchAllQuery())
+                .refresh(true)
+                .setSlices(slices).get(),
+            matcher()
+                .deleted(allDocs.size())
+                .slices(hasSize(expectedSlices)));
+
+        for (String index : docs.keySet()) {
+            assertHitCount(client().prepareSearch(index).setTypes("test").setSize(0).get(), 0);
+        }
+
     }
 
     /**

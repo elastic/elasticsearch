@@ -128,7 +128,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                     : request.getSearchRequest().source().slice().getId();
                 bulkTask.setChild(sliceId, request.getRequestsPerSecond());
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), bulkTask);
-                new AsyncIndexBySearchAction(bulkTask, logger, assigningClient, threadPool, request, scriptService, state, listener).start();
+                new AsyncIndexBySearchAction(bulkTask, logger, assigningClient, threadPool, request, scriptService, state,
+                    listener).start();
             }
         });
     }
@@ -281,8 +282,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
                 RestClient restClient = buildRestClient(remoteInfo, task.getId(), createdThreads);
-                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry, this::finishHim, restClient,
-                        remoteInfo.getQuery(), mainRequest.getSearchRequest());
+                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry, this::finishHim,
+                    restClient, remoteInfo.getQuery(), mainRequest.getSearchRequest());
             }
             return super.buildScrollableResultSource(backoffPolicy);
         }
@@ -395,7 +396,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
         class ReindexScriptApplier extends ScriptApplier {
 
-            public ReindexScriptApplier(ChildBulkByScrollWorker taskWorker, ScriptService scriptService, Script script, Map<String, Object> params) {
+            ReindexScriptApplier(ChildBulkByScrollWorker taskWorker, ScriptService scriptService, Script script,
+                                        Map<String, Object> params) {
                 super(taskWorker, scriptService, script, params);
             }
 

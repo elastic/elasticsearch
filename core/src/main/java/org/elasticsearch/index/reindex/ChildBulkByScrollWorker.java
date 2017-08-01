@@ -81,9 +81,21 @@ public class ChildBulkByScrollWorker implements SuccessfullyProcessed {
     }
 
     public BulkByScrollTask.Status getStatus() {
-        return new BulkByScrollTask.Status(sliceId, total.get(), updated.get(), created.get(), deleted.get(), batch.get(), versionConflicts.get(),
-            noops.get(), bulkRetries.get(), searchRetries.get(), timeValueNanos(throttledNanos.get()), getRequestsPerSecond(),
-            task.getReasonCancelled(), throttledUntil());
+        return new BulkByScrollTask.Status(
+            sliceId,
+            total.get(),
+            updated.get(),
+            created.get(),
+            deleted.get(),
+            batch.get(),
+            versionConflicts.get(),
+            noops.get(),
+            bulkRetries.get(),
+            searchRetries.get(),
+            timeValueNanos(throttledNanos.get()),
+            getRequestsPerSecond(),
+            task.getReasonCancelled(),
+            throttledUntil());
     }
 
     public void handleCancel() {

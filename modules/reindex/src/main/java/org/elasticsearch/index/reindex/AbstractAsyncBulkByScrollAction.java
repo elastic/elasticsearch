@@ -766,7 +766,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     /**
      * Apply a {@link Script} to a {@link RequestWrapper}
      */
-    public static abstract class ScriptApplier implements BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> {
+    public abstract static class ScriptApplier implements BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> {
 
         private final ChildBulkByScrollWorker taskWorker;
         private final ScriptService scriptService;

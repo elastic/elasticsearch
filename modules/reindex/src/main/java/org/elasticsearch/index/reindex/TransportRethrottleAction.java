@@ -73,7 +73,8 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         throw new IllegalArgumentException("task [" + task.getId() + "] must be set as a child or parent");
     }
 
-    private static void rethrottleParentTask(Logger logger, String localNodeId, Client client, BulkByScrollTask task, float newRequestsPerSecond, ActionListener<TaskInfo> listener) {
+    private static void rethrottleParentTask(Logger logger, String localNodeId, Client client, BulkByScrollTask task,
+                                             float newRequestsPerSecond, ActionListener<TaskInfo> listener) {
         final ParentBulkByScrollWorker parentWorker = task.getParentWorker();
         final int runningSubtasks = parentWorker.runningSliceSubTasks();
 
@@ -95,7 +96,8 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         }
     }
 
-    private static void rethrottleChildTask(Logger logger, String localNodeId, BulkByScrollTask task, float newRequestsPerSecond, ActionListener<TaskInfo> listener) {
+    private static void rethrottleChildTask(Logger logger, String localNodeId, BulkByScrollTask task, float newRequestsPerSecond,
+                                            ActionListener<TaskInfo> listener) {
         logger.debug("rethrottling local task [{}] to [{}] requests per second", task.getId(), newRequestsPerSecond);
         task.getChildWorker().rethrottle(newRequestsPerSecond);
         listener.onResponse(task.taskInfo(localNodeId, true));

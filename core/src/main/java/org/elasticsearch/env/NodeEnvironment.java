@@ -901,8 +901,8 @@ public final class NodeEnvironment  implements Closeable {
         final NodePath[] nodePaths = nodePaths();
         for (NodePath nodePath : nodePaths) {
             assert Files.isDirectory(nodePath.path) : nodePath.path + " is not a directory";
-            final Path src = nodePath.path.resolve(TEMP_FILE_NAME + ".src");
-            final Path target = nodePath.path.resolve(TEMP_FILE_NAME + ".target");
+            final Path src = nodePath.path.resolve(TEMP_FILE_NAME + ".tmp");
+            final Path target = nodePath.path.resolve(TEMP_FILE_NAME + ".final");
             try {
                 Files.deleteIfExists(src);
                 Files.createFile(src);
@@ -1018,7 +1018,7 @@ public final class NodeEnvironment  implements Closeable {
                 Files.createFile(resolve);
                 Files.delete(resolve);
             } catch (IOException ex) {
-                throw new IOException("failed to write in data directory [" + path + "] write permission is required", ex);
+                throw new IOException("failed to test writes in data directory [" + path + "] write permission is required", ex);
             }
         }
     }

@@ -9,25 +9,41 @@ The configuration files should contain settings which are node-specific (such
 as `node.name` and paths), or settings which a node requires in order to be
 able to join a cluster, such as `cluster.name` and `network.host`.
 
+[[config-files-location]]
 [float]
-=== Config file location
+=== Config files location
 
-Elasticsearch has two configuration files:
+Elasticsearch has three configuration files:
 
-* `elasticsearch.yml` for configuring Elasticsearch, and
-* `log4j2.properties` for configuring Elasticsearch logging.
+* `elasticsearch.yml` for configuring Elasticsearch
+* `jvm.options` for configuring Elasticsearch JVM settings
+* `log4j2.properties` for configuring Elasticsearch logging
 
-These files are located in the config directory, whose location defaults to
-`$ES_HOME/config/`.  The Debian and RPM packages set the config directory
-location to `/etc/elasticsearch/`.
+These files are located in the config directory, whose default location depends
+on whether or not the installation is from an archive distribution (`tar.gz` or
+`zip`) or a package distribution (Debian or RPM packages).
 
-The location of the config directory can be changed with the `path.conf`
-flag, as follows:
+For the archive distributions, the config directory location defaults to
+`$ES_HOME/config`. The location of the config directory can be changed via the
+`CONF_DIR` environment variable as follows:
 
 [source,sh]
 -------------------------------
-./bin/elasticsearch --path.conf /path/to/my/config/
+CONF_DIR=/path/to/my/config ./bin/elasticsearch
 -------------------------------
+
+Alternatively, you can `export` the `CONF_DIR` environment variable via the
+command line or via your shell profile.
+
+For the package distributions, the config directory location defaults to
+`/etc/elasticsearch`. The location of the config directory can also be changed
+via the `CONF_DIR` environment variable, but note that setting this in your
+shell is not sufficient. Instead, this variabled is sourced from
+`/etc/default/elasticsearch` (for the Debian package) and
+`/etc/sysconfig/elasticsearch` (for the RPM package). You will need to edit the
+`CONF_DIR=/etc/elasticsearch` entry in one of these files accordingly to change
+the config directory location.
+
 
 [float]
 === Config file format

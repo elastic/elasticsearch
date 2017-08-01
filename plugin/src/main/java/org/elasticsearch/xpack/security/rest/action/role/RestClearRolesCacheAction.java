@@ -24,12 +24,6 @@ public final class RestClearRolesCacheAction extends SecurityBaseRestHandler {
     public RestClearRolesCacheAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(POST, "/_xpack/security/role/{name}/_clear_cache", this);
-
-        // @deprecated: Remove in 6.0
-        controller.registerAsDeprecatedHandler(POST, "/_shield/role/{name}/_clear_cache", this,
-                                               "[POST /_shield/role/{name}/_clear_cache] is deprecated! Use " +
-                                               "[POST /_xpack/security/role/{name}/_clear_cache] instead.",
-                                               deprecationLogger);
     }
 
     @Override

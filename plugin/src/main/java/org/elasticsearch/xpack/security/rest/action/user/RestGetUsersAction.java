@@ -34,16 +34,6 @@ public class RestGetUsersAction extends SecurityBaseRestHandler {
         super(settings, licenseState);
         controller.registerHandler(GET, "/_xpack/security/user/", this);
         controller.registerHandler(GET, "/_xpack/security/user/{username}", this);
-
-        // @deprecated: Remove in 6.0
-        controller.registerAsDeprecatedHandler(GET, "/_shield/user", this,
-                                               "[GET /_shield/user] is deprecated! Use " +
-                                               "[GET /_xpack/security/user] instead.",
-                                               deprecationLogger);
-        controller.registerAsDeprecatedHandler(GET, "/_shield/user/{username}", this,
-                                               "[GET /_shield/user/{username}] is deprecated! Use " +
-                                               "[GET /_xpack/security/user/{username}] instead.",
-                                               deprecationLogger);
     }
 
     @Override

@@ -27,9 +27,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestDeleteWatchAction extends WatcherRestHandler {
     public RestDeleteWatchAction(Settings settings, RestController controller) {
         super(settings);
-        // @deprecated Remove deprecations in 6.0
-        controller.registerWithDeprecatedHandler(DELETE, URI_BASE + "/watch/{id}", this,
-                                                 DELETE, "/_watcher/watch/{id}", deprecationLogger);
+        controller.registerHandler(DELETE, URI_BASE + "/watch/{id}", this);
     }
 
     @Override

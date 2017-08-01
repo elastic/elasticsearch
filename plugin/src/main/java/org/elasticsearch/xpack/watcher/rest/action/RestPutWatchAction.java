@@ -33,12 +33,8 @@ public class RestPutWatchAction extends WatcherRestHandler implements RestReques
 
     public RestPutWatchAction(Settings settings, RestController controller) {
         super(settings);
-
-        // @deprecated Remove deprecations in 6.0
-        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/watch/{id}", this,
-                                                 POST, "/_watcher/watch/{id}", deprecationLogger);
-        controller.registerWithDeprecatedHandler(PUT, URI_BASE + "/watch/{id}", this,
-                                                 PUT, "/_watcher/watch/{id}", deprecationLogger);
+        controller.registerHandler(POST, URI_BASE + "/watch/{id}", this);
+        controller.registerHandler(PUT, URI_BASE + "/watch/{id}", this);
     }
 
     @Override

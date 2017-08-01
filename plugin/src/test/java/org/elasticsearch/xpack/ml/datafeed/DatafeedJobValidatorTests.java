@@ -86,7 +86,6 @@ public class DatafeedJobValidatorTests extends ESTestCase {
                 DatafeedConfig.DOC_COUNT);
         Job.Builder builder = buildJobBuilder("foo");
         AnalysisConfig.Builder ac = createAnalysisConfig();
-        ac.setSummaryCountFieldName("");
         ac.setBucketSpan(TimeValue.timeValueSeconds(1800));
         builder.setAnalysisConfig(ac);
         Job job = builder.build(new Date());

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.config;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -38,6 +39,9 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         for (int i = 0; i < numDetectors; i++) {
             Detector.Builder builder = new Detector.Builder("count", null);
             builder.setPartitionFieldName(isCategorization ? "mlcategory" : "part");
+            detectors.add(builder.build());
+            builder = new Detector.Builder("avg", "foo");
+            builder.setByFieldName("by_field");
             detectors.add(builder.build());
         }
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(detectors);
@@ -428,19 +432,6 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertFalse(config2.equals(config1));
     }
 
-    public void testEquals_GivenMultivariateByField() {
-        AnalysisConfig.Builder builder = createConfigBuilder();
-        builder.setMultivariateByFields(true);
-        AnalysisConfig config1 = builder.build();
-
-        builder = createConfigBuilder();
-        builder.setMultivariateByFields(false);
-        AnalysisConfig config2 = builder.build();
-
-        assertFalse(config1.equals(config2));
-        assertFalse(config2.equals(config1));
-    }
-
     public void testEquals_GivenDifferentCategorizationFilters() {
         AnalysisConfig.Builder configBuilder1 = createValidCategorizationConfig();
         AnalysisConfig.Builder configBuilder2 = createValidCategorizationConfig();
@@ -797,11 +788,36 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
 
         config.setInfluencers(Arrays.asList("inf1", ""));
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, config::build);
-        assertEquals("Influencer names cannot be empty strings", e.getMessage());
+        assertEquals("Influencers and field names cannot be empty strings", e.getMessage());
 
         config.setInfluencers(Arrays.asList("invalid\\backslash"));
         e = ESTestCase.expectThrows(ElasticsearchException.class, config::build);
         assertEquals("Invalid field name 'invalid\\backslash'. Field names cannot contain any of these characters: \",\\", e.getMessage());
+    }
+
+    public void testFieldsCannotBeEmptyStrings() {
+        AnalysisConfig.Builder config = createValidConfig();
+
+        config.setSummaryCountFieldName("");
+        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, config::build);
+        assertEquals("Influencers and field names cannot be empty strings", e.getMessage());
+
+        config.setSummaryCountFieldName(null);
+        config.setCategorizationFieldName("");
+        e = ESTestCase.expectThrows(ElasticsearchException.class, config::build);
+        assertEquals("Influencers and field names cannot be empty strings", e.getMessage());
+    }
+
+    public void testMultiVariateByFieldsSetting() {
+        Detector detector = new Detector.Builder("count", null).build();
+        AnalysisConfig.Builder config = new AnalysisConfig.Builder(Collections.singletonList(detector));
+        config.setMultivariateByFields(true);
+        expectThrows(ElasticsearchStatusException.class, config::build);
+
+        Detector.Builder detectorWithByField = new Detector.Builder("avg", "foo");
+        detectorWithByField.setByFieldName("bar");
+        config.setDetectors(Collections.singletonList(detectorWithByField.build()));
+        config.build();
     }
 
     public void testVerify_GivenCategorizationFiltersContainInvalidRegex() {

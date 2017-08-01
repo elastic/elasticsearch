@@ -35,6 +35,7 @@ public class ProcessCtrlTests extends ESTestCase {
         Job.Builder job = buildJobBuilder("unit-test-job");
 
         Detector.Builder detectorBuilder = new Detector.Builder("mean", "value");
+        detectorBuilder.setByFieldName("byField");
         detectorBuilder.setPartitionFieldName("foo");
         AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Collections.singletonList(detectorBuilder.build()));
         acBuilder.setBucketSpan(TimeValue.timeValueSeconds(120));

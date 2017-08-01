@@ -888,25 +888,19 @@ public abstract class ESTestCase extends LuceneTestCase {
         return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
     }
 
-    private static final SetOnce<Boolean> useNio = new SetOnce<>();
+    private static boolean useNio;
 
-    private static boolean getUseNio() {
-        if (useNio.get() == null) {
-            synchronized (useNio) {
-                if (useNio.get() == null) {
-                    useNio.set(randomBoolean());
-                }
-            }
-        }
-        return useNio.get();
+    @BeforeClass
+    public static void setUseNio() throws Exception {
+        useNio = randomBoolean();
     }
 
     public static String getTestTransportType() {
-        return getUseNio() ? NioTransportPlugin.NIO_TRANSPORT_NAME : MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
+        return useNio ? NioTransportPlugin.NIO_TRANSPORT_NAME : MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
     }
 
     public static Class<? extends Plugin> getTestTransportPlugin() {
-        return getUseNio() ? NioTransportPlugin.class : MockTcpTransportPlugin.class;
+        return useNio ? NioTransportPlugin.class : MockTcpTransportPlugin.class;
     }
 
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();

@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
 
@@ -94,6 +95,9 @@ public class MockScriptEngine implements ScriptEngine {
                     };
                 };
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(FilterScript.class)) {
+            FilterScript.Factory factory = mockCompiled::createFilterScript;
+            return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }
@@ -140,6 +144,10 @@ public class MockScriptEngine implements ScriptEngine {
                 context.put("params", params);
             }
             return new MockSearchScript(lookup, context, script != null ? script : ctx -> source);
+        }
+
+        public FilterScript.LeafFactory createFilterScript(Map<String, Object> params, SearchLookup lookup) {
+            return new MockFilterScript(lookup, params, script);
         }
     }
 
@@ -221,6 +229,29 @@ public class MockScriptEngine implements ScriptEngine {
         @Override
         public boolean needs_score() {
             return true;
+        }
+    }
+
+    public static class MockFilterScript implements FilterScript.LeafFactory {
+
+        private final Function<Map<String, Object>, Object> script;
+        private final Map<String, Object> vars;
+        private final SearchLookup lookup;
+
+        public MockFilterScript(SearchLookup lookup, Map<String, Object> vars, Function<Map<String, Object>, Object> script) {
+            this.lookup = lookup;
+            this.vars = vars;
+            this.script = script;
+        }
+
+        @Override
+        public FilterScript newInstance(LeafReaderContext ctx) throws IOException {
+            return new FilterScript(vars, lookup, ctx) {
+                @Override
+                public boolean execute() {
+                    return (boolean) script.apply(vars);
+                }
+            };
         }
     }
 

@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.TimeWarpedXPackPlugin;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.notification.email.Authentication;
 import org.elasticsearch.xpack.notification.email.Email;
@@ -441,24 +440,12 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return randomBoolean() ? new XPackClient(client).watcher() : new WatcherClient(client);
     }
 
-    protected HttpClient watcherHttpClient() {
-        return internalCluster().getInstance(HttpClient.class);
-    }
-
-    protected EmailService noopEmailService() {
-        return new NoopEmailService();
-    }
-
     protected IndexNameExpressionResolver indexNameExpressionResolver() {
         return internalCluster().getInstance(IndexNameExpressionResolver.class);
     }
 
     protected void assertValue(XContentSource source, String path, Matcher<?> matcher) {
-        WatcherTestUtils.assertValue(source, path, matcher);
-    }
-
-    protected void assertValue(Map<String, Object> map, String path, Matcher<?> matcher) {
-        WatcherTestUtils.assertValue(map, path, matcher);
+        assertThat(source.getValue(path), (Matcher<Object>) matcher);
     }
 
     protected void assertWatchWithMinimumPerformedActionsCount(final String watchName,

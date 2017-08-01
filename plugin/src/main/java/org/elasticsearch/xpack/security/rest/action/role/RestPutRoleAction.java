@@ -34,16 +34,6 @@ public class RestPutRoleAction extends SecurityBaseRestHandler {
         super(settings, licenseState);
         controller.registerHandler(POST, "/_xpack/security/role/{name}", this);
         controller.registerHandler(PUT, "/_xpack/security/role/{name}", this);
-
-        // @deprecated: Remove in 6.0
-        controller.registerAsDeprecatedHandler(POST, "/_shield/role/{name}", this,
-                                               "[POST /_shield/role/{name}] is deprecated! Use " +
-                                               "[POST /_xpack/security/role/{name}] instead.",
-                                               deprecationLogger);
-        controller.registerAsDeprecatedHandler(PUT, "/_shield/role/{name}", this,
-                                               "[PUT /_shield/role/{name}] is deprecated! Use " +
-                                               "[PUT /_xpack/security/role/{name}] instead.",
-                                               deprecationLogger);
     }
 
     @Override

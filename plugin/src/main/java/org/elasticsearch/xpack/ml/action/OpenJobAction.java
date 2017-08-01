@@ -468,7 +468,11 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                     new WaitForPersistentTaskStatusListener<JobParams>() {
                 @Override
                 public void onResponse(PersistentTask<JobParams> persistentTask) {
-                    listener.onResponse(new Response(predicate.opened));
+                    if (predicate.exception != null) {
+                        listener.onFailure(predicate.exception);
+                    } else {
+                        listener.onResponse(new Response(predicate.opened));
+                    }
                 }
 
                 @Override
@@ -520,9 +524,14 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             }
         }
 
+        /**
+         * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
+         * of endpoints waiting for a condition tested by this predicate would never get a response.
+         */
         private class JobPredicate implements Predicate<PersistentTask<?>> {
 
             private volatile boolean opened;
+            private volatile Exception exception;
 
             @Override
             public boolean test(PersistentTask<?> persistentTask) {
@@ -539,12 +548,14 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                         opened = true;
                         return true;
                     case CLOSING:
-                        throw ExceptionsHelper.conflictStatusException("The job has been " + JobState.CLOSED + " while waiting to be "
+                        exception = ExceptionsHelper.conflictStatusException("The job has been " + JobState.CLOSED + " while waiting to be "
                                 + JobState.OPENED);
+                        return true;
                     case FAILED:
                     default:
-                        throw new IllegalStateException("Unexpected job state [" + jobState
+                        exception = ExceptionsHelper.serverError("Unexpected job state [" + jobState
                                 + "] while waiting for job to be " + JobState.OPENED);
+                        return true;
                 }
             }
         }

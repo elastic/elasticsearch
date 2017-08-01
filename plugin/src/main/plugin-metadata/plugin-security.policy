@@ -32,7 +32,7 @@ grant {
   permission java.io.FilePermission "\\\\.\\pipe\\*", "read,write";
 };
 
-grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT.jar}" {
+grant codeBase "${codebase.elasticsearch-rest-client-7.0.0-alpha1-SNAPSHOT.jar}" {
   // rest client uses system properties which gets the default proxy
   permission java.net.NetPermission "getProxySelector";
 };

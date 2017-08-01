@@ -6,23 +6,15 @@
 package org.elasticsearch.xpack.watcher.test;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
@@ -34,7 +26,6 @@ import org.elasticsearch.xpack.notification.email.EmailService;
 import org.elasticsearch.xpack.notification.email.EmailTemplate;
 import org.elasticsearch.xpack.notification.email.HtmlSanitizer;
 import org.elasticsearch.xpack.notification.email.Profile;
-import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.actions.email.EmailAction;
@@ -48,7 +39,6 @@ import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
-import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.transform.search.ExecutableSearchTransform;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransform;
@@ -58,7 +48,6 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
-import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 
 import javax.mail.internet.AddressException;
@@ -69,13 +58,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.apache.lucene.util.LuceneTestCase.createTempDir;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.joda.time.DateTimeZone.UTC;
-import static org.junit.Assert.assertThat;
 
 public final class WatcherTestUtils {
 
@@ -85,14 +72,6 @@ public final class WatcherTestUtils {
     public static XContentSource xContentSource(BytesReference bytes) {
         XContent xContent = XContentFactory.xContent(bytes);
         return new XContentSource(bytes, xContent.type());
-    }
-
-    public static void assertValue(Map<String, Object> map, String path, Matcher<?> matcher) {
-        assertThat(ObjectPath.eval(path, map), (Matcher<Object>) matcher);
-    }
-
-    public static void assertValue(XContentSource source, String path, Matcher<?> matcher) {
-        assertThat(source.getValue(path), (Matcher<Object>) matcher);
     }
 
     public static WatcherSearchTemplateRequest templateRequest(SearchSourceBuilder sourceBuilder, String... indices) {
@@ -109,19 +88,6 @@ public final class WatcherTestUtils {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    public static SearchRequest matchAllRequest(IndicesOptions indicesOptions) {
-        SearchRequest request = new SearchRequest(Strings.EMPTY_ARRAY)
-                .source(SearchSourceBuilder.searchSource().query(matchAllQuery()));
-        if (indicesOptions != null) {
-            request.indicesOptions(indicesOptions);
-        }
-        return request;
-    }
-
-    public static Payload simplePayload(String key, Object value) {
-        return new Payload.Simple(key, value);
     }
 
     public static WatchExecutionContextMockBuilder mockExecutionContextBuilder(String watchId) {
@@ -152,14 +118,6 @@ public final class WatcherTestUtils {
                 .triggerEvent(event)
                 .buildMock();
     }
-
-
-    public static Watch createTestWatch(String watchName, HttpClient httpClient, EmailService emailService,
-                                        WatcherSearchTemplateService searchTemplateService, Logger logger) throws AddressException {
-        Client client = ESIntegTestCase.client();
-        return createTestWatch(watchName, client, httpClient, emailService, searchTemplateService, logger);
-    }
-
 
     public static Watch createTestWatch(String watchName, Client client, HttpClient httpClient, EmailService emailService,
                                         WatcherSearchTemplateService searchTemplateService, Logger logger) throws AddressException {
@@ -199,16 +157,6 @@ public final class WatcherTestUtils {
                 actions,
                 Collections.singletonMap("foo", "bar"),
                 new WatchStatus(now, statuses));
-    }
-
-    public static ScriptService createScriptService(ThreadPool tp) throws Exception {
-        Settings settings = Settings.builder()
-                .put("path.home", createTempDir())
-                .build();
-        Map<String, ScriptContext> contexts = new HashMap<>(ScriptModule.CORE_CONTEXTS);
-        contexts.put(Watcher.SCRIPT_EXECUTABLE_CONTEXT.name, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
-        contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
-        return new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());
     }
 
     public static SearchType getRandomSupportedSearchType() {

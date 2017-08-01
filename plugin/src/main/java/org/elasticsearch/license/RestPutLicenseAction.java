@@ -23,23 +23,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutLicenseAction extends XPackRestHandler {
+
     public RestPutLicenseAction(Settings settings, RestController controller) {
         super(settings);
-        // @deprecated Remove deprecations in 6.0
-        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/license", this,
-                                                 POST, "/_license", deprecationLogger);
-        controller.registerWithDeprecatedHandler(PUT, URI_BASE + "/license", this,
-                                                 PUT, "/_license", deprecationLogger);
-
-        // Remove _licenses support entirely in 6.0
-        controller.registerAsDeprecatedHandler(POST, "/_licenses", this,
-                                               "[POST /_licenses] is deprecated! Use " +
-                                               "[POST /_xpack/license] instead.",
-                                               deprecationLogger);
-        controller.registerAsDeprecatedHandler(PUT, "/_licenses", this,
-                                               "[PUT /_licenses] is deprecated! Use " +
-                                               "[PUT /_xpack/license] instead.",
-                                               deprecationLogger);
+        controller.registerHandler(POST, URI_BASE + "/license", this);
+        controller.registerHandler(PUT, URI_BASE + "/license", this);
     }
 
     @Override

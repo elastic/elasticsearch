@@ -110,7 +110,6 @@ import org.elasticsearch.xpack.watcher.rest.action.RestActivateWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestDeleteWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestGetWatchAction;
-import org.elasticsearch.xpack.watcher.rest.action.RestHijackOperationAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestPutWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatcherStatsAction;
@@ -305,7 +304,7 @@ public class Watcher implements ActionPlugin {
         final Watch.Parser watchParser = new Watch.Parser(settings, triggerService, registry, inputRegistry, cryptoService, clock);
 
         final ExecutionService executionService = new ExecutionService(settings, historyStore, triggeredWatchStore, watchExecutor,
-                clock, threadPool, watchParser, clusterService, internalClient);
+                clock, watchParser, clusterService, internalClient);
 
         final Consumer<Iterable<TriggerEvent>> triggerEngineListener = getTriggerEngineListener(executionService);
         triggerService.register(triggerEngineListener);
@@ -438,8 +437,7 @@ public class Watcher implements ActionPlugin {
                 new RestWatchServiceAction(settings, restController),
                 new RestAckWatchAction(settings, restController),
                 new RestActivateWatchAction(settings, restController),
-                new RestExecuteWatchAction(settings, restController),
-                new RestHijackOperationAction(settings, restController));
+                new RestExecuteWatchAction(settings, restController));
     }
 
     public void onIndexModule(IndexModule module) {

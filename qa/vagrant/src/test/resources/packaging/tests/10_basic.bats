@@ -41,8 +41,10 @@ setup() {
     assert_file "$ESHOME/bin/x-pack/croneval" f elasticsearch elasticsearch 755
     assert_file "$ESHOME/bin/x-pack/extension" f elasticsearch elasticsearch 755
     assert_file "$ESHOME/bin/x-pack/migrate" f elasticsearch elasticsearch 755
+    assert_file "$ESHOME/bin/x-pack/setup-passwords" f elasticsearch elasticsearch 755
     assert_file "$ESHOME/bin/x-pack/syskeygen" f elasticsearch elasticsearch 755
     assert_file "$ESHOME/bin/x-pack/users" f elasticsearch elasticsearch 755
+    assert_file "$ESHOME/bin/x-pack/x-pack-env" f elasticsearch elasticsearch 755
     assert_file "$ESCONFIG/x-pack" d elasticsearch elasticsearch 750
     assert_file "$ESCONFIG/x-pack/users" f elasticsearch elasticsearch 660
     assert_file "$ESCONFIG/x-pack/users_roles" f elasticsearch elasticsearch 660

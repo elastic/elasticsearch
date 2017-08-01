@@ -122,7 +122,7 @@ public class WatcherService extends AbstractComponent {
             try {
                 logger.debug("starting watch service...");
 
-                executionService.start(clusterState);
+                executionService.start();
                 Collection<Watch> watches = loadWatches(clusterState);
                 triggerService.start(watches);
 

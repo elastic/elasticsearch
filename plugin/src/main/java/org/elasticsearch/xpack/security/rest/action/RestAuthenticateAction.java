@@ -35,12 +35,6 @@ public class RestAuthenticateAction extends SecurityBaseRestHandler {
         super(settings, licenseState);
         this.securityContext = securityContext;
         controller.registerHandler(GET, "/_xpack/security/_authenticate", this);
-
-        // @deprecated: Remove in 6.0
-        controller.registerAsDeprecatedHandler(GET, "/_shield/authenticate", this,
-                                               "[GET /_shield/authenticate] is deprecated! Use " +
-                                               "[GET /_xpack/security/_authenticate] instead.",
-                                               deprecationLogger);
     }
 
     @Override

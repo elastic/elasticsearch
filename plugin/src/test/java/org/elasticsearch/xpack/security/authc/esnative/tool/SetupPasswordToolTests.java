@@ -53,6 +53,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         this.keyStore = mock(KeyStoreWrapper.class);
         this.httpClient = mock(CommandLineHttpClient.class);
         when(keyStore.getString(ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.getKey())).thenReturn(bootstrapPassword);
+        when(httpClient.getDefaultURL()).thenReturn("http://localhost:9200");
 
         terminal.addSecretInput(ep);
         terminal.addSecretInput(ep);

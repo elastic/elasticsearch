@@ -31,26 +31,10 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestAckWatchAction extends WatcherRestHandler {
     public RestAckWatchAction(Settings settings, RestController controller) {
         super(settings);
-        // @deprecated Remove deprecations in 6.0
-        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/watch/{id}/_ack", this,
-                                                 POST, "/_watcher/watch/{id}/_ack", deprecationLogger);
-        controller.registerWithDeprecatedHandler(PUT, URI_BASE + "/watch/{id}/_ack", this,
-                                                 PUT, "/_watcher/watch/{id}/_ack", deprecationLogger);
-        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/watch/{id}/_ack/{actions}", this,
-                                                 POST, "/_watcher/watch/{id}/_ack/{actions}", deprecationLogger);
-        controller.registerWithDeprecatedHandler(PUT, URI_BASE + "/watch/{id}/_ack/{actions}", this,
-                                                 PUT, "/_watcher/watch/{id}/_ack/{actions}", deprecationLogger);
-
-        // @deprecated The following can be totally dropped in 6.0
-        // Note: we deprecated "/{actions}/_ack" totally; so we don't replace it with a matching _xpack variant
-        controller.registerAsDeprecatedHandler(POST, "/_watcher/watch/{id}/{actions}/_ack", this,
-                                               "[POST /_watcher/watch/{id}/{actions}/_ack] is deprecated! Use " +
-                                               "[POST /_xpack/watcher/watch/{id}/_ack/{actions}] instead.",
-                                               deprecationLogger);
-        controller.registerAsDeprecatedHandler(PUT, "/_watcher/watch/{id}/{actions}/_ack", this,
-                                               "[PUT /_watcher/watch/{id}/{actions}/_ack] is deprecated! Use " +
-                                               "[PUT /_xpack/watcher/watch/{id}/_ack/{actions}] instead.",
-                                               deprecationLogger);
+        controller.registerHandler(POST, URI_BASE + "/watch/{id}/_ack", this);
+        controller.registerHandler(PUT, URI_BASE + "/watch/{id}/_ack", this);
+        controller.registerHandler(POST, URI_BASE + "/watch/{id}/_ack/{actions}", this);
+        controller.registerHandler(PUT, URI_BASE + "/watch/{id}/_ack/{actions}", this);
     }
 
     @Override

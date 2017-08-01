@@ -28,6 +28,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -103,9 +104,11 @@ public class NativeRolesStoreTests extends ESTestCase {
                 null);
         assertFalse(flsRole.getTransientMetadata().containsKey("unlicensed_features"));
 
+        BytesReference matchAllBytes = XContentHelper.toXContent(QueryBuilders.matchAllQuery(), XContentType.JSON, false);
+
         RoleDescriptor dlsRole = new RoleDescriptor("dls", null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("READ")
-                        .query(QueryBuilders.matchAllQuery().buildAsBytes())
+                        .query(matchAllBytes)
                         .build() },
                 null);
         assertFalse(dlsRole.getTransientMetadata().containsKey("unlicensed_features"));
@@ -114,7 +117,7 @@ public class NativeRolesStoreTests extends ESTestCase {
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("READ")
                         .grantedFields("*")
                         .deniedFields("foo")
-                        .query(QueryBuilders.matchAllQuery().buildAsBytes())
+                        .query(matchAllBytes)
                         .build() },
                 null);
         assertFalse(flsDlsRole.getTransientMetadata().containsKey("unlicensed_features"));
@@ -180,7 +183,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         assertFalse(role.getTransientMetadata().containsKey("unlicensed_features"));
     }
 
-    public void testPutOfRoleWithFlsDlsUnlicensed() {
+    public void testPutOfRoleWithFlsDlsUnlicensed() throws IOException {
         final InternalClient internalClient = mock(InternalClient.class);
         final ClusterService clusterService = mock(ClusterService.class);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
@@ -213,10 +216,11 @@ public class NativeRolesStoreTests extends ESTestCase {
         rolesStore.putRole(putRoleRequest, flsRole, future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("field and document level security"));
+        BytesReference matchAllBytes = XContentHelper.toXContent(QueryBuilders.matchAllQuery(), XContentType.JSON, false);
 
         RoleDescriptor dlsRole = new RoleDescriptor("dls", null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("READ")
-                        .query(QueryBuilders.matchAllQuery().buildAsBytes())
+                        .query(matchAllBytes)
                         .build() },
                 null);
         future = new PlainActionFuture<>();
@@ -228,7 +232,7 @@ public class NativeRolesStoreTests extends ESTestCase {
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("READ")
                         .grantedFields("*")
                         .deniedFields("foo")
-                        .query(QueryBuilders.matchAllQuery().buildAsBytes())
+                        .query(matchAllBytes)
                         .build() },
                 null);
         future = new PlainActionFuture<>();

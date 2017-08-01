@@ -13,6 +13,11 @@ watcher_manager:
     - names: '.watch*'
       privileges:
         - all
+    # this index gets created by one of the watcher yaml tests
+    # and is needed for a search transform, so we have to create it as part of the test
+    - names: 'my_test_index'
+      privileges:
+        - all
   run_as:
     - powerless_user
     - watcher_manager

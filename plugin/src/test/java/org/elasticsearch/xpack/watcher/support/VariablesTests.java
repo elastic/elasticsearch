@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.support;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.Wid;
+import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -17,7 +18,6 @@ import org.joda.time.DateTime;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.assertValue;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -43,11 +43,12 @@ public class VariablesTests extends ESTestCase {
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
         assertThat(model, notNullValue());
         assertThat(model.size(), is(1));
-        assertValue(model, "ctx", instanceOf(Map.class));
-        assertValue(model, "ctx.id", is(wid.value()));
-        assertValue(model, "ctx.execution_time", is(executionTime));
-        assertValue(model, "ctx.trigger", is(event.data()));
-        assertValue(model, "ctx.payload", is(payload.data()));
-        assertValue(model, "ctx.metadata", is(metatdata));
+
+        assertThat(ObjectPath.eval("ctx", model), instanceOf(Map.class));
+        assertThat(ObjectPath.eval("ctx.id", model), is(wid.value()));
+        assertThat(ObjectPath.eval("ctx.execution_time", model), is(executionTime));
+        assertThat(ObjectPath.eval("ctx.trigger", model), is(event.data()));
+        assertThat(ObjectPath.eval("ctx.payload", model), is(payload.data()));
+        assertThat(ObjectPath.eval("ctx.metadata", model), is(metatdata));
     }
 }

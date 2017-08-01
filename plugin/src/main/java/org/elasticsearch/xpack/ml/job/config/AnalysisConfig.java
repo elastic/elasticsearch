@@ -530,6 +530,8 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
          * <li>Check that MULTIPLE_BUCKETSPANS are set appropriately</li>
          * <li>If Per Partition normalization is configured at least one detector
          * must have a partition field and no influences can be used</li>
+         * <li>Field names cannot be empty strings</li>
+         * <li>If multivariate by fields are enabled a detector must have a by field</li>
          * </ol>
          */
         public AnalysisConfig build() {
@@ -558,6 +560,12 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
 
             verifyNoInconsistentNestedFieldNames();
             verifyInfluencerNames();
+
+            if (multivariateByFields != null && multivariateByFields) {
+                if (aDetectorHasAByField(detectors) == false) {
+                    throw ExceptionsHelper.badRequestException(Messages.JOB_CONFIG_MULTIVARIATE_REQUIRES_BY_FIELD);
+                }
+            }
 
             return new AnalysisConfig(bucketSpan, categorizationFieldName, categorizationFilters,
                     latency, summaryCountFieldName, detectors, influencers, overlappingBuckets,
@@ -677,15 +685,19 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
 
         private void verifyInfluencerNames() {
             for (String influencer : influencers) {
-                if (influencer == null || influencer.isEmpty()) {
-                    throw ExceptionsHelper.badRequestException(
-                            Messages.getMessage(Messages.JOB_CONFIG_INFLUENCER_CANNOT_BE_EMPTY));
-                }
-
                 Detector.Builder.verifyFieldName(influencer);
             }
         }
 
+        private static boolean aDetectorHasAByField(List<Detector> detectors) {
+            for (Detector detector : detectors) {
+                if (Strings.hasLength(detector.getByFieldName())) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
         private static void checkDetectorsHavePartitionFields(List<Detector> detectors) {
             for (Detector detector : detectors) {
                 if (!Strings.isNullOrEmpty(detector.getPartitionFieldName())) {

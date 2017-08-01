@@ -7,12 +7,17 @@ package org.elasticsearch.xpack.security.authc.esnative.tool;
 
 import org.bouncycastle.util.io.Streams;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.common.socket.SocketAccess;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ssl.SSLService;
@@ -27,7 +32,10 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.List;
 
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
 import static org.elasticsearch.xpack.security.Security.setting;
 
 /**
@@ -93,5 +101,14 @@ public class CommandLineHttpClient {
         } finally {
             conn.disconnect();
         }
+    }
+
+    public String getDefaultURL() {
+        final String scheme = XPackSettings.HTTP_SSL_ENABLED.get(settings) ? "https" : "http";
+        List<String> httpPublishHost = SETTING_HTTP_PUBLISH_HOST.get(settings);
+        final String host =
+                (httpPublishHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings) : httpPublishHost).get(0);
+        final int port = SETTING_HTTP_PUBLISH_PORT.get(settings);
+        return scheme + "://" + host + ":" + port;
     }
 }

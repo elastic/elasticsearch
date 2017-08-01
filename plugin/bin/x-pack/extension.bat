@@ -4,6 +4,18 @@ rem Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
 rem or more contributor license agreements. Licensed under the Elastic License;
 rem you may not use this file except in compliance with the Elastic License.
 
-PUSHD "%~dp0"
-CALL "%~dp0.in.bat" org.elasticsearch.xpack.extensions.XPackExtensionCli %*
-POPD
+setlocal enabledelayedexpansion
+
+call "%~dp0..\elasticsearch-env.bat" || exit /b 1
+
+call "%~dp0x-pack-env.bat" || exit /b 1
+
+%JAVA% ^
+  %ES_JAVA_OPTS% ^
+  -Des.path.home="%ES_HOME%" ^
+  -Des.path.conf="%CONF_DIR%" ^
+  -cp "%ES_CLASSPATH%" ^
+  org.elasticsearch.xpack.extensions.XPackExtensionCli ^
+  %*
+
+endlocal

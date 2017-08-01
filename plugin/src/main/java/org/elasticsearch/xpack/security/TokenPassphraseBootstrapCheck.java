@@ -19,17 +19,19 @@ final class TokenPassphraseBootstrapCheck implements BootstrapCheck {
 
     static final int MINIMUM_PASSPHRASE_LENGTH = 8;
 
-    private final Settings settings;
+    private final boolean tokenServiceEnabled;
+    private final SecureString tokenPassphrase;
 
     TokenPassphraseBootstrapCheck(Settings settings) {
-        this.settings = settings;
+        this.tokenServiceEnabled = XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(settings);
+        this.tokenPassphrase = TokenService.TOKEN_PASSPHRASE.get(settings);
     }
 
     @Override
     public boolean check() {
-        if (XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(settings)) {
-            try (SecureString secureString = TokenService.TOKEN_PASSPHRASE.get(settings)) {
-                return secureString.length() < MINIMUM_PASSPHRASE_LENGTH || secureString.equals(TokenService.DEFAULT_PASSPHRASE);
+        try (SecureString ignore = tokenPassphrase) {
+            if (tokenServiceEnabled) {
+                return tokenPassphrase.length() < MINIMUM_PASSPHRASE_LENGTH || tokenPassphrase.equals(TokenService.DEFAULT_PASSPHRASE);
             }
         }
         // service is not enabled so no need to check

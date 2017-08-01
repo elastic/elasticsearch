@@ -187,7 +187,7 @@ public class SetupPasswordTool extends MultiCommand {
             client = clientFunction.apply(env);
             KeyStoreWrapper keyStore = keyStoreFunction.apply(env);
             String providedUrl = urlOption.value(options);
-            url = providedUrl == null ? "http://localhost:9200" : providedUrl;
+            url = providedUrl == null ? client.getDefaultURL() : providedUrl;
             setShouldPrompt(options);
 
             // TODO: We currently do  not support keystore passwords

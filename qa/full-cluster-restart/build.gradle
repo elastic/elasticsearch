@@ -121,16 +121,20 @@ subprojects {
       setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       setting 'xpack.ssl.keystore.password', 'testnode'
-      setting 'script.max_compilations_per_minute', '20'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
       if (withSystemKey) {
-        if (version.onOrAfter('5.1.0')) {
+        if (version.onOrAfter('5.1.0') && version.before('6.0.0')) {
           // The setting didn't exist until 5.1.0
           setting 'xpack.security.system_key.required', 'true'
         }
-        extraConfigFile 'x-pack/system_key',
-            "${mainProject.projectDir}/src/test/resources/system_key"
+        if (version.onOrAfter('6.0.0')) {
+            setupCommand 'create-elasticsearch-keystore', 'bin/elasticsearch-keystore', 'create'
+            setupCommand 'add-key-elasticsearch-keystore', 'bin/elasticsearch-keystore', 'add-file', 'xpack.watcher.encryption_key',
+                    "${mainProject.projectDir}/src/test/resources/system_key"
+        } else {
+            extraConfigFile 'x-pack/system_key', "${mainProject.projectDir}/src/test/resources/system_key"
+        }
         setting 'xpack.watcher.encrypt_sensitive_data', 'true'
       }
     }
@@ -155,7 +159,6 @@ subprojects {
       setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       waitCondition = waitWithAuth
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
-      setting 'script.max_compilations_per_minute', '20'
       keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')

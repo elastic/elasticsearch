@@ -24,9 +24,12 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
+import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 
@@ -34,6 +37,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 
 public class InternalChildrenTests extends InternalSingleBucketAggregationTestCase<InternalChildren> {
 
@@ -82,7 +88,10 @@ public class InternalChildrenTests extends InternalSingleBucketAggregationTestCa
                 docCount += between(1, 2000);
                 break;
             case 2:
-                aggregations = subAggregationsSupplier.get();
+                List<InternalAggregation> aggs = new ArrayList<>();
+                aggs.add(new InternalMax("new_max", randomDouble(), randomNumericDocValueFormat(), emptyList(), emptyMap()));
+                aggs.add(new InternalMin("new_min", randomDouble(), randomNumericDocValueFormat(), emptyList(), emptyMap()));
+                aggregations = new InternalAggregations(aggs);
                 break;
             case 3:
             default:

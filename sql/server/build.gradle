@@ -1,7 +1,5 @@
 import org.elasticsearch.gradle.test.RunTask
 
-apply plugin: 'elasticsearch.build'
-
 description = 'The server components of SQL for Elasticsearch'
 
 dependencies {
@@ -31,6 +29,10 @@ compileTestJava.options.compilerArgs << "-parameters"
 // Configure integration tests
 apply plugin: 'elasticsearch.rest-test'
 integTest.mustRunAfter test
+gradle.projectsEvaluated {
+  // Hack to remove a dependency cycle
+  project(':x-pack-elasticsearch:plugin').test.mustRunAfter.getDependencies(project(':x-pack-elasticsearch:plugin').test).remove(test)
+}
 
 integTestCluster {
   distribution = 'zip' // NOCOMMIT make double sure we want all the modules

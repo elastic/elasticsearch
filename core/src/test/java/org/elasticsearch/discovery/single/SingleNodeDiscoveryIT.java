@@ -124,7 +124,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                         .builder()
                         .put("discovery.type", "single-node")
                         .put("http.enabled", false)
-                        .put("transport.type", randomTestTransportKey())
+                        .put("transport.type", getTestTransportType())
                         /*
                          * We align the port ranges of the two as then with zen discovery these two
                          * nodes would find each other.
@@ -151,7 +151,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                         0,
                         false,
                         "other",
-                        Collections.singletonList(randomTestTransportPlugin()),
+                        Collections.singletonList(getTestTransportPlugin()),
                         Function.identity())) {
             other.beforeTest(random(), 0);
             final ClusterState first = internalCluster().getInstance(ClusterService.class).state();

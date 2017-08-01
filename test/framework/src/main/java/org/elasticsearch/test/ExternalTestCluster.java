@@ -46,7 +46,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.test.ESTestCase.randomTestTransportKey;
+import static org.elasticsearch.test.ESTestCase.getTestTransportType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
@@ -82,7 +82,7 @@ public final class ExternalTestCluster extends TestCluster {
         boolean addMockTcpTransport = additionalSettings.get(NetworkModule.TRANSPORT_TYPE_KEY) == null;
 
         if (addMockTcpTransport) {
-            String transport = randomTestTransportKey();
+            String transport = getTestTransportType();
             clientSettingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, transport);
             if (pluginClasses.contains(MockTcpTransportPlugin.class) == false &&
                 pluginClasses.contains(NioTransportPlugin.class) == false) {

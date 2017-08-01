@@ -137,7 +137,7 @@ import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_M
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.elasticsearch.test.ESTestCase.randomTestTransportKey;
+import static org.elasticsearch.test.ESTestCase.getTestTransportType;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -976,7 +976,7 @@ public final class InternalTestCluster extends TestCluster {
             if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
                 builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), NetworkModule.TRANSPORT_TYPE_SETTING.get(settings));
             } else {
-                builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), randomTestTransportKey());
+                builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), getTestTransportType());
             }
             TransportClient client = new MockTransportClient(builder.build(), plugins);
             client.addTransportAddress(addr);

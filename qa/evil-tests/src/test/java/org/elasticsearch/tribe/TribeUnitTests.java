@@ -63,12 +63,12 @@ public class TribeUnitTests extends ESTestCase {
     public static void createTribes() throws NodeValidationException {
         Settings baseSettings = Settings.builder()
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-            .put("transport.type", randomTestTransportKey())
+            .put("transport.type", getTestTransportType())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
             .build();
 
-        classpathPlugins = Arrays.asList(TribeAwareTestZenDiscoveryPlugin.class, MockTribePlugin.class, randomTestTransportPlugin());
+        classpathPlugins = Arrays.asList(TribeAwareTestZenDiscoveryPlugin.class, MockTribePlugin.class, getTestTransportPlugin());
 
         tribe1 = new MockNode(
             Settings.builder()
@@ -130,9 +130,9 @@ public class TribeUnitTests extends ESTestCase {
     private static void assertTribeNodeSuccessfullyCreated(Path configPath) throws Exception {
         // the tribe clients do need it to make sure they can find their corresponding tribes using the proper transport
         Settings settings = Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).put("node.name", "tribe_node")
-                .put("transport.type", randomTestTransportKey())
-                .put("tribe.t1.transport.type", randomTestTransportKey())
-                .put("tribe.t2.transport.type", randomTestTransportKey())
+                .put("transport.type", getTestTransportType())
+                .put("tribe.t1.transport.type", getTestTransportType())
+                .put("tribe.t2.transport.type", getTestTransportType())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
 

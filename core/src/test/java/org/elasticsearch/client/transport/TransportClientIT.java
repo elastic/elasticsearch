@@ -61,11 +61,11 @@ public class TransportClientIT extends ESIntegTestCase {
                 .put(internalCluster().getDefaultSettings())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("node.name", "testNodeVersionIsUpdated")
-                .put("transport.type", randomTestTransportKey())
+                .put("transport.type", getTestTransportType())
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put("cluster.name", "foobar")
-                .build(), Arrays.asList(randomTestTransportPlugin(), TestZenDiscovery.TestPlugin.class)).start()) {
+                .build(), Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class)).start()) {
             TransportAddress transportAddress = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
             client.addTransportAddress(transportAddress);
             // since we force transport clients there has to be one node started that we connect to.
@@ -94,7 +94,7 @@ public class TransportClientIT extends ESIntegTestCase {
     }
 
     public void testThatTransportClientSettingCannotBeChanged() {
-        String transport = randomTestTransportKey();
+        String transport = getTestTransportType();
         Settings baseSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), transport)

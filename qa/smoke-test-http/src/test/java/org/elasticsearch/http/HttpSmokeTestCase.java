@@ -39,9 +39,9 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
     @SuppressWarnings("unchecked")
     @BeforeClass
     public static void setUpTransport() {
-        nodeTransportTypeKey = getTypeKey(randomFrom(randomTestTransportPlugin(), Netty4Plugin.class));
+        nodeTransportTypeKey = getTypeKey(randomFrom(getTestTransportPlugin(), Netty4Plugin.class));
         nodeHttpTypeKey = getTypeKey(Netty4Plugin.class);
-        clientTypeKey = getTypeKey(randomFrom(randomTestTransportPlugin(), Netty4Plugin.class));
+        clientTypeKey = getTypeKey(randomFrom(getTestTransportPlugin(), Netty4Plugin.class));
     }
 
     private static String getTypeKey(Class<? extends Plugin> clazz) {
@@ -66,12 +66,12 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(randomTestTransportPlugin(), Netty4Plugin.class);
+        return Arrays.asList(getTestTransportPlugin(), Netty4Plugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(randomTestTransportPlugin(), Netty4Plugin.class);
+        return Arrays.asList(getTestTransportPlugin(), Netty4Plugin.class);
     }
 
     @Override

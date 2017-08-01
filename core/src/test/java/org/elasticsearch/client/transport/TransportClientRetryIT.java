@@ -50,7 +50,7 @@ public class TransportClientRetryIT extends ESIntegTestCase {
             addresses[i++] = instance.boundAddress().publishAddress();
         }
 
-        String transport = randomTestTransportKey();
+        String transport = getTestTransportType();
 
         Settings.Builder builder = Settings.builder().put("client.transport.nodes_sampler_interval", "1s")
                 .put("node.name", "transport_client_retry_test")

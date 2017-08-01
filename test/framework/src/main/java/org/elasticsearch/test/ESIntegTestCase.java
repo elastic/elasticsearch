@@ -1805,8 +1805,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             ArrayList<Class<? extends Plugin>> mocks = new ArrayList<>(mockPlugins);
             // add both mock plugins - local and tcp if they are not there
             // we do this in case somebody overrides getMockPlugins and misses to call super
-            if (mockPlugins.contains(randomTestTransportPlugin()) == false) {
-                mocks.add(randomTestTransportPlugin());
+            if (mockPlugins.contains(getTestTransportPlugin()) == false) {
+                mocks.add(getTestTransportPlugin());
             }
             mockPlugins = mocks;
         }
@@ -1819,7 +1819,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected NodeConfigurationSource getNodeConfigSource() {
         Settings.Builder networkSettings = Settings.builder();
         if (addMockTransportService()) {
-            networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, randomTestTransportKey());
+            networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
         }
 
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
@@ -1850,9 +1850,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             @Override
             public Collection<Class<? extends Plugin>> transportClientPlugins() {
                 Collection<Class<? extends Plugin>> plugins = ESIntegTestCase.this.transportClientPlugins();
-                if (plugins.contains(randomTestTransportPlugin()) == false) {
+                if (plugins.contains(getTestTransportPlugin()) == false) {
                     plugins = new ArrayList<>(plugins);
-                    plugins.add(randomTestTransportPlugin());
+                    plugins.add(getTestTransportPlugin());
                 }
                 return Collections.unmodifiableCollection(plugins);
             }
@@ -1910,7 +1910,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
 
         if (addMockTransportService()) {
-            mocks.add(randomTestTransportPlugin());
+            mocks.add(getTestTransportPlugin());
         }
 
         if (addTestZenDiscovery()) {

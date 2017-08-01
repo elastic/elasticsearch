@@ -40,11 +40,11 @@ public class MockNodeTests extends ESTestCase {
     public void testComponentsMockedByMarkerPlugins() throws IOException {
         Settings settings = Settings.builder() // All these are required or MockNode will fail to build.
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put("transport.type", randomTestTransportKey())
+                .put("transport.type", getTestTransportType())
                 .put("http.enabled", false)
                 .build();
         List<Class<? extends Plugin>> plugins = new ArrayList<>();
-        plugins.add(randomTestTransportPlugin());
+        plugins.add(getTestTransportPlugin());
         boolean useMockBigArrays = randomBoolean();
         boolean useMockSearchService = randomBoolean();
         if (useMockBigArrays) {

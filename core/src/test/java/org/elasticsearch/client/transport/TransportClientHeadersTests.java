@@ -80,7 +80,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
         transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null);
         transportService.start();
         transportService.acceptIncomingRequests();
-        String transport = randomTestTransportKey();
+        String transport = getTestTransportType();
         TransportClient client = new MockTransportClient(Settings.builder()
                 .put("client.transport.sniff", false)
                 .put("cluster.name", "cluster1")
@@ -97,7 +97,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
     }
 
     public void testWithSniffing() throws Exception {
-        String transport = randomTestTransportKey();
+        String transport = getTestTransportType();
         try (TransportClient client = new MockTransportClient(
                 Settings.builder()
                         .put("client.transport.sniff", true)

@@ -901,11 +901,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         return useNio.get();
     }
 
-    public static String randomTestTransportKey() {
+    public static String getTestTransportType() {
         return getUseNio() ? NioTransportPlugin.NIO_TRANSPORT_NAME : MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
     }
 
-    public static Class<? extends Plugin> randomTestTransportPlugin() {
+    public static Class<? extends Plugin> getTestTransportPlugin() {
         return getUseNio() ? NioTransportPlugin.class : MockTcpTransportPlugin.class;
     }
 

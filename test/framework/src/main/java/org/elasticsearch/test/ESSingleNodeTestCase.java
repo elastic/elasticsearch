@@ -173,15 +173,15 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 1000)
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-            .put("transport.type", randomTestTransportKey())
+            .put("transport.type", getTestTransportType())
             .put(Node.NODE_DATA_SETTING.getKey(), true)
             .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
         Collection<Class<? extends Plugin>> plugins = getPlugins();
-        if (plugins.contains(randomTestTransportPlugin()) == false) {
+        if (plugins.contains(getTestTransportPlugin()) == false) {
             plugins = new ArrayList<>(plugins);
-            plugins.add(randomTestTransportPlugin());
+            plugins.add(getTestTransportPlugin());
         }
         if (plugins.contains(TestZenDiscovery.TestPlugin.class) == false) {
             plugins = new ArrayList<>(plugins);

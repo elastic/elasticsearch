@@ -290,7 +290,7 @@ public class TribeIntegrationTests extends ESIntegTestCase {
         settings.put(Node.NODE_MASTER_SETTING.getKey(), false);
         settings.put(Node.NODE_INGEST_SETTING.getKey(), false);
         settings.put(NetworkModule.HTTP_ENABLED.getKey(), false);
-        settings.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), randomTestTransportKey());
+        settings.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), getTestTransportType());
         // add dummy tribe setting so that node is always identifiable as tribe in this test even if the set of connecting cluster is empty
         settings.put(TribeService.BLOCKS_WRITE_SETTING.getKey(), TribeService.BLOCKS_WRITE_SETTING.getDefault(Settings.EMPTY));
 
@@ -298,7 +298,7 @@ public class TribeIntegrationTests extends ESIntegTestCase {
             String tribeSetting = "tribe." + c.getClusterName() + ".";
             settings.put(tribeSetting + ClusterName.CLUSTER_NAME_SETTING.getKey(), c.getClusterName());
             settings.put(tribeSetting + DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "100ms");
-            settings.put(tribeSetting + NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), randomTestTransportKey());
+            settings.put(tribeSetting + NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), getTestTransportType());
         });
 
         return settings;

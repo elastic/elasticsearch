@@ -185,7 +185,7 @@ public class TribeServiceTests extends ESTestCase {
 
     public static class MockTribePlugin extends TribePlugin {
 
-        static List<Class<? extends Plugin>> classpathPlugins = Arrays.asList(MockTribePlugin.class, randomTestTransportPlugin());
+        static List<Class<? extends Plugin>> classpathPlugins = Arrays.asList(MockTribePlugin.class, getTestTransportPlugin());
 
         public MockTribePlugin(Settings settings) {
             super(settings);
@@ -203,14 +203,14 @@ public class TribeServiceTests extends ESTestCase {
             .put("node.name", "test-node")
             .put("path.home", tempDir)
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-            .put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), randomTestTransportKey());
+            .put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), getTestTransportType());
 
         final boolean tribeServiceEnable = randomBoolean();
         if (tribeServiceEnable) {
             String clusterName = "single-node-cluster";
             String tribeSetting = "tribe." + clusterName + ".";
             settings.put(tribeSetting + ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName)
-                .put(tribeSetting + NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), randomTestTransportKey());
+                .put(tribeSetting + NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), getTestTransportType());
         }
         try (Node node = new MockNode(settings.build(), MockTribePlugin.classpathPlugins)) {
             if (tribeServiceEnable) {

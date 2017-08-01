@@ -20,6 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
+
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.SecureSM;
 import org.elasticsearch.common.Booleans;
@@ -52,6 +53,7 @@ import java.util.Properties;
 import java.util.Set;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
+import static java.util.stream.Collectors.toList;
 
 /**
  * Initializes natives and installs test security manager
@@ -116,10 +118,27 @@ public class BootstrapForTesting {
                     // in case we get fancy and use the -integration goals later:
                     perms.add(new FilePermission(coverageDir.resolve("jacoco-it.exec").toString(), "read,write"));
                 }
-                // intellij hack: intellij test runner wants setIO and will
-                // screw up all test logging without it!
+
+                Set<URL> codebases = JarHell.parseClassPath();
+                Map<String, URL> shortNameToCodebases = Security.resolveShortNames(
+                        codebases.stream().filter(url -> url.getPath().endsWith(".jar")).collect(toList()));
                 if (System.getProperty("tests.gradle") == null) {
+                    // intellij hack: intellij test runner wants setIO and will
+                    // screw up all test logging without it!
                     perms.add(new RuntimePermission("setIO"));
+
+                    /* If we are running in Eclipse then assign the build-eclipse directory
+                     * the permissions of the we would assign to the built jar.*/
+                    Path client = PathUtils.get("elasticsearch", "client", "rest", "src", "main", "build-eclipse", "1");
+                    for (URL url : codebases) {
+                        if (PathUtils.get(url.toURI()).endsWith(client)) {
+                            URL previous = shortNameToCodebases.put("elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT-nodeps.jar", url);
+                            if (previous != null) {
+                                throw new IllegalStateException("attempted to add client but was already added!");
+                            }
+                            break;
+                        }
+                    }
                 }
 
                 // add bind permissions for testing
@@ -131,8 +150,9 @@ public class BootstrapForTesting {
                 perms.add(new SocketPermission("localhost:1024-", "listen,resolve"));
 
                 // read test-framework permissions
-                final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), JarHell.parseClassPath());
-                final Policy esPolicy = new ESPolicy(perms, getPluginPermissions(), true);
+                final Policy testFramework = Security.readPolicy(
+                        Bootstrap.class.getResource("test-framework.policy"), shortNameToCodebases);
+                final Policy esPolicy = new ESPolicy(perms, getPluginPermissions(shortNameToCodebases), true, shortNameToCodebases);
                 Policy.setPolicy(new Policy() {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {
@@ -166,7 +186,7 @@ public class BootstrapForTesting {
      * like core, test-framework, etc. this way tests fail if accesscontroller blocks are missing.
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
-    static Map<String,Policy> getPluginPermissions() throws Exception {
+    static Map<String,Policy> getPluginPermissions(Map<String, URL> shortNameToCodebases) throws Exception {
         List<URL> pluginPolicies = Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.ES_PLUGIN_POLICY));
         if (pluginPolicies.isEmpty()) {
             return Collections.emptyMap();
@@ -191,7 +211,7 @@ public class BootstrapForTesting {
         // parse each policy file, with codebase substitution from the classpath
         final List<Policy> policies = new ArrayList<>(pluginPolicies.size());
         for (URL policyFile : pluginPolicies) {
-            policies.add(Security.readPolicy(policyFile, codebases));
+            policies.add(Security.readPolicy(policyFile, shortNameToCodebases));
         }
 
         // consult each policy file for those codebases

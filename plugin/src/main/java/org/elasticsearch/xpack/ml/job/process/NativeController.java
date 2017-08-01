@@ -101,6 +101,10 @@ public class NativeController {
     }
 
     public void startProcess(List<String> command) throws IOException {
+        if (command.isEmpty()) {
+            throw new IllegalArgumentException("Cannot start process: no command supplied");
+        }
+
         // Sanity check to avoid hard-to-debug errors - tabs and newlines will confuse the controller process
         for (String arg : command) {
             if (arg.contains("\t")) {
@@ -109,6 +113,12 @@ public class NativeController {
             if (arg.contains("\n")) {
                 throw new IllegalArgumentException("argument contains a newline character: " + arg + " in " + command);
             }
+        }
+
+        if (cppLogHandler.hasLogStreamEnded()) {
+            String msg = "Cannot start process [" + command.get(0) + "]: native controller process has stopped";
+            LOGGER.error(msg);
+            throw new ElasticsearchException(msg);
         }
 
         synchronized (commandStream) {
@@ -129,6 +139,12 @@ public class NativeController {
         }
         if (pid == getPid()) {
             throw new IllegalArgumentException("native controller will not kill self: " + pid);
+        }
+
+        if (cppLogHandler.hasLogStreamEnded()) {
+            String msg = "Cannot kill process with PID [" + pid + "]: native controller process has stopped";
+            LOGGER.error(msg);
+            throw new ElasticsearchException(msg);
         }
 
         synchronized (commandStream) {

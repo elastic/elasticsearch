@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.ssl.VerificationMode;
 
+import javax.crypto.Cipher;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -84,10 +86,29 @@ public class XPackSettings {
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
      * but instead parse based on a prefix (eg *.ssl.*)
      */
-    public static final List<String> DEFAULT_CIPHERS =
-            Arrays.asList("TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
-                    "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA", "TLS_RSA_WITH_AES_128_CBC_SHA256",
-                    "TLS_RSA_WITH_AES_128_CBC_SHA");
+    public static final List<String> DEFAULT_CIPHERS;
+
+    static {
+        List<String> ciphers = Arrays.asList("TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
+                "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA", "TLS_RSA_WITH_AES_128_CBC_SHA256",
+                "TLS_RSA_WITH_AES_128_CBC_SHA");
+        try {
+            final boolean use256Bit = Cipher.getMaxAllowedKeyLength("AES") > 128;
+            if (use256Bit) {
+                List<String> strongerCiphers = new ArrayList<>(ciphers.size() * 2);
+                strongerCiphers.addAll(Arrays.asList("TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
+                        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384", "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+                        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA", "TLS_RSA_WITH_AES_256_CBC_SHA256", "TLS_RSA_WITH_AES_256_CBC_SHA"));
+                strongerCiphers.addAll(ciphers);
+                ciphers = strongerCiphers;
+            }
+        } catch (NoSuchAlgorithmException e) {
+            // ignore it here - there will be issues elsewhere and its not nice to throw in a static initializer
+        }
+
+        DEFAULT_CIPHERS = ciphers;
+    }
+
     public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.2", "TLSv1.1", "TLSv1");
     public static final SSLClientAuth CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;
     public static final SSLClientAuth HTTP_CLIENT_AUTH_DEFAULT = SSLClientAuth.NONE;

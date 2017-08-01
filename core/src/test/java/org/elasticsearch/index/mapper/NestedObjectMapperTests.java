@@ -226,6 +226,9 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.docs().get(6).get("field"), equalTo("value"));
         assertThat(doc.docs().get(6).get("nested1.field1"), nullValue());
         assertThat(doc.docs().get(6).get("nested1.nested2.field2"), nullValue());
+
+        assertWarnings("[include_in_parent] is deprecated, you should use [copy_to] to copy to a field that belongs to the parent " +
+                "document");
     }
 
     public void testMultiObjectAndNested2() throws Exception {
@@ -278,6 +281,9 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.docs().get(6).get("field"), equalTo("value"));
         assertThat(doc.docs().get(6).getFields("nested1.field1").length, equalTo(2));
         assertThat(doc.docs().get(6).getFields("nested1.nested2.field2").length, equalTo(4));
+
+        assertWarnings("[include_in_parent] is deprecated, you should use [copy_to] to copy to a field that belongs to the parent " +
+                "document");
     }
 
     public void testMultiRootAndNested1() throws Exception {
@@ -330,6 +336,9 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.docs().get(6).get("field"), equalTo("value"));
         assertThat(doc.docs().get(6).get("nested1.field1"), nullValue());
         assertThat(doc.docs().get(6).getFields("nested1.nested2.field2").length, equalTo(4));
+
+        assertWarnings("[include_in_root] is deprecated, you should use [copy_to] to copy to a field that belongs to the root " +
+                "document");
     }
 
     public void testNestedArrayStrict() throws Exception {

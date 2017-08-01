@@ -27,6 +27,8 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,6 +48,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public static final String CONTENT_TYPE = "object";
     public static final String NESTED_CONTENT_TYPE = "nested";
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
+            Loggers.getLogger(ObjectMapper.class));
 
     public static class Defaults {
         public static final boolean ENABLED = true;
@@ -222,15 +226,27 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     throw new MapperParsingException("Trying to parse an object but has a different type [" + type + "] for [" + name + "]");
                 }
             }
-            fieldNode = node.get("include_in_parent");
+            fieldNode = node.remove("include_in_parent");
             if (fieldNode != null) {
+                if (false/*parserContext.indexVersionCreated().onOrAfter(Version.V_7_0_0)*/) {
+                    throw new MapperParsingException("[include_in_parent] is now forbidden, you should use [copy_to] to copy to a field " +
+                            "that belongs to the parent document");
+                } else if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
+                    DEPRECATION_LOGGER.deprecated("[include_in_parent] is deprecated, you should use [copy_to] to copy to a field that " +
+                            "belongs to the parent document");
+                }
                 nestedIncludeInParent = TypeParsers.nodeBooleanValue(name, "include_in_parent", fieldNode, parserContext);
-                node.remove("include_in_parent");
             }
-            fieldNode = node.get("include_in_root");
+            fieldNode = node.remove("include_in_root");
             if (fieldNode != null) {
+                if (false/*parserContext.indexVersionCreated().onOrAfter(Version.V_7_0_0)*/) {
+                    throw new MapperParsingException("[include_in_root] is now forbidden, you should use [copy_to] to copy to a field " +
+                            "that belongs to the root document");
+                } else if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
+                    DEPRECATION_LOGGER.deprecated("[include_in_root] is deprecated, you should use [copy_to] to copy to a field that " +
+                            "belongs to the root document");
+                }
                 nestedIncludeInRoot = TypeParsers.nodeBooleanValue(name, "include_in_root", fieldNode, parserContext);
-                node.remove("include_in_root");
             }
             if (nested) {
                 builder.nested = Nested.newNested(nestedIncludeInParent, nestedIncludeInRoot);

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
+import org.hamcrest.Matcher;
 
 import java.util.HashMap;
 import java.util.List;
@@ -234,5 +235,9 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
                     fail("there should not be an action result for action with an id other than a1 or a2");
             }
         }
+    }
+
+    private static void assertValue(Map<String, Object> map, String path, Matcher<?> matcher) {
+        assertThat(ObjectPath.eval(path, map), (Matcher<Object>) matcher);
     }
 }

@@ -10,21 +10,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.watch.Payload;
-import org.junit.After;
 
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -32,9 +31,7 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
-import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.createScriptService;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
-import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.simplePayload;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -47,13 +44,6 @@ import static org.mockito.Mockito.when;
 
 public class ScriptTransformTests extends ESTestCase {
 
-    private final ThreadPool tp = new TestThreadPool(ThreadPool.Names.SAME);
-
-    @After
-    public void cleanup() {
-        tp.shutdownNow();
-    }
-
     public void testExecuteMapValue() throws Exception {
         ScriptService service = mock(ScriptService.class);
         ScriptType type = randomFrom(ScriptType.values());
@@ -65,7 +55,7 @@ public class ScriptTransformTests extends ESTestCase {
 
         WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
 
-        Payload payload = simplePayload("key", "value");
+        Payload payload = new Payload.Simple("key", "value");
 
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 
@@ -93,7 +83,7 @@ public class ScriptTransformTests extends ESTestCase {
 
         WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
 
-        Payload payload = simplePayload("key", "value");
+        Payload payload = new Payload.Simple("key", "value");
 
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 
@@ -119,7 +109,7 @@ public class ScriptTransformTests extends ESTestCase {
 
         WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
 
-        Payload payload = simplePayload("key", "value");
+        Payload payload = new Payload.Simple("key", "value");
 
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 
@@ -185,7 +175,7 @@ public class ScriptTransformTests extends ESTestCase {
     }
 
     public void testScriptConditionParserBadLang() throws Exception {
-        ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.builder().build(), createScriptService(tp));
+        ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.builder().build(), createScriptService());
         String script = "return true";
         XContentBuilder builder = jsonBuilder().startObject()
                 .field(scriptTypeField(ScriptType.INLINE), script)
@@ -208,5 +198,15 @@ public class ScriptTransformTests extends ESTestCase {
             default:
                 throw illegalArgument("unsupported script type [{}]", type);
         }
+    }
+
+    public static ScriptService createScriptService() throws Exception {
+        Settings settings = Settings.builder()
+                .put("path.home", createTempDir())
+                .build();
+        Map<String, ScriptContext> contexts = new HashMap<>(ScriptModule.CORE_CONTEXTS);
+        contexts.put(Watcher.SCRIPT_EXECUTABLE_CONTEXT.name, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
+        contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
+        return new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());
     }
 }

@@ -142,15 +142,14 @@ public class GeoIpProcessorTests extends ESTestCase {
             new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false);
 
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field", "93.114.45.13");
+        document.put("source_field", "193.150.120.33");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("93.114.45.13"));
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("193.150.120.33"));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
-        assertThat(geoData.size(), equalTo(1));
-        assertThat(geoData.get("ip"), equalTo("93.114.45.13"));
+        assertNull(geoData);
     }
 
     public void testCountry() throws Exception {
@@ -179,15 +178,14 @@ public class GeoIpProcessorTests extends ESTestCase {
             new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false);
 
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field", "93.114.45.13");
+        document.put("source_field", "193.150.120.33");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("93.114.45.13"));
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("193.150.120.33"));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
-        assertThat(geoData.size(), equalTo(1));
-        assertThat(geoData.get("ip"), equalTo("93.114.45.13"));
+        assertNull(geoData);
     }
 
     public void testAddressIsNotInTheDatabase() throws Exception {

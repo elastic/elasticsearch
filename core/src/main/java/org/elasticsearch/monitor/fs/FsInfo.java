@@ -19,6 +19,8 @@
 
 package org.elasticsearch.monitor.fs;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,10 +49,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         long free = -1;
         long available = -1;
 
-        /** Uses Lucene's {@code IOUtils.spins} method to try to determine if the device backed by spinning media.
-         *  This is null if we could not determine it, true if it possibly spins, else false. */
-        Boolean spins = null;
-
         public Path() {
         }
 
@@ -72,7 +70,9 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
             total = in.readLong();
             free = in.readLong();
             available = in.readLong();
-            spins = in.readOptionalBoolean();
+            if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
+                in.readOptionalBoolean();
+            }
         }
 
         @Override
@@ -83,7 +83,9 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
             out.writeLong(total);
             out.writeLong(free);
             out.writeLong(available);
-            out.writeOptionalBoolean(spins);
+            if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
+                out.writeOptionalBoolean(null);
+            }
         }
 
         public String getPath() {
@@ -110,10 +112,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
             return new ByteSizeValue(available);
         }
 
-        public Boolean getSpins() {
-            return spins;
-        }
-
         private long addLong(long current, long other) {
             if (other == -1) {
                 return current;
@@ -135,13 +133,9 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         }
 
         public void add(Path path) {
-            total = addLong(total, path.total);
-            free = addLong(free, path.free);
-            available = addLong(available, path.available);
-            if (path.spins != null && path.spins.booleanValue()) {
-                // Spinning is contagious!
-                spins = Boolean.TRUE;
-            }
+            total = FsProbe.adjustForHugeFilesystems(addLong(total, path.total));
+            free = FsProbe.adjustForHugeFilesystems(addLong(free, path.free));
+            available = FsProbe.adjustForHugeFilesystems(addLong(available, path.available));
         }
 
         static final class Fields {
@@ -154,7 +148,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
             static final String FREE_IN_BYTES = "free_in_bytes";
             static final String AVAILABLE = "available";
             static final String AVAILABLE_IN_BYTES = "available_in_bytes";
-            static final String SPINS = "spins";
         }
 
         @Override
@@ -178,9 +171,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
             }
             if (available != -1) {
                 builder.byteSizeField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, available);
-            }
-            if (spins != null) {
-                builder.field(Fields.SPINS, spins.toString());
             }
 
             builder.endObject();
@@ -438,12 +428,20 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
     private final Path[] paths;
     private final IoStats ioStats;
     private final Path total;
+    private final DiskUsage leastDiskEstimate;
+    private final DiskUsage mostDiskEstimate;
 
     public FsInfo(long timestamp, IoStats ioStats, Path[] paths) {
+        this(timestamp, ioStats, paths, null, null);
+    }
+
+    public FsInfo(long timestamp, IoStats ioStats, Path[] paths, @Nullable DiskUsage leastUsage, @Nullable DiskUsage mostUsage) {
         this.timestamp = timestamp;
         this.ioStats = ioStats;
         this.paths = paths;
         this.total = total();
+        this.leastDiskEstimate = leastUsage;
+        this.mostDiskEstimate = mostUsage;
     }
 
     /**
@@ -457,6 +455,13 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
             paths[i] = new Path(in);
         }
         this.total = total();
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+            this.leastDiskEstimate = in.readOptionalWriteable(DiskUsage::new);
+            this.mostDiskEstimate = in.readOptionalWriteable(DiskUsage::new);
+        } else {
+            this.leastDiskEstimate = null;
+            this.mostDiskEstimate = null;
+        }
     }
 
     @Override
@@ -467,10 +472,24 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         for (Path path : paths) {
             path.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+            out.writeOptionalWriteable(this.leastDiskEstimate);
+            out.writeOptionalWriteable(this.mostDiskEstimate);
+        }
     }
 
     public Path getTotal() {
         return total;
+    }
+
+    @Nullable
+    public DiskUsage getLeastDiskEstimate() {
+        return this.leastDiskEstimate;
+    }
+
+    @Nullable
+    public DiskUsage getMostDiskEstimate() {
+        return this.mostDiskEstimate;
     }
 
     private Path total() {
@@ -506,6 +525,27 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         builder.field(Fields.TIMESTAMP, timestamp);
         builder.field(Fields.TOTAL);
         total().toXContent(builder, params);
+        if (leastDiskEstimate != null) {
+            builder.startObject(Fields.LEAST_ESTIMATE);
+            {
+                builder.field(Fields.PATH, leastDiskEstimate.getPath());
+                builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, leastDiskEstimate.getTotalBytes());
+                builder.byteSizeField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, leastDiskEstimate.getFreeBytes());
+                builder.field(Fields.USAGE_PERCENTAGE, leastDiskEstimate.getUsedDiskAsPercentage());
+            }
+            builder.endObject();
+        }
+
+        if (mostDiskEstimate != null) {
+            builder.startObject(Fields.MOST_ESTIMATE);
+            {
+                builder.field(Fields.PATH, mostDiskEstimate.getPath());
+                builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, mostDiskEstimate.getTotalBytes());
+                builder.byteSizeField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, mostDiskEstimate.getFreeBytes());
+                builder.field(Fields.USAGE_PERCENTAGE, mostDiskEstimate.getUsedDiskAsPercentage());
+            }
+            builder.endObject();
+        }
         builder.startArray(Fields.DATA);
         for (Path path : paths) {
             path.toXContent(builder, params);
@@ -525,6 +565,13 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         static final String TIMESTAMP = "timestamp";
         static final String DATA = "data";
         static final String TOTAL = "total";
+        static final String TOTAL_IN_BYTES = "total_in_bytes";
         static final String IO_STATS = "io_stats";
+        static final String LEAST_ESTIMATE = "least_usage_estimate";
+        static final String MOST_ESTIMATE = "most_usage_estimate";
+        static final String USAGE_PERCENTAGE = "used_disk_percent";
+        static final String AVAILABLE = "available";
+        static final String AVAILABLE_IN_BYTES = "available_in_bytes";
+        static final String PATH = "path";
     }
 }

@@ -20,8 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -31,6 +29,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public abstract class Mapper implements ToXContent, Iterable<Mapper> {
 
@@ -91,21 +90,18 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
 
             private final Version indexVersionCreated;
 
-            private final ParseFieldMatcher parseFieldMatcher;
-
-            private final QueryShardContext queryShardContext;
+            private final Supplier<QueryShardContext> queryShardContextSupplier;
 
             public ParserContext(String type, IndexAnalyzers indexAnalyzers, Function<String, SimilarityProvider> similarityLookupService,
                                  MapperService mapperService, Function<String, TypeParser> typeParsers,
-                                 Version indexVersionCreated, ParseFieldMatcher parseFieldMatcher, QueryShardContext queryShardContext) {
+                                 Version indexVersionCreated, Supplier<QueryShardContext> queryShardContextSupplier) {
                 this.type = type;
                 this.indexAnalyzers = indexAnalyzers;
                 this.similarityLookupService = similarityLookupService;
                 this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
                 this.indexVersionCreated = indexVersionCreated;
-                this.parseFieldMatcher = parseFieldMatcher;
-                this.queryShardContext = queryShardContext;
+                this.queryShardContextSupplier = queryShardContextSupplier;
             }
 
             public String type() {
@@ -132,12 +128,8 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
                 return indexVersionCreated;
             }
 
-            public ParseFieldMatcher parseFieldMatcher() {
-                return parseFieldMatcher;
-            }
-
-            public QueryShardContext queryShardContext() {
-                return queryShardContext;
+            public Supplier<QueryShardContext> queryShardContextSupplier() {
+                return queryShardContextSupplier;
             }
 
             public boolean isWithinMultiField() { return false; }
@@ -155,7 +147,8 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
 
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
-                    super(in.type(), in.indexAnalyzers, in.similarityLookupService(), in.mapperService(), in.typeParsers(), in.indexVersionCreated(), in.parseFieldMatcher(), in.queryShardContext());
+                    super(in.type(), in.indexAnalyzers, in.similarityLookupService(), in.mapperService(), in.typeParsers(),
+                            in.indexVersionCreated(), in.queryShardContextSupplier());
                 }
             }
 

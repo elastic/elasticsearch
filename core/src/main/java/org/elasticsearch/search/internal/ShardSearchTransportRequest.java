@@ -25,12 +25,13 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -54,10 +55,15 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     public ShardSearchTransportRequest(){
     }
 
-    public ShardSearchTransportRequest(SearchRequest searchRequest, ShardRouting shardRouting, int numberOfShards,
-                                       AliasFilter aliasFilter, long nowInMillis) {
-        this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardRouting, numberOfShards, aliasFilter, nowInMillis);
-        this.originalIndices = new OriginalIndices(searchRequest);
+    public ShardSearchTransportRequest(OriginalIndices originalIndices, SearchRequest searchRequest, ShardId shardId, int numberOfShards,
+                                       AliasFilter aliasFilter, float indexBoost, long nowInMillis, String clusterAlias) {
+        this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardId, numberOfShards, aliasFilter, indexBoost,
+            nowInMillis, clusterAlias);
+        this.originalIndices = originalIndices;
+    }
+
+    public void searchType(SearchType searchType) {
+        shardSearchLocalRequest.setSearchType(searchType);
     }
 
     @Override
@@ -76,7 +82,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
         return originalIndices.indicesOptions();
     }
 
-
     @Override
     public ShardId shardId() {
         return shardSearchLocalRequest.shardId();
@@ -90,6 +95,16 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     @Override
     public SearchSourceBuilder source() {
         return shardSearchLocalRequest.source();
+    }
+
+    @Override
+    public AliasFilter getAliasFilter() {
+        return shardSearchLocalRequest.getAliasFilter();
+    }
+
+    @Override
+    public void setAliasFilter(AliasFilter filter) {
+        shardSearchLocalRequest.setAliasFilter(filter);
     }
 
     @Override
@@ -108,8 +123,8 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public QueryBuilder filteringAliases() {
-        return shardSearchLocalRequest.filteringAliases();
+    public float indexBoost() {
+        return shardSearchLocalRequest.indexBoost();
     }
 
     @Override
@@ -133,6 +148,7 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
         shardSearchLocalRequest = new ShardSearchLocalRequest();
         shardSearchLocalRequest.innerReadFrom(in);
         originalIndices = OriginalIndices.readOriginalIndices(in);
+
     }
 
     @Override
@@ -158,12 +174,23 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public void rewrite(QueryShardContext context) throws IOException {
-        shardSearchLocalRequest.rewrite(context);
+    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        return new SearchTask(id, type, action, getDescription(), parentTaskId);
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-        return new SearchTask(id, type, action, getDescription(), parentTaskId);
+    public String getDescription() {
+        // Shard id is enough here, the request itself can be found by looking at the parent task description
+        return "shardId[" + shardSearchLocalRequest.shardId() + "]";
+    }
+
+    @Override
+    public String getClusterAlias() {
+        return shardSearchLocalRequest.getClusterAlias();
+    }
+
+    @Override
+    public Rewriteable<Rewriteable> getRewriteable() {
+        return shardSearchLocalRequest.getRewriteable();
     }
 }

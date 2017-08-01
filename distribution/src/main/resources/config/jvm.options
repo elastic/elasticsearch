@@ -39,9 +39,6 @@
 
 ## optimizations
 
-# disable calls to System#gc
--XX:+DisableExplicitGC
-
 # pre-touch memory pages used by the JVM during initialization
 -XX:+AlwaysPreTouch
 
@@ -49,6 +46,9 @@
 
 # force the server VM
 -server
+
+# explicitly set the stack size
+-Xss1m
 
 # set to headless, just in case
 -Djava.awt.headless=true
@@ -59,14 +59,21 @@
 # use our provided JNA always versus the system one
 -Djna.nosys=true
 
-# flags to keep Netty from being unsafe
+# turn off a JDK optimization that throws away stack traces for common
+# exceptions because stack traces are important for debugging
+-XX:-OmitStackTraceInFastThrow
+
+# use old-style file permissions on JDK9
+-Djdk.io.permissionsUseCanonicalPath=true
+
+# flags to configure Netty
 -Dio.netty.noUnsafe=true
 -Dio.netty.noKeySetOptimization=true
+-Dio.netty.recycler.maxCapacityPerThread=0
 
 # log4j 2
 -Dlog4j.shutdownHookEnabled=false
 -Dlog4j2.disable.jmx=true
--Dlog4j.skipJansi=true
 
 ## heap dumps
 
@@ -90,3 +97,10 @@
 # log GC status to a file with time stamps
 # ensure the directory exists
 #-Xloggc:${loggc}
+
+# By default, the GC log file will not rotate.
+# By uncommenting the lines below, the GC log file
+# will be rotated every 128MB at most 32 times.
+#-XX:+UseGCLogFileRotation
+#-XX:NumberOfGCLogFiles=32
+#-XX:GCLogFileSize=128M

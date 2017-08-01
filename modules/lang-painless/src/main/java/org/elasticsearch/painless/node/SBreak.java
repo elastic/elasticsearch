@@ -56,4 +56,9 @@ public final class SBreak extends AStatement {
     void write(MethodWriter writer, Globals globals) {
         writer.goTo(brake);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString();
+    }
 }

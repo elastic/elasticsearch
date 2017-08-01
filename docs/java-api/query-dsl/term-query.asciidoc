@@ -3,13 +3,9 @@
 
 See {ref}/query-dsl-term-query.html[Term Query]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = termQuery(
-    "name",    <1>
-    "kimchy"   <2>
-);
+include-tagged::{query-dsl-test}[term]
 --------------------------------------------------
 <1> field
 <2> text
-

@@ -23,12 +23,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,7 +37,7 @@ import java.util.Iterator;
 /**
  * A multi search response.
  */
-public class MultiSearchResponse extends ActionResponse implements Iterable<MultiSearchResponse.Item>, ToXContent {
+public class MultiSearchResponse extends ActionResponse implements Iterable<MultiSearchResponse.Item>, ToXContentObject {
 
     /**
      * A search response item, holding the actual search response, or an error message if it failed.
@@ -151,39 +151,31 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startArray(Fields.RESPONSES);
         for (Item item : items) {
             builder.startObject();
             if (item.isFailure()) {
-                ElasticsearchException.renderException(builder, params, item.getFailure());
+                ElasticsearchException.generateFailureXContent(builder, params, item.getFailure(), true);
                 builder.field(Fields.STATUS, ExceptionsHelper.status(item.getFailure()).getStatus());
             } else {
-                item.getResponse().toXContent(builder, params);
+                item.getResponse().innerToXContent(builder, params);
                 builder.field(Fields.STATUS, item.getResponse().status().getStatus());
             }
             builder.endObject();
         }
         builder.endArray();
+        builder.endObject();
         return builder;
     }
 
     static final class Fields {
         static final String RESPONSES = "responses";
         static final String STATUS = "status";
-        static final String ERROR = "error";
-        static final String ROOT_CAUSE = "root_cause";
     }
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return builder.string();
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
-        }
+        return Strings.toString(this);
     }
 }

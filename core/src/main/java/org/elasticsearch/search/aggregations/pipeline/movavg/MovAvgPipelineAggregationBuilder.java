@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -304,8 +303,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
 
     public static MovAvgPipelineAggregationBuilder parse(
             ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageMdelParserRegistry,
-            String pipelineAggregatorName, QueryParseContext context) throws IOException {
-        XContentParser parser = context.parser();
+            String pipelineAggregatorName, XContentParser parser) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;
@@ -322,13 +320,13 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (context.getParseFieldMatcher().match(currentFieldName, WINDOW)) {
+                if (WINDOW.match(currentFieldName)) {
                     window = parser.intValue();
                     if (window <= 0) {
                         throw new ParsingException(parser.getTokenLocation(), "[" + currentFieldName + "] value must be a positive, "
                                 + "non-zero integer.  Value supplied was [" + predict + "] in [" + pipelineAggregatorName + "].");
                     }
-                } else if (context.getParseFieldMatcher().match(currentFieldName, PREDICT)) {
+                } else if (PREDICT.match(currentFieldName)) {
                     predict = parser.intValue();
                     if (predict <= 0) {
                         throw new ParsingException(parser.getTokenLocation(), "[" + currentFieldName + "] value must be a positive integer."
@@ -339,20 +337,20 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
                             "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (context.getParseFieldMatcher().match(currentFieldName, FORMAT)) {
+                if (FORMAT.match(currentFieldName)) {
                     format = parser.text();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
+                } else if (BUCKETS_PATH.match(currentFieldName)) {
                     bucketsPaths = new String[] { parser.text() };
-                } else if (context.getParseFieldMatcher().match(currentFieldName, GAP_POLICY)) {
-                    gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, MODEL)) {
+                } else if (GAP_POLICY.match(currentFieldName)) {
+                    gapPolicy = GapPolicy.parse(parser.text(), parser.getTokenLocation());
+                } else if (MODEL.match(currentFieldName)) {
                     model = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
+                if (BUCKETS_PATH.match(currentFieldName)) {
                     List<String> paths = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String path = parser.text();
@@ -364,14 +362,14 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
                             "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (context.getParseFieldMatcher().match(currentFieldName, SETTINGS)) {
+                if (SETTINGS.match(currentFieldName)) {
                     settings = parser.map();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                if (context.getParseFieldMatcher().match(currentFieldName, MINIMIZE)) {
+                if (MINIMIZE.match(currentFieldName)) {
                     minimize = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -403,11 +401,10 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
             factory.predict(predict);
         }
         if (model != null) {
-            MovAvgModel.AbstractModelParser modelParser = movingAverageMdelParserRegistry.lookup(model, context.getParseFieldMatcher(),
-                    parser.getTokenLocation());
+            MovAvgModel.AbstractModelParser modelParser = movingAverageMdelParserRegistry.lookup(model, parser.getTokenLocation());
             MovAvgModel movAvgModel;
             try {
-                movAvgModel = modelParser.parse(settings, pipelineAggregatorName, factory.window(), context.getParseFieldMatcher());
+                movAvgModel = modelParser.parse(settings, pipelineAggregatorName, factory.window());
             } catch (ParseException exception) {
                 throw new ParsingException(parser.getTokenLocation(), "Could not parse settings for model [" + model + "].", exception);
             }

@@ -50,16 +50,4 @@ public class SimpleExecutableScript implements ExecutableScript {
             throw new IllegalArgumentException("Unsupported var [" + name + "]");
         }
     }
-
-    @Override
-    public Object unwrap(Object value) {
-        // Some script engines (javascript) copy any maps they unwrap
-        if (randomBoolean()) {
-            if (value instanceof Map) {
-                return new HashMap<>((Map<?, ?>) value);
-            }
-        }
-        // Others just return the objects plain (groovy, painless)
-        return value;
-    }
 }

@@ -94,4 +94,9 @@ public final class SIf extends AStatement {
 
         writer.mark(fals);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(condition, ifblock);
+    }
 }

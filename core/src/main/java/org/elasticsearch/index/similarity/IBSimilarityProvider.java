@@ -65,7 +65,7 @@ public class IBSimilarityProvider extends AbstractSimilarityProvider {
 
     private final IBSimilarity similarity;
 
-    public IBSimilarityProvider(String name, Settings settings) {
+    public IBSimilarityProvider(String name, Settings settings, Settings indexSettings) {
         super(name);
         Distribution distribution = parseDistribution(settings);
         Lambda lambda = parseLambda(settings);

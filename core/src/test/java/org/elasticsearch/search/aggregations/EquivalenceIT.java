@@ -383,7 +383,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                         terms("terms")
                                 .field("values")
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("floor(_value / interval)", ScriptType.INLINE, CustomScriptPlugin.NAME, params))
+                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "floor(_value / interval)", params))
                                 .size(maxNumTerms))
                 .addAggregation(
                         histogram("histo")
@@ -485,10 +485,10 @@ public class EquivalenceIT extends ESIntegTestCase {
     }
 
     private void assertEquals(Terms t1, Terms t2) {
-        List<Terms.Bucket> t1Buckets = t1.getBuckets();
-        List<Terms.Bucket> t2Buckets = t1.getBuckets();
+        List<? extends Terms.Bucket> t1Buckets = t1.getBuckets();
+        List<? extends Terms.Bucket> t2Buckets = t1.getBuckets();
         assertEquals(t1Buckets.size(), t2Buckets.size());
-        for (Iterator<Terms.Bucket> it1 = t1Buckets.iterator(), it2 = t2Buckets.iterator(); it1.hasNext(); ) {
+        for (Iterator<? extends Terms.Bucket> it1 = t1Buckets.iterator(), it2 = t2Buckets.iterator(); it1.hasNext(); ) {
             final Terms.Bucket b1 = it1.next();
             final Terms.Bucket b2 = it2.next();
             assertEquals(b1.getDocCount(), b2.getDocCount());

@@ -23,10 +23,13 @@ import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
+import java.util.Collection;
+
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkIndexByScrollResponse> {
+public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkByScrollResponse> {
 
     private Matcher<Long> createdMatcher = equalTo(0L);
     private Matcher<Long> updatedMatcher = equalTo(0L);
@@ -39,6 +42,7 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkIndexB
     private Matcher<Long> versionConflictsMatcher = equalTo(0L);
     private Matcher<Integer> failuresMatcher = equalTo(0);
     private Matcher<String> reasonCancelledMatcher = nullValue(String.class);
+    private Matcher<Collection<? extends BulkIndexByScrollResponseMatcher>> slicesMatcher = empty();
 
     public BulkIndexByScrollResponseMatcher created(Matcher<Long> createdMatcher) {
         this.createdMatcher = createdMatcher;
@@ -117,15 +121,24 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkIndexB
         return this;
     }
 
+    /**
+     * Set the matcher for the workers portion of the response.
+     */
+    public BulkIndexByScrollResponseMatcher slices(Matcher<Collection<? extends BulkIndexByScrollResponseMatcher>> slicesMatcher) {
+        this.slicesMatcher = slicesMatcher;
+        return this;
+    }
+
     @Override
-    protected boolean matchesSafely(BulkIndexByScrollResponse item) {
+    protected boolean matchesSafely(BulkByScrollResponse item) {
         return updatedMatcher.matches(item.getUpdated()) &&
                 createdMatcher.matches(item.getCreated()) &&
                 deletedMatcher.matches(item.getDeleted()) &&
                 (batchesMatcher == null || batchesMatcher.matches(item.getBatches())) &&
                 versionConflictsMatcher.matches(item.getVersionConflicts()) &&
                 failuresMatcher.matches(item.getBulkFailures().size()) &&
-                reasonCancelledMatcher.matches(item.getReasonCancelled());
+                reasonCancelledMatcher.matches(item.getReasonCancelled()) &&
+                slicesMatcher.matches(item.getStatus().getSliceStatuses());
     }
 
     @Override
@@ -139,5 +152,6 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkIndexB
         description.appendText(" and versionConflicts matches ").appendDescriptionOf(versionConflictsMatcher);
         description.appendText(" and failures size matches ").appendDescriptionOf(failuresMatcher);
         description.appendText(" and reason cancelled matches ").appendDescriptionOf(reasonCancelledMatcher);
+        description.appendText(" and slices matches ").appendDescriptionOf(slicesMatcher);
     }
 }

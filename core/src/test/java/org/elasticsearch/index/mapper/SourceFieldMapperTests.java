@@ -28,10 +28,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -54,30 +54,20 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(mapping));
-        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
+        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field", "value")
-                .endObject().bytes());
+                .endObject().bytes(),
+                XContentType.JSON));
 
         assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.JSON));
 
         documentMapper = parser.parse("type", new CompressedXContent(mapping));
-        doc = documentMapper.parse("test", "type", "1", XContentFactory.smileBuilder().startObject()
+        doc = documentMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.smileBuilder().startObject()
                 .field("field", "value")
-                .endObject().bytes());
+                .endObject().bytes(),
+                XContentType.JSON));
 
         assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.SMILE));
-    }
-
-    public void testFormatBackCompat() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_source").field("format", "json").endObject()
-                .endObject().endObject().string();
-        Settings settings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_2_0))
-                .build();
-
-        DocumentMapperParser parser = createIndex("test", settings).mapperService().documentMapperParser();
-        parser.parse("type", new CompressedXContent(mapping)); // no exception
     }
 
     public void testIncludes() throws Exception {
@@ -87,14 +77,15 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
+        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder().startObject()
             .startObject("path1").field("field1", "value1").endObject()
             .startObject("path2").field("field2", "value2").endObject()
-            .endObject().bytes());
+            .endObject().bytes(),
+            XContentType.JSON));
 
         IndexableField sourceField = doc.rootDoc().getField("_source");
         Map<String, Object> sourceAsMap;
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(new BytesArray(sourceField.binaryValue()))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
             sourceAsMap = parser.map();
         }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(true));
@@ -108,14 +99,15 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = documentMapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
+        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder().startObject()
             .startObject("path1").field("field1", "value1").endObject()
             .startObject("path2").field("field2", "value2").endObject()
-            .endObject().bytes());
+            .endObject().bytes(),
+            XContentType.JSON));
 
         IndexableField sourceField = doc.rootDoc().getField("_source");
         Map<String, Object> sourceAsMap;
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(new BytesArray(sourceField.binaryValue()))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
             sourceAsMap = parser.map();
         }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(false));
@@ -159,7 +151,8 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("_source").field("enabled", true).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("my_type", new CompressedXContent(mapping), defaultMapping);
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("my_type", new CompressedXContent(mapping), defaultMapping);
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(true));
     }
@@ -169,7 +162,8 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
-        MapperService mapperService = createIndex("test").mapperService();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_6_0).build();
+        MapperService mapperService = createIndex("test", settings).mapperService();
         mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         DocumentMapper mapper = mapperService.documentMapperWithAutoCreate("my_type").getDocumentMapper();
@@ -182,7 +176,8 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
-        MapperService mapperService = createIndex("test").mapperService();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_6_0).build();
+        MapperService mapperService = createIndex("test", settings).mapperService();
         mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("my_type")
@@ -290,7 +285,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         try {
-            documentMapper.parse("test", "type", "1", new BytesArray("{}}")); // extra end object (invalid JSON)
+            documentMapper.parse(SourceToParse.source("test", "type", "1", new BytesArray("{}}"), XContentType.JSON)); // extra end object (invalid JSON)
             fail("Expected parse exception");
         } catch (MapperParsingException e) {
             assertNotNull(e.getRootCause());

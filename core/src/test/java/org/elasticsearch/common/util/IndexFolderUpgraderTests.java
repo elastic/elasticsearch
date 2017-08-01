@@ -29,6 +29,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaDataStateFormat;
@@ -67,14 +68,13 @@ public class IndexFolderUpgraderTests extends ESTestCase {
     public void testUpgradeCustomDataPath() throws IOException {
         Path customPath = createTempDir();
         final Settings nodeSettings = Settings.builder()
-            .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), randomBoolean())
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), customPath.toAbsolutePath().toString()).build();
         try (NodeEnvironment nodeEnv = newNodeEnvironment(nodeSettings)) {
-            final Index index = new Index(randomAsciiOfLength(10), UUIDs.randomBase64UUID());
+            final Index index = new Index(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
             Settings settings = Settings.builder()
                 .put(nodeSettings)
                 .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_0_0)
                 .put(IndexMetaData.SETTING_DATA_PATH, customPath.toAbsolutePath().toString())
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -96,14 +96,13 @@ public class IndexFolderUpgraderTests extends ESTestCase {
     public void testPartialUpgradeCustomDataPath() throws IOException {
         Path customPath = createTempDir();
         final Settings nodeSettings = Settings.builder()
-            .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), randomBoolean())
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), customPath.toAbsolutePath().toString()).build();
         try (NodeEnvironment nodeEnv = newNodeEnvironment(nodeSettings)) {
-            final Index index = new Index(randomAsciiOfLength(10), UUIDs.randomBase64UUID());
+            final Index index = new Index(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
             Settings settings = Settings.builder()
                 .put(nodeSettings)
                 .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_0_0)
                 .put(IndexMetaData.SETTING_DATA_PATH, customPath.toAbsolutePath().toString())
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -135,14 +134,13 @@ public class IndexFolderUpgraderTests extends ESTestCase {
     }
 
     public void testUpgrade() throws IOException {
-        final Settings nodeSettings = Settings.builder()
-            .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), randomBoolean()).build();
+        final Settings nodeSettings = Settings.EMPTY;
         try (NodeEnvironment nodeEnv = newNodeEnvironment(nodeSettings)) {
-            final Index index = new Index(randomAsciiOfLength(10), UUIDs.randomBase64UUID());
+            final Index index = new Index(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
             Settings settings = Settings.builder()
                 .put(nodeSettings)
                 .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_0_0)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
@@ -158,16 +156,15 @@ public class IndexFolderUpgraderTests extends ESTestCase {
     }
 
     public void testUpgradeIndices() throws IOException {
-        final Settings nodeSettings = Settings.builder()
-            .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), randomBoolean()).build();
+        final Settings nodeSettings = Settings.EMPTY;
         try (NodeEnvironment nodeEnv = newNodeEnvironment(nodeSettings)) {
             Map<IndexSettings, Tuple<Integer, Integer>>  indexSettingsMap = new HashMap<>();
             for (int i = 0; i < randomIntBetween(2, 5); i++) {
-                final Index index = new Index(randomAsciiOfLength(10), UUIDs.randomBase64UUID());
+                final Index index = new Index(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
                 Settings settings = Settings.builder()
                     .put(nodeSettings)
                     .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
-                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0)
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_0_0)
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                     .build();
@@ -211,11 +208,11 @@ public class IndexFolderUpgraderTests extends ESTestCase {
                 throw new IllegalStateException("Backwards index must contain exactly one cluster but was " + list.length);
             }
             // the bwc scripts packs the indices under this path
-            Path src = list[0].resolve("nodes/0/indices/" + indexName);
+            Path src = OldIndexUtils.getIndexDir(logger, indexName, path.getFileName().toString(), list[0]);
             assertTrue("[" + path + "] missing index dir: " + src.toString(), Files.exists(src));
             final Path indicesPath = randomFrom(nodeEnvironment.nodePaths()).indicesPath;
             logger.info("--> injecting index [{}] into [{}]", indexName, indicesPath);
-            OldIndexUtils.copyIndex(logger, src, indexName, indicesPath);
+            OldIndexUtils.copyIndex(logger, src, src.getFileName().toString(), indicesPath);
             IndexFolderUpgrader.upgradeIndicesIfNeeded(Settings.EMPTY, nodeEnvironment);
 
             // ensure old index folder is deleted
@@ -223,7 +220,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
             assertEquals(indexFolders.size(), 1);
 
             // ensure index metadata is moved
-            IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger,
+            IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
                 nodeEnvironment.resolveIndexFolder(indexFolders.iterator().next()));
             assertNotNull(indexMetaData);
             Index index = indexMetaData.getIndex();
@@ -265,7 +262,8 @@ public class IndexFolderUpgraderTests extends ESTestCase {
                             int numIdxFiles, int numTranslogFiles) throws IOException {
         final Index index = indexSettings.getIndex();
         // ensure index state can be loaded
-        IndexMetaData loadLatestState = IndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.indexPaths(index));
+        IndexMetaData loadLatestState = IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
+            nodeEnv.indexPaths(index));
         assertNotNull(loadLatestState);
         assertEquals(loadLatestState.getIndex(), index);
         for (int shardId = 0; shardId < indexSettings.getNumberOfShards(); shardId++) {

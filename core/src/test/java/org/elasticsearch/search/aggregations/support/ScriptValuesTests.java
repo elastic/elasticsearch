@@ -22,23 +22,24 @@ package org.elasticsearch.search.aggregations.support;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
 
 public class ScriptValuesTests extends ESTestCase {
 
-    private static class FakeSearchScript implements LeafSearchScript {
+    private static class FakeSearchScript extends SearchScript {
 
         private final Object[][] values;
         int index;
 
         FakeSearchScript(Object[][] values) {
+            super(null, null, null);
             this.values = values;
             index = -1;
         }
@@ -58,21 +59,12 @@ public class ScriptValuesTests extends ESTestCase {
         }
 
         @Override
-        public Object unwrap(Object value) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public void setScorer(Scorer scorer) {
         }
 
         @Override
         public void setDocument(int doc) {
             index = doc;
-        }
-
-        @Override
-        public void setSource(Map<String, Object> source) {
         }
 
         @Override
@@ -87,7 +79,7 @@ public class ScriptValuesTests extends ESTestCase {
 
     }
 
-    public void testLongs() {
+    public void testLongs() throws IOException {
         final Object[][] values = new Long[randomInt(10)][];
         for (int i = 0; i < values.length; ++i) {
             Long[] longs = new Long[randomInt(8)];
@@ -100,15 +92,40 @@ public class ScriptValuesTests extends ESTestCase {
         FakeSearchScript script = new FakeSearchScript(values);
         ScriptLongValues scriptValues = new ScriptLongValues(script);
         for (int i = 0; i < values.length; ++i) {
-            scriptValues.setDocument(i);
-            assertEquals(values[i].length, scriptValues.count());
-            for (int j = 0; j < values[i].length; ++j) {
-                assertEquals(values[i][j], scriptValues.valueAt(j));
+            assertEquals(values[i].length > 0, scriptValues.advanceExact(i));
+            if (values[i].length > 0) {
+                assertEquals(values[i].length, scriptValues.docValueCount());
+                for (int j = 0; j < values[i].length; ++j) {
+                    assertEquals(values[i][j], scriptValues.nextValue());
+                }
             }
         }
     }
 
-    public void testDoubles() {
+    public void testBooleans() throws IOException {
+        final Object[][] values = new Boolean[randomInt(10)][];
+        for (int i = 0; i < values.length; ++i) {
+            Boolean[] booleans = new Boolean[randomInt(8)];
+            for (int j = 0; j < booleans.length; ++j) {
+                booleans[j] = randomBoolean();
+            }
+            Arrays.sort(booleans);
+            values[i] = booleans;
+        }
+        FakeSearchScript script = new FakeSearchScript(values);
+        ScriptLongValues scriptValues = new ScriptLongValues(script);
+        for (int i = 0; i < values.length; ++i) {
+            assertEquals(values[i].length > 0, scriptValues.advanceExact(i));
+            if (values[i].length > 0) {
+                assertEquals(values[i].length, scriptValues.docValueCount());
+                for (int j = 0; j < values[i].length; ++j) {
+                    assertEquals(values[i][j], scriptValues.nextValue() == 1L);
+                }
+            }
+        }
+    }
+
+    public void testDoubles() throws IOException {
         final Object[][] values = new Double[randomInt(10)][];
         for (int i = 0; i < values.length; ++i) {
             Double[] doubles = new Double[randomInt(8)];
@@ -121,15 +138,17 @@ public class ScriptValuesTests extends ESTestCase {
         FakeSearchScript script = new FakeSearchScript(values);
         ScriptDoubleValues scriptValues = new ScriptDoubleValues(script);
         for (int i = 0; i < values.length; ++i) {
-            scriptValues.setDocument(i);
-            assertEquals(values[i].length, scriptValues.count());
-            for (int j = 0; j < values[i].length; ++j) {
-                assertEquals(values[i][j], scriptValues.valueAt(j));
+            assertEquals(values[i].length > 0, scriptValues.advanceExact(i));
+            if (values[i].length > 0) {
+                assertEquals(values[i].length, scriptValues.docValueCount());
+                for (int j = 0; j < values[i].length; ++j) {
+                    assertEquals(values[i][j], scriptValues.nextValue());
+                }
             }
         }
     }
 
-    public void testBytes() {
+    public void testBytes() throws IOException {
         final String[][] values = new String[randomInt(10)][];
         for (int i = 0; i < values.length; ++i) {
             String[] strings = new String[randomInt(8)];
@@ -142,10 +161,12 @@ public class ScriptValuesTests extends ESTestCase {
         FakeSearchScript script = new FakeSearchScript(values);
         ScriptBytesValues scriptValues = new ScriptBytesValues(script);
         for (int i = 0; i < values.length; ++i) {
-            scriptValues.setDocument(i);
-            assertEquals(values[i].length, scriptValues.count());
-            for (int j = 0; j < values[i].length; ++j) {
-                assertEquals(new BytesRef(values[i][j]), scriptValues.valueAt(j));
+            assertEquals(values[i].length > 0, scriptValues.advanceExact(i));
+            if (values[i].length > 0) {
+                assertEquals(values[i].length, scriptValues.docValueCount());
+                for (int j = 0; j < values[i].length; ++j) {
+                    assertEquals(new BytesRef(values[i][j]), scriptValues.nextValue());
+                }
             }
         }
     }

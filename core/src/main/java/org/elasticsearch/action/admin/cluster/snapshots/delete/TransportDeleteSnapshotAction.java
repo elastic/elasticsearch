@@ -75,6 +75,6 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
             public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
-        });
+        }, false);
     }
 }

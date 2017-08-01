@@ -20,12 +20,14 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.script.StoredScriptSource;
 
 import java.io.IOException;
 
@@ -34,27 +36,28 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutStoredScriptAction extends BaseRestHandler {
 
-    @Inject
     public RestPutStoredScriptAction(Settings settings, RestController controller) {
-        this(settings, controller, true);
-    }
-
-    protected RestPutStoredScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers) {
         super(settings);
-        if (registerDefaultHandlers) {
-            controller.registerHandler(POST, "/_scripts/{lang}/{id}", this);
-            controller.registerHandler(PUT, "/_scripts/{lang}/{id}", this);
-        }
-    }
 
-    protected String getScriptLang(RestRequest request) {
-        return request.param("lang");
+        controller.registerHandler(POST, "/_scripts/{id}", this);
+        controller.registerHandler(PUT, "/_scripts/{id}", this);
+        controller.registerHandler(PUT, "/_scripts/{id}/{context}", this);
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
-        PutStoredScriptRequest putRequest = new PutStoredScriptRequest(getScriptLang(request), request.param("id"));
-        putRequest.script(request.content());
+    public String getName() {
+        return "put_stored_script_action";
+    }
+
+    @Override
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        String id = request.param("id");
+        String context = request.param("context");
+        BytesReference content = request.requiredContent();
+        XContentType xContentType = request.getXContentType();
+        StoredScriptSource source = StoredScriptSource.parse(content, xContentType);
+
+        PutStoredScriptRequest putRequest = new PutStoredScriptRequest(id, context, content, request.getXContentType(), source);
         return channel -> client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));
     }
 }

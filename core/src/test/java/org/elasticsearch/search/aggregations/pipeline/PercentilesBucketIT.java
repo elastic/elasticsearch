@@ -23,9 +23,10 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucket;
@@ -34,6 +35,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -51,7 +53,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class PercentilesBucketIT extends ESIntegTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
-    private static final double[] PERCENTS = {1.0, 25.0, 50.0, 75.0, 99.0};
+    private static final double[] PERCENTS = {0.0, 1.0, 25.0, 50.0, 75.0, 99.0, 100.0};
     static int numDocs;
     static int interval;
     static int minRandomValue;
@@ -123,11 +125,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         PercentilesBucket percentilesBucketValue = response.getAggregations().get("percentiles_bucket");
         assertThat(percentilesBucketValue, notNullValue());
         assertThat(percentilesBucketValue.getName(), equalTo("percentiles_bucket"));
-        for (Double p : PERCENTS) {
-            double expected = values[(int)((p / 100) * values.length)];
-            assertThat(percentilesBucketValue.percentile(p), equalTo(expected));
-        }
-
+        assertPercentileBucket(PERCENTS, values, percentilesBucketValue);
     }
 
     public void testDocCountAsSubAgg() throws Exception {
@@ -136,7 +134,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Terms.Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))
@@ -148,7 +146,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
         assertThat(termsBuckets.size(), equalTo(interval));
 
         for (int i = 0; i < interval; ++i) {
@@ -174,10 +172,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
             PercentilesBucket percentilesBucketValue = termsBucket.getAggregations().get("percentiles_bucket");
             assertThat(percentilesBucketValue, notNullValue());
             assertThat(percentilesBucketValue.getName(), equalTo("percentiles_bucket"));
-            for (Double p : PERCENTS) {
-                double expected = values[(int)((p / 100) * values.length)];
-                assertThat(percentilesBucketValue.percentile(p), equalTo(expected));
-            }
+            assertPercentileBucket(PERCENTS, values, percentilesBucketValue);
         }
     }
 
@@ -193,7 +188,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(interval));
 
         double[] values = new double[interval];
@@ -212,10 +207,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         PercentilesBucket percentilesBucketValue = response.getAggregations().get("percentiles_bucket");
         assertThat(percentilesBucketValue, notNullValue());
         assertThat(percentilesBucketValue.getName(), equalTo("percentiles_bucket"));
-        for (Double p : PERCENTS) {
-            double expected = values[(int)((p / 100) * values.length)];
-            assertThat(percentilesBucketValue.percentile(p), equalTo(expected));
-        }
+        assertPercentileBucket(PERCENTS, values, percentilesBucketValue);
     }
 
     public void testMetricTopLevelDefaultPercents() throws Exception {
@@ -229,7 +221,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(interval));
 
         double[] values = new double[interval];
@@ -248,11 +240,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         PercentilesBucket percentilesBucketValue = response.getAggregations().get("percentiles_bucket");
         assertThat(percentilesBucketValue, notNullValue());
         assertThat(percentilesBucketValue.getName(), equalTo("percentiles_bucket"));
-        for (Percentile p : percentilesBucketValue) {
-            double expected = values[(int)((p.getPercent() / 100) * values.length)];
-            assertThat(percentilesBucketValue.percentile(p.getPercent()), equalTo(expected));
-            assertThat(p.getValue(), equalTo(expected));
-        }
+        assertPercentileBucket(values, percentilesBucketValue);
     }
 
     public void testMetricAsSubAgg() throws Exception {
@@ -261,7 +249,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Terms.Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue)
@@ -274,7 +262,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
         assertThat(termsBuckets.size(), equalTo(interval));
 
         for (int i = 0; i < interval; ++i) {
@@ -304,10 +292,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
             PercentilesBucket percentilesBucketValue = termsBucket.getAggregations().get("percentiles_bucket");
             assertThat(percentilesBucketValue, notNullValue());
             assertThat(percentilesBucketValue.getName(), equalTo("percentiles_bucket"));
-            for (Double p : PERCENTS) {
-                double expected = values.get((int) ((p / 100) * values.size()));
-                assertThat(percentilesBucketValue.percentile(p), equalTo(expected));
-            }
+            assertPercentileBucket(PERCENTS, values.stream().mapToDouble(Double::doubleValue).toArray(), percentilesBucketValue);
         }
     }
 
@@ -317,7 +302,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Terms.Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue)
@@ -332,7 +317,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
         assertThat(termsBuckets.size(), equalTo(interval));
 
         for (int i = 0; i < interval; ++i) {
@@ -361,10 +346,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
             PercentilesBucket percentilesBucketValue = termsBucket.getAggregations().get("percentiles_bucket");
             assertThat(percentilesBucketValue, notNullValue());
             assertThat(percentilesBucketValue.getName(), equalTo("percentiles_bucket"));
-            for (Double p : PERCENTS) {
-                double expected = values[(int)((p / 100) * values.length)];
-                assertThat(percentilesBucketValue.percentile(p), equalTo(expected));
-            }
+            assertPercentileBucket(PERCENTS, values, percentilesBucketValue);
         }
     }
 
@@ -380,7 +362,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(0));
 
         PercentilesBucket percentilesBucketValue = response.getAggregations().get("percentiles_bucket");
@@ -403,7 +385,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(0));
 
         PercentilesBucket percentilesBucketValue = response.getAggregations().get("percentiles_bucket");
@@ -454,7 +436,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Terms.Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))
@@ -485,11 +467,11 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Terms.Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))
-                                .subAggregation(percentilesBucket("percentile_histo_bucket", "histo>_count")))
+                                .subAggregation(percentilesBucket("percentile_histo_bucket", "histo>_count").percents(PERCENTS)))
                 .addAggregation(percentilesBucket("percentile_terms_bucket", "terms>percentile_histo_bucket.50")
                         .percents(PERCENTS)).execute().actionGet();
 
@@ -498,7 +480,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
         assertThat(termsBuckets.size(), equalTo(interval));
 
         double[] values = new double[termsBuckets.size()];
@@ -525,10 +507,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
             PercentilesBucket percentilesBucketValue = termsBucket.getAggregations().get("percentile_histo_bucket");
             assertThat(percentilesBucketValue, notNullValue());
             assertThat(percentilesBucketValue.getName(), equalTo("percentile_histo_bucket"));
-            for (Double p : PERCENTS) {
-                double expected = innerValues[(int)((p / 100) * innerValues.length)];
-                assertThat(percentilesBucketValue.percentile(p), equalTo(expected));
-            }
+            assertPercentileBucket(PERCENTS, innerValues, percentilesBucketValue);
             values[i] = percentilesBucketValue.percentile(50.0);
         }
 
@@ -537,10 +516,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         PercentilesBucket percentilesBucketValue = response.getAggregations().get("percentile_terms_bucket");
         assertThat(percentilesBucketValue, notNullValue());
         assertThat(percentilesBucketValue.getName(), equalTo("percentile_terms_bucket"));
-        for (Double p : PERCENTS) {
-            double expected = values[(int)((p / 100) * values.length)];
-            assertThat(percentilesBucketValue.percentile(p), equalTo(expected));
-        }
+        assertPercentileBucket(PERCENTS, values, percentilesBucketValue);
     }
 
     public void testNestedWithDecimal() throws Exception {
@@ -550,7 +526,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Terms.Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))
@@ -564,7 +540,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
         assertThat(termsBuckets.size(), equalTo(interval));
 
         double[] values = new double[termsBuckets.size()];
@@ -591,10 +567,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
             PercentilesBucket percentilesBucketValue = termsBucket.getAggregations().get("percentile_histo_bucket");
             assertThat(percentilesBucketValue, notNullValue());
             assertThat(percentilesBucketValue.getName(), equalTo("percentile_histo_bucket"));
-            for (Double p : percent) {
-                double expected = innerValues[(int)((p / 100) * innerValues.length)];
-                assertThat(percentilesBucketValue.percentile(p), equalTo(expected));
-            }
+            assertPercentileBucket(innerValues, percentilesBucketValue);
             values[i] = percentilesBucketValue.percentile(99.9);
         }
 
@@ -607,5 +580,23 @@ public class PercentilesBucketIT extends ESIntegTestCase {
             double expected = values[(int)((p / 100) * values.length)];
             assertThat(percentilesBucketValue.percentile(p), equalTo(expected));
         }
+    }
+
+    private void assertPercentileBucket(double[] values, PercentilesBucket percentiles) {
+        for (Percentile percentile : percentiles) {
+            assertEquals(percentiles.percentile(percentile.getPercent()), percentile.getValue(), 0d);
+            int index = (int) Math.round((percentile.getPercent() / 100.0) * (values.length - 1));
+            assertThat(percentile.getValue(), equalTo(values[index]));
+        }
+    }
+
+    private void assertPercentileBucket(double[] percents, double[] values, PercentilesBucket percentiles) {
+        Iterator<Percentile> it = percentiles.iterator();
+        for (int i = 0; i < percents.length; ++i) {
+            assertTrue(it.hasNext());
+            assertEquals(percents[i], it.next().getPercent(), 0d);
+        }
+        assertFalse(it.hasNext());
+        assertPercentileBucket(values, percentiles);
     }
 }

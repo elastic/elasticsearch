@@ -39,7 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.node.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -98,7 +98,13 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
             for (IndexShard indexShard : indexService) {
                 if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
                     // only report on fully started shards
-                    shardsStats.add(new ShardStats(indexShard.routingEntry(), indexShard.shardPath(), new CommonStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS), indexShard.commitStats()));
+                    shardsStats.add(
+                        new ShardStats(
+                            indexShard.routingEntry(),
+                            indexShard.shardPath(),
+                            new CommonStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
+                            indexShard.commitStats(),
+                            indexShard.seqNoStats()));
                 }
             }
         }
@@ -110,11 +116,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
         return new ClusterStatsNodeResponse(nodeInfo.getNode(), clusterStatus, nodeInfo, nodeStats, shardsStats.toArray(new ShardStats[shardsStats.size()]));
 
-    }
-
-    @Override
-    protected boolean accumulateExceptions() {
-        return false;
     }
 
     public static class ClusterStatsNodeRequest extends BaseNodeRequest {

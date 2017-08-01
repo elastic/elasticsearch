@@ -20,6 +20,7 @@
 package org.elasticsearch.common.inject;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -28,9 +29,7 @@ public class ModulesBuilder implements Iterable<Module> {
     private final List<Module> modules = new ArrayList<>();
 
     public ModulesBuilder add(Module... newModules) {
-        for (Module module : newModules) {
-            modules.add(module);
-        }
+        Collections.addAll(modules, newModules);
         return this;
     }
 

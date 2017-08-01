@@ -26,6 +26,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -86,7 +87,7 @@ public class IndexFolderUpgrader {
     void upgrade(final String indexFolderName) throws IOException {
         for (NodeEnvironment.NodePath nodePath : nodeEnv.nodePaths()) {
             final Path indexFolderPath = nodePath.indicesPath.resolve(indexFolderName);
-            final IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, indexFolderPath);
+            final IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, indexFolderPath);
             if (indexMetaData != null) {
                 final Index index = indexMetaData.getIndex();
                 if (needsUpgrade(index, indexFolderName)) {

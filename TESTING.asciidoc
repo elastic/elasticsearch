@@ -319,7 +319,7 @@ vagrant plugin install vagrant-cachier
 . Validate your installed dependencies:
 
 -------------------------------------
-gradle :qa:vagrant:checkVagrantVersion
+gradle :qa:vagrant:vagrantCheckVersion
 -------------------------------------
 
 . Download and smoke test the VMs with `gradle vagrantSmokeTest` or
@@ -345,24 +345,24 @@ VM running trusty by running
 
 These are the linux flavors the Vagrantfile currently supports:
 
-* ubuntu-1204 aka precise
 * ubuntu-1404 aka trusty
 * ubuntu-1604 aka xenial
-* debian-8 aka jessie, the current debian stable distribution
+* debian-8 aka jessie
+* debian-9 aka stretch, the current debian stable distribution
 * centos-6
 * centos-7
-* fedora-24
+* fedora-25
 * oel-6 aka Oracle Enterprise Linux 6
 * oel-7 aka Oracle Enterprise Linux 7
 * sles-12
-* opensuse-13
+* opensuse-42 aka Leap
 
 We're missing the following from the support matrix because there aren't high
 quality boxes available in vagrant atlas:
 
 * sles-11
 
-We're missing the follow because our tests are very linux/bash centric:
+We're missing the following because our tests are very linux/bash centric:
 
 * Windows Server 2012
 
@@ -411,18 +411,88 @@ and in another window:
 
 ----------------------------------------------------
 vagrant up centos-7 --provider virtualbox && vagrant ssh centos-7
-cd $TESTROOT
-sudo bats $BATS/*rpm*.bats
+cd $BATS_ARCHIVES
+sudo -E bats $BATS_TESTS/*rpm*.bats
 ----------------------------------------------------
 
 If you wanted to retest all the release artifacts on a single VM you could:
 
 -------------------------------------------------
-gradle prepareTestRoot
-vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404
-cd $TESTROOT
-sudo bats $BATS/*.bats
+gradle setupBats
+cd qa/vagrant; vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404
+cd $BATS_ARCHIVES
+sudo -E bats $BATS_TESTS/*.bats
 -------------------------------------------------
+
+You can also use Gradle to prepare the test environment and then starts a single VM:
+
+-------------------------------------------------
+gradle vagrantFedora25#up
+-------------------------------------------------
+
+Or any of vagrantCentos6#up, vagrantCentos7#up, vagrantDebian8#up,
+vagrantFedora25#up, vagrantOel6#up, vagrantOel7#up, vagrantOpensuse13#up,
+vagrantSles12#up, vagrantUbuntu1404#up, vagrantUbuntu1604#up.
+
+Once up, you can then connect to the VM using SSH from the elasticsearch directory:
+
+-------------------------------------------------
+vagrant ssh fedora-25
+-------------------------------------------------
+
+Or from another directory:
+
+-------------------------------------------------
+VAGRANT_CWD=/path/to/elasticsearch vagrant ssh fedora-25
+-------------------------------------------------
+
+Note: Starting vagrant VM outside of the elasticsearch folder requires to
+indicates the folder that contains the Vagrantfile using the VAGRANT_CWD
+environment variable.
+
+== Testing backwards compatibility
+
+Backwards compatibility tests exist to test upgrading from each supported version
+to the current version. To run all backcompat tests use:
+
+-------------------------------------------------
+gradle bwcTest
+-------------------------------------------------
+
+A specific version can be tested as well. For example, to test backcompat with
+version 5.3.2 run:
+
+-------------------------------------------------
+gradle v5.3.2#bwcTest
+-------------------------------------------------
+
+When running `gradle check`, some minimal backcompat checks are run. Which version
+is tested depends on the branch. On master, this will test against the current
+stable branch. On the stable branch, it will test against the latest release
+branch. Finally, on a release branch, it will test against the most recent release.
+
+=== BWC Testing against a specific branch
+
+Sometimes a backward compatibility change spans two versions. A common case is a new functionality
+that needs a BWC bridge in and an unreleased versioned of a release branch (for example, 5.x).
+To test the changes, you can instruct gradle to build the BWC version from a local branch instead of
+pulling the release branch from GitHub. You do so using the `tests.bwc.refspec` system property:
+
+-------------------------------------------------
+gradle check -Dtests.bwc.refspec=origin/index_req_bwc_5.x
+-------------------------------------------------
+
+The branch needs to be available on the local clone that the BWC makes of the repository you run the
+tests from. Using the `origin` remote is a handy trick to make sure that a branch is available
+and is up to date in the case of multiple runs.
+
+Example:
+
+Say you need to make a change to `master` and have a BWC layer in `5.x`. You will need to:
+. Create a branch called `index_req_change` off `master`. This will contain your change.
+. Create a branch called `index_req_bwc_5.x` off `5.x`. This will contain your bwc layer.
+. If not running the tests locally, push both branches to your remote repository.
+. Run the tests with `gradle check -Dtests.bwc.refspec=origin/index_req_bwc_5.x`
 
 == Coverage analysis
 
@@ -447,7 +517,7 @@ Combined (Unit+Integration) coverage:
 mvn -Dtests.coverage verify jacoco:report
 ---------------------------------------------------------------------------
 
-== Debugging from an IDE
+== Launching and debugging from an IDE
 
 If you want to run elasticsearch from your IDE, the `gradle run` task
 supports a remote debugging option:
@@ -456,15 +526,25 @@ supports a remote debugging option:
 gradle run --debug-jvm
 ---------------------------------------------------------------------------
 
+== Debugging remotely from an IDE
+
+If you want to run Elasticsearch and be able to remotely attach the process
+for debugging purposes from your IDE, can start Elasticsearch using `ES_JAVA_OPTS`:
+
+---------------------------------------------------------------------------
+ES_JAVA_OPTS="-Xdebug -Xrunjdwp:server=y,transport=dt_socket,address=4000,suspend=y" ./bin/elasticsearch
+---------------------------------------------------------------------------
+
+Read your IDE documentation for how to attach a debugger to a JVM process.
+
 == Building with extra plugins
 Additional plugins may be built alongside elasticsearch, where their
 dependency on elasticsearch will be substituted with the local elasticsearch
-build. To add your plugin, create a directory called x-plugins as a sibling
-of elasticsearch. Checkout your plugin underneath x-plugins and the build
-will automatically pick it up. You can verify the plugin is included as part
-of the build by checking the projects of the build.
+build. To add your plugin, create a directory called elasticsearch-extra as
+a sibling of elasticsearch. Checkout your plugin underneath elasticsearch-extra
+and the build will automatically pick it up. You can verify the plugin is
+included as part of the build by checking the projects of the build.
 
 ---------------------------------------------------------------------------
 gradle projects
 ---------------------------------------------------------------------------
-

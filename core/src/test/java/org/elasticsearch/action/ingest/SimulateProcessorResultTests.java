@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class SimulateProcessorResultTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        String processorTag = randomAsciiOfLengthBetween(1, 10);
+        String processorTag = randomAlphaOfLengthBetween(1, 10);
         boolean isSuccessful = randomBoolean();
         boolean isIgnoredException = randomBoolean();
         SimulateProcessorResult simulateProcessorResult;

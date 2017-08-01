@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 
@@ -40,10 +41,12 @@ import java.util.function.Predicate;
 public class MetaStateService extends AbstractComponent {
 
     private final NodeEnvironment nodeEnv;
+    private final NamedXContentRegistry namedXContentRegistry;
 
-    public MetaStateService(Settings settings, NodeEnvironment nodeEnv) {
+    public MetaStateService(Settings settings, NodeEnvironment nodeEnv, NamedXContentRegistry namedXContentRegistry) {
         super(settings);
         this.nodeEnv = nodeEnv;
+        this.namedXContentRegistry = namedXContentRegistry;
     }
 
     /**
@@ -59,7 +62,8 @@ public class MetaStateService extends AbstractComponent {
             metaDataBuilder = MetaData.builder();
         }
         for (String indexFolderName : nodeEnv.availableIndexFolders()) {
-            IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.resolveIndexFolder(indexFolderName));
+            IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry,
+                nodeEnv.resolveIndexFolder(indexFolderName));
             if (indexMetaData != null) {
                 metaDataBuilder.put(indexMetaData, false);
             } else {
@@ -74,7 +78,7 @@ public class MetaStateService extends AbstractComponent {
      */
     @Nullable
     public IndexMetaData loadIndexState(Index index) throws IOException {
-        return IndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.indexPaths(index));
+        return IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.indexPaths(index));
     }
 
     /**
@@ -86,7 +90,7 @@ public class MetaStateService extends AbstractComponent {
             if (excludeIndexPathIdsPredicate.test(indexFolderName)) {
                 continue;
             }
-            IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger,
+            IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry,
                 nodeEnv.resolveIndexFolder(indexFolderName));
             if (indexMetaData != null) {
                 final String indexPathId = indexMetaData.getIndex().getUUID();
@@ -106,14 +110,7 @@ public class MetaStateService extends AbstractComponent {
      * Loads the global state, *without* index state, see {@link #loadFullState()} for that.
      */
     MetaData loadGlobalState() throws IOException {
-        MetaData globalState = MetaData.FORMAT.loadLatestState(logger, nodeEnv.nodeDataPaths());
-        // ES 2.0 now requires units for all time and byte-sized settings, so we add the default unit if it's missing
-        // TODO: can we somehow only do this for pre-2.0 cluster state?
-        if (globalState != null) {
-            return MetaData.addDefaultUnitsIfNeeded(logger, globalState);
-        } else {
-            return null;
-        }
+        return MetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
     }
 
     /**

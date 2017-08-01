@@ -34,7 +34,12 @@ public class ListenableActionFutureTests extends ESTestCase {
     public void testListenerIsCallableFromNetworkThreads() throws Throwable {
         ThreadPool threadPool = new TestThreadPool("testListenerIsCallableFromNetworkThreads");
         try {
-            final PlainListenableActionFuture<Object> future = new PlainListenableActionFuture<>(threadPool);
+            final PlainListenableActionFuture<Object> future;
+            if (randomBoolean()) {
+                future = PlainListenableActionFuture.newDispatchingListenableFuture(threadPool);
+            } else {
+                future = PlainListenableActionFuture.newListenableFuture();
+            }
             final CountDownLatch listenerCalled = new CountDownLatch(1);
             final AtomicReference<Throwable> error = new AtomicReference<>();
             final Object response = new Object();

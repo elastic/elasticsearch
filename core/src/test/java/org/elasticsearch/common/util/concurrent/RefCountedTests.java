@@ -128,7 +128,7 @@ public class RefCountedTests extends ESTestCase {
 
         private final AtomicBoolean closed = new AtomicBoolean(false);
 
-        public MyRefCounted() {
+        MyRefCounted() {
             super("test");
         }
 

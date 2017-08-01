@@ -27,12 +27,13 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
+import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -161,7 +162,6 @@ public class StatsIT extends AbstractNumericTestCase {
         assertThat(stats.getSum(), equalTo((double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10));
         assertThat(stats.getSumAsString(), equalTo("0055.0"));
         assertThat(stats.getCount(), equalTo(10L));
-        assertThat(stats.getCountAsString(), equalTo("0010.0"));
     }
 
     @Override
@@ -181,24 +181,24 @@ public class StatsIT extends AbstractNumericTestCase {
         Stats stats = global.getAggregations().get("stats");
         assertThat(stats, notNullValue());
         assertThat(stats.getName(), equalTo("stats"));
-        Stats statsFromProperty = (Stats) global.getProperty("stats");
+        Stats statsFromProperty = (Stats) ((InternalAggregation)global).getProperty("stats");
         assertThat(statsFromProperty, notNullValue());
         assertThat(statsFromProperty, sameInstance(stats));
         double expectedAvgValue = (double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10) / 10;
         assertThat(stats.getAvg(), equalTo(expectedAvgValue));
-        assertThat((double) global.getProperty("stats.avg"), equalTo(expectedAvgValue));
+        assertThat((double) ((InternalAggregation)global).getProperty("stats.avg"), equalTo(expectedAvgValue));
         double expectedMinValue = 1.0;
         assertThat(stats.getMin(), equalTo(expectedMinValue));
-        assertThat((double) global.getProperty("stats.min"), equalTo(expectedMinValue));
+        assertThat((double) ((InternalAggregation)global).getProperty("stats.min"), equalTo(expectedMinValue));
         double expectedMaxValue = 10.0;
         assertThat(stats.getMax(), equalTo(expectedMaxValue));
-        assertThat((double) global.getProperty("stats.max"), equalTo(expectedMaxValue));
+        assertThat((double) ((InternalAggregation)global).getProperty("stats.max"), equalTo(expectedMaxValue));
         double expectedSumValue = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10;
         assertThat(stats.getSum(), equalTo(expectedSumValue));
-        assertThat((double) global.getProperty("stats.sum"), equalTo(expectedSumValue));
+        assertThat((double) ((InternalAggregation)global).getProperty("stats.sum"), equalTo(expectedSumValue));
         long expectedCountValue = 10;
         assertThat(stats.getCount(), equalTo(expectedCountValue));
-        assertThat((double) global.getProperty("stats.count"), equalTo((double) expectedCountValue));
+        assertThat((double) ((InternalAggregation)global).getProperty("stats.count"), equalTo((double) expectedCountValue));
     }
 
     @Override
@@ -229,7 +229,7 @@ public class StatsIT extends AbstractNumericTestCase {
                 .addAggregation(
                         stats("stats")
                                 .field("value")
-                                .script(new Script("_value + 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap())))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", emptyMap())))
                 .get();
 
         assertShardExecutionState(searchResponse, 0);
@@ -255,7 +255,7 @@ public class StatsIT extends AbstractNumericTestCase {
                 .addAggregation(
                         stats("stats")
                                 .field("value")
-                                .script(new Script("_value + inc", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params)))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + inc", params)))
                 .get();
 
         assertShardExecutionState(searchResponse, 0);
@@ -300,7 +300,7 @@ public class StatsIT extends AbstractNumericTestCase {
                 .addAggregation(
                         stats("stats")
                                 .field("values")
-                                .script(new Script("_value - 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap())))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap())))
                 .get();
 
         assertShardExecutionState(searchResponse, 0);
@@ -326,7 +326,7 @@ public class StatsIT extends AbstractNumericTestCase {
                 .addAggregation(
                         stats("stats")
                                 .field("values")
-                                .script(new Script("_value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params)))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", params)))
                 .get();
 
         assertShardExecutionState(searchResponse, 0);
@@ -349,7 +349,7 @@ public class StatsIT extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         stats("stats")
-                                .script(new Script("doc['value'].value", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap())))
+                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", emptyMap())))
                 .get();
 
         assertShardExecutionState(searchResponse, 0);
@@ -371,7 +371,7 @@ public class StatsIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
 
-        Script script = new Script("doc['value'].value + inc", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params);
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value + inc", params);
 
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
@@ -394,7 +394,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
     @Override
     public void testScriptMultiValued() throws Exception {
-        Script script = new Script("doc['values'].values", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap());
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values'].values", emptyMap());
 
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
@@ -420,8 +420,8 @@ public class StatsIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
 
-        Script script = new Script("[ doc['value'].value, doc['value'].value - dec ]", ScriptType.INLINE,
-                AggregationTestScriptsPlugin.NAME, params);
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "[ doc['value'].value, doc['value'].value - dec ]",
+            params);
 
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
@@ -447,7 +447,7 @@ public class StatsIT extends AbstractNumericTestCase {
     @Override
     public void testOrderByEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(terms("terms").field("value").order(Order.compound(Order.aggregation("filter>stats.avg", true)))
+                .addAggregation(terms("terms").field("value").order(BucketOrder.compound(BucketOrder.aggregation("filter>stats.avg", true)))
                         .subAggregation(filter("filter", termQuery("value", 100)).subAggregation(stats("stats").field("value"))))
                 .get();
 
@@ -455,7 +455,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
         Terms terms = searchResponse.getAggregations().get("terms");
         assertThat(terms, notNullValue());
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets, notNullValue());
         assertThat(buckets.size(), equalTo(10));
 
@@ -508,7 +508,8 @@ public class StatsIT extends AbstractNumericTestCase {
 
         // Test that a request using a script does not get cached
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(
-                stats("foo").field("d").script(new Script("_value + 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, null))).get();
+                stats("foo").field("d").script(
+                    new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", Collections.emptyMap()))).get();
         assertSearchResponse(r);
 
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()

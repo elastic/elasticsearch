@@ -31,10 +31,8 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -53,8 +51,6 @@ import java.util.TreeMap;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestThreadPoolAction extends AbstractCatAction {
-
-    @Inject
     public RestThreadPoolAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_cat/thread_pool", this);
@@ -62,9 +58,14 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
     @Override
+    public String getName() {
+        return "cat_threadpool_action";
+    }
+
+    @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/thread_pool\n");
-        sb.append("/_cat/thread_pool/{thread_pools}");
+        sb.append("/_cat/thread_pool/{thread_pools}\n");
     }
 
     @Override
@@ -99,8 +100,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
     private static final Set<String> RESPONSE_PARAMS;
 
     static {
-        final Set<String> responseParams = new HashSet<>();
-        responseParams.addAll(AbstractCatAction.RESPONSE_PARAMS);
+        final Set<String> responseParams = new HashSet<>(AbstractCatAction.RESPONSE_PARAMS);
         responseParams.add("thread_pool_patterns");
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
@@ -224,7 +224,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 table.addCell(poolStats == null ? null : poolStats.getActive());
                 table.addCell(poolStats == null ? null : poolStats.getThreads());
                 table.addCell(poolStats == null ? null : poolStats.getQueue());
-                table.addCell(maxQueueSize);
+                table.addCell(maxQueueSize == null ? -1 : maxQueueSize);
                 table.addCell(poolStats == null ? null : poolStats.getRejected());
                 table.addCell(poolStats == null ? null : poolStats.getLargest());
                 table.addCell(poolStats == null ? null : poolStats.getCompleted());

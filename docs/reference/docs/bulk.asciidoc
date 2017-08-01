@@ -12,8 +12,8 @@ bulk requests and reindexing of documents from one index to another:
 
 Perl::
 
-    See https://metacpan.org/pod/Search::Elasticsearch::Bulk[Search::Elasticsearch::Bulk]
-    and https://metacpan.org/pod/Search::Elasticsearch::Scroll[Search::Elasticsearch::Scroll]
+    See https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Bulk[Search::Elasticsearch::Client::5_0::Bulk]
+    and https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Scroll[Search::Elasticsearch::Client::5_0::Scroll]
 
 Python::
 
@@ -21,8 +21,8 @@ Python::
 
 *********************************************
 
-The REST API endpoint is `/_bulk`, and it expects the following JSON
-structure:
+The REST API endpoint is `/_bulk`, and it expects the following newline delimited JSON
+(NDJSON) structure:
 
 [source,js]
 --------------------------------------------------
@@ -34,8 +34,11 @@ optional_source\n
 action_and_meta_data\n
 optional_source\n
 --------------------------------------------------
+// NOTCONSOLE
 
-*NOTE*: the final line of data must end with a newline character `\n`.
+*NOTE*: the final line of data must end with a newline character `\n`. Each newline character
+may be preceded by a carriage return `\r`. When sending requests to this endpoint the
+`Content-Type` header should be set to `application/x-ndjson`.
 
 The possible actions are `index`, `create`, `delete` and `update`.
 `index` and `create` expect a source on the next
@@ -56,9 +59,11 @@ newlines. Example:
 $ cat requests
 { "index" : { "_index" : "test", "_type" : "type1", "_id" : "1" } }
 { "field1" : "value1" }
-$ curl -s -XPOST localhost:9200/_bulk --data-binary "@requests"; echo
+$ curl -s -H "Content-Type: application/x-ndjson" -XPOST localhost:9200/_bulk --data-binary "@requests"; echo
 {"took":7, "errors": false, "items":[{"index":{"_index":"test","_type":"type1","_id":"1","_version":1,"result":"created","forced_refresh":false}}]}
 --------------------------------------------------
+// NOTCONSOLE
+// Not converting to console because this shows how curl works
 
 Because this format uses literal `\n`'s as delimiters, please be sure
 that the JSON actions and sources are not pretty printed. Here is an
@@ -97,13 +102,13 @@ The result of this bulk operation is:
                "successful": 1,
                "failed": 0
             },
-            "created": true,
-            "status": 201
+            "status": 201,
+            "_seq_no" : 0,
+            "_primary_term": 1
          }
       },
       {
          "delete": {
-            "found": false,
             "_index": "test",
             "_type": "type1",
             "_id": "2",
@@ -114,7 +119,9 @@ The result of this bulk operation is:
                "successful": 1,
                "failed": 0
             },
-            "status": 404
+            "status": 404,
+            "_seq_no" : 1,
+            "_primary_term" : 2
          }
       },
       {
@@ -129,8 +136,9 @@ The result of this bulk operation is:
                "successful": 1,
                "failed": 0
             },
-            "created": true,
-            "status": 201
+            "status": 201,
+            "_seq_no" : 2,
+            "_primary_term" : 3
          }
       },
       {
@@ -145,13 +153,24 @@ The result of this bulk operation is:
                 "successful": 1,
                 "failed": 0
             },
-            "status": 200
+            "status": 200,
+            "_seq_no" : 3,
+            "_primary_term" : 4
          }
       }
    ]
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"took": 30/"took": $body.took/ s/"index_uuid": .../"index_uuid": $body.items.3.update.error.index_uuid/]
+// TESTRESPONSE[s/"took": 30/"took": $body.took/]
+// TESTRESPONSE[s/"index_uuid": .../"index_uuid": $body.items.3.update.error.index_uuid/]
+// TESTRESPONSE[s/"_seq_no" : 0/"_seq_no" : $body.items.0.index._seq_no/]
+// TESTRESPONSE[s/"_primary_term" : 1/"_primary_term" : $body.items.0.index._primary_term/]
+// TESTRESPONSE[s/"_seq_no" : 1/"_seq_no" : $body.items.1.delete._seq_no/]
+// TESTRESPONSE[s/"_primary_term" : 2/"_primary_term" : $body.items.1.delete._primary_term/]
+// TESTRESPONSE[s/"_seq_no" : 2/"_seq_no" : $body.items.2.create._seq_no/]
+// TESTRESPONSE[s/"_primary_term" : 3/"_primary_term" : $body.items.2.create._primary_term/]
+// TESTRESPONSE[s/"_seq_no" : 3/"_seq_no" : $body.items.3.update._seq_no/]
+// TESTRESPONSE[s/"_primary_term" : 4/"_primary_term" : $body.items.3.update._primary_term/]
 
 The endpoints are `/_bulk`, `/{index}/_bulk`, and `{index}/{type}/_bulk`.
 When the index or the index/type are provided, they will be used by
@@ -195,20 +214,12 @@ Each bulk item can include the routing value using the
 index / delete operation based on the `_routing` mapping.
 
 [float]
-[[bulk-parent]]
-=== Parent
-
-Each bulk item can include the parent value using the `_parent`/`parent`
-field. It automatically follows the behavior of the index / delete
-operation based on the `_parent` / `_routing` mapping.
-
-[float]
 [[bulk-wait-for-active-shards]]
 === Wait For Active Shards
 
 When making bulk calls, you can set the `wait_for_active_shards`
 parameter to require a minimum number of shard copies to be active
-before starting to process the bulk request. See 
+before starting to process the bulk request. See
 <<index-wait-for-active-shards,here>> for further details and a usage
 example.
 
@@ -238,7 +249,7 @@ POST _bulk
 { "update" : {"_id" : "1", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"} }
 { "update" : { "_id" : "0", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
-{ "script" : { "inline": "ctx._source.counter += params.param1", "lang" : "painless", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
+{ "script" : { "source": "ctx._source.counter += params.param1", "lang" : "painless", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
 { "update" : {"_id" : "2", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"}, "doc_as_upsert" : true }
 { "update" : {"_id" : "3", "_type" : "type1", "_index" : "index1", "_source" : true} }

@@ -22,11 +22,10 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.util.TimeUnits;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
-
-import java.io.IOException;
 
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
@@ -36,13 +35,28 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
         return true;
     }
 
+    @Override
+    protected boolean preserveReposUponCompletion() {
+        return true;
+    }
+
     public UpgradeClusterClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException, ClientYamlTestParseException {
-        return createParameters(0, 1);
+    public static Iterable<Object[]> parameters() throws Exception {
+        return createParameters();
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        return Settings.builder().put(super.restClientSettings())
+            // increase the timeout so that we can actually see the result of failed cluster health
+            // calls that have a default timeout of 30s
+            .put(ESRestTestCase.CLIENT_RETRY_TIMEOUT, "40s")
+            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "40s")
+            .build();
     }
 }
 

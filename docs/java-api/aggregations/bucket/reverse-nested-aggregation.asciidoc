@@ -14,7 +14,7 @@ Here is an example on how to create the aggregation request:
 --------------------------------------------------
 AggregationBuilder aggregation =
     AggregationBuilders
-        .nested("agg").path("resellers")
+        .nested("agg", "resellers")
         .subAggregation(
                 AggregationBuilders
                         .terms("name").field("resellers.name")

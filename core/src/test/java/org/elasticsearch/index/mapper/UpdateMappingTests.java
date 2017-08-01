@@ -20,16 +20,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -37,9 +32,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -50,56 +43,31 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         return pluginList(InternalSettingsPlugin.class);
     }
 
-    public void testAllEnabledAfterDisabled() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().endObject();
-        XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
-        testConflictWhileMergingAndMappingUnchanged(mapping, mappingUpdate);
-    }
-
-    public void testAllDisabledAfterEnabled() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().endObject();
-        XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
-        testConflictWhileMergingAndMappingUnchanged(mapping, mappingUpdate);
-    }
-
-    public void testAllDisabledAfterDefaultEnabled() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties").startObject("some_text").field("type", "text").endObject().endObject().endObject();
-        XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
-        testConflictWhileMergingAndMappingUnchanged(mapping, mappingUpdate);
-    }
-
-    public void testAllEnabledAfterEnabled() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().endObject();
-        XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
-        XContentBuilder expectedMapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("_all").field("enabled", true).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject().endObject();
-        testNoConflictWhileMergingAndMappingChanged(mapping, mappingUpdate, expectedMapping);
-    }
-
-    public void testAllDisabledAfterDisabled() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().endObject();
-        XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
-        XContentBuilder expectedMapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("_all").field("enabled", false).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject().endObject();
-        testNoConflictWhileMergingAndMappingChanged(mapping, mappingUpdate, expectedMapping);
-    }
-
-    private void testNoConflictWhileMergingAndMappingChanged(XContentBuilder mapping, XContentBuilder mappingUpdate, XContentBuilder expectedMapping) throws IOException {
-        IndexService indexService = createIndex("test", Settings.builder().build(), "type", mapping);
-        // simulate like in MetaDataMappingService#putMapping
-        indexService.mapperService().merge("type", new CompressedXContent(mappingUpdate.bytes()), MapperService.MergeReason.MAPPING_UPDATE, false);
-        // make sure mappings applied
-        CompressedXContent mappingAfterUpdate = indexService.mapperService().documentMapper("type").mappingSource();
-        assertThat(mappingAfterUpdate.toString(), equalTo(expectedMapping.string()));
-    }
-
     public void testConflictFieldsMapping(String fieldName) throws Exception {
         //test store, ... all the parameters that are not to be changed just like in other fields
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject(fieldName).field("enabled", true).field("store", "no").endObject()
-                .endObject().endObject();
-        XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject(fieldName).field("enabled", true).field("store", "yes").endObject()
-                .startObject("properties").startObject("text").field("type", "text").endObject().endObject()
-                .endObject().endObject();
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject(fieldName)
+                        .field("enabled", true)
+                            .field("store", false)
+                        .endObject()
+                    .endObject()
+            .endObject();
+        XContentBuilder mappingUpdate = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject(fieldName)
+                        .field("enabled", true)
+                        .field("store", true)
+                    .endObject()
+                    .startObject("properties")
+                        .startObject("text")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
         testConflictWhileMergingAndMappingUnchanged(mapping, mappingUpdate);
     }
 
@@ -183,7 +151,8 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("foo").field("type", "long").endObject()
                 .endObject().endObject().endObject();
         XContentBuilder mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject();
-        MapperService mapperService = createIndex("test", Settings.builder().build()).mapperService();
+        MapperService mapperService = createIndex("test", Settings.builder().put("index.version.created",
+            Version.V_5_6_0).build()).mapperService();
 
         mapperService.merge("type1", new CompressedXContent(mapping1.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mapperService.merge("type2", new CompressedXContent(mapping2.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
@@ -219,30 +188,6 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("_id").field("type", "text").endObject()
                 .endObject().endObject().endObject();
         MapperService mapperService = createIndex("test", Settings.builder().build()).mapperService();
-
-        try {
-            mapperService.merge("type", new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
-        }
-
-        try {
-            mapperService.merge("type", new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
-        }
-    }
-
-    public void testReuseMetaFieldBackCompat() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("_id").field("type", "text").endObject()
-                .endObject().endObject().endObject();
-        // the logic is different for 2.x indices since they record some meta mappers (including _id)
-        // in the root object
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_1_0).build();
-        MapperService mapperService = createIndex("test", settings).mapperService();
 
         try {
             mapperService.merge("type", new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE, false);

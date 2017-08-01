@@ -93,16 +93,17 @@ The systemd service file (`/usr/lib/systemd/system/elasticsearch.service`)
 contains the limits that are applied by default.
 
 To override these, add a file called
-`/etc/systemd/system/elasticsearch.service.d/elasticsearch.conf`) and specify
+`/etc/systemd/system/elasticsearch.service.d/elasticsearch.conf` and specify
 any changes in that file, such as:
 
 [source,sh]
 ---------------------------------
+[Service]
 LimitMEMLOCK=infinity
 ---------------------------------
 
-[[es-java-opts]]
-==== Setting JVM system properties
+[[jvm-options]]
+==== Setting JVM options
 
 The preferred method of setting Java Virtual Machine options (including
 system properties and JVM flags) is via the `jvm.options` configuration
@@ -124,3 +125,16 @@ export ES_JAVA_OPTS="$ES_JAVA_OPTS -Djava.io.tmpdir=/path/to/temp/dir"
 
 When using the RPM or Debian packages, `ES_JAVA_OPTS` can be specified in the
 <<sysconfig,system configuration file>>.
+
+The JVM has a built-in mechanism for observing the `JAVA_TOOL_OPTIONS`
+environment variable. We intentionally ignore this environment variable in our
+packaging scripts. The primary reason for this is that on some OS (e.g., Ubuntu)
+there are agents installed by default via this environment variable that we do
+not want interfering with Elasticsearch.
+
+Additionally, some other Java programs support the `JAVA_OPTS` environment
+variable. This is *not* a mechanism built into the JVM but instead a convention
+in the ecosystem. However, we do not support this environment variable, instead
+supporting setting JVM options via the `jvm.options` file or the environment
+variable `ES_JAVA_OPTS` as above.
+

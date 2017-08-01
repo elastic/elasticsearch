@@ -380,7 +380,7 @@ public class Key<T> {
         }
     }
 
-    static enum NullAnnotationStrategy implements AnnotationStrategy {
+    enum NullAnnotationStrategy implements AnnotationStrategy {
         INSTANCE;
 
         @Override

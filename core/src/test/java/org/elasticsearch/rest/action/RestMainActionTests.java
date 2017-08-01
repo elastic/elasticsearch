@@ -43,7 +43,7 @@ public class RestMainActionTests extends ESTestCase {
     public void testHeadResponse() throws Exception {
         final String nodeName = "node1";
         final ClusterName clusterName = new ClusterName("cluster1");
-        final String clusterUUID = randomAsciiOfLengthBetween(10, 20);
+        final String clusterUUID = randomAlphaOfLengthBetween(10, 20);
         final boolean available = randomBoolean();
         final RestStatus expectedStatus = available ? RestStatus.OK : RestStatus.SERVICE_UNAVAILABLE;
         final Version version = Version.CURRENT;
@@ -69,7 +69,7 @@ public class RestMainActionTests extends ESTestCase {
     public void testGetResponse() throws Exception {
         final String nodeName = "node1";
         final ClusterName clusterName = new ClusterName("cluster1");
-        final String clusterUUID = randomAsciiOfLengthBetween(10, 20);
+        final String clusterUUID = randomAlphaOfLengthBetween(10, 20);
         final boolean available = randomBoolean();
         final RestStatus expectedStatus = available ? RestStatus.OK : RestStatus.SERVICE_UNAVAILABLE;
         final Version version = Version.CURRENT;
@@ -83,7 +83,7 @@ public class RestMainActionTests extends ESTestCase {
         if (prettyPrint == false) {
             params.put("pretty", String.valueOf(prettyPrint));
         }
-        RestRequest restRequest = new FakeRestRequest.Builder().withParams(params).build();
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
 
         BytesRestResponse response = RestMainAction.convertMainResponse(mainResponse, restRequest, builder);
         assertNotNull(response);

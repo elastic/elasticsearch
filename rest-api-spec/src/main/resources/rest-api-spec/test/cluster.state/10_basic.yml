@@ -1,0 +1,20 @@
+---
+"get cluster state":
+  - do:
+      cluster.state: {}
+  
+  - is_true: master_node
+
+---
+"get cluster state returns cluster state size with human readable format":
+  - skip:
+      version:  " - 5.99.99"
+      reason:   "cluster state size is only available in v6.0.0 and higher"
+
+  - do:
+      cluster.state:
+        human: true
+
+  - is_true: master_node
+  - gte: { compressed_size_in_bytes: 50 }
+  - is_true: compressed_size

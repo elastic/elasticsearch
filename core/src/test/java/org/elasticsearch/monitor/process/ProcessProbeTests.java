@@ -36,7 +36,7 @@ public class ProcessProbeTests extends ESTestCase {
     private final ProcessProbe probe = ProcessProbe.getInstance();
 
     public void testProcessInfo() {
-        long refreshInterval = randomPositiveLong();
+        long refreshInterval = randomNonNegativeLong();
         ProcessInfo info = probe.processInfo(refreshInterval);
         assertNotNull(info);
         assertEquals(refreshInterval, info.getRefreshInterval());

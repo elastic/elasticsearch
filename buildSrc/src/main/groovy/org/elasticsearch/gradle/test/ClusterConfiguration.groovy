@@ -46,11 +46,11 @@ class ClusterConfiguration {
     int transportPort = 0
 
     /**
-     * An override of the data directory. This may only be used with a single node.
-     * The value is lazily evaluated at runtime as a String path.
+     * An override of the data directory. Input is the node number and output
+     * is the override data directory.
      */
     @Input
-    Object dataDir = null
+    Closure<String> dataDir = null
 
     /** Optional override of the cluster name. */
     @Input
@@ -73,8 +73,16 @@ class ClusterConfiguration {
 
     @Input
     String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
-            " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
-            " " + System.getProperty('tests.jvm.argline', '')
+        " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
+        " " + System.getProperty('tests.jvm.argline', '')
+
+    /**
+     * Should the shared environment be cleaned on cluster startup? Defaults
+     * to {@code true} so we run with a clean cluster but some tests wish to
+     * preserve snapshots between clusters so they set this to true.
+     */
+    @Input
+    boolean cleanShared = true
 
     /**
      * A closure to call which returns the unicast host to connect to for cluster formation.
@@ -88,7 +96,7 @@ class ClusterConfiguration {
         if (seedNode == node) {
             return null
         }
-        ant.waitfor(maxwait: '20', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
+        ant.waitfor(maxwait: '40', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
             resourceexists {
                 file(file: seedNode.transportPortsFile.toString())
             }
@@ -104,11 +112,13 @@ class ClusterConfiguration {
     @Input
     Closure waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
-        ant.echo("==> [${new Date()}] checking health: http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow")
+        String waitUrl = "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow"
+        ant.echo(message: "==> [${new Date()}] checking health: ${waitUrl}",
+                 level: 'info')
         // checking here for wait_for_nodes to be >= the number of nodes because its possible
         // this cluster is attempting to connect to nodes created by another task (same cluster name),
         // so there will be more nodes in that case in the cluster state
-        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
+        ant.get(src: waitUrl,
                 dest: tmpFile.toString(),
                 ignoreerrors: true, // do not fail on error, so logging buffers can be flushed by the wait task
                 retries: 10)
@@ -121,7 +131,9 @@ class ClusterConfiguration {
 
     Map<String, String> systemProperties = new HashMap<>()
 
-    Map<String, String> settings = new HashMap<>()
+    Map<String, Object> settings = new HashMap<>()
+
+    Map<String, String> keystoreSettings = new HashMap<>()
 
     // map from destination path, to source file
     Map<String, Object> extraConfigFiles = new HashMap<>()
@@ -132,14 +144,21 @@ class ClusterConfiguration {
 
     LinkedHashMap<String, Object[]> setupCommands = new LinkedHashMap<>()
 
+    List<Object> dependencies = new ArrayList<>()
+
     @Input
     void systemProperty(String property, String value) {
         systemProperties.put(property, value)
     }
 
     @Input
-    void setting(String name, String value) {
+    void setting(String name, Object value) {
         settings.put(name, value)
+    }
+
+    @Input
+    void keystoreSetting(String name, String value) {
+        keystoreSettings.put(name, value)
     }
 
     @Input
@@ -169,5 +188,11 @@ class ClusterConfiguration {
             throw new GradleException('Overwriting elasticsearch.yml is not allowed, add additional settings using cluster { setting "foo", "bar" }')
         }
         extraConfigFiles.put(path, sourceFile)
+    }
+
+    /** Add dependencies that must be run before the first task setting up the cluster. */
+    @Input
+    void dependsOn(Object... deps) {
+        dependencies.addAll(deps)
     }
 }

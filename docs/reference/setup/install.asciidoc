@@ -7,9 +7,9 @@ Elasticsearch is provided in the following package formats:
 `zip`/`tar.gz`::
 
 The `zip` and `tar.gz` packages are suitable for installation on any system
-and are the easiest choice for getting started with Elasticsearch.
+and are the easiest choice for getting started with Elasticsearch on most systems.
 +
-<<zip-targz>> or <<windows>>
+<<zip-targz>> or <<zip-windows>>
 
 `deb`::
 
@@ -27,6 +27,20 @@ Elasticsearch website or from our RPM repository.
 +
 <<rpm>>
 
+`msi`::
+
+The `msi` package is suitable for installation on Windows 64-bit systems with at least
+.NET 4.5 framework installed, and is the easiest choice for getting started with
+Elasticsearch on Windows. MSIs may be downloaded from the Elasticsearch website.
++
+<<windows>>
+
+`docker`::
+
+An image is available for running Elasticsearch as a Docker container. It ships with {xpack-ref}/index.html[X-Pack] pre-installed and may be downloaded from the Elastic Docker Registry.
++
+<<docker>>
+
 [float]
 [[config-mgmt-tools]]
 === Configuration Management Tools
@@ -37,9 +51,12 @@ large deployments:
 [horizontal]
 Puppet:: https://github.com/elastic/puppet-elasticsearch[puppet-elasticsearch]
 Chef::   https://github.com/elastic/cookbook-elasticsearch[cookbook-elasticsearch]
+Ansible:: https://github.com/elastic/ansible-elasticsearch[ansible-elasticsearch]
 
 
 include::install/zip-targz.asciidoc[]
+
+include::install/zip-windows.asciidoc[]
 
 include::install/deb.asciidoc[]
 
@@ -47,4 +64,4 @@ include::install/rpm.asciidoc[]
 
 include::install/windows.asciidoc[]
 
-
+include::install/docker.asciidoc[]

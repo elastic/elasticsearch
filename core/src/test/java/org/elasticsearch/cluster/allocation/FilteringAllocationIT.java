@@ -24,8 +24,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -43,7 +45,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
     public void testDecommissionNodeNoReplicas() throws Exception {
         logger.info("--> starting 2 nodes");
-        List<String> nodesIds = internalCluster().startNodesAsync(2).get();
+        List<String> nodesIds = internalCluster().startNodes(2);
         final String node_0 = nodesIds.get(0);
         final String node_1 = nodesIds.get(1);
         assertThat(cluster().size(), equalTo(2));
@@ -58,7 +60,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(100L));
+        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(100L));
 
         logger.info("--> decommission the second node");
         client().admin().cluster().prepareUpdateSettings()
@@ -77,12 +79,12 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(100L));
+        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(100L));
     }
 
     public void testDisablingAllocationFiltering() throws Exception {
         logger.info("--> starting 2 nodes");
-        List<String> nodesIds = internalCluster().startNodesAsync(2).get();
+        List<String> nodesIds = internalCluster().startNodes(2);
         final String node_0 = nodesIds.get(0);
         final String node_1 = nodesIds.get(1);
         assertThat(cluster().size(), equalTo(2));
@@ -99,7 +101,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(100L));
+        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(100L));
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         IndexRoutingTable indexRoutingTable = clusterState.routingTable().index("test");
         int numShardsOnNode1 = 0;
@@ -143,6 +145,16 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         logger.info("--> verify that there are shards allocated on both nodes now");
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(clusterState.routingTable().index("test").numberOfNodesShardsAreAllocatedOn(), equalTo(2));
+    }
+
+    public void testInvalidIPFilterClusterSettings() {
+        String ipKey = randomFrom("_ip", "_host_ip", "_publish_ip");
+        Setting<Settings> filterSetting = randomFrom(FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING,
+            FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(filterSetting.getKey() + ipKey, "192.168.1.1."))
+            .execute().actionGet());
+        assertEquals("invalid IP address [192.168.1.1.] for [" + ipKey + "]", e.getMessage());
     }
 }
 

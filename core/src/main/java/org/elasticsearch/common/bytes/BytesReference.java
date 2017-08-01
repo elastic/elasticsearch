@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -215,6 +216,7 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
      * that way.
      */
     private static final class MarkSupportingStreamInputWrapper extends StreamInput {
+        // can't use FilterStreamInput it needs to reset the delegate
         private final BytesReference reference;
         private BytesReferenceStreamInput input;
         private int mark = 0;
@@ -252,6 +254,11 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
         @Override
         public int available() throws IOException {
             return input.available();
+        }
+
+        @Override
+        protected void ensureCanReadBytes(int length) throws EOFException {
+            input.ensureCanReadBytes(length);
         }
 
         @Override

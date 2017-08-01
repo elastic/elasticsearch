@@ -1,0 +1,83 @@
+---
+"Refresh":
+
+ - do:
+      indices.create:
+          index:    test_1
+          body:
+              settings:
+                  index.refresh_interval: -1
+                  number_of_replicas: 0
+
+ - do:
+      index:
+          index:   test_1
+          type:    test
+          id:      1
+          body:    { foo: bar }
+
+ - do:
+      search:
+          index:   test_1
+          type:    test
+          body:
+            query:   { term: { _id: 1 }}
+
+ - match: { hits.total: 0 }
+
+ - do:
+      index:
+          index:   test_1
+          type:    test
+          id:      2
+          refresh: true
+          body:    { foo: bar }
+ - is_true: forced_refresh
+
+ - do:
+      search:
+          index:   test_1
+          type:    test
+          body:
+            query:   { term: { _id: 2 }}
+
+ - match: { hits.total: 1 }
+
+---
+"When refresh url parameter is an empty string that means \"refresh immediately\"":
+ - do:
+      index:
+          index:   test_1
+          type:    test
+          id:      1
+          refresh: ""
+          body:    { foo: bar }
+ - is_true: forced_refresh
+
+ - do:
+      search:
+          index:   test_1
+          type:    test
+          body:
+            query:   { term: { _id: 1 }}
+
+ - match: { hits.total: 1 }
+
+---
+"refresh=wait_for waits until changes are visible in search":
+ - do:
+      index:
+          index:   index_60_refresh_1
+          type:    test
+          id:      index_60_refresh_id1
+          body:    { foo: bar }
+          refresh: wait_for
+ - is_false: forced_refresh
+
+ - do:
+      search:
+          index:   index_60_refresh_1
+          type:    test
+          body:
+            query:   { term: { _id: index_60_refresh_id1 }}
+ - match: { hits.total: 1 }

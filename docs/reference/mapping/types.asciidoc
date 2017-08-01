@@ -8,10 +8,11 @@ document:
 === Core datatypes
 
 string::        <<text,`text`>> and <<keyword,`keyword`>>
-<<number>>::    `long`, `integer`, `short`, `byte`, `double`, `float`
+<<number>>::    `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
 <<date>>::      `date`
 <<boolean>>::   `boolean`
 <<binary>>::    `binary`
+<<range>>::     `integer_range`, `float_range`, `long_range`, `double_range`, `date_range`
 
 [float]
 === Complex datatypes
@@ -37,6 +38,8 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
 
 <<percolator>>::    Accepts queries from the query-dsl
 
+<<parent-join>>::   Defines parent/child relation for documents within the same index
+
 [float]
 === Multi-fields
 
@@ -54,6 +57,8 @@ via the <<multi-fields>> parameter.
 include::types/array.asciidoc[]
 
 include::types/binary.asciidoc[]
+
+include::types/range.asciidoc[]
 
 include::types/boolean.asciidoc[]
 
@@ -73,15 +78,13 @@ include::types/numeric.asciidoc[]
 
 include::types/object.asciidoc[]
 
-include::types/string.asciidoc[]
-
 include::types/text.asciidoc[]
 
 include::types/token-count.asciidoc[]
 
 include::types/percolator.asciidoc[]
 
-
+include::types/parent-join.asciidoc[]
 
 
 

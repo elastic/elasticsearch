@@ -26,8 +26,8 @@ public class GeoBoundsTests extends BaseAggregationTestCase<GeoBoundsAggregation
 
     @Override
     protected GeoBoundsAggregationBuilder createTestAggregatorBuilder() {
-        GeoBoundsAggregationBuilder factory = new GeoBoundsAggregationBuilder(randomAsciiOfLengthBetween(1, 20));
-        String field = randomAsciiOfLengthBetween(3, 20);
+        GeoBoundsAggregationBuilder factory = new GeoBoundsAggregationBuilder(randomAlphaOfLengthBetween(1, 20));
+        String field = randomAlphaOfLengthBetween(3, 20);
         factory.field(field);
         if (randomBoolean()) {
             factory.wrapLongitude(randomBoolean());

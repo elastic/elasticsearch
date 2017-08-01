@@ -33,9 +33,7 @@ public class JavaVersion implements Comparable<JavaVersion> {
     }
 
     private JavaVersion(List<Integer> version) {
-        if (version.size() >= 2
-                && version.get(0).intValue() == 1
-                && version.get(1).intValue() == 8) {
+        if (version.size() >= 2 && version.get(0) == 1 && version.get(1) == 8) {
             // for Java 8 there is ambiguity since both 1.8 and 8 are supported,
             // so we rewrite the former to the latter
             version = new ArrayList<>(version.subList(1, version.size()));

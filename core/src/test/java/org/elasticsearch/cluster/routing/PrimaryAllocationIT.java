@@ -34,6 +34,7 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
@@ -62,14 +63,15 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean addMockZenPings() {
-        return false;
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
     }
 
     private void createStaleReplicaScenario() throws Exception {
         logger.info("--> starting 3 nodes, 1 master, 2 data");
         String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
-        internalCluster().startDataOnlyNodesAsync(2).get();
+        internalCluster().startDataOnlyNodes(2);
 
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
             .put("index.number_of_shards", 1).put("index.number_of_replicas", 1)).get());
@@ -152,7 +154,9 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand("test", 0, dataNodeWithNoShardCopy, true)).get();
 
         logger.info("--> wait until shard is failed and becomes unassigned again");
-        assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned()));
+        assertBusy(() ->
+            assertTrue(client().admin().cluster().prepareState().get().getState().toString(),
+                client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned()));
         assertThat(client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").getShards().get(0).primaryShard().unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
     }
 
@@ -263,7 +267,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
     public void testNotWaitForQuorumCopies() throws Exception {
         logger.info("--> starting 3 nodes");
-        internalCluster().startNodesAsync(3).get();
+        internalCluster().startNodes(3);
         logger.info("--> creating index with 1 primary and 2 replicas");
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
             .put("index.number_of_shards", randomIntBetween(1, 3)).put("index.number_of_replicas", 2)).get());
@@ -285,7 +289,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
      */
     public void testForceAllocatePrimaryOnNoDecision() throws Exception {
         logger.info("--> starting 1 node");
-        final String node = internalCluster().startNodeAsync().get();
+        final String node = internalCluster().startNode();
         logger.info("--> creating index with 1 primary and 0 replicas");
         final String indexName = "test-idx";
         assertAcked(client().admin().indices()

@@ -37,33 +37,17 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 --------------------------------------------------
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-GeoShapeQueryBuilder qb = geoShapeQuery(
-        "pin.location",                 <1>
-        ShapeBuilder.newMultiPoint()    <2>
-             .point(0, 0)
-             .point(0, 10)
-             .point(10, 10)
-             .point(10, 0)
-             .point(0, 0));
-qb.relation(ShapeRelation.WITHIN);      <3>
-
+include-tagged::{query-dsl-test}[geo_shape]
 --------------------------------------------------
 <1> field
 <2> shape
-<3> relation can be `ShapeRelation.WITHIN`, `ShapeRelation.INTERSECTS` or `ShapeRelation.DISJOINT`
+<3> relation can be `ShapeRelation.CONTAINS`, `ShapeRelation.WITHIN`, `ShapeRelation.INTERSECTS` or `ShapeRelation.DISJOINT`
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-// Using pre-indexed shapes
-GeoShapeQueryBuilder qb = geoShapeQuery(
-        "pin.location",             <1>
-        "DEU",                      <2>
-        "countries");               <3>
-qb.relation(ShapeRelation.WITHIN))  <4>
-    .indexedShapeIndex("shapes")    <5>
-    .indexedShapePath("location");  <6>
+include-tagged::{query-dsl-test}[indexed_geo_shape]
 --------------------------------------------------
 <1> field
 <2> The ID of the document that containing the pre-indexed shape.

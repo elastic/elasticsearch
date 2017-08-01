@@ -22,37 +22,27 @@ package org.elasticsearch.discovery.zen;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
-public interface ZenPing extends LifecycleComponent {
+public interface ZenPing extends Releasable {
 
-    void setPingContextProvider(PingContextProvider contextProvider);
+    void start();
 
-    void ping(PingListener listener, TimeValue timeout);
-
-    interface PingListener {
-
-        /**
-         * called when pinging is done.
-         *
-         * @param pings ping result *must
-         */
-        void onPing(Collection<PingResponse> pings);
-    }
+    void ping(Consumer<PingCollection> resultsConsumer, TimeValue timeout);
 
     class PingResponse implements Streamable {
 
@@ -82,7 +72,7 @@ public interface ZenPing extends LifecycleComponent {
          * @param clusterStateVersion the current cluster state version of that node
          *                            ({@link ElectMasterService.MasterCandidate#UNRECOVERED_CLUSTER_VERSION} for not recovered)
          */
-        public PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, long clusterStateVersion) {
+        PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, long clusterStateVersion) {
             this.id = idGenerator.incrementAndGet();
             this.node = node;
             this.master = master;
@@ -189,13 +179,6 @@ public interface ZenPing extends LifecycleComponent {
                 return true;
             }
             return false;
-        }
-
-        /** adds multiple pings if newer than previous pings from the same node */
-        public synchronized void addPings(Iterable<PingResponse> pings) {
-            for (PingResponse ping : pings) {
-                addPing(ping);
-            }
         }
 
         /** serialize current pings to a list. It is guaranteed that the list contains one ping response per node */

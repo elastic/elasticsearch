@@ -56,11 +56,13 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -80,12 +82,12 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put(defaultSettings)
                 .build();
-        internalCluster().startNodesAsync(2, masterNodeSettings).get();
+        internalCluster().startNodes(2, masterNodeSettings);
         Settings dateNodeSettings = Settings.builder()
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .put(defaultSettings)
                 .build();
-        internalCluster().startNodesAsync(2, dateNodeSettings).get();
+        internalCluster().startNodes(2, dateNodeSettings);
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNodes("4")
@@ -100,13 +102,10 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
 
         final String oldMaster = internalCluster().getMasterName();
         internalCluster().stopCurrentMasterNode();
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                String current = internalCluster().getMasterName();
-                assertThat(current, notNullValue());
-                assertThat(current, not(equalTo(oldMaster)));
-            }
+        assertBusy(() -> {
+            String current = internalCluster().getMasterName();
+            assertThat(current, notNullValue());
+            assertThat(current, not(equalTo(oldMaster)));
         });
         ensureSearchable("test");
 
@@ -130,14 +129,14 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .put(defaultSettings)
                 .build();
-        internalCluster().startNodesAsync(2, dateNodeSettings).get();
+        internalCluster().startNodes(2, dateNodeSettings);
         client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
 
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, master);
-        final ArrayList<ClusterState> statesFound = new ArrayList<>();
+        final AtomicInteger numUpdates = new AtomicInteger();
         final CountDownLatch nodesStopped = new CountDownLatch(1);
-        clusterService.add(event -> {
-            statesFound.add(event.state());
+        clusterService.addStateApplier(event -> {
+            numUpdates.incrementAndGet();
             try {
                 // block until both nodes have stopped to accumulate node failures
                 nodesStopped.await();
@@ -151,12 +150,11 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         nodesStopped.countDown();
 
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get(); // wait for all to be processed
-        assertThat(statesFound, Matchers.hasSize(2));
+        assertThat(numUpdates.get(), either(equalTo(1)).or(equalTo(2))); // due to batching, both nodes can be handled in same CS update
     }
 
     public void testNodeRejectsClusterStateWithWrongMasterNode() throws Exception {
-        List<String> nodeNames = internalCluster().startNodesAsync(2).get();
-        client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
+        List<String> nodeNames = internalCluster().startNodes(2);
 
         List<String> nonMasterNodes = new ArrayList<>(nodeNames);
         nonMasterNodes.remove(internalCluster().getMasterName());
@@ -240,12 +238,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         }
 
         @Override
-        protected TestCustomMetaData newTestCustomMetaData(String data) {
-            return new CustomMetaData(data);
-        }
-
-        @Override
-        public String type() {
+        public String getWriteableName() {
             return TYPE;
         }
 
@@ -255,7 +248,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         }
     }
 
-    public void testDiscoveryStats() throws IOException {
+    public void testDiscoveryStats() throws Exception {
         String expectedStatsJsonResponse = "{\n" +
                 "  \"discovery\" : {\n" +
                 "    \"cluster_state_queue\" : {\n" +
@@ -267,6 +260,10 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 "}";
 
         internalCluster().startNode();
+        ensureGreen(); // ensures that all events are processed (in particular state recovery fully completed)
+        assertBusy(() ->
+            assertThat(internalCluster().clusterService(internalCluster().getMasterName()).getMasterService().numberOfPendingTasks(),
+                equalTo(0))); // see https://github.com/elastic/elasticsearch/issues/24388
 
         logger.info("--> request node discovery stats");
         NodesStatsResponse statsResponse = client().admin().cluster().prepareNodesStats().clear().setDiscovery(true).get();

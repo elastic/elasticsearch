@@ -21,6 +21,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -31,22 +32,26 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Order;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 /**
  * This abstract class holds parameters shared by {@link HighlightBuilder} and {@link HighlightBuilder.Field}
  * and provides the common setters, equality, hashCode calculation and common serialization
  */
-public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>> extends ToXContentToBytes implements Writeable {
+public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>> extends ToXContentToBytes implements
+    Writeable, Rewriteable<HB> {
     public static final ParseField PRE_TAGS_FIELD = new ParseField("pre_tags");
     public static final ParseField POST_TAGS_FIELD = new ParseField("post_tags");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
@@ -57,8 +62,10 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public static final ParseField NUMBER_OF_FRAGMENTS_FIELD = new ParseField("number_of_fragments");
     public static final ParseField ENCODER_FIELD = new ParseField("encoder");
     public static final ParseField REQUIRE_FIELD_MATCH_FIELD = new ParseField("require_field_match");
+    public static final ParseField BOUNDARY_SCANNER_FIELD = new ParseField("boundary_scanner");
     public static final ParseField BOUNDARY_MAX_SCAN_FIELD = new ParseField("boundary_max_scan");
     public static final ParseField BOUNDARY_CHARS_FIELD = new ParseField("boundary_chars");
+    public static final ParseField BOUNDARY_SCANNER_LOCALE_FIELD = new ParseField("boundary_scanner_locale");
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField FRAGMENTER_FIELD = new ParseField("fragmenter");
     public static final ParseField NO_MATCH_SIZE_FIELD = new ParseField("no_match_size");
@@ -88,9 +95,13 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     protected Boolean forceSource;
 
+    protected BoundaryScannerType boundaryScannerType;
+
     protected Integer boundaryMaxScan;
 
     protected char[] boundaryChars;
+
+    protected Locale boundaryScannerLocale;
 
     protected Integer noMatchSize;
 
@@ -101,6 +112,27 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     protected Boolean requireFieldMatch;
 
     public AbstractHighlighterBuilder() {
+    }
+
+    protected AbstractHighlighterBuilder(AbstractHighlighterBuilder template, QueryBuilder queryBuilder) {
+        preTags = template.preTags;
+        postTags = template.postTags;
+        fragmentSize = template.fragmentSize;
+        numOfFragments = template.numOfFragments;
+        highlighterType = template.highlighterType;
+        fragmenter = template.fragmenter;
+        highlightQuery = queryBuilder;
+        order = template.order;
+        highlightFilter = template.highlightFilter;
+        forceSource = template.forceSource;
+        boundaryScannerType = template.boundaryScannerType;
+        boundaryMaxScan = template.boundaryMaxScan;
+        boundaryChars = template.boundaryChars;
+        boundaryScannerLocale = template.boundaryScannerLocale;
+        noMatchSize = template.noMatchSize;
+        phraseLimit = template.phraseLimit;
+        options = template.options;
+        requireFieldMatch = template.requireFieldMatch;
     }
 
     /**
@@ -119,9 +151,17 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         order(in.readOptionalWriteable(Order::readFromStream));
         highlightFilter(in.readOptionalBoolean());
         forceSource(in.readOptionalBoolean());
+        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
+            boundaryScannerType(in.readOptionalWriteable(BoundaryScannerType::readFromStream));
+        }
         boundaryMaxScan(in.readOptionalVInt());
         if (in.readBoolean()) {
             boundaryChars(in.readString().toCharArray());
+        }
+        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
+            if (in.readBoolean()) {
+                boundaryScannerLocale(in.readString());
+            }
         }
         noMatchSize(in.readOptionalVInt());
         phraseLimit(in.readOptionalVInt());
@@ -150,11 +190,21 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         out.writeOptionalWriteable(order);
         out.writeOptionalBoolean(highlightFilter);
         out.writeOptionalBoolean(forceSource);
+        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
+            out.writeOptionalWriteable(boundaryScannerType);
+        }
         out.writeOptionalVInt(boundaryMaxScan);
         boolean hasBounaryChars = boundaryChars != null;
         out.writeBoolean(hasBounaryChars);
         if (hasBounaryChars) {
             out.writeString(String.valueOf(boundaryChars));
+        }
+        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
+            boolean hasBoundaryScannerLocale = boundaryScannerLocale != null;
+            out.writeBoolean(hasBoundaryScannerLocale);
+            if (hasBoundaryScannerLocale) {
+                out.writeString(boundaryScannerLocale.toLanguageTag());
+            }
         }
         out.writeOptionalVInt(noMatchSize);
         out.writeOptionalVInt(phraseLimit);
@@ -235,8 +285,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     /**
      * Set type of highlighter to use. Out of the box supported types
-     * are <tt>plain</tt>, <tt>fvh</tt> and <tt>postings</tt>.
-     * The default option selected is dependent on the mappings defined for your index.
+     * are <tt>unified</tt>, <tt>plain</tt> and <tt>fvj</tt>.
+     * Defaults to <tt>unified</tt>.
      * Details of the different highlighter types are covered in the reference guide.
      */
     @SuppressWarnings("unchecked")
@@ -333,6 +383,33 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     /**
      * When using the highlighterType <tt>fvh</tt> this setting
+     * controls which scanner to use for fragment boundaries, and defaults to "simple".
+     */
+    @SuppressWarnings("unchecked")
+    public HB boundaryScannerType(String boundaryScannerType) {
+        this.boundaryScannerType = BoundaryScannerType.fromString(boundaryScannerType);
+        return (HB) this;
+    }
+
+    /**
+     * When using the highlighterType <tt>fvh</tt> this setting
+     * controls which scanner to use for fragment boundaries, and defaults to "simple".
+     */
+    @SuppressWarnings("unchecked")
+    public HB boundaryScannerType(BoundaryScannerType boundaryScannerType) {
+        this.boundaryScannerType = boundaryScannerType;
+        return (HB) this;
+    }
+
+    /**
+     * @return the value set by {@link #boundaryScannerType(String)}
+     */
+    public BoundaryScannerType boundaryScannerType() {
+        return this.boundaryScannerType;
+    }
+
+    /**
+     * When using the highlighterType <tt>fvh</tt> this setting
      * controls how far to look for boundary characters, and defaults to 20.
      */
     @SuppressWarnings("unchecked")
@@ -364,6 +441,25 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
      */
     public char[] boundaryChars() {
         return this.boundaryChars;
+    }
+
+    /**
+     * When using the highlighterType <tt>fvh</tt> and boundaryScannerType <tt>break_iterator</tt>, this setting
+     * controls the locale to use by the BreakIterator, defaults to "root".
+     */
+    @SuppressWarnings("unchecked")
+    public HB boundaryScannerLocale(String boundaryScannerLocale) {
+        if (boundaryScannerLocale != null) {
+            this.boundaryScannerLocale = Locale.forLanguageTag(boundaryScannerLocale);
+        }
+        return (HB) this;
+    }
+
+    /**
+     * @return the value set by {@link #boundaryScannerLocale(String)}
+     */
+    public Locale boundaryScannerLocale() {
+        return this.boundaryScannerLocale;
     }
 
     /**
@@ -491,11 +587,17 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (highlightFilter != null) {
             builder.field(HIGHLIGHT_FILTER_FIELD.getPreferredName(), highlightFilter);
         }
+        if (boundaryScannerType != null) {
+            builder.field(BOUNDARY_SCANNER_FIELD.getPreferredName(), boundaryScannerType.name());
+        }
         if (boundaryMaxScan != null) {
             builder.field(BOUNDARY_MAX_SCAN_FIELD.getPreferredName(), boundaryMaxScan);
         }
         if (boundaryChars != null) {
             builder.field(BOUNDARY_CHARS_FIELD.getPreferredName(), new String(boundaryChars));
+        }
+        if (boundaryScannerLocale != null) {
+            builder.field(BOUNDARY_SCANNER_LOCALE_FIELD.getPreferredName(), boundaryScannerLocale.toLanguageTag());
         }
         if (options != null && options.size() > 0) {
             builder.field(OPTIONS_FIELD.getPreferredName(), options);
@@ -514,8 +616,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         }
     }
 
-    static <HB extends AbstractHighlighterBuilder<HB>> BiFunction<QueryParseContext, HB, HB> setupParser(
-            ObjectParser<HB, QueryParseContext> parser) {
+    static <HB extends AbstractHighlighterBuilder<HB>> BiFunction<XContentParser, HB, HB> setupParser(
+            ObjectParser<HB, Void> parser) {
         parser.declareStringArray(fromList(String.class, HB::preTags), PRE_TAGS_FIELD);
         parser.declareStringArray(fromList(String.class, HB::postTags), POST_TAGS_FIELD);
         parser.declareString(HB::order, ORDER_FIELD);
@@ -523,32 +625,34 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         parser.declareInt(HB::fragmentSize, FRAGMENT_SIZE_FIELD);
         parser.declareInt(HB::numOfFragments, NUMBER_OF_FRAGMENTS_FIELD);
         parser.declareBoolean(HB::requireFieldMatch, REQUIRE_FIELD_MATCH_FIELD);
+        parser.declareString(HB::boundaryScannerType, BOUNDARY_SCANNER_FIELD);
         parser.declareInt(HB::boundaryMaxScan, BOUNDARY_MAX_SCAN_FIELD);
         parser.declareString((HB hb, String bc) -> hb.boundaryChars(bc.toCharArray()) , BOUNDARY_CHARS_FIELD);
+        parser.declareString(HB::boundaryScannerLocale, BOUNDARY_SCANNER_LOCALE_FIELD);
         parser.declareString(HB::highlighterType, TYPE_FIELD);
         parser.declareString(HB::fragmenter, FRAGMENTER_FIELD);
         parser.declareInt(HB::noMatchSize, NO_MATCH_SIZE_FIELD);
         parser.declareBoolean(HB::forceSource, FORCE_SOURCE_FIELD);
         parser.declareInt(HB::phraseLimit, PHRASE_LIMIT_FIELD);
-        parser.declareObject(HB::options, (XContentParser p, QueryParseContext c) -> {
+        parser.declareObject(HB::options, (XContentParser p, Void c) -> {
             try {
                 return p.map();
             } catch (IOException e) {
                 throw new RuntimeException("Error parsing options", e);
             }
         }, OPTIONS_FIELD);
-        parser.declareObject(HB::highlightQuery, (XContentParser p, QueryParseContext c) -> {
+        parser.declareObject(HB::highlightQuery, (XContentParser p, Void c) -> {
             try {
-                return c.parseInnerQueryBuilder().orElse(null);
+                return parseInnerQueryBuilder(p);
             } catch (IOException e) {
                 throw new RuntimeException("Error parsing query", e);
             }
         }, HIGHLIGHT_QUERY_FIELD);
-        return (QueryParseContext c, HB hb) -> {
+        return (XContentParser p, HB hb) -> {
             try {
-                parser.parse(c.parser(), hb, c);
+                parser.parse(p, hb, null);
                 if (hb.preTags() != null && hb.postTags() == null) {
-                    throw new ParsingException(c.parser().getTokenLocation(),
+                    throw new ParsingException(p.getTokenLocation(),
                             "pre_tags are set but post_tags are not set");
                 }
             } catch (IOException e) {
@@ -562,8 +666,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public final int hashCode() {
         return Objects.hash(getClass(), Arrays.hashCode(preTags), Arrays.hashCode(postTags), fragmentSize,
                 numOfFragments, highlighterType, fragmenter, highlightQuery, order, highlightFilter,
-                forceSource, boundaryMaxScan, Arrays.hashCode(boundaryChars), noMatchSize,
-                phraseLimit, options, requireFieldMatch, doHashCode());
+                forceSource, boundaryScannerType, boundaryMaxScan, Arrays.hashCode(boundaryChars), boundaryScannerLocale,
+                noMatchSize, phraseLimit, options, requireFieldMatch, doHashCode());
     }
 
     /**
@@ -591,8 +695,10 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
                Objects.equals(order, other.order) &&
                Objects.equals(highlightFilter, other.highlightFilter) &&
                Objects.equals(forceSource, other.forceSource) &&
+               Objects.equals(boundaryScannerType, other.boundaryScannerType) &&
                Objects.equals(boundaryMaxScan, other.boundaryMaxScan) &&
                Arrays.equals(boundaryChars, other.boundaryChars) &&
+               Objects.equals(boundaryScannerLocale, other.boundaryScannerLocale) &&
                Objects.equals(noMatchSize, other.noMatchSize) &&
                Objects.equals(phraseLimit, other.phraseLimit) &&
                Objects.equals(options, other.options) &&

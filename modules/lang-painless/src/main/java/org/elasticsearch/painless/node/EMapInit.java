@@ -64,11 +64,7 @@ public final class EMapInit extends AExpression {
             throw createError(new IllegalArgumentException("Must read from map initializer."));
         }
 
-        try {
-            actual = Definition.getType("HashMap");
-        } catch (IllegalArgumentException exception) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        }
+        actual = Definition.HASH_MAP_TYPE;
 
         constructor = actual.struct.constructors.get(new MethodKey("<init>", 0));
 
@@ -123,5 +119,10 @@ public final class EMapInit extends AExpression {
             method.write(writer);
             writer.pop();
         }
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(pairwiseToString(keys, values));
     }
 }

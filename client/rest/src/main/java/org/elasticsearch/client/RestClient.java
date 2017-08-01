@@ -18,28 +18,32 @@
  */
 package org.elasticsearch.client;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpRequest;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.ClientProtocolException;
-import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
-import org.apache.http.client.methods.HttpHead;
-import org.apache.http.client.methods.HttpOptions;
-import org.apache.http.client.methods.HttpPatch;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.client.methods.HttpTrace;
-import org.apache.http.client.utils.URIBuilder;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.nio.client.methods.HttpAsyncMethods;
-import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
-import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.elasticsearch.client.commons.logging.Log;
+import org.elasticsearch.client.commons.logging.LogFactory;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.HttpRequest;
+import org.elasticsearch.client.http.HttpResponse;
+import org.elasticsearch.client.http.client.AuthCache;
+import org.elasticsearch.client.http.client.ClientProtocolException;
+import org.elasticsearch.client.http.client.methods.HttpEntityEnclosingRequestBase;
+import org.elasticsearch.client.http.client.methods.HttpHead;
+import org.elasticsearch.client.http.client.methods.HttpOptions;
+import org.elasticsearch.client.http.client.methods.HttpPatch;
+import org.elasticsearch.client.http.client.methods.HttpPost;
+import org.elasticsearch.client.http.client.methods.HttpPut;
+import org.elasticsearch.client.http.client.methods.HttpRequestBase;
+import org.elasticsearch.client.http.client.methods.HttpTrace;
+import org.elasticsearch.client.http.client.protocol.HttpClientContext;
+import org.elasticsearch.client.http.client.utils.URIBuilder;
+import org.elasticsearch.client.http.concurrent.FutureCallback;
+import org.elasticsearch.client.http.impl.auth.BasicScheme;
+import org.elasticsearch.client.http.impl.client.BasicAuthCache;
+import org.elasticsearch.client.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.elasticsearch.client.http.nio.client.methods.HttpAsyncMethods;
+import org.elasticsearch.client.http.nio.protocol.HttpAsyncRequestProducer;
+import org.elasticsearch.client.http.nio.protocol.HttpAsyncResponseConsumer;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -49,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -91,7 +96,7 @@ public class RestClient implements Closeable {
     private final long maxRetryTimeoutMillis;
     private final String pathPrefix;
     private final AtomicInteger lastHostIndex = new AtomicInteger(0);
-    private volatile Set<HttpHost> hosts;
+    private volatile HostTuple<Set<HttpHost>> hostTuple;
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
 
@@ -121,11 +126,13 @@ public class RestClient implements Closeable {
             throw new IllegalArgumentException("hosts must not be null nor empty");
         }
         Set<HttpHost> httpHosts = new HashSet<>();
+        AuthCache authCache = new BasicAuthCache();
         for (HttpHost host : hosts) {
             Objects.requireNonNull(host, "host cannot be null");
             httpHosts.add(host);
+            authCache.put(host, new BasicScheme());
         }
-        this.hosts = Collections.unmodifiableSet(httpHosts);
+        this.hostTuple = new HostTuple<>(Collections.unmodifiableSet(httpHosts), authCache);
         this.blacklist.clear();
     }
 
@@ -143,7 +150,7 @@ public class RestClient implements Closeable {
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
      */
     public Response performRequest(String method, String endpoint, Header... headers) throws IOException {
-        return performRequest(method, endpoint, Collections.<String, String>emptyMap(), (HttpEntity)null, headers);
+        return performRequest(method, endpoint, Collections.<String, String>emptyMap(), null, headers);
     }
 
     /**
@@ -165,9 +172,9 @@ public class RestClient implements Closeable {
 
     /**
      * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response
-     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, HttpAsyncResponseConsumer, Header...)}
-     * which doesn't require specifying an {@link HttpAsyncResponseConsumer} instance, {@link HeapBufferedAsyncResponseConsumer}
-     * will be used to consume the response body.
+     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, HttpAsyncResponseConsumerFactory, Header...)}
+     * which doesn't require specifying an {@link HttpAsyncResponseConsumerFactory} instance,
+     * {@link HttpAsyncResponseConsumerFactory} will be used to create the needed instances of {@link HttpAsyncResponseConsumer}.
      *
      * @param method the http method
      * @param endpoint the path of the request (without host and port)
@@ -181,8 +188,7 @@ public class RestClient implements Closeable {
      */
     public Response performRequest(String method, String endpoint, Map<String, String> params,
                                    HttpEntity entity, Header... headers) throws IOException {
-        HttpAsyncResponseConsumer<HttpResponse> responseConsumer = new HeapBufferedAsyncResponseConsumer();
-        return performRequest(method, endpoint, params, entity, responseConsumer, headers);
+        return performRequest(method, endpoint, params, entity, HttpAsyncResponseConsumerFactory.DEFAULT, headers);
     }
 
     /**
@@ -196,8 +202,9 @@ public class RestClient implements Closeable {
      * @param endpoint the path of the request (without host and port)
      * @param params the query_string parameters
      * @param entity the body of the request, null if not applicable
-     * @param responseConsumer the {@link HttpAsyncResponseConsumer} callback. Controls how the response
-     * body gets streamed from a non-blocking HTTP connection on the client side.
+     * @param httpAsyncResponseConsumerFactory the {@link HttpAsyncResponseConsumerFactory} used to create one
+     * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the response body gets streamed from a non-blocking HTTP
+     * connection on the client side.
      * @param headers the optional request headers
      * @return the response returned by Elasticsearch
      * @throws IOException in case of a problem or the connection was aborted
@@ -205,10 +212,10 @@ public class RestClient implements Closeable {
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
      */
     public Response performRequest(String method, String endpoint, Map<String, String> params,
-                                   HttpEntity entity, HttpAsyncResponseConsumer<HttpResponse> responseConsumer,
+                                   HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                    Header... headers) throws IOException {
         SyncResponseListener listener = new SyncResponseListener(maxRetryTimeoutMillis);
-        performRequestAsync(method, endpoint, params, entity, responseConsumer, listener, headers);
+        performRequestAsync(method, endpoint, params, entity, httpAsyncResponseConsumerFactory, listener, headers);
         return listener.get();
     }
 
@@ -245,9 +252,9 @@ public class RestClient implements Closeable {
     /**
      * Sends a request to the Elasticsearch cluster that the client points to. Doesn't wait for the response, instead
      * the provided {@link ResponseListener} will be notified upon completion or failure.
-     * Shortcut to {@link #performRequestAsync(String, String, Map, HttpEntity, HttpAsyncResponseConsumer, ResponseListener, Header...)}
-     * which doesn't require specifying an {@link HttpAsyncResponseConsumer} instance, {@link HeapBufferedAsyncResponseConsumer}
-     * will be used to consume the response body.
+     * Shortcut to {@link #performRequestAsync(String, String, Map, HttpEntity, HttpAsyncResponseConsumerFactory, ResponseListener,
+     * Header...)} which doesn't require specifying an {@link HttpAsyncResponseConsumerFactory} instance,
+     * {@link HttpAsyncResponseConsumerFactory} will be used to create the needed instances of {@link HttpAsyncResponseConsumer}.
      *
      * @param method the http method
      * @param endpoint the path of the request (without host and port)
@@ -258,8 +265,7 @@ public class RestClient implements Closeable {
      */
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, ResponseListener responseListener, Header... headers) {
-        HttpAsyncResponseConsumer<HttpResponse> responseConsumer = new HeapBufferedAsyncResponseConsumer();
-        performRequestAsync(method, endpoint, params, entity, responseConsumer, responseListener, headers);
+        performRequestAsync(method, endpoint, params, entity, HttpAsyncResponseConsumerFactory.DEFAULT, responseListener, headers);
     }
 
     /**
@@ -274,36 +280,74 @@ public class RestClient implements Closeable {
      * @param endpoint the path of the request (without host and port)
      * @param params the query_string parameters
      * @param entity the body of the request, null if not applicable
-     * @param responseConsumer the {@link HttpAsyncResponseConsumer} callback. Controls how the response
-     * body gets streamed from a non-blocking HTTP connection on the client side.
+     * @param httpAsyncResponseConsumerFactory the {@link HttpAsyncResponseConsumerFactory} used to create one
+     * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the response body gets streamed from a non-blocking HTTP
+     * connection on the client side.
      * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
      * @param headers the optional request headers
      */
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
-                                    HttpEntity entity, HttpAsyncResponseConsumer<HttpResponse> responseConsumer,
+                                    HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                     ResponseListener responseListener, Header... headers) {
-        URI uri = buildUri(pathPrefix, endpoint, params);
-        HttpRequestBase request = createHttpRequest(method, uri, entity);
-        setHeaders(request, headers);
-        FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
-        long startTime = System.nanoTime();
-        performRequestAsync(startTime, nextHost().iterator(), request, responseConsumer, failureTrackingResponseListener);
+        try {
+            Objects.requireNonNull(params, "params must not be null");
+            Map<String, String> requestParams = new HashMap<>(params);
+            //ignore is a special parameter supported by the clients, shouldn't be sent to es
+            String ignoreString = requestParams.remove("ignore");
+            Set<Integer> ignoreErrorCodes;
+            if (ignoreString == null) {
+                if (HttpHead.METHOD_NAME.equals(method)) {
+                    //404 never causes error if returned for a HEAD request
+                    ignoreErrorCodes = Collections.singleton(404);
+                } else {
+                    ignoreErrorCodes = Collections.emptySet();
+                }
+            } else {
+                String[] ignoresArray = ignoreString.split(",");
+                ignoreErrorCodes = new HashSet<>();
+                if (HttpHead.METHOD_NAME.equals(method)) {
+                    //404 never causes error if returned for a HEAD request
+                    ignoreErrorCodes.add(404);
+                }
+                for (String ignoreCode : ignoresArray) {
+                    try {
+                        ignoreErrorCodes.add(Integer.valueOf(ignoreCode));
+                    } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException("ignore value should be a number, found [" + ignoreString + "] instead", e);
+                    }
+                }
+            }
+            URI uri = buildUri(pathPrefix, endpoint, requestParams);
+            HttpRequestBase request = createHttpRequest(method, uri, entity);
+            setHeaders(request, headers);
+            FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
+            long startTime = System.nanoTime();
+            performRequestAsync(startTime, nextHost(), request, ignoreErrorCodes, httpAsyncResponseConsumerFactory,
+                    failureTrackingResponseListener);
+        } catch (Exception e) {
+            responseListener.onFailure(e);
+        }
     }
 
-    private void performRequestAsync(final long startTime, final Iterator<HttpHost> hosts, final HttpRequestBase request,
-                                     final HttpAsyncResponseConsumer<HttpResponse> responseConsumer,
+    private void performRequestAsync(final long startTime, final HostTuple<Iterator<HttpHost>> hostTuple, final HttpRequestBase request,
+                                     final Set<Integer> ignoreErrorCodes,
+                                     final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                      final FailureTrackingResponseListener listener) {
-        final HttpHost host = hosts.next();
+        final HttpHost host = hostTuple.hosts.next();
         //we stream the request body if the entity allows for it
-        HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(host, request);
-        client.execute(requestProducer, responseConsumer, new FutureCallback<HttpResponse>() {
+        final HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(host, request);
+        final HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer =
+            httpAsyncResponseConsumerFactory.createHttpAsyncResponseConsumer();
+        final HttpClientContext context = HttpClientContext.create();
+        context.setAuthCache(hostTuple.authCache);
+        client.execute(requestProducer, asyncResponseConsumer, context, new FutureCallback<HttpResponse>() {
             @Override
             public void completed(HttpResponse httpResponse) {
                 try {
                     RequestLogger.logResponse(logger, request, host, httpResponse);
                     int statusCode = httpResponse.getStatusLine().getStatusCode();
                     Response response = new Response(request.getRequestLine(), host, httpResponse);
-                    if (isSuccessfulResponse(request.getMethod(), statusCode)) {
+                    if (isSuccessfulResponse(statusCode) || ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
                         onResponse(host);
                         listener.onSuccess(response);
                     } else {
@@ -311,7 +355,7 @@ public class RestClient implements Closeable {
                         if (isRetryStatus(statusCode)) {
                             //mark host dead and retry against next one
                             onFailure(host);
-                            retryIfPossible(responseException, hosts, request);
+                            retryIfPossible(responseException);
                         } else {
                             //mark host alive and don't retry, as the error should be a request problem
                             onResponse(host);
@@ -328,14 +372,14 @@ public class RestClient implements Closeable {
                 try {
                     RequestLogger.logFailedRequest(logger, request, host, failure);
                     onFailure(host);
-                    retryIfPossible(failure, hosts, request);
+                    retryIfPossible(failure);
                 } catch(Exception e) {
                     listener.onDefinitiveFailure(e);
                 }
             }
 
-            private void retryIfPossible(Exception exception, Iterator<HttpHost> hosts, HttpRequestBase request) {
-                if (hosts.hasNext()) {
+            private void retryIfPossible(Exception exception) {
+                if (hostTuple.hosts.hasNext()) {
                     //in case we are retrying, check whether maxRetryTimeout has been reached
                     long timeElapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
                     long timeout = maxRetryTimeoutMillis - timeElapsedMillis;
@@ -346,7 +390,7 @@ public class RestClient implements Closeable {
                     } else {
                         listener.trackFailure(exception);
                         request.reset();
-                        performRequestAsync(startTime, hosts, request, responseConsumer, listener);
+                        performRequestAsync(startTime, hostTuple, request, ignoreErrorCodes, httpAsyncResponseConsumerFactory, listener);
                     }
                 } else {
                     listener.onDefinitiveFailure(exception);
@@ -384,17 +428,18 @@ public class RestClient implements Closeable {
      * The iterator returned will never be empty. In case there are no healthy hosts available, or dead ones to be be retried,
      * one dead host gets returned so that it can be retried.
      */
-    private Iterable<HttpHost> nextHost() {
+    private HostTuple<Iterator<HttpHost>> nextHost() {
+        final HostTuple<Set<HttpHost>> hostTuple = this.hostTuple;
         Collection<HttpHost> nextHosts = Collections.emptySet();
         do {
-            Set<HttpHost> filteredHosts = new HashSet<>(hosts);
+            Set<HttpHost> filteredHosts = new HashSet<>(hostTuple.hosts);
             for (Map.Entry<HttpHost, DeadHostState> entry : blacklist.entrySet()) {
                 if (System.nanoTime() - entry.getValue().getDeadUntilNanos() < 0) {
                     filteredHosts.remove(entry.getKey());
                 }
             }
             if (filteredHosts.isEmpty()) {
-                //last resort: if there are no good hosts to use, return a single dead one, the one that's closest to being retried
+                //last resort: if there are no good host to use, return a single dead one, the one that's closest to being retried
                 List<Map.Entry<HttpHost, DeadHostState>> sortedHosts = new ArrayList<>(blacklist.entrySet());
                 if (sortedHosts.size() > 0) {
                     Collections.sort(sortedHosts, new Comparator<Map.Entry<HttpHost, DeadHostState>>() {
@@ -413,7 +458,7 @@ public class RestClient implements Closeable {
                 nextHosts = rotatedHosts;
             }
         } while(nextHosts.isEmpty());
-        return nextHosts;
+        return new HostTuple<>(nextHosts.iterator(), hostTuple.authCache);
     }
 
     /**
@@ -451,8 +496,8 @@ public class RestClient implements Closeable {
         client.close();
     }
 
-    private static boolean isSuccessfulResponse(String method, int statusCode) {
-        return statusCode < 300 || (HttpHead.METHOD_NAME.equals(method) && statusCode == 404);
+    private static boolean isSuccessfulResponse(int statusCode) {
+        return statusCode < 300;
     }
 
     private static boolean isRetryStatus(int statusCode) {
@@ -508,8 +553,8 @@ public class RestClient implements Closeable {
         return httpRequest;
     }
 
-    private static URI buildUri(String pathPrefix, String path, Map<String, String> params) {
-        Objects.requireNonNull(params, "params must not be null");
+    static URI buildUri(String pathPrefix, String path, Map<String, String> params) {
+        Objects.requireNonNull(path, "path must not be null");
         try {
             String fullPath;
             if (pathPrefix != null) {
@@ -653,6 +698,20 @@ public class RestClient implements Closeable {
          */
         public void onFailure(HttpHost host) {
 
+        }
+    }
+
+    /**
+     * {@code HostTuple} enables the {@linkplain HttpHost}s and {@linkplain AuthCache} to be set together in a thread
+     * safe, volatile way.
+     */
+    private static class HostTuple<T> {
+        public final T hosts;
+        public final AuthCache authCache;
+
+        HostTuple(final T hosts, final AuthCache authCache) {
+            this.hosts = hosts;
+            this.authCache = authCache;
         }
     }
 }

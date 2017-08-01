@@ -26,16 +26,12 @@ import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ScriptField;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 
 /**
@@ -74,7 +70,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
-        builder.field(ScriptField.SCRIPT.getPreferredName(), script);
+        builder.field(Script.SCRIPT_PARSE_FIELD.getPreferredName(), script);
         builder.endObject();
     }
 
@@ -96,16 +92,16 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) {
         try {
-            SearchScript searchScript = context.getSearchScript(script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+            SearchScript.Factory factory = context.getScriptService().compile(script, SearchScript.CONTEXT);
+            SearchScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
             return new ScriptScoreFunction(script, searchScript);
         } catch (Exception e) {
             throw new QueryShardException(context, "script_score: the script could not be loaded", e);
         }
     }
 
-    public static ScriptScoreFunctionBuilder fromXContent(QueryParseContext parseContext)
+    public static ScriptScoreFunctionBuilder fromXContent(XContentParser parser)
             throws IOException, ParsingException {
-        XContentParser parser = parseContext.parser();
         Script script = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -113,8 +109,8 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, parseContext.getParseFieldMatcher(), parseContext.getDefaultScriptLanguage());
+                if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
+                    script = Script.parse(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), NAME + " query does not support [" + currentFieldName + "]");
                 }

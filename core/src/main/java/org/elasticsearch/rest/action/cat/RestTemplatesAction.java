@@ -20,13 +20,13 @@
 package org.elasticsearch.rest.action.cat;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
@@ -37,11 +37,15 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestTemplatesAction extends AbstractCatAction {
-    @Inject
     public RestTemplatesAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_cat/templates", this);
         controller.registerHandler(GET, "/_cat/templates/{name}", this);
+    }
+
+    @Override
+    public String getName() {
+        return "cat_templates_action";
     }
 
     @Override
@@ -70,7 +74,7 @@ public class RestTemplatesAction extends AbstractCatAction {
         Table table = new Table();
         table.startHeaders();
         table.addCell("name", "alias:n;desc:template name");
-        table.addCell("template", "alias:t;desc:template pattern string");
+        table.addCell("index_patterns", "alias:t;desc:template index patterns");
         table.addCell("order", "alias:o;desc:template application order number");
         table.addCell("version", "alias:v;desc:version");
         table.endHeaders();
@@ -85,7 +89,7 @@ public class RestTemplatesAction extends AbstractCatAction {
             if (patternString == null || Regex.simpleMatch(patternString, indexData.name())) {
                 table.startRow();
                 table.addCell(indexData.name());
-                table.addCell(indexData.getTemplate());
+                table.addCell("[" + String.join(", ", indexData.patterns()) + "]");
                 table.addCell(indexData.getOrder());
                 table.addCell(indexData.getVersion());
                 table.endRow();

@@ -26,7 +26,7 @@ final class GrokMatchGroup {
     private final String type;
     private final String groupValue;
 
-    public GrokMatchGroup(String groupName, String groupValue) {
+    GrokMatchGroup(String groupName, String groupValue) {
         String[] parts = groupName.split(":");
         patternName = parts[0];
         if (parts.length >= 2) {

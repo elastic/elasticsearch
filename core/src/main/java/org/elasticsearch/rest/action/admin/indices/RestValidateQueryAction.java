@@ -26,11 +26,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -48,11 +45,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
 public class RestValidateQueryAction extends BaseRestHandler {
-
-    private final IndicesQueriesRegistry indicesQueriesRegistry;
-
-    @Inject
-    public RestValidateQueryAction(Settings settings, RestController controller, IndicesQueriesRegistry indicesQueriesRegistry) {
+    public RestValidateQueryAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_validate/query", this);
         controller.registerHandler(POST, "/_validate/query", this);
@@ -60,7 +53,11 @@ public class RestValidateQueryAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/_validate/query", this);
         controller.registerHandler(GET, "/{index}/{type}/_validate/query", this);
         controller.registerHandler(POST, "/{index}/{type}/_validate/query", this);
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
+    }
+
+    @Override
+    public String getName() {
+        return "validate_query_action";
     }
 
     @Override
@@ -70,18 +67,19 @@ public class RestValidateQueryAction extends BaseRestHandler {
         validateQueryRequest.explain(request.paramAsBoolean("explain", false));
         validateQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
+        validateQueryRequest.allShards(request.paramAsBoolean("all_shards", false));
 
         Exception bodyParsingException = null;
-        if (RestActions.hasBodyContent(request)) {
-            try {
-                validateQueryRequest.query(
-                    RestActions.getQueryContent(RestActions.getRestContent(request), indicesQueriesRegistry, parseFieldMatcher));
-            } catch (Exception e) {
-                bodyParsingException = e;
-            }
-        } else if (request.hasParam("q")) {
-            QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
-            validateQueryRequest.query(queryBuilder);
+        try {
+            request.withContentOrSourceParamParserOrNull(parser -> {
+                if (parser != null) {
+                    validateQueryRequest.query(RestActions.getQueryContent(parser));
+                } else if (request.hasParam("q")) {
+                    validateQueryRequest.query(RestActions.urlParamsToQueryBuilder(request));
+                }
+            });
+        } catch (Exception e) {
+            bodyParsingException = e;
         }
 
         final Exception finalBodyParsingException = bodyParsingException;
@@ -105,6 +103,9 @@ public class RestValidateQueryAction extends BaseRestHandler {
                                 builder.startObject();
                                 if (explanation.getIndex() != null) {
                                     builder.field(INDEX_FIELD, explanation.getIndex());
+                                }
+                                if(explanation.getShard() >= 0) {
+                                    builder.field(SHARD_FIELD, explanation.getShard());
                                 }
                                 builder.field(VALID_FIELD, explanation.isValid());
                                 if (explanation.getError() != null) {
@@ -140,6 +141,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
     }
 
     private static final String INDEX_FIELD = "index";
+    private static final String SHARD_FIELD = "shard";
     private static final String VALID_FIELD = "valid";
     private static final String EXPLANATIONS_FIELD = "explanations";
     private static final String ERROR_FIELD = "error";

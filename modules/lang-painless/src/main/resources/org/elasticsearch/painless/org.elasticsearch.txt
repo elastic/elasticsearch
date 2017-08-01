@@ -57,6 +57,13 @@ class def -> java.lang.Object {
   String toString()
 }
 
+
+#### Painless debugging API
+
+class Debug -> org.elasticsearch.painless.api.Debug extends Object {
+  void explain(Object)
+}
+
 #### ES Scripting API
 
 class org.elasticsearch.common.geo.GeoPoint -> org.elasticsearch.common.geo.GeoPoint extends Object {
@@ -75,6 +82,15 @@ class org.elasticsearch.index.fielddata.ScriptDocValues.Longs -> org.elasticsear
   long getValue()
   List getValues()
   org.joda.time.ReadableDateTime getDate()
+  List getDates()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues.Dates -> org.elasticsearch.index.fielddata.ScriptDocValues$Dates extends List,Collection,Iterable,Object {
+  org.joda.time.ReadableDateTime get(int)
+  org.joda.time.ReadableDateTime getValue()
+  List getValues()
+  org.joda.time.ReadableDateTime getDate()
+  List getDates()
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues.Doubles -> org.elasticsearch.index.fielddata.ScriptDocValues$Doubles extends List,Collection,Iterable,Object {
@@ -107,6 +123,26 @@ class org.elasticsearch.index.fielddata.ScriptDocValues.Booleans -> org.elastics
   List getValues()
 }
 
+class org.elasticsearch.index.fielddata.ScriptDocValues.BytesRefs -> org.elasticsearch.index.fielddata.ScriptDocValues$BytesRefs extends List,Collection,Iterable,Object {
+  BytesRef get(int)
+  BytesRef getValue()
+  List getValues()
+}
+
+class BytesRef -> org.apache.lucene.util.BytesRef extends Object {
+  byte[] bytes
+  int offset
+  int length
+  boolean bytesEquals(BytesRef)
+  String utf8ToString()
+}
+
+class org.elasticsearch.index.mapper.IpFieldMapper.IpFieldType.IpScriptDocValues -> org.elasticsearch.index.mapper.IpFieldMapper$IpFieldType$IpScriptDocValues extends List,Collection,Iterable,Object {
+  String get(int)
+  String getValue()
+  List getValues()
+}
+
 # for testing.
 # currently FeatureTest exposes overloaded constructor, field load store, and overloaded static methods
 class org.elasticsearch.painless.FeatureTest -> org.elasticsearch.painless.FeatureTest extends Object {
@@ -119,4 +155,13 @@ class org.elasticsearch.painless.FeatureTest -> org.elasticsearch.painless.Featu
   boolean overloadedStatic()
   boolean overloadedStatic(boolean)
   Object twoFunctionsOfX(Function,Function)
+  void listInput(List)
+  int org.elasticsearch.painless.FeatureTestAugmentation.getTotal()
+  int org.elasticsearch.painless.FeatureTestAugmentation.addToTotal(int)
+}
+
+class org.elasticsearch.search.lookup.FieldLookup -> org.elasticsearch.search.lookup.FieldLookup extends Object {
+  def getValue()
+  List getValues()
+  boolean isEmpty()
 }

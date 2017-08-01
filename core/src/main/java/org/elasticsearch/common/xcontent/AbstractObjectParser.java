@@ -19,9 +19,10 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
@@ -30,44 +31,119 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 /**
  * Superclass for {@link ObjectParser} and {@link ConstructingObjectParser}. Defines most of the "declare" methods so they can be shared.
  */
-public abstract class AbstractObjectParser<Value, Context extends ParseFieldMatcherSupplier>
-        implements BiFunction<XContentParser, Context, Value> {
-    /**
-     * Reads an object from a parser using some context.
-     */
-    @FunctionalInterface
-    public interface ContextParser<Context, T> {
-        T parse(XContentParser p, Context c) throws IOException;
-    }
-
-    /**
-     * Reads an object right from the parser without any context.
-     */
-    @FunctionalInterface
-    public interface NoContextParser<T> {
-        T parse(XContentParser p) throws IOException;
-    }
+public abstract class AbstractObjectParser<Value, Context>
+        implements BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value> {
 
     /**
      * Declare some field. Usually it is easier to use {@link #declareString(BiConsumer, ParseField)} or
-     * {@link #declareObject(BiConsumer, BiFunction, ParseField)} rather than call this directly.
+     * {@link #declareObject(BiConsumer, ContextParser, ParseField)} rather than call this directly.
      */
     public abstract <T> void declareField(BiConsumer<Value, T> consumer, ContextParser<Context, T> parser, ParseField parseField,
             ValueType type);
 
-    public <T> void declareField(BiConsumer<Value, T> consumer, NoContextParser<T> parser, ParseField parseField, ValueType type) {
+    /**
+     * Declares named objects in the style of aggregations. These are named
+     * inside and object like this:
+     * 
+     * <pre>
+     * <code>
+     * {
+     *   "aggregations": {
+     *     "name_1": { "aggregation_type": {} },
+     *     "name_2": { "aggregation_type": {} },
+     *     "name_3": { "aggregation_type": {} }
+     *     }
+     *   }
+     * }
+     * </code>
+     * </pre>
+     * 
+     * Unlike the other version of this method, "ordered" mode (arrays of
+     * objects) is not supported.
+     *
+     * See NamedObjectHolder in ObjectParserTests for examples of how to invoke
+     * this.
+     *
+     * @param consumer
+     *            sets the values once they have been parsed
+     * @param namedObjectParser
+     *            parses each named object
+     * @param parseField
+     *            the field to parse
+     */
+    public abstract <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
+            ParseField parseField);
+
+    /**
+     * Declares named objects in the style of highlighting's field element.
+     * These are usually named inside and object like this:
+     * 
+     * <pre>
+     * <code>
+     * {
+     *   "highlight": {
+     *     "fields": {        &lt;------ this one
+     *       "title": {},
+     *       "body": {},
+     *       "category": {}
+     *     }
+     *   }
+     * }
+     * </code>
+     * </pre>
+     * 
+     * but, when order is important, some may be written this way:
+     * 
+     * <pre>
+     * <code>
+     * {
+     *   "highlight": {
+     *     "fields": [        &lt;------ this one
+     *       {"title": {}},
+     *       {"body": {}},
+     *       {"category": {}}
+     *     ]
+     *   }
+     * }
+     * </code>
+     * </pre>
+     * 
+     * This is because json doesn't enforce ordering. Elasticsearch reads it in
+     * the order sent but tools that generate json are free to put object
+     * members in an unordered Map, jumbling them. Thus, if you care about order
+     * you can send the object in the second way.
+     *
+     * See NamedObjectHolder in ObjectParserTests for examples of how to invoke
+     * this.
+     *
+     * @param consumer
+     *            sets the values once they have been parsed
+     * @param namedObjectParser
+     *            parses each named object
+     * @param orderedModeCallback
+     *            called when the named object is parsed using the "ordered"
+     *            mode (the array of objects)
+     * @param parseField
+     *            the field to parse
+     */
+    public abstract <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
+            Consumer<Value> orderedModeCallback, ParseField parseField);
+
+    public <T> void declareField(BiConsumer<Value, T> consumer, CheckedFunction<XContentParser, T, IOException> parser,
+            ParseField parseField, ValueType type) {
         if (parser == null) {
             throw new IllegalArgumentException("[parser] is required");
         }
-        declareField(consumer, (p, c) -> parser.parse(p), parseField, type);
+        declareField(consumer, (p, c) -> parser.apply(p), parseField, type);
     }
 
-    public <T> void declareObject(BiConsumer<Value, T> consumer, BiFunction<XContentParser, Context, T> objectParser, ParseField field) {
-        declareField(consumer, (p, c) -> objectParser.apply(p, c), field, ValueType.OBJECT);
+    public <T> void declareObject(BiConsumer<Value, T> consumer, ContextParser<Context, T> objectParser, ParseField field) {
+        declareField(consumer, (p, c) -> objectParser.parse(p, c), field, ValueType.OBJECT);
     }
 
     public void declareFloat(BiConsumer<Value, Float> consumer, ParseField field) {
@@ -103,9 +179,9 @@ public abstract class AbstractObjectParser<Value, Context extends ParseFieldMatc
         declareField(consumer, XContentParser::booleanValue, field, ValueType.BOOLEAN);
     }
 
-    public <T> void declareObjectArray(BiConsumer<Value, List<T>> consumer, BiFunction<XContentParser, Context, T> objectParser,
+    public <T> void declareObjectArray(BiConsumer<Value, List<T>> consumer, ContextParser<Context, T> objectParser,
             ParseField field) {
-        declareField(consumer, (p, c) -> parseArray(p, () -> objectParser.apply(p, c)), field, ValueType.OBJECT_ARRAY);
+        declareField(consumer, (p, c) -> parseArray(p, () -> objectParser.parse(p, c)), field, ValueType.OBJECT_ARRAY);
     }
 
     public void declareStringArray(BiConsumer<Value, List<String>> consumer, ParseField field) {
@@ -129,7 +205,7 @@ public abstract class AbstractObjectParser<Value, Context extends ParseFieldMatc
     }
 
     public void declareRawObject(BiConsumer<Value, BytesReference> consumer, ParseField field) {
-        NoContextParser<BytesReference> bytesParser = p -> {
+        CheckedFunction<XContentParser, BytesReference, IOException> bytesParser = p -> {
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.prettyPrint();
                 builder.copyCurrentStructure(p);
@@ -144,7 +220,7 @@ public abstract class AbstractObjectParser<Value, Context extends ParseFieldMatc
     }
     private static <T> List<T> parseArray(XContentParser parser, IOSupplier<T> supplier) throws IOException {
         List<T> list = new ArrayList<>();
-        if (parser.currentToken().isValue()) {
+        if (parser.currentToken().isValue() || parser.currentToken() == XContentParser.Token.START_OBJECT) {
             list.add(supplier.get()); // single value
         } else {
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {

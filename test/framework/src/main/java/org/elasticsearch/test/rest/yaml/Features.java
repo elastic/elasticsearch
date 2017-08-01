@@ -38,9 +38,10 @@ public final class Features {
     private static final List<String> SUPPORTED = unmodifiableList(Arrays.asList(
             "catch_unauthorized",
             "embedded_stash_key",
-            "groovy_scripting",
             "headers",
+            "stash_in_key",
             "stash_in_path",
+            "stash_path_replace",
             "warnings",
             "yaml"));
 

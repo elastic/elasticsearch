@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.morelikethis;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -28,13 +29,18 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -57,6 +63,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MoreLikeThisIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(InternalSettingsPlugin.class);
+    }
+
     public void testSimpleMoreLikeThis() throws Exception {
         logger.info("Creating index test");
         assertAcked(prepareCreate("test").addMapping("type1",
@@ -80,13 +92,14 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testSimpleMoreLikeOnLongField() throws Exception {
         logger.info("Creating index test");
-        assertAcked(prepareCreate("test").addMapping("type1", "some_long", "type=long"));
+        assertAcked(prepareCreate("test")
+                .addMapping("type1", "some_long", "type=long"));
         logger.info("Running Cluster Health");
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
         client().index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("some_long", 1367484649580L).endObject())).actionGet();
-        client().index(indexRequest("test").type("type2").id("2").source(jsonBuilder().startObject().field("some_long", 0).endObject())).actionGet();
+        client().index(indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("some_long", 0).endObject())).actionGet();
         client().index(indexRequest("test").type("type1").id("3").source(jsonBuilder().startObject().field("some_long", -666).endObject())).actionGet();
 
         client().admin().indices().refresh(refreshRequest()).actionGet();
@@ -127,19 +140,19 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         response = client().prepareSearch("beta").setQuery(
                 new MoreLikeThisQueryBuilder(null, new Item[] {new Item("test", "type1", "1")}).minTermFreq(1).minDocFreq(1)).get();
         assertHitCount(response, 1L);
-        assertThat(response.getHits().getAt(0).id(), equalTo("3"));
+        assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
 
         logger.info("Running moreLikeThis on release shard");
         response = client().prepareSearch("release").setQuery(
                 new MoreLikeThisQueryBuilder(null, new Item[] {new Item("test", "type1", "1")}).minTermFreq(1).minDocFreq(1)).get();
         assertHitCount(response, 1L);
-        assertThat(response.getHits().getAt(0).id(), equalTo("2"));
+        assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
 
         logger.info("Running moreLikeThis on alias with node client");
         response = internalCluster().coordOnlyNodeClient().prepareSearch("beta").setQuery(
                 new MoreLikeThisQueryBuilder(null, new Item[] {new Item("test", "type1", "1")}).minTermFreq(1).minDocFreq(1)).get();
         assertHitCount(response, 1L);
-        assertThat(response.getHits().getAt(0).id(), equalTo("3"));
+        assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
     }
 
     // Issue #14944
@@ -152,7 +165,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .startObject("properties")
                 .endObject()
                 .endObject().endObject().string();
-        client().admin().indices().prepareCreate(indexName).addMapping(typeName, mapping).get();
+        client().admin().indices().prepareCreate(indexName).addMapping(typeName, mapping, XContentType.JSON).get();
         client().admin().indices().prepareAliases().addAlias(indexName, aliasName).get();
 
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
@@ -165,7 +178,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch().setQuery(
                 new MoreLikeThisQueryBuilder(null, new Item[] {new Item(aliasName, typeName, "1")}).minTermFreq(1).minDocFreq(1)).get();
         assertHitCount(response, 2L);
-        assertThat(response.getHits().getAt(0).id(), equalTo("3"));
+        assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
     }
 
     public void testMoreLikeThisIssue2197() throws Exception {
@@ -174,7 +187,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .startObject("properties")
                 .endObject()
                 .endObject().endObject().string();
-        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping).execute().actionGet();
+        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).execute().actionGet();
         client().prepareIndex("foo", "bar", "1")
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
                 .execute().actionGet();
@@ -197,7 +210,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .startObject("properties")
                 .endObject()
                 .endObject().endObject().string();
-        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping).execute().actionGet();
+        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).execute().actionGet();
         ensureGreen();
 
         client().prepareIndex("foo", "bar", "1")
@@ -220,7 +233,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .endObject().endObject().string();
         assertAcked(prepareCreate("foo", 2,
                 Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("bar", mapping));
+                .addMapping("bar", mapping, XContentType.JSON));
         ensureGreen();
 
         client().prepareIndex("foo", "bar", "1")
@@ -263,9 +276,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertThrows(client().prepareSearch().setQuery(
                 new MoreLikeThisQueryBuilder(new String[] {"string_value", "int_value"}, null, new Item[] {new Item("test", "type", "1")}).minTermFreq(1).minDocFreq(1)), SearchPhaseExecutionException.class);
 
-        // mlt query with no field -> OK
+        // mlt query with no field -> No results (because _all is not enabled)
         searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery(new String[] {"index"}).minTermFreq(1).minDocFreq(1)).execute().actionGet();
-        assertHitCount(searchResponse, 2L);
+        assertHitCount(searchResponse, 0L);
 
         // mlt query with string fields
         searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery(new String[]{"string_value"}, new String[] {"index"}, null).minTermFreq(1).minDocFreq(1)).execute().actionGet();
@@ -356,7 +369,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     public void testSimpleMoreLikeThisIdsMultipleTypes() throws Exception {
         logger.info("Creating index test");
         int numOfTypes = randomIntBetween(2, 10);
-        CreateIndexRequestBuilder createRequestBuilder = prepareCreate("test");
+        CreateIndexRequestBuilder createRequestBuilder = prepareCreate("test")
+                .setSettings("index.version.created", Version.V_5_6_0.id);
         for (int i = 0; i < numOfTypes; i++) {
             createRequestBuilder.addMapping("type" + i, jsonBuilder().startObject().startObject("type" + i).startObject("properties")
                     .startObject("text").field("type", "text").endObject()
@@ -618,5 +632,19 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
+    }
+
+    public void testWithRouting() throws IOException {
+        client().prepareIndex("index", "type", "1").setRouting("3").setSource("text", "this is a document").get();
+        client().prepareIndex("index", "type", "2").setRouting("1").setSource("text", "this is another document").get();
+        client().prepareIndex("index", "type", "3").setRouting("4").setSource("text", "this is yet another document").get();
+        refresh("index");
+
+        Item item = new Item("index", "type", "2").routing("1");
+        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = new MoreLikeThisQueryBuilder(new String[]{"text"}, null, new Item[]{item});
+        moreLikeThisQueryBuilder.minTermFreq(1);
+        moreLikeThisQueryBuilder.minDocFreq(1);
+        SearchResponse searchResponse = client().prepareSearch("index").setQuery(moreLikeThisQueryBuilder).get();
+        assertEquals(2, searchResponse.getHits().totalHits);
     }
 }

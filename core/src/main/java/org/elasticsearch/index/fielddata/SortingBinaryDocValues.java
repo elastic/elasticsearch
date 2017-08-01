@@ -33,6 +33,7 @@ import java.util.Arrays;
  */
 public abstract class SortingBinaryDocValues extends SortedBinaryDocValues {
 
+    private int index;
     protected int count;
     protected BytesRefBuilder[] values;
     private final Sorter sorter;
@@ -73,15 +74,17 @@ public abstract class SortingBinaryDocValues extends SortedBinaryDocValues {
      */
     protected final void sort() {
         sorter.sort(0, count);
+        index = 0;
     }
 
     @Override
-    public final int count() {
+    public int docValueCount() {
         return count;
     }
 
     @Override
-    public final BytesRef valueAt(int index) {
-        return values[index].get();
+    public final BytesRef nextValue() {
+        assert index < count;
+        return values[index++].get();
     }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.tasks.Task;
@@ -37,26 +36,26 @@ import java.util.stream.Collectors;
 public class RecordingTaskManagerListener implements MockTaskManagerListener {
 
     private String[] actionMasks;
-    private DiscoveryNode localNode;
+    private String localNodeId;
 
     private List<Tuple<Boolean, TaskInfo>> events  = new ArrayList<>();
 
-    public RecordingTaskManagerListener(DiscoveryNode localNode, String... actionMasks) {
+    public RecordingTaskManagerListener(String localNodeId, String... actionMasks) {
         this.actionMasks = actionMasks;
-        this.localNode = localNode;
+        this.localNodeId = localNodeId;
     }
 
     @Override
     public synchronized void onTaskRegistered(Task task) {
         if (Regex.simpleMatch(actionMasks, task.getAction())) {
-            events.add(new Tuple<>(true, task.taskInfo(localNode, true)));
+            events.add(new Tuple<>(true, task.taskInfo(localNodeId, true)));
         }
     }
 
     @Override
     public synchronized void onTaskUnregistered(Task task) {
         if (Regex.simpleMatch(actionMasks, task.getAction())) {
-            events.add(new Tuple<>(false, task.taskInfo(localNode, true)));
+            events.add(new Tuple<>(false, task.taskInfo(localNodeId, true)));
         }
     }
 

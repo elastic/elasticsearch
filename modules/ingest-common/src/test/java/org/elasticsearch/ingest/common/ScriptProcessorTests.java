@@ -24,12 +24,10 @@ import java.util.Map;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-import org.mockito.stubbing.Answer;
 
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.core.Is.is;
@@ -46,9 +44,11 @@ public class ScriptProcessorTests extends ESTestCase {
         int randomBytesTotal = randomBytesIn + randomBytesOut;
 
         ScriptService scriptService = mock(ScriptService.class);
-        Script script = new Script("_script");
+        Script script = mockScript("_script");
+        ExecutableScript.Factory factory = mock(ExecutableScript.Factory.class);
         ExecutableScript executableScript = mock(ExecutableScript.class);
-        when(scriptService.executable(any(), any(), any())).thenReturn(executableScript);
+        when(scriptService.compile(script, ExecutableScript.INGEST_CONTEXT)).thenReturn(factory);
+        when(factory.newInstance(any())).thenReturn(executableScript);
 
         Map<String, Object> document = new HashMap<>();
         document.put("bytes_in", randomInt());
@@ -60,7 +60,7 @@ public class ScriptProcessorTests extends ESTestCase {
             return null;
         }).when(executableScript).run();
 
-        ScriptProcessor processor = new ScriptProcessor(randomAsciiOfLength(10), script, scriptService);
+        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), script, scriptService);
 
         processor.execute(ingestDocument);
 

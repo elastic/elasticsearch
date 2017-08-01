@@ -23,22 +23,20 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.AbstractSearchScript;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.NativeScriptFactory;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
+import static org.elasticsearch.search.SearchTimeoutIT.ScriptedTimeoutPlugin.SCRIPT_NAME;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
@@ -58,49 +56,24 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         client().prepareIndex("test", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         SearchResponse searchResponse = client().prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
-                .setQuery(scriptQuery(new Script(NativeTestScriptedTimeout.TEST_NATIVE_SCRIPT_TIMEOUT, ScriptType.INLINE, "native", null)))
+                .setQuery(scriptQuery(
+                    new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
                 .execute().actionGet();
         assertThat(searchResponse.isTimedOut(), equalTo(true));
     }
 
-    public static class ScriptedTimeoutPlugin extends Plugin implements ScriptPlugin {
+    public static class ScriptedTimeoutPlugin extends MockScriptPlugin {
+        static final String SCRIPT_NAME = "search_timeout";
         @Override
-        public List<NativeScriptFactory> getNativeScripts() {
-            return Collections.singletonList(new NativeTestScriptedTimeout.Factory());
+        public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Collections.singletonMap(SCRIPT_NAME, params -> {
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                return true;
+            });
         }
     }
-
-    public static class NativeTestScriptedTimeout extends AbstractSearchScript {
-
-        public static final String TEST_NATIVE_SCRIPT_TIMEOUT = "native_test_search_timeout_script";
-
-        public static class Factory implements NativeScriptFactory {
-
-            @Override
-            public ExecutableScript newScript(Map<String, Object> params) {
-                return new NativeTestScriptedTimeout();
-            }
-
-            @Override
-            public boolean needsScores() {
-                return false;
-            }
-
-            @Override
-            public String getName() {
-                return TEST_NATIVE_SCRIPT_TIMEOUT;
-            }
-        }
-
-        @Override
-        public Object run() {
-            try {
-                Thread.sleep(500);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            return true;
-        }
-    }
-
 }

@@ -74,10 +74,11 @@ the <<indices-stats,indices stats>> API:
 
 [source,sh]
 --------------------------------------------------
-GET twitter/_stats/commit?level=shards
+GET twitter/_stats?filter_path=**.commit&level=shards <1>
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT twitter\n/]
+// TEST[s/^/PUT twitter\nPOST twitter\/_flush\/synced\n/]
+<1> `filter_path` is used to reduce the verbosity of the response, but is entirely optional
 
 
 which returns something similar to:
@@ -85,35 +86,42 @@ which returns something similar to:
 [source,js]
 --------------------------------------------------
 {
-   ...
    "indices": {
       "twitter": {
-         "primaries": {},
-         "total": {},
          "shards": {
             "0": [
                {
-                  "routing": {
-                     ...
-                  },
-                  "commit": {
-                     "id": "te7zF7C4UsirqvL6jp/vUg==",
-                     "generation": 2,
-                     "user_data": {
-                        "sync_id": "AU2VU0meX-VX2aNbEUsD" <1>,
-                        ...
-                     },
-                     "num_docs": 0
-                  }
+                 "commit" : {
+                   "id" : "3M3zkw2GHMo2Y4h4/KFKCg==",
+                   "generation" : 2,
+                   "user_data" : {
+                     "translog_uuid" : "hnOG3xFcTDeoI_kvvvOdNA",
+                     "local_checkpoint" : "-1",
+                     "translog_generation" : "1",
+                     "max_seq_no" : "-1",
+                     "sync_id" : "AVvFY-071siAOuFGEO9P", <1>
+                     "max_unsafe_auto_id_timestamp" : "-1"
+                   },
+                   "num_docs" : 0
+                 }
                }
-               ...
             ],
-            ...
+            "1": ...,
+            "2": ...,
+            "3": ...,
+            "4": ...
          }
       }
    }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"id" : "3M3zkw2GHMo2Y4h4\/KFKCg=="/"id": $body.indices.twitter.shards.0.0.commit.id/]
+// TESTRESPONSE[s/"translog_uuid" : "hnOG3xFcTDeoI_kvvvOdNA"/"translog_uuid": $body.indices.twitter.shards.0.0.commit.user_data.translog_uuid/]
+// TESTRESPONSE[s/"sync_id" : "AVvFY-071siAOuFGEO9P"/"sync_id": $body.indices.twitter.shards.0.0.commit.user_data.sync_id/]
+// TESTRESPONSE[s/"1": \.\.\./"1": $body.indices.twitter.shards.1/]
+// TESTRESPONSE[s/"2": \.\.\./"2": $body.indices.twitter.shards.2/]
+// TESTRESPONSE[s/"3": \.\.\./"3": $body.indices.twitter.shards.3/]
+// TESTRESPONSE[s/"4": \.\.\./"4": $body.indices.twitter.shards.4/]
 <1> the `sync id` marker
 
 [float]
@@ -189,6 +197,7 @@ Here is what it looks like when one shard group failed due to pending operations
    }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 NOTE: The above error is shown when the synced flush fails due to concurrent indexing operations. The HTTP
 status code in that case will be `409 CONFLICT`.
@@ -225,7 +234,7 @@ fast recovery but those that succeeded still will be. This case is reported as f
    }
 }
 --------------------------------------------------
-
+// NOTCONSOLE
 
 NOTE: When a shard copy fails to sync-flush, the HTTP status code returned will be `409 CONFLICT`.
 

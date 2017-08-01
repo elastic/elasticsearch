@@ -30,7 +30,11 @@ public class DocsTestPlugin extends RestTestPlugin {
 
     @Override
     public void apply(Project project) {
+        project.pluginManager.apply('elasticsearch.standalone-rest-test')
         super.apply(project)
+        // Docs are published separately so no need to assemble
+        project.tasks.remove(project.assemble)
+        project.build.dependsOn.remove('assemble')
         Map<String, String> defaultSubstitutions = [
             /* These match up with the asciidoc syntax for substitutions but
              * the values may differ. In particular {version} needs to resolve

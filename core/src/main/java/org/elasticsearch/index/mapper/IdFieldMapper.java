@@ -21,25 +21,32 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
-import java.util.Collection;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -58,16 +65,21 @@ public class IdFieldMapper extends MetadataFieldMapper {
         public static final String NAME = IdFieldMapper.NAME;
 
         public static final MappedFieldType FIELD_TYPE = new IdFieldType();
+        public static final MappedFieldType NESTED_FIELD_TYPE;
 
         static {
             FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
+
+            NESTED_FIELD_TYPE = FIELD_TYPE.clone();
+            NESTED_FIELD_TYPE.setStored(false);
+            NESTED_FIELD_TYPE.freeze();
         }
     }
 
@@ -78,14 +90,15 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+            final IndexSettings indexSettings = context.mapperService().getIndexSettings();
             return new IdFieldMapper(indexSettings, fieldType);
         }
     }
 
     static final class IdFieldType extends TermBasedFieldType {
 
-        public IdFieldType() {
+        IdFieldType() {
         }
 
         protected IdFieldType(IdFieldType ref) {
@@ -109,33 +122,180 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            final BytesRef[] uids = Uid.createUidsForTypesAndId(context.queryTypes(), value);
-            return new TermsQuery(UidFieldMapper.NAME, uids);
+        public Query termQuery(Object value, QueryShardContext context) {
+            return termsQuery(Arrays.asList(value), context);
         }
 
         @Override
-        public Query termsQuery(List values, @Nullable QueryShardContext context) {
-            return new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(context.queryTypes(), values));
+        public Query termsQuery(List<?> values, QueryShardContext context) {
+            if (indexOptions() != IndexOptions.NONE) {
+                failIfNotIndexed();
+                BytesRef[] bytesRefs = new BytesRef[values.size()];
+                final boolean is5xIndex = context.indexVersionCreated().before(Version.V_6_0_0_beta1);
+                for (int i = 0; i < bytesRefs.length; i++) {
+                    BytesRef id;
+                    if (is5xIndex) {
+                        // 5.x index with index.mapping.single_type = true
+                        id = BytesRefs.toBytesRef(values.get(i));
+                    } else {
+                        Object idObject = values.get(i);
+                        if (idObject instanceof BytesRef) {
+                            idObject = ((BytesRef) idObject).utf8ToString();
+                        }
+                        id = Uid.encodeId(idObject.toString());
+                    }
+                    bytesRefs[i] = id;
+                }
+                return new TermInSetQuery(name(), bytesRefs);
+            }
+            // 5.x index, _uid is indexed
+            return new TermInSetQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(context.queryTypes(), values));
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder() {
+            if (indexOptions() == IndexOptions.NONE) {
+                throw new IllegalArgumentException("Fielddata access on the _uid field is disallowed");
+            }
+            final IndexFieldData.Builder fieldDataBuilder = new PagedBytesIndexFieldData.Builder(
+                    TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
+                    TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
+                    TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
+            return new IndexFieldData.Builder() {
+                @Override
+                public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
+                        CircuitBreakerService breakerService, MapperService mapperService) {
+                    final IndexFieldData<?> fieldData = fieldDataBuilder.build(indexSettings, fieldType, cache, breakerService, mapperService);
+                    if (indexSettings.getIndexVersionCreated().before(Version.V_6_0_0_beta1)) {
+                        // ids were indexed as utf-8
+                        return fieldData;
+                    }
+                    return new IndexFieldData<AtomicFieldData>() {
+
+                        @Override
+                        public Index index() {
+                            return fieldData.index();
+                        }
+
+                        @Override
+                        public String getFieldName() {
+                            return fieldData.getFieldName();
+                        }
+
+                        @Override
+                        public AtomicFieldData load(LeafReaderContext context) {
+                            return wrap(fieldData.load(context));
+                        }
+
+                        @Override
+                        public AtomicFieldData loadDirect(LeafReaderContext context) throws Exception {
+                            return wrap(fieldData.loadDirect(context));
+                        }
+
+                        @Override
+                        public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+                            XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+                            return new SortField(getFieldName(), source, reverse);
+                        }
+
+                        @Override
+                        public void clear() {
+                            fieldData.clear();
+                        }
+
+                    };
+                }
+            };
         }
     }
 
-    private IdFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(existing != null ? existing : Defaults.FIELD_TYPE, indexSettings);
+    private static AtomicFieldData wrap(AtomicFieldData in) {
+        return new AtomicFieldData() {
+
+            @Override
+            public void close() {
+                in.close();
+            }
+
+            @Override
+            public long ramBytesUsed() {
+                return in.ramBytesUsed();
+            }
+
+            @Override
+            public ScriptDocValues<?> getScriptValues() {
+                return new ScriptDocValues.Strings(getBytesValues());
+            }
+
+            @Override
+            public SortedBinaryDocValues getBytesValues() {
+                SortedBinaryDocValues inValues = in.getBytesValues();
+                return new SortedBinaryDocValues() {
+
+                    @Override
+                    public BytesRef nextValue() throws IOException {
+                        BytesRef encoded = inValues.nextValue();
+                        return new BytesRef(Uid.decodeId(
+                                Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)));
+                    }
+
+                    @Override
+                    public int docValueCount() {
+                        final int count = inValues.docValueCount();
+                        // If the count is not 1 then the impl is not correct as the binary representation
+                        // does not preserve order. But id fields only have one value per doc so we are good.
+                        assert count == 1;
+                        return inValues.docValueCount();
+                    }
+
+                    @Override
+                    public boolean advanceExact(int doc) throws IOException {
+                        return inValues.advanceExact(doc);
+                    }
+                };
+            }
+        };
     }
 
-    private IdFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
-        super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
+    static MappedFieldType defaultFieldType(IndexSettings indexSettings) {
+        MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
+        if (indexSettings.isSingleType()) {
+            defaultFieldType.setIndexOptions(IndexOptions.DOCS);
+            defaultFieldType.setStored(true);
+        } else {
+            defaultFieldType.setIndexOptions(IndexOptions.NONE);
+            defaultFieldType.setStored(false);
+        }
+        return defaultFieldType;
+    }
+
+    private IdFieldMapper(IndexSettings indexSettings, MappedFieldType existing) {
+        this(existing == null ? defaultFieldType(indexSettings) : existing, indexSettings);
+    }
+
+    private IdFieldMapper(MappedFieldType fieldType, IndexSettings indexSettings) {
+        super(NAME, fieldType, defaultFieldType(indexSettings), indexSettings.getSettings());
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {}
+    public void preParse(ParseContext context) throws IOException {
+        super.parse(context);
+    }
 
     @Override
     public void postParse(ParseContext context) throws IOException {}
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {}
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+            if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
+                BytesRef id = Uid.encodeId(context.sourceToParse().id());
+                fields.add(new Field(NAME, id, fieldType));
+            } else {
+                fields.add(new Field(NAME, context.sourceToParse().id(), fieldType));
+            }
+        }
+    }
 
     @Override
     protected String contentType() {

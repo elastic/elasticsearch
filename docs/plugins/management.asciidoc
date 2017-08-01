@@ -1,19 +1,16 @@
 [[management]]
-== Management and Site Plugins
+== Management Plugins
 
-Management and site plugins offer UIs for managing and interacting with
-Elasticsearch.
+Management plugins offer UIs for managing and interacting with Elasticsearch.
 
 [float]
 === Core management plugins
 
 The core management plugins are:
 
-link:/products/marvel[Marvel]::
+link:/products/x-pack/monitoring[X-Pack]::
 
-Marvel is a management and monitoring product for Elasticsearch. Marvel
+X-Pack contains the management and monitoring features for Elasticsearch. It
 aggregates cluster wide statistics and events and offers a single interface to
-view and analyze them. Marvel is free for development use but requires a
-license to run in production.
-
-
+view and analyze them. You can get a link:/subscriptions[free license] for basic
+monitoring or a higher level license for more advanced needs.

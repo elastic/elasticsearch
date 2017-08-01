@@ -19,18 +19,19 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.ProtocolVersion;
-import org.apache.http.RequestLine;
-import org.apache.http.StatusLine;
-import org.apache.http.entity.InputStreamEntity;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHttpResponse;
-import org.apache.http.message.BasicRequestLine;
-import org.apache.http.message.BasicStatusLine;
-import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.HttpResponse;
+import org.elasticsearch.client.http.ProtocolVersion;
+import org.elasticsearch.client.http.RequestLine;
+import org.elasticsearch.client.http.StatusLine;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.InputStreamEntity;
+import org.elasticsearch.client.http.entity.StringEntity;
+import org.elasticsearch.client.http.message.BasicHttpResponse;
+import org.elasticsearch.client.http.message.BasicRequestLine;
+import org.elasticsearch.client.http.message.BasicStatusLine;
+import org.elasticsearch.client.http.util.EntityUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -52,10 +53,11 @@ public class ResponseExceptionTests extends RestClientTestCase {
         if (hasBody) {
             HttpEntity entity;
             if (getRandom().nextBoolean()) {
-                entity = new StringEntity(responseBody, StandardCharsets.UTF_8);
+                entity = new StringEntity(responseBody, ContentType.APPLICATION_JSON);
             } else {
                 //test a non repeatable entity
-                entity = new InputStreamEntity(new ByteArrayInputStream(responseBody.getBytes(StandardCharsets.UTF_8)));
+                entity = new InputStreamEntity(new ByteArrayInputStream(responseBody.getBytes(StandardCharsets.UTF_8)),
+                    ContentType.APPLICATION_JSON);
             }
             httpResponse.setEntity(entity);
         }

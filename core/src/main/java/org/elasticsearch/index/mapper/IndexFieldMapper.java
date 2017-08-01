@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -30,7 +30,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.IndexIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -84,14 +84,15 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             return new IndexFieldMapper(indexSettings, fieldType);
         }
     }
 
     static final class IndexFieldType extends MappedFieldType {
 
-        public IndexFieldType() {}
+        IndexFieldType() {}
 
         protected IndexFieldType(IndexFieldType ref) {
             super(ref);
@@ -122,7 +123,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
          */
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            if (isSameIndex(value, context.index().getName())) {
+            if (isSameIndex(value, context.getFullyQualifiedIndexName())) {
                 return Queries.newMatchAllQuery();
             } else {
                 return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName() + " vs. " + value);
@@ -135,14 +136,15 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 return super.termsQuery(values, context);
             }
             for (Object value : values) {
-                if (isSameIndex(value, context.index().getName())) {
+                if (isSameIndex(value, context.getFullyQualifiedIndexName())) {
                     // No need to OR these clauses - we can only logically be
                     // running in the context of just one of these index names.
                     return Queries.newMatchAllQuery();
                 }
             }
             // None of the listed index names are this one
-            return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName() + " vs. " + values);
+            return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.getFullyQualifiedIndexName()
+                + " vs. " + values);
         }
 
         private boolean isSameIndex(Object value, String indexName) {
@@ -156,7 +158,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
-            return new IndexIndexFieldData.Builder();
+            return new ConstantIndexFieldData.Builder(mapperService -> mapperService.index().getName());
         }
     }
 
@@ -175,7 +177,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     public void postParse(ParseContext context) throws IOException {}
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {}
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {}
 
     @Override
     protected String contentType() {

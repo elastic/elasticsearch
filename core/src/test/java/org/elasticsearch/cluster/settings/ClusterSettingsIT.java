@@ -25,13 +25,16 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResp
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.index.store.IndexStoreConfig;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.junit.After;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -41,8 +44,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(scope = TEST)
 public class ClusterSettingsIT extends ESIntegTestCase {
+
+    @After
+    public void cleanup() throws Exception {
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull("*"))
+            .setTransientSettings(Settings.builder().putNull("*")));
+    }
+
     public void testClusterNonExistingSettingsUpdate() {
         String key1 = "no_idea_what_you_are_talking_about";
         int value1 = 10;
@@ -177,7 +187,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
     }
 
     public void testClusterSettingsUpdateResponse() {
-        String key1 = IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING.getKey();
+        String key1 = RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
         int value1 = 10;
 
         String key2 = EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey();
@@ -282,7 +292,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
     }
 
-    private DiscoverySettings getDiscoverySettings() {return internalCluster().getInstance(Discovery.class).getDiscoverySettings();}
+    private DiscoverySettings getDiscoverySettings() {return ((ZenDiscovery) internalCluster().getInstance(Discovery.class)).getDiscoverySettings();}
 
     public void testClusterUpdateSettingsWithBlocks() {
         String key1 = "cluster.routing.allocation.enable";
@@ -301,11 +311,23 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             assertBlocked(request, MetaData.CLUSTER_READ_ONLY_BLOCK);
 
             // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
-            Settings settings = Settings.builder().put(MetaData.SETTING_READ_ONLY_SETTING.getKey(), false).build();
+            Settings settings = Settings.builder().putNull(MetaData.SETTING_READ_ONLY_SETTING.getKey()).build();
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
 
         } finally {
             setClusterReadOnly(false);
+        }
+
+        // Cluster settings updates are blocked when the cluster is read only
+        try {
+            // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
+            Settings settings = Settings.builder().put(MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true).build();
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
+            assertBlocked(request, MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+        } finally {
+            // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
+            Settings s = Settings.builder().putNull(MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey()).build();
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(s).get());
         }
 
         // It should work now

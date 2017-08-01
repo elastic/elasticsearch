@@ -19,11 +19,13 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
@@ -31,21 +33,30 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
-import org.elasticsearch.search.query.QuerySearchResultProvider;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -58,7 +69,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -72,6 +85,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(FailOnRewriteQueryPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put("search.default_search_timeout", "5s").build();
     }
 
     public void testClearOnClose() throws ExecutionException, InterruptedException {
@@ -143,7 +161,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             public void run() {
                 startGun.countDown();
                 while(running.get()) {
-                    service.afterIndexDeleted(indexService.index(), indexService.getIndexSettings().getSettings());
+                    service.afterIndexRemoved(indexService.index(), indexService.getIndexSettings(), DELETED);
                     if (randomBoolean()) {
                         // here we trigger some refreshes to ensure the IR go out of scope such that we hit ACE if we access a search
                         // context in a non-sane way.
@@ -174,13 +192,13 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             final int rounds = scaledRandomIntBetween(100, 10000);
             for (int i = 0; i < rounds; i++) {
                 try {
-                    QuerySearchResultProvider querySearchResultProvider = service.executeQueryPhase(
-                        new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
-                            new SearchSourceBuilder(), new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                    SearchPhaseResult searchPhaseResult = service.executeQueryPhase(
+                            new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                                    new SearchSourceBuilder(), new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f),
                         new SearchTask(123L, "", "", "", null));
                     IntArrayList intCursors = new IntArrayList(1);
                     intCursors.add(0);
-                    ShardFetchRequest req = new ShardFetchRequest(querySearchResultProvider.id(), intCursors, null /* not a scroll */);
+                    ShardFetchRequest req = new ShardFetchRequest(searchPhaseResult.getRequestId(), intCursors, null /* not a scroll */);
                     service.executeFetchPhase(req, new SearchTask(123L, "", "", "", null));
                 } catch (AlreadyClosedException ex) {
                     throw ex;
@@ -195,6 +213,53 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             thread.join();
             semaphore.acquire(Integer.MAX_VALUE);
         }
+    }
+
+    public void testTimeout() throws IOException {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+        final SearchContext contextWithDefaultTimeout = service.createContext(
+                new ShardSearchLocalRequest(
+                        indexShard.shardId(),
+                        1,
+                        SearchType.DEFAULT,
+                        new SearchSourceBuilder(),
+                        new String[0],
+                        false,
+                        new AliasFilter(null, Strings.EMPTY_ARRAY),
+                        1.0f),
+                null);
+        try {
+            // the search context should inherit the default timeout
+            assertThat(contextWithDefaultTimeout.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
+        } finally {
+            contextWithDefaultTimeout.decRef();
+            service.freeContext(contextWithDefaultTimeout.id());
+        }
+
+        final long seconds = randomIntBetween(6, 10);
+        final SearchContext context = service.createContext(
+                new ShardSearchLocalRequest(
+                        indexShard.shardId(),
+                        1,
+                        SearchType.DEFAULT,
+                        new SearchSourceBuilder().timeout(TimeValue.timeValueSeconds(seconds)),
+                        new String[0],
+                        false,
+                        new AliasFilter(null, Strings.EMPTY_ARRAY),
+                        1.0f),
+            null);
+        try {
+            // the search context should inherit the query timeout
+            assertThat(context.timeout(), equalTo(TimeValue.timeValueSeconds(seconds)));
+        } finally {
+            context.decRef();
+            service.freeContext(context.id());
+        }
+
     }
 
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {
@@ -216,8 +281,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-            throw new IllegalStateException("Fail on rewrite phase");
+        protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+            if (queryRewriteContext.convertToShardContext() != null) {
+                throw new IllegalStateException("Fail on rewrite phase");
+            }
+            return this;
         }
 
         @Override
@@ -247,5 +315,54 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         public String getWriteableName() {
             return null;
         }
+    }
+
+    public void testCanMatch() throws IOException {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+        assertTrue(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH, null,
+            Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f)));
+
+        assertTrue(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH,
+            new SearchSourceBuilder(), Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f)));
+
+        assertTrue(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH,
+            new SearchSourceBuilder().query(new MatchAllQueryBuilder()), Strings.EMPTY_ARRAY, false,
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f)));
+
+        assertTrue(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH,
+            new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
+            .aggregation(new TermsAggregationBuilder("test", ValueType.STRING).minDocCount(0)), Strings.EMPTY_ARRAY, false,
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f)));
+        assertTrue(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH,
+            new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
+                .aggregation(new GlobalAggregationBuilder("test")), Strings.EMPTY_ARRAY, false,
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f)));
+
+        assertFalse(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH,
+            new SearchSourceBuilder().query(new MatchNoneQueryBuilder()), Strings.EMPTY_ARRAY, false,
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f)));
+
+    }
+
+    public void testCanRewriteToMatchNone() {
+        assertFalse(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
+            .aggregation(new GlobalAggregationBuilder("test"))));
+        assertFalse(SearchService.canRewriteToMatchNone(new SearchSourceBuilder()));
+        assertFalse(SearchService.canRewriteToMatchNone(null));
+        assertFalse(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
+            .aggregation(new TermsAggregationBuilder("test", ValueType.STRING).minDocCount(0))));
+        assertTrue(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new TermQueryBuilder("foo", "bar"))));
+        assertTrue(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
+            .aggregation(new TermsAggregationBuilder("test", ValueType.STRING).minDocCount(1))));
+        assertFalse(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
+            .aggregation(new TermsAggregationBuilder("test", ValueType.STRING).minDocCount(1))
+            .suggest(new SuggestBuilder())));
+        assertFalse(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new TermQueryBuilder("foo", "bar"))
+            .suggest(new SuggestBuilder())));
+
     }
 }

@@ -1,4 +1,3 @@
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -24,44 +23,42 @@ import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.LastHttpContent;
-import io.netty.util.ReferenceCountUtil;
-import org.elasticsearch.action.termvectors.TermVectorsFilter;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.util.Collections;
 import java.util.PriorityQueue;
-import java.util.Queue;
 
 /**
- * Implements HTTP pipelining ordering, ensuring that responses are completely served in the same order as their
- * corresponding requests. NOTE: A side effect of using this handler is that upstream HttpRequest objects will
- * cause the original message event to be effectively transformed into an OrderedUpstreamMessageEvent. Conversely
- * OrderedDownstreamChannelEvent objects are expected to be received for the correlating response objects.
+ * Implements HTTP pipelining ordering, ensuring that responses are completely served in the same order as their corresponding requests.
  */
 public class HttpPipeliningHandler extends ChannelDuplexHandler {
 
-    private static final int INITIAL_EVENTS_HELD = 3;
+    // we use a priority queue so that responses are ordered by their sequence number
+    private final PriorityQueue<HttpPipelinedResponse> holdingQueue;
 
     private final int maxEventsHeld;
 
+    /*
+     * The current read and write sequence numbers. Read sequence numbers are attached to requests in the order they are read from the
+     * channel, and then transferred to responses. A response is not written to the channel context until its sequence number matches the
+     * current write sequence, implying that all preceding messages have been written.
+     */
     private int readSequence;
     private int writeSequence;
 
-    private final Queue<HttpPipelinedResponse> holdingQueue;
-
     /**
-     * @param maxEventsHeld the maximum number of channel events that will be retained prior to aborting the channel
-     *                      connection. This is required as events cannot queue up indefinitely; we would run out of
-     *                      memory if this was the case.
+     * Construct a new pipelining handler; this handler should be used downstream of HTTP decoding/aggregation.
+     *
+     * @param maxEventsHeld the maximum number of channel events that will be retained prior to aborting the channel connection; this is
+     *                      required as events cannot queue up indefinitely
      */
     public HttpPipeliningHandler(final int maxEventsHeld) {
         this.maxEventsHeld = maxEventsHeld;
-        this.holdingQueue = new PriorityQueue<>(INITIAL_EVENTS_HELD);
+        this.holdingQueue = new PriorityQueue<>(1);
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+    public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
         if (msg instanceof LastHttpContent) {
             ctx.fireChannelRead(new HttpPipelinedRequest(((LastHttpContent) msg).retain(), readSequence++));
         } else {
@@ -70,21 +67,39 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+    public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) throws Exception {
         if (msg instanceof HttpPipelinedResponse) {
+            final HttpPipelinedResponse current = (HttpPipelinedResponse) msg;
+            /*
+             * We attach the promise to the response. When we invoke a write on the channel with the response, we must ensure that we invoke
+             * the write methods that accept the same promise that we have attached to the response otherwise as the response proceeds
+             * through the handler pipeline a different promise will be used until reaching this handler. Therefore, we assert here that the
+             * attached promise is identical to the provided promise as a safety mechanism that we are respecting this.
+             */
+            assert current.promise() == promise;
+
             boolean channelShouldClose = false;
 
             synchronized (holdingQueue) {
                 if (holdingQueue.size() < maxEventsHeld) {
-                    holdingQueue.add((HttpPipelinedResponse) msg);
+                    holdingQueue.add(current);
 
                     while (!holdingQueue.isEmpty()) {
-                        final HttpPipelinedResponse response = holdingQueue.peek();
-                        if (response.sequence() != writeSequence) {
+                        /*
+                         * Since the response with the lowest sequence number is the top of the priority queue, we know if its sequence
+                         * number does not match the current write sequence number then we have not processed all preceding responses yet.
+                         */
+                        final HttpPipelinedResponse top = holdingQueue.peek();
+                        if (top.sequence() != writeSequence) {
                             break;
                         }
                         holdingQueue.remove();
-                        ctx.write(response.response(), response.promise());
+                        /*
+                         * We must use the promise attached to the response; this is necessary since are going to hold a response until all
+                         * responses that precede it in the pipeline are written first. Note that the promise from the method invocation is
+                         * not ignored, it will already be attached to an existing response and consumed when that response is drained.
+                         */
+                        ctx.write(top.response(), top.promise());
                         writeSequence++;
                     }
                 } else {
@@ -96,7 +111,7 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
                 try {
                     Netty4Utils.closeChannels(Collections.singletonList(ctx.channel()));
                 } finally {
-                    ((HttpPipelinedResponse) msg).release();
+                    current.release();
                     promise.setSuccess();
                 }
             }

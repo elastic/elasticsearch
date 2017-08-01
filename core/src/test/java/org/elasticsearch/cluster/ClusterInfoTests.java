@@ -46,9 +46,9 @@ public class ClusterInfoTests extends ESTestCase {
         int numEntries = randomIntBetween(0, 128);
         ImmutableOpenMap.Builder<String, DiskUsage> builder = ImmutableOpenMap.builder(numEntries);
         for (int i = 0; i < numEntries; i++) {
-            String key = randomAsciiOfLength(32);
+            String key = randomAlphaOfLength(32);
             DiskUsage diskUsage = new DiskUsage(
-                    randomAsciiOfLength(4), randomAsciiOfLength(4), randomAsciiOfLength(4),
+                    randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4),
                     randomIntBetween(0, Integer.MAX_VALUE), randomIntBetween(0, Integer.MAX_VALUE)
             );
             builder.put(key, diskUsage);
@@ -60,7 +60,7 @@ public class ClusterInfoTests extends ESTestCase {
         int numEntries = randomIntBetween(0, 128);
         ImmutableOpenMap.Builder<String, Long> builder = ImmutableOpenMap.builder(numEntries);
         for (int i = 0; i < numEntries; i++) {
-            String key = randomAsciiOfLength(32);
+            String key = randomAlphaOfLength(32);
             long shardSize = randomIntBetween(0, Integer.MAX_VALUE);
             builder.put(key, shardSize);
         }
@@ -71,9 +71,9 @@ public class ClusterInfoTests extends ESTestCase {
         int numEntries = randomIntBetween(0, 128);
         ImmutableOpenMap.Builder<ShardRouting, String> builder = ImmutableOpenMap.builder(numEntries);
         for (int i = 0; i < numEntries; i++) {
-            ShardId shardId = new ShardId(randomAsciiOfLength(32), randomAsciiOfLength(32), randomIntBetween(0, Integer.MAX_VALUE));
+            ShardId shardId = new ShardId(randomAlphaOfLength(32), randomAlphaOfLength(32), randomIntBetween(0, Integer.MAX_VALUE));
             ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, null, randomBoolean(), ShardRoutingState.UNASSIGNED);
-            builder.put(shardRouting, randomAsciiOfLength(32));
+            builder.put(shardRouting, randomAlphaOfLength(32));
         }
         return builder.build();
     }

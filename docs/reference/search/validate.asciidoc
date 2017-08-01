@@ -52,9 +52,6 @@ query.
 |`lenient` |If set to true will cause format based failures (like
 providing text to a numeric field) to be ignored. Defaults to false.
 
-|`lowercase_expanded_terms` |Should terms be automatically lowercased or
-not. Defaults to `true`.
-
 |`analyze_wildcard` |Should wildcard and prefix queries be analyzed or
 not. Defaults to `false`.
 |=======================================================================
@@ -90,7 +87,15 @@ due to dynamic mapping, and 'foo' does not correctly parse into a date:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/_validate/query?q=post_date:foo
+GET twitter/tweet/_validate/query
+{
+  "query": {
+    "query_string": {
+      "query": "post_date:foo",
+      "lenient": false
+    }
+  }
+}
 --------------------------------------------------
 // CONSOLE
 
@@ -105,7 +110,15 @@ about why a query failed:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/_validate/query?q=post_date:foo&explain=true
+GET twitter/tweet/_validate/query?explain=true
+{
+  "query": {
+    "query_string": {
+      "query": "post_date:foo",
+      "lenient": false
+    }
+  }
+}
 --------------------------------------------------
 // CONSOLE
 
@@ -133,47 +146,6 @@ When the query is valid, the explanation defaults to the string
 representation of that query. With `rewrite` set to `true`, the explanation
 is more detailed showing the actual Lucene query that will be executed.
 
-For Fuzzy Queries:
-
-[source,js]
---------------------------------------------------
-GET twitter/tweet/_validate/query?rewrite=true
-{
-  "query": {
-    "match": {
-      "user": {
-        "query": "kimchy",
-        "fuzziness": "auto"
-      }
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/18254]
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-   "valid": true,
-   "_shards": {
-      "total": 1,
-      "successful": 1,
-      "failed": 0
-   },
-   "explanations": [
-      {
-         "index": "twitter",
-         "valid": true,
-         "explanation": "+user:kimchy +user:kimchi^0.75 #(ConstantScore(_type:tweet))^0.0"
-      }
-   ]
-}
---------------------------------------------------
-// TESTRESPONSE
-
 For More Like This:
 
 [source,js]
@@ -191,7 +163,7 @@ GET twitter/tweet/_validate/query?rewrite=true
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/issues/18254]
+// TEST[skip:the output is randomized depending on which shard we hit]
 
 Response:
 
@@ -215,6 +187,73 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE
 
-CAUTION: The request is executed on a single shard only, which is randomly
+By default, the request is executed on a single shard only, which is randomly
 selected. The detailed explanation of the query may depend on which shard is
-being hit, and therefore may vary from one request to another.
+being hit, and therefore may vary from one request to another. So, in case of
+query rewrite the `all_shards` parameter should be used to get response from
+all available shards.
+
+For Fuzzy Queries:
+
+[source,js]
+--------------------------------------------------
+GET twitter/tweet/_validate/query?rewrite=true&all_shards=true
+{
+  "query": {
+    "match": {
+      "user": {
+        "query": "kimchy",
+        "fuzziness": "auto"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+  "valid": true,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "failed": 0
+  },
+  "explanations": [
+    {
+      "index": "twitter",
+      "shard": 0,
+      "valid": true,
+      "explanation": "user:kimchy~2"
+    },
+    {
+      "index": "twitter",
+      "shard": 1,
+      "valid": true,
+      "explanation": "user:kimchy~2"
+    },
+    {
+      "index": "twitter",
+      "shard": 2,
+      "valid": true,
+      "explanation": "(user:kimchi)^0.8333333"
+    },
+    {
+      "index": "twitter",
+      "shard": 3,
+      "valid": true,
+      "explanation": "user:kimchy"
+    },
+    {
+      "index": "twitter",
+      "shard": 4,
+      "valid": true,
+      "explanation": "user:kimchy~2"
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE

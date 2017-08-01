@@ -10,10 +10,6 @@
 
 
 
-# Sets the default values for elasticsearch variables used in this script
-ES_USER="elasticsearch"
-ES_GROUP="elasticsearch"
-
 # Source the default env file
 ES_ENV_FILE="${path.env}"
 if [ -f "$ES_ENV_FILE" ]; then
@@ -50,6 +46,11 @@ case "$1" in
         exit 1
     ;;
 esac
+
+# to pick up /usr/lib/sysctl.d/elasticsearch.conf
+if command -v systemctl > /dev/null; then
+    systemctl restart systemd-sysctl.service || true
+fi
 
 if [ "x$IS_UPGRADE" != "xtrue" ]; then
     if command -v systemctl >/dev/null; then
@@ -96,14 +97,17 @@ elif [ "$RESTART_ON_UPGRADE" = "true" ]; then
     echo " OK"
 fi
 
-chown -R $ES_USER:$ES_GROUP /var/lib/elasticsearch
-chown -R $ES_USER:$ES_GROUP /var/log/elasticsearch
-chown -R root:$ES_GROUP /etc/elasticsearch
+chown -R elasticsearch:elasticsearch /var/lib/elasticsearch
+chown -R elasticsearch:elasticsearch /var/log/elasticsearch
+chown -R root:elasticsearch /etc/elasticsearch
 chmod 0750 /etc/elasticsearch
-chmod 0750 /etc/elasticsearch/scripts
+
+if [ -f /etc/default/elasticsearch ]; then
+   chown root:elasticsearch /etc/default/elasticsearch
+fi
 
 if [ -f /etc/sysconfig/elasticsearch ]; then
-   chmod 0660 /etc/sysconfig/elasticsearch
+   chown root:elasticsearch /etc/sysconfig/elasticsearch
 fi
 
 ${scripts.footer}

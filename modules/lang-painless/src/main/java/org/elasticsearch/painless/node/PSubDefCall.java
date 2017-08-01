@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import java.util.Collections;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
@@ -97,10 +98,7 @@ final class PSubDefCall extends AExpression {
 
             if (argument instanceof ILambda) {
                 ILambda lambda = (ILambda) argument;
-
-                for (Type capture : lambda.getCaptures()) {
-                    parameterTypes.add(capture);
-                }
+                Collections.addAll(parameterTypes, lambda.getCaptures());
             }
 
             argument.write(writer, globals);
@@ -113,5 +111,10 @@ final class PSubDefCall extends AExpression {
         args.add(recipe.toString());
         args.addAll(pointers);
         writer.invokeDefCall(name, methodType, DefBootstrap.METHOD_CALL, args.toArray());
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToStringWithOptionalArgs(arguments, prefix, name);
     }
 }

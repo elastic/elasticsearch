@@ -24,6 +24,7 @@ import com.sun.jna.Native;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
+import com.sun.jna.WString;
 import com.sun.jna.win32.StdCallLibrary;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
@@ -109,7 +110,7 @@ final class JNAKernel32Library {
 
         private final ConsoleCtrlHandler handler;
 
-        public NativeHandlerCallback(ConsoleCtrlHandler handler) {
+        NativeHandlerCallback(ConsoleCtrlHandler handler) {
             this.handler = handler;
         }
 
@@ -149,17 +150,19 @@ final class JNAKernel32Library {
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList(new String[]{"BaseAddress", "AllocationBase", "AllocationProtect", "RegionSize", "State", "Protect", "Type"});
+            return Arrays.asList("BaseAddress", "AllocationBase", "AllocationProtect", "RegionSize", "State", "Protect", "Type");
         }
     }
 
     public static class SizeT extends IntegerType {
 
+        // JNA requires this no-arg constructor to be public,
+        // otherwise it fails to register kernel32 library
         public SizeT() {
             this(0);
         }
 
-        public SizeT(long value) {
+        SizeT(long value) {
             super(Native.SIZE_T_SIZE, value);
         }
 
@@ -222,6 +225,17 @@ final class JNAKernel32Library {
     native boolean CloseHandle(Pointer handle);
 
     /**
+     * Retrieves the short path form of the specified path. See
+     * <a href="https://msdn.microsoft.com/en-us/library/windows/desktop/aa364989.aspx">{@code GetShortPathName}</a>.
+     *
+     * @param lpszLongPath  the path string
+     * @param lpszShortPath a buffer to receive the short name
+     * @param cchBuffer     the size of the buffer
+     * @return the length of the string copied into {@code lpszShortPath}, otherwise zero for failure
+     */
+    native int GetShortPathNameW(WString lpszLongPath, char[] lpszShortPath, int cchBuffer);
+
+    /**
      * Creates or opens a new job object
      *
      * https://msdn.microsoft.com/en-us/library/windows/desktop/ms682409%28v=vs.85%29.aspx
@@ -261,10 +275,8 @@ final class JNAKernel32Library {
 
       @Override
       protected List<String> getFieldOrder() {
-          return Arrays.asList(new String[] {
-                  "PerProcessUserTimeLimit", "PerJobUserTimeLimit", "LimitFlags", "MinimumWorkingSetSize",
-                  "MaximumWorkingSetSize", "ActiveProcessLimit", "Affinity", "PriorityClass", "SchedulingClass"
-          });
+          return Arrays.asList("PerProcessUserTimeLimit", "PerJobUserTimeLimit", "LimitFlags", "MinimumWorkingSetSize",
+              "MaximumWorkingSetSize", "ActiveProcessLimit", "Affinity", "PriorityClass", "SchedulingClass");
       }
     }
 

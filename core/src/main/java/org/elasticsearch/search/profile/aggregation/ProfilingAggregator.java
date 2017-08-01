@@ -23,7 +23,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
 
@@ -54,7 +55,7 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
-    public AggregationContext context() {
+    public SearchContext context() {
         return delegate.context();
     }
 
@@ -70,9 +71,14 @@ public class ProfilingAggregator extends Aggregator {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) throws IOException {
-        profileBreakdown.startTime(AggregationTimingType.BUILD_AGGREGATION);
-        InternalAggregation result = delegate.buildAggregation(bucket);
-        profileBreakdown.stopAndRecordTime();
+        Timer timer = profileBreakdown.getTimer(AggregationTimingType.BUILD_AGGREGATION);
+        timer.start();
+        InternalAggregation result;
+        try {
+            result = delegate.buildAggregation(bucket);
+        } finally {
+            timer.stop();
+        }
         return result;
     }
 
@@ -89,9 +95,13 @@ public class ProfilingAggregator extends Aggregator {
     @Override
     public void preCollection() throws IOException {
         this.profileBreakdown = profiler.getQueryBreakdown(delegate);
-        profileBreakdown.startTime(AggregationTimingType.INITIALIZE);
-        delegate.preCollection();
-        profileBreakdown.stopAndRecordTime();
+        Timer timer = profileBreakdown.getTimer(AggregationTimingType.INITIALIZE);
+        timer.start();
+        try {
+            delegate.preCollection();
+        } finally {
+            timer.stop();
+        }
         profiler.pollLastElement();
     }
 

@@ -55,7 +55,7 @@ public class OsService extends AbstractComponent {
     }
 
     private class OsStatsCache extends SingleObjectCache<OsStats> {
-        public OsStatsCache(TimeValue interval, OsStats initValue) {
+        OsStatsCache(TimeValue interval, OsStats initValue) {
             super(interval, initValue);
         }
 

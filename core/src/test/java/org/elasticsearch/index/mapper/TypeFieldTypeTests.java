@@ -30,15 +30,25 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
-import org.junit.Before;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 
 public class TypeFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -46,25 +56,61 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         return new TypeFieldMapper.TypeFieldType();
     }
 
-    @Before
-    public void setupProperties() {
-        addModifier(new Modifier("fielddata", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                TypeFieldMapper.TypeFieldType tft = (TypeFieldMapper.TypeFieldType) ft;
-                tft.setFielddata(tft.fielddata() == false);
-            }
-        });
+    public void testTermsQueryWhenTypesAreDisabled() throws Exception {
+        QueryShardContext context = Mockito.mock(QueryShardContext.class);
+        Settings indexSettings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
+        IndexMetaData indexMetaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(indexSettings).build();
+        IndexSettings mockSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
+
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        Set<String> types = Collections.emptySet();
+        Mockito.when(mapperService.types()).thenReturn(types);
+        Mockito.when(context.getMapperService()).thenReturn(mapperService);
+
+        TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
+        ft.setName(TypeFieldMapper.NAME);
+        Query query = ft.termQuery("my_type", context);
+        assertEquals(new MatchNoDocsQuery(), query);
+
+        types = Collections.singleton("my_type");
+        Mockito.when(mapperService.types()).thenReturn(types);
+        query = ft.termQuery("my_type", context);
+        assertEquals(new MatchAllDocsQuery(), query);
+
+        Mockito.when(mapperService.hasNested()).thenReturn(true);
+        query = ft.termQuery("my_type", context);
+        assertEquals(Queries.newNonNestedFilter(), query);
+
+        types = Collections.singleton("other_type");
+        Mockito.when(mapperService.types()).thenReturn(types);
+        query = ft.termQuery("my_type", context);
+        assertEquals(new MatchNoDocsQuery(), query);
     }
 
-    public void testTermsQuery() throws Exception {
+    public void testTermsQueryWhenTypesAreEnabled() throws Exception {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
         IndexReader reader = openReaderWithNewType("my_type", w);
 
+        QueryShardContext context = Mockito.mock(QueryShardContext.class);
+        Settings indexSettings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_6_0) // to allow for multiple types
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                .build();
+        IndexMetaData indexMetaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(indexSettings).build();
+        IndexSettings mockSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
+
         TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
         ft.setName(TypeFieldMapper.NAME);
-        Query query = ft.termQuery("my_type", null);
+        Query query = ft.termQuery("my_type", context);
         assertEquals(new MatchAllDocsQuery(), query.rewrite(reader));
 
         // Make sure that Lucene actually simplifies the query when there is a single type

@@ -1,0 +1,17 @@
+[[breaking_60_stats_changes]]
+=== Stats and info changes
+
+==== Removal of `throttle_time` in the `store` stats
+
+Given that store throttling has been removed, the `store` stats do not report
+`throttle_time` anymore.
+
+==== FS stats no longer reports if the disk spins
+
+Elasticsearch has defaulted to assuming that it is running on SSDs since
+the 2.x series of Elasticsearch. As such, Elasticsearch no longer needs to
+collect information from the operating system as to whether or not the
+underlying disks of each data path spin or not. While this functionality was no
+longer needed starting in the 2.x series of Elasticsearch, it was maintained in
+the filesystem section of the nodes stats APIs. This information has now been
+removed.

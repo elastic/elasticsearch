@@ -18,32 +18,37 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.containsString;
-
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.AbstractSearchScript;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.NativeScriptFactory;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+
 @ESIntegTestCase.SuiteScopeTestCase
 public class IpRangeIT extends ESIntegTestCase {
+
+    public static class DummyScriptPlugin extends MockScriptPlugin {
+        @Override
+        public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Collections.singletonMap("dummy", params -> null);
+        }
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -208,7 +213,7 @@ public class IpRangeIT extends ESIntegTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> client().prepareSearch("idx").addAggregation(
                         AggregationBuilders.ipRange("my_range")
-                        .script(new Script(DummyScript.NAME, ScriptType.INLINE, "native", Collections.emptyMap())) ).get());
+                        .script(new Script(ScriptType.INLINE, "mockscript", "dummy", Collections.emptyMap())) ).get());
         assertThat(e.getMessage(), containsString("[ip_range] does not support scripts"));
     }
 
@@ -217,42 +222,21 @@ public class IpRangeIT extends ESIntegTestCase {
                 () -> client().prepareSearch("idx").addAggregation(
                         AggregationBuilders.ipRange("my_range")
                         .field("ip")
-                        .script(new Script(DummyScript.NAME, ScriptType.INLINE, "native", Collections.emptyMap())) ).get());
+                        .script(new Script(ScriptType.INLINE, "mockscript", "dummy", Collections.emptyMap())) ).get());
         assertThat(e.getMessage(), containsString("[ip_range] does not support scripts"));
     }
 
-    public static class DummyScriptPlugin extends Plugin implements ScriptPlugin {
-        @Override
-        public List<NativeScriptFactory> getNativeScripts() {
-            return Collections.singletonList(new DummyScriptFactory());
+    public void testNoRangesInQuery()  {
+        try {
+            client().prepareSearch("idx").addAggregation(
+                AggregationBuilders.ipRange("my_range")
+                    .field("ip"))
+                .execute().actionGet();
+            fail();
+        } catch (SearchPhaseExecutionException spee){
+            Throwable rootCause = spee.getCause().getCause();
+            assertThat(rootCause, instanceOf(IllegalArgumentException.class));
+            assertEquals(rootCause.getMessage(), "No [ranges] specified for the [my_range] aggregation");
         }
     }
-
-    public static class DummyScriptFactory implements NativeScriptFactory {
-        public DummyScriptFactory() {}
-        @Override
-        public ExecutableScript newScript(@Nullable Map<String, Object> params) {
-            return new DummyScript();
-        }
-        @Override
-        public boolean needsScores() {
-            return false;
-        }
-
-        @Override
-        public String getName() {
-            return DummyScript.NAME;
-        }
-    }
-
-    private static class DummyScript extends AbstractSearchScript {
-
-        public static final String NAME = "dummy";
-
-        @Override
-        public Object run() {
-            return null;
-        }
-    }
-
 }

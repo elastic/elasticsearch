@@ -130,7 +130,7 @@ PUT music/song/1?refresh
 // TEST[continued]
 
 You can use the following shorthand form. Note that you can not specify
-a weight with suggestion(s).
+a weight with suggestion(s) in the shorthand form.
 
 [source,js]
 --------------------------------------------------
@@ -152,12 +152,14 @@ documents once deleted are never shown. This request:
 
 [source,js]
 --------------------------------------------------
-POST music/_suggest?pretty
+POST music/_search?pretty
 {
-    "song-suggest" : {
-        "prefix" : "nir",
-        "completion" : {
-            "field" : "suggest"
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nir",
+            "completion" : {
+                "field" : "suggest"
+            }
         }
     }
 }
@@ -173,26 +175,33 @@ returns this response:
   "_shards" : {
     "total" : 5,
     "successful" : 5,
+    "skipped" : 0,
     "failed" : 0
   },
-  "song-suggest" : [ {
-    "text" : "nir",
-    "offset" : 0,
-    "length" : 3,
-    "options" : [ {
-      "text" : "Nirvana",
-      "_index": "music",
-      "_type": "song",
-      "_id": "1",
-      "_score": 1.0,
-      "_source": {
-        "suggest": ["Nevermind", "Nirvana"]
-      }
+  "hits": ...
+  "took": 2,
+  "timed_out": false,
+  "suggest": {
+    "song-suggest" : [ {
+      "text" : "nir",
+      "offset" : 0,
+      "length" : 3,
+      "options" : [ {
+        "text" : "Nirvana",
+        "_index": "music",
+        "_type": "song",
+        "_id": "1",
+        "_score": 1.0,
+        "_source": {
+          "suggest": ["Nevermind", "Nirvana"]
+        }
+      } ]
     } ]
-  } ]
+  }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"hits": .../"hits": "$body.hits",/]
+// TESTRESPONSE[s/"took": 2,/"took": "$body.took",/]
 
 
 IMPORTANT: `_source` meta-field must be enabled, which is the default
@@ -202,24 +211,67 @@ The configured weight for a suggestion is returned as `_score`. The
 `text` field uses the `input` of your indexed suggestion. Suggestions
 return the full document `_source` by default. The size of the `_source`
 can impact performance due to disk fetch and network transport overhead.
-For best performance, filter out unnecessary fields from the `_source`
+To save some network overhead, filter out unnecessary fields from the `_source`
 using <<search-request-source-filtering, source filtering>> to minimize
-`_source` size. The following demonstrates an example completion query
-with source filtering:
+`_source` size. Note that the _suggest endpoint doesn't support source
+filtering but using suggest on the `_search` endpoint does:
 
 [source,js]
 --------------------------------------------------
-POST music/_suggest
+POST music/_search?size=0
 {
-    "_source": "completion.*",
-    "song-suggest" : {
-        "prefix" : "nir",
-        "completion" : {
-            "field" : "suggest"
+    "_source": "suggest",
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nir",
+            "completion" : {
+                "field" : "suggest"
+            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Which should look like:
+
+[source,js]
+--------------------------------------------------
+{
+    "took": 6,
+    "timed_out": false,
+    "_shards" : {
+        "total" : 5,
+        "successful" : 5,
+        "skipped" : 0,
+        "failed" : 0
+    },
+    "hits": {
+        "total" : 0,
+        "max_score" : 0.0,
+        "hits" : []
+    },
+    "suggest": {
+        "song-suggest" : [ {
+            "text" : "nir",
+            "offset" : 0,
+            "length" : 3,
+            "options" : [ {
+                "text" : "Nirvana",
+                "_index": "music",
+                "_type": "song",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                    "suggest": ["Nevermind", "Nirvana"]
+                }
+            } ]
+        } ]
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 6,/"took": $body.took,/]
 
 The basic completion suggester query supports the following parameters:
 
@@ -247,14 +299,16 @@ you can have a typo in your search and still get results back.
 
 [source,js]
 --------------------------------------------------
-POST music/_suggest?pretty
+POST music/_search?pretty
 {
-    "song-suggest" : {
-        "prefix" : "nor",
-        "completion" : {
-            "field" : "suggest",
-            "fuzzy" : {
-                "fuzziness" : 2
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nor",
+            "completion" : {
+                "field" : "suggest",
+                "fuzzy" : {
+                    "fuzziness" : 2
+                }
             }
         }
     }
@@ -304,12 +358,14 @@ you can express a prefix as a regular expression
 
 [source,js]
 --------------------------------------------------
-POST music/_suggest?pretty
+POST music/_search?pretty
 {
-    "song-suggest" : {
-        "regex" : "n[ever|i]r",
-        "completion" : {
-            "field" : "suggest"
+    "suggest": {
+        "song-suggest" : {
+            "regex" : "n[ever|i]r",
+            "completion" : {
+                "field" : "suggest"
+            }
         }
     }
 }

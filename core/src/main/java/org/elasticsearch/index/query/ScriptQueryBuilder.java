@@ -20,29 +20,25 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RandomAccessWeight;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ScriptField;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
-import java.util.Optional;
 
 public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder> {
     public static final String NAME = "script";
@@ -83,13 +79,12 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
     @Override
     protected void doXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.startObject(NAME);
-        builder.field(ScriptField.SCRIPT.getPreferredName(), script);
+        builder.field(Script.SCRIPT_PARSE_FIELD.getPreferredName(), script);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
 
-    public static Optional<ScriptQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static ScriptQueryBuilder fromXContent(XContentParser parser) throws IOException {
         // also, when caching, since its isCacheable is false, will result in loading all bit set...
         Script script = null;
 
@@ -101,21 +96,19 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
-                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, parseContext.getParseFieldMatcher(), parseContext.getDefaultScriptLanguage());
+                if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
+                    script = Script.parse(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, parseContext.getParseFieldMatcher(), parseContext.getDefaultScriptLanguage());
+                } else if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
+                    script = Script.parse(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
                 }
@@ -126,22 +119,24 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
             throw new ParsingException(parser.getTokenLocation(), "script must be provided with a [script] filter");
         }
 
-        return Optional.of(new ScriptQueryBuilder(script)
+        return new ScriptQueryBuilder(script)
                 .boost(boost)
-                .queryName(queryName));
+                .queryName(queryName);
     }
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return new ScriptQuery(script, context.getSearchScript(script, ScriptContext.Standard.SEARCH, Collections.emptyMap()));
+        SearchScript.Factory factory = context.getScriptService().compile(script, SearchScript.CONTEXT);
+        SearchScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
+        return new ScriptQuery(script, searchScript);
     }
 
     static class ScriptQuery extends Query {
 
         final Script script;
-        final SearchScript searchScript;
+        final SearchScript.LeafFactory searchScript;
 
-        public ScriptQuery(Script script, SearchScript searchScript) {
+        ScriptQuery(Script script, SearchScript.LeafFactory searchScript) {
             this.script = script;
             this.searchScript = searchScript;
         }
@@ -177,16 +172,18 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-            return new RandomAccessWeight(this) {
+        public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
+            return new ConstantScoreWeight(this, boost) {
+
                 @Override
-                protected Bits getMatchingDocs(final LeafReaderContext context) throws IOException {
-                    final LeafSearchScript leafScript = searchScript.getLeafSearchScript(context);
-                    return new Bits() {
+                public Scorer scorer(LeafReaderContext context) throws IOException {
+                    DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
+                    final SearchScript leafScript = searchScript.newInstance(context);
+                    TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
 
                         @Override
-                        public boolean get(int doc) {
-                            leafScript.setDocument(doc);
+                        public boolean matches() throws IOException {
+                            leafScript.setDocument(approximation.docID());
                             Object val = leafScript.run();
                             if (val == null) {
                                 return false;
@@ -201,11 +198,12 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                         }
 
                         @Override
-                        public int length() {
-                            return context.reader().maxDoc();
+                        public float matchCost() {
+                            // TODO: how can we compute this?
+                            return 1000f;
                         }
-
                     };
+                    return new ConstantScoreScorer(this, score(), twoPhase);
                 }
             };
         }

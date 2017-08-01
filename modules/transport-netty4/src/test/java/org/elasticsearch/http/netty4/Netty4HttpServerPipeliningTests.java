@@ -24,6 +24,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -70,7 +72,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
     @Before
     public void setup() throws Exception {
-        networkService = new NetworkService(Settings.EMPTY, Collections.emptyList());
+        networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
         bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
     }
@@ -87,10 +89,9 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             .put("http.pipelining", true)
             .put("http.port", "0")
             .build();
-        try (final HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
+        try (HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
             httpServerTransport.start();
-            final TransportAddress transportAddress =
-                (TransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
+            final TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
             final int numberOfRequests = randomIntBetween(4, 16);
             final List<String> requests = new ArrayList<>(numberOfRequests);
@@ -115,20 +116,17 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             .put("http.pipelining", false)
             .put("http.port", "0")
             .build();
-        try (final HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
+        try (HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
             httpServerTransport.start();
-            final TransportAddress transportAddress =
-                (TransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
+            final TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
             final int numberOfRequests = randomIntBetween(4, 16);
             final Set<Integer> slowIds = new HashSet<>();
             final List<String> requests = new ArrayList<>(numberOfRequests);
-            int numberOfSlowRequests = 0;
             for (int i = 0; i < numberOfRequests; i++) {
                 if (rarely()) {
                     requests.add("/slow/" + i);
                     slowIds.add(i);
-                    numberOfSlowRequests++;
                 } else {
                     requests.add("/" + i);
                 }
@@ -137,16 +135,15 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
                 Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests.toArray(new String[]{}));
                 List<String> responseBodies = new ArrayList<>(Netty4HttpClient.returnHttpResponseBodies(responses));
-                // we can not be sure about the order of the responses, but the slow ones should
-                // come last
+                // we can not be sure about the order of the responses, but the slow ones should come last
                 assertThat(responseBodies, hasSize(numberOfRequests));
-                for (int i = 0; i < numberOfRequests - numberOfSlowRequests; i++) {
+                for (int i = 0; i < numberOfRequests - slowIds.size(); i++) {
                     assertThat(responseBodies.get(i), matches("/\\d+"));
                 }
 
                 final Set<Integer> ids = new HashSet<>();
-                for (int i = 0; i < numberOfSlowRequests; i++) {
-                    final String response = responseBodies.get(numberOfRequests - numberOfSlowRequests + i);
+                for (int i = 0; i < slowIds.size(); i++) {
+                    final String response = responseBodies.get(numberOfRequests - slowIds.size() + i);
                     assertThat(response, matches("/slow/\\d+" ));
                     assertTrue(ids.add(Integer.parseInt(response.split("/")[2])));
                 }
@@ -164,7 +161,8 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             super(settings,
                 Netty4HttpServerPipeliningTests.this.networkService,
                 Netty4HttpServerPipeliningTests.this.bigArrays,
-                Netty4HttpServerPipeliningTests.this.threadPool);
+                Netty4HttpServerPipeliningTests.this.threadPool,
+                xContentRegistry(), new NullDispatcher());
         }
 
         @Override
@@ -258,11 +256,14 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 assert uri.matches("/\\d+");
             }
 
+            final ChannelPromise promise = ctx.newPromise();
+            final Object msg;
             if (pipelinedRequest != null) {
-                ctx.writeAndFlush(pipelinedRequest.createHttpResponse(httpResponse, ctx.channel().newPromise()));
+                msg = pipelinedRequest.createHttpResponse(httpResponse, promise);
             } else {
-                ctx.writeAndFlush(httpResponse);
+                msg = httpResponse;
             }
+            ctx.writeAndFlush(msg, promise);
         }
 
     }

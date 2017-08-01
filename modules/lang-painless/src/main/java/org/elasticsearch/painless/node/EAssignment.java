@@ -31,6 +31,8 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -321,5 +323,25 @@ public final class EAssignment extends AExpression {
 
             lhs.store(writer, globals); // store the lhs's value from the stack in its respective variable/field/array
         }
+    }
+
+    @Override
+    public String toString() {
+        List<Object> subs = new ArrayList<>();
+        subs.add(lhs);
+        if (rhs != null) {
+            // Make sure "=" is in the symbol so this is easy to read at a glance
+            subs.add(operation == null ? "=" : operation.symbol + "=");
+            subs.add(rhs);
+            return singleLineToString(subs);
+        }
+        subs.add(operation.symbol);
+        if (pre) {
+            subs.add("pre");
+        }
+        if (post) {
+            subs.add("post");
+        }
+        return singleLineToString(subs);
     }
 }

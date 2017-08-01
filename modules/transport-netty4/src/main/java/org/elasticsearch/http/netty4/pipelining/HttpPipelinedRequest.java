@@ -20,9 +20,7 @@
 package org.elasticsearch.http.netty4.pipelining;
 
 import io.netty.channel.ChannelPromise;
-import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.ReferenceCounted;
 
@@ -35,8 +33,7 @@ public class HttpPipelinedRequest implements ReferenceCounted {
     private final LastHttpContent last;
     private final int sequence;
 
-
-    HttpPipelinedRequest(final LastHttpContent last, final int sequence) {
+    public HttpPipelinedRequest(final LastHttpContent last, final int sequence) {
         this.last = last;
         this.sequence = sequence;
     }

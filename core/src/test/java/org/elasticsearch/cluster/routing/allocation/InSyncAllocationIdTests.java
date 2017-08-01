@@ -259,6 +259,88 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         assertThat(newInSyncSet, hasItem(primaryShard.allocationId().getId()));
     }
 
+    /**
+     * Only trim set of allocation ids when the set grows
+     */
+    public void testInSyncIdsNotTrimmedWhenNotGrowing() throws Exception {
+        ClusterState clusterState = createOnePrimaryOneReplicaClusterState(allocation);
+
+        Set<String> inSyncSet = clusterState.metaData().index("test").inSyncAllocationIds(0);
+        assertThat(inSyncSet.size(), equalTo(2));
+
+        IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index("test").shard(0);
+        ShardRouting primaryShard = shardRoutingTable.primaryShard();
+        ShardRouting replicaShard = shardRoutingTable.replicaShards().get(0);
+
+        logger.info("remove replica node");
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
+            .remove(replicaShard.currentNodeId()))
+            .build();
+        clusterState = allocation.deassociateDeadNodes(clusterState, true, "reroute");
+
+        // in-sync allocation ids should not be updated
+        assertEquals(inSyncSet, clusterState.metaData().index("test").inSyncAllocationIds(0));
+
+        logger.info("remove primary node");
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
+            .remove(primaryShard.currentNodeId()))
+            .build();
+        clusterState = allocation.deassociateDeadNodes(clusterState, true, "reroute");
+
+        // in-sync allocation ids should not be updated
+        assertEquals(inSyncSet, clusterState.metaData().index("test").inSyncAllocationIds(0));
+
+        logger.info("decrease number of replicas to 0");
+        clusterState = ClusterState.builder(clusterState)
+            .routingTable(RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(0, "test").build())
+            .metaData(MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(0, "test")).build();
+
+        logger.info("add back node 1");
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(
+            newNode("node1"))).build();
+        clusterState = allocation.reroute(clusterState, "reroute");
+
+        assertThat(clusterState.routingTable().index("test").shard(0).assignedShards().size(), equalTo(1));
+        // in-sync allocation ids should not be updated
+        assertEquals(inSyncSet, clusterState.metaData().index("test").inSyncAllocationIds(0));
+
+        logger.info("start primary shard");
+        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        // in-sync allocation ids should not be updated
+        assertEquals(inSyncSet, clusterState.metaData().index("test").inSyncAllocationIds(0));
+    }
+
+    /**
+     * Don't remove allocation id of failed active primary if there is no replica to promote as primary.
+     */
+    public void testPrimaryAllocationIdNotRemovedFromInSyncSetWhenNoFailOver() throws Exception {
+        ClusterState clusterState = createOnePrimaryOneReplicaClusterState(allocation);
+
+        Set<String> inSyncSet = clusterState.metaData().index("test").inSyncAllocationIds(0);
+        assertThat(inSyncSet.size(), equalTo(2));
+
+        IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index("test").shard(0);
+        ShardRouting primaryShard = shardRoutingTable.primaryShard();
+        ShardRouting replicaShard = shardRoutingTable.replicaShards().get(0);
+
+        logger.info("remove replica node");
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
+            .remove(replicaShard.currentNodeId()))
+            .build();
+        clusterState = allocation.deassociateDeadNodes(clusterState, true, "reroute");
+
+        // in-sync allocation ids should not be updated
+        assertEquals(inSyncSet, clusterState.metaData().index("test").inSyncAllocationIds(0));
+
+        logger.info("fail primary shard");
+        clusterState = failedClusterStateTaskExecutor.execute(clusterState, Collections.singletonList(new ShardEntry(
+            shardRoutingTable.shardId(), primaryShard.allocationId().getId(), 0L, "dummy", null))).resultingState;
+
+        assertThat(clusterState.routingTable().index("test").shard(0).assignedShards().size(), equalTo(0));
+        // in-sync allocation ids should not be updated
+        assertEquals(inSyncSet, clusterState.metaData().index("test").inSyncAllocationIds(0));
+    }
+
     private ClusterState createOnePrimaryOneReplicaClusterState(AllocationService allocation) {
         logger.info("creating an index with 1 shard, 1 replica");
         MetaData metaData = MetaData.builder()

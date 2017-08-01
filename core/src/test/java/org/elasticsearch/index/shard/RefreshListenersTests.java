@@ -23,13 +23,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,23 +34,25 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.engine.InternalEngineTests.TranslogHandler;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Cancellable;
@@ -64,6 +63,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -104,16 +104,11 @@ public class RefreshListenersTests extends ESTestCase {
             public Directory newDirectory() throws IOException {
                 return directory;
             }
-
-            @Override
-            public long throttleTimeInNanos() {
-                return 0;
-            }
         };
         store = new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
         IndexWriterConfig iwc = newIndexWriterConfig();
         TranslogConfig translogConfig = new TranslogConfig(shardId, createTempDir("translog"), indexSettings,
-                BigArrays.NON_RECYCLING_INSTANCE);
+            BigArrays.NON_RECYCLING_INSTANCE);
         Engine.EventListener eventListener = new Engine.EventListener() {
             @Override
             public void onFailedEngine(String reason, @Nullable Exception e) {
@@ -121,10 +116,10 @@ public class RefreshListenersTests extends ESTestCase {
             }
         };
         EngineConfig config = new EngineConfig(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, shardId, threadPool, indexSettings, null,
-                store, new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy()), newMergePolicy(), iwc.getAnalyzer(),
-                iwc.getSimilarity(), new CodecService(null, logger), eventListener, new TranslogHandler(shardId.getIndexName(), logger),
+                store, newMergePolicy(), iwc.getAnalyzer(),
+                iwc.getSimilarity(), new CodecService(null, logger), eventListener,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), listeners, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
+                TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), null, null);
         engine = new InternalEngine(config);
         listeners.setTranslog(engine.getTranslog());
     }
@@ -135,9 +130,40 @@ public class RefreshListenersTests extends ESTestCase {
         terminate(threadPool);
     }
 
+    public void testBeforeRefresh() throws Exception {
+        assertEquals(0, listeners.pendingCount());
+        Engine.IndexResult index = index("1");
+        DummyRefreshListener listener = new DummyRefreshListener();
+        assertFalse(listeners.addOrNotify(index.getTranslogLocation(), listener));
+        assertNull(listener.forcedRefresh.get());
+        assertEquals(1, listeners.pendingCount());
+        engine.refresh("I said so");
+        assertFalse(listener.forcedRefresh.get());
+        listener.assertNoError();
+        assertEquals(0, listeners.pendingCount());
+    }
+
+    public void testAfterRefresh() throws Exception {
+        assertEquals(0, listeners.pendingCount());
+        Engine.IndexResult index = index("1");
+        engine.refresh("I said so");
+        if (randomBoolean()) {
+            index(randomFrom("1" /* same document */, "2" /* different document */));
+            if (randomBoolean()) {
+                engine.refresh("I said so");
+            }
+        }
+        DummyRefreshListener listener = new DummyRefreshListener();
+        assertTrue(listeners.addOrNotify(index.getTranslogLocation(), listener));
+        assertFalse(listener.forcedRefresh.get());
+        listener.assertNoError();
+        assertEquals(0, listeners.pendingCount());
+    }
+
     public void testTooMany() throws Exception {
+        assertEquals(0, listeners.pendingCount());
         assertFalse(listeners.refreshNeeded());
-        Engine.Index index = index("1");
+        Engine.IndexResult index = index("1");
 
         // Fill the listener slots
         List<DummyRefreshListener> nonForcedListeners = new ArrayList<>(maxListeners);
@@ -152,6 +178,7 @@ public class RefreshListenersTests extends ESTestCase {
         for (DummyRefreshListener listener : nonForcedListeners) {
             assertNull("Called listener too early!", listener.forcedRefresh.get());
         }
+        assertEquals(maxListeners, listeners.pendingCount());
 
         // Add one more listener which should cause a refresh.
         DummyRefreshListener forcingListener = new DummyRefreshListener();
@@ -165,22 +192,45 @@ public class RefreshListenersTests extends ESTestCase {
             listener.assertNoError();
         }
         assertFalse(listeners.refreshNeeded());
+        assertEquals(0, listeners.pendingCount());
     }
 
-    public void testAfterRefresh() throws Exception {
-        Engine.Index index = index("1");
+    public void testClose() throws Exception {
+        assertEquals(0, listeners.pendingCount());
+        Engine.IndexResult refreshedOperation = index("1");
         engine.refresh("I said so");
-        if (randomBoolean()) {
-            index(randomFrom("1" /* same document */, "2" /* different document */));
-            if (randomBoolean()) {
-                engine.refresh("I said so");
-            }
+        Engine.IndexResult unrefreshedOperation = index("1");
+        {
+            /* Closing flushed pending listeners as though they were refreshed. Since this can only happen when the index is closed and no
+             * longer useful there doesn't seem much point in sending the listener some kind of "I'm closed now, go away" enum value. */
+            DummyRefreshListener listener = new DummyRefreshListener();
+            assertFalse(listeners.addOrNotify(unrefreshedOperation.getTranslogLocation(), listener));
+            assertNull(listener.forcedRefresh.get());
+            listeners.close();
+            assertFalse(listener.forcedRefresh.get());
+            listener.assertNoError();
+            assertFalse(listeners.refreshNeeded());
+            assertEquals(0, listeners.pendingCount());
         }
-
-        DummyRefreshListener listener = new DummyRefreshListener();
-        assertTrue(listeners.addOrNotify(index.getTranslogLocation(), listener));
-        assertFalse(listener.forcedRefresh.get());
-        listener.assertNoError();
+        {
+            // If you add a listener for an already refreshed location then it'll just fire even if closed
+            DummyRefreshListener listener = new DummyRefreshListener();
+            assertTrue(listeners.addOrNotify(refreshedOperation.getTranslogLocation(), listener));
+            assertFalse(listener.forcedRefresh.get());
+            listener.assertNoError();
+            assertFalse(listeners.refreshNeeded());
+            assertEquals(0, listeners.pendingCount());
+        }
+        {
+            // But adding a listener to a non-refreshed location will fail
+            DummyRefreshListener listener = new DummyRefreshListener();
+            Exception e = expectThrows(IllegalStateException.class, () ->
+                listeners.addOrNotify(unrefreshedOperation.getTranslogLocation(), listener));
+            assertEquals("can't wait for refresh on a closed index", e.getMessage());
+            assertNull(listener.forcedRefresh.get());
+            assertFalse(listeners.refreshNeeded());
+            assertEquals(0, listeners.pendingCount());
+        }
     }
 
     /**
@@ -198,7 +248,7 @@ public class RefreshListenersTests extends ESTestCase {
         refresher.start();
         try {
             for (int i = 0; i < 1000; i++) {
-                Engine.Index index = index("1");
+                Engine.IndexResult index = index("1");
                 DummyRefreshListener listener = new DummyRefreshListener();
                 boolean immediate = listeners.addOrNotify(index.getTranslogLocation(), listener);
                 if (immediate) {
@@ -219,6 +269,7 @@ public class RefreshListenersTests extends ESTestCase {
      * Uses a bunch of threads to index, wait for refresh, and non-realtime get documents to validate that they are visible after waiting
      * regardless of what crazy sequence of events causes the refresh listener to fire.
      */
+    @TestLogging("_root:debug,org.elasticsearch.index.engine.Engine.DW:trace")
     public void testLotsOfThreads() throws Exception {
         int threadCount = between(3, 10);
         maxListeners = between(1, threadCount * 2);
@@ -234,8 +285,8 @@ public class RefreshListenersTests extends ESTestCase {
                 for (int iteration = 1; iteration <= 50; iteration++) {
                     try {
                         String testFieldValue = String.format(Locale.ROOT, "%s%04d", threadId, iteration);
-                        Engine.Index index = index(threadId, testFieldValue);
-                        assertEquals(iteration, index.version());
+                        Engine.IndexResult index = index(threadId, testFieldValue);
+                        assertEquals(iteration, index.getVersion());
 
                         DummyRefreshListener listener = new DummyRefreshListener();
                         listeners.addOrNotify(index.getTranslogLocation(), listener);
@@ -245,8 +296,8 @@ public class RefreshListenersTests extends ESTestCase {
                         }
                         listener.assertNoError();
 
-                        Engine.Get get = new Engine.Get(false, index.uid());
-                        try (Engine.GetResult getResult = engine.get(get)) {
+                        Engine.Get get = new Engine.Get(false, "test", threadId, new Term(IdFieldMapper.NAME, threadId));
+                        try (Engine.GetResult getResult = engine.get(get, engine::acquireSearcher)) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
                             SingleFieldsVisitor visitor = new SingleFieldsVisitor("test");
@@ -267,37 +318,38 @@ public class RefreshListenersTests extends ESTestCase {
         refresher.cancel();
     }
 
-    private Engine.Index index(String id) {
+    private Engine.IndexResult index(String id) throws IOException {
         return index(id, "test");
     }
 
-    private Engine.Index index(String id, String testFieldValue) {
-        String type = "test";
-        String uid = type + ":" + id;
+    private Engine.IndexResult index(String id, String testFieldValue) throws IOException {
         Document document = new Document();
         document.add(new TextField("test", testFieldValue, Field.Store.YES));
-        Field uidField = new Field("_uid", type + ":" + id, UidFieldMapper.Defaults.FIELD_TYPE);
+        Field idField = new Field("_id", id, IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);
-        document.add(uidField);
+        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        document.add(idField);
         document.add(versionField);
+        document.add(seqID.seqNo);
+        document.add(seqID.seqNoDocValue);
+        document.add(seqID.primaryTerm);
         BytesReference source = new BytesArray(new byte[] { 1 });
-        ParsedDocument doc = new ParsedDocument(versionField, id, type, null, -1, -1, Arrays.asList(document), source, null);
-        Engine.Index index = new Engine.Index(new Term("_uid", uid), doc);
-        engine.index(index);
-        return index;
+        ParsedDocument doc = new ParsedDocument(versionField, seqID, id, "test", null, Arrays.asList(document), source, XContentType.JSON,
+            null);
+        Engine.Index index = new Engine.Index(new Term("_id", doc.id()), doc);
+        return engine.index(index);
     }
 
     private static class DummyRefreshListener implements Consumer<Boolean> {
         /**
          * When the listener is called this captures it's only argument.
          */
-        AtomicReference<Boolean> forcedRefresh = new AtomicReference<>();
+        final AtomicReference<Boolean> forcedRefresh = new AtomicReference<>();
         private volatile Exception error;
 
         @Override
         public void accept(Boolean forcedRefresh) {
             try {
-                assertNotNull(forcedRefresh);
                 Boolean oldValue = this.forcedRefresh.getAndSet(forcedRefresh);
                 assertNull("Listener called twice", oldValue);
             } catch (Exception e) {

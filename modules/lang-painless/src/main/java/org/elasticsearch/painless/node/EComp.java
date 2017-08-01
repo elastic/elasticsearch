@@ -148,13 +148,8 @@ public final class EComp extends AExpression {
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        if (promotedType.sort == Sort.DEF) {
-            left.expected = left.actual;
-            right.expected = right.actual;
-        } else {
-            left.expected = promotedType;
-            right.expected = promotedType;
-        }
+        left.expected = promotedType;
+        right.expected = promotedType;
 
         left = left.cast(variables);
         right = right.cast(variables);
@@ -246,13 +241,8 @@ public final class EComp extends AExpression {
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        if (promotedType.sort == Sort.DEF) {
-            left.expected = left.actual;
-            right.expected = right.actual;
-        } else {
-            left.expected = promotedType;
-            right.expected = promotedType;
-        }
+        left.expected = promotedType;
+        right.expected = promotedType;
 
         left = left.cast(variables);
         right = right.cast(variables);
@@ -567,5 +557,10 @@ public final class EComp extends AExpression {
             writer.push(true);
             writer.mark(end);
         }
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(left, operation.symbol, right);
     }
 }

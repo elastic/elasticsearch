@@ -33,7 +33,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to get node tasks
  */
-public class GetTaskRequest extends ActionRequest<GetTaskRequest> {
+public class GetTaskRequest extends ActionRequest {
     private TaskId taskId = TaskId.EMPTY_TASK_ID;
     private boolean waitForCompletion = false;
     private TimeValue timeout = null;

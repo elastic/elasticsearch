@@ -14,10 +14,6 @@ A number of plugins have been contributed by our community:
 * https://github.com/wikimedia/search-extra[Elasticsearch Trigram Accelerated Regular Expression Filter]:
   (by Wikimedia Foundation/Nik Everett)
 
-* https://github.com/kzwang/elasticsearch-image[Elasticsearch Image Plugin]:
-  Uses https://code.google.com/p/lire/[Lire (Lucene Image Retrieval)] to allow users
-  to index images and search for similar images (by Kevin Wang)
-
 * https://github.com/wikimedia/search-highlighter[Elasticsearch Experimental Highlighter]:
   (by Wikimedia Foundation/Nik Everett)
 
@@ -30,7 +26,4 @@ A number of plugins have been contributed by our community:
 * https://github.com/codelibs/elasticsearch-taste[Elasticsearch Taste Plugin]:
   Mahout Taste-based Collaborative Filtering implementation (by CodeLibs Project)
 
-* https://github.com/hadashiA/elasticsearch-flavor[Elasticsearch Flavor Plugin] using
-  http://mahout.apache.org/[Mahout] Collaboration filtering (by hadashiA)
 * https://github.com/jurgc11/es-change-feed-plugin[WebSocket Change Feed Plugin] (by ForgeRock/Chris Clifton)
-

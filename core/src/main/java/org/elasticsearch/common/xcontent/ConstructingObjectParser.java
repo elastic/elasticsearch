@@ -20,8 +20,8 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 
 import java.io.IOException;
@@ -74,18 +74,18 @@ import java.util.function.Function;
  * Note: if optional constructor arguments aren't specified then the number of allocations is always the worst case.
  * </p>
  */
-public final class ConstructingObjectParser<Value, Context extends ParseFieldMatcherSupplier> extends AbstractObjectParser<Value, Context> {
+public final class ConstructingObjectParser<Value, Context> extends AbstractObjectParser<Value, Context> {
     /**
      * Consumer that marks a field as a required constructor argument instead of a real object field.
      */
-    private static final BiConsumer<Object, Object> REQUIRED_CONSTRUCTOR_ARG_MARKER = (a, b) -> {
+    private static final BiConsumer<?, ?> REQUIRED_CONSTRUCTOR_ARG_MARKER = (a, b) -> {
         throw new UnsupportedOperationException("I am just a marker I should never be called.");
     };
 
     /**
      * Consumer that marks a field as an optional constructor argument instead of a real object field.
      */
-    private static final BiConsumer<Object, Object> OPTIONAL_CONSTRUCTOR_ARG_MARKER = (a, b) -> {
+    private static final BiConsumer<?, ?> OPTIONAL_CONSTRUCTOR_ARG_MARKER = (a, b) -> {
         throw new UnsupportedOperationException("I am just a marker I should never be called.");
     };
 
@@ -94,7 +94,7 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
      */
     private final List<ConstructorArgInfo> constructorArgInfos = new ArrayList<>();
     private final ObjectParser<Target, Context> objectParser;
-    private final Function<Object[], Value> builder;
+    private final BiFunction<Object[], Context, Value> builder;
     /**
      * The number of fields on the targetObject. This doesn't include any constructor arguments and is the size used for the array backing
      * the field queue.
@@ -130,8 +130,27 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
      *        allocations.
      */
     public ConstructingObjectParser(String name, boolean ignoreUnknownFields, Function<Object[], Value> builder) {
+        this(name, ignoreUnknownFields, (args, context) -> builder.apply(args));
+    }
+
+    /**
+     * Build the parser.
+     *
+     * @param name The name given to the delegate ObjectParser for error identification. Use what you'd use if the object worked with
+     *        ObjectParser.
+     * @param ignoreUnknownFields Should this parser ignore unknown fields? This should generally be set to true only when parsing responses
+     *        from external systems, never when parsing requests from users.
+     * @param builder A binary function that builds the object from an array of Objects and the parser context.  Declare this inline with
+     *        the parser, casting the elements of the array to the arguments so they work with your favorite constructor. The objects in
+     *        the array will be in the same order that you declared the {{@link #constructorArg()}s and none will be null. The second
+     *        argument is the value of the context provided to the {@link #parse(XContentParser, Object) parse function}. If any of the
+     *        constructor arguments aren't defined in the XContent then parsing will throw an error. We use an array here rather than a
+     *        {@code Map<String, Object>} to save on allocations.
+     */
+    public ConstructingObjectParser(String name, boolean ignoreUnknownFields, BiFunction<Object[], Context, Value> builder) {
         objectParser = new ObjectParser<>(name, ignoreUnknownFields, null);
         this.builder = builder;
+
     }
 
     /**
@@ -140,10 +159,15 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
     @Override
     public Value apply(XContentParser parser, Context context) {
         try {
-            return objectParser.parse(parser, new Target(parser), context).finish();
+            return parse(parser, context);
         } catch (IOException e) {
             throw new ParsingException(parser.getTokenLocation(), "[" + objectParser.getName()  + "] failed to parse object", e);
         }
+    }
+
+    @Override
+    public Value parse(XContentParser parser, Context context) throws IOException {
+        return objectParser.parse(parser, new Target(parser, context), context).finish();
     }
 
     /**
@@ -185,7 +209,7 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
 
         if (consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER) {
             /*
-             * Constructor arguments are detected by this "marker" consumer. It keeps the API looking clean even if it is a bit sleezy. We
+             * Constructor arguments are detected by these "marker" consumers. It keeps the API looking clean even if it is a bit sleezy. We
              * then build a new consumer directly against the object parser that triggers the "constructor arg just arrived behavior" of the
              * parser. Conveniently, we can close over the position of the constructor in the argument list so we don't need to do any fancy
              * or expensive lookups whenever the constructor args come in.
@@ -198,6 +222,91 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
             numberOfFields += 1;
             objectParser.declareField(queueingConsumer(consumer, parseField), parser, parseField, type);
         }
+    }
+
+    @Override
+    public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
+            ParseField parseField) {
+        if (consumer == null) {
+            throw new IllegalArgumentException("[consumer] is required");
+        }
+        if (namedObjectParser == null) {
+            throw new IllegalArgumentException("[parser] is required");
+        }
+        if (parseField == null) {
+            throw new IllegalArgumentException("[parseField] is required");
+        }
+
+        if (consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER) {
+            /*
+             * Constructor arguments are detected by this "marker" consumer. It
+             * keeps the API looking clean even if it is a bit sleezy. We then
+             * build a new consumer directly against the object parser that
+             * triggers the "constructor arg just arrived behavior" of the
+             * parser. Conveniently, we can close over the position of the
+             * constructor in the argument list so we don't need to do any fancy
+             * or expensive lookups whenever the constructor args come in.
+             */
+            int position = constructorArgInfos.size();
+            boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;
+            constructorArgInfos.add(new ConstructorArgInfo(parseField, required));
+            objectParser.declareNamedObjects((target, v) -> target.constructorArg(position, parseField, v), namedObjectParser, parseField);
+        } else {
+            numberOfFields += 1;
+            objectParser.declareNamedObjects(queueingConsumer(consumer, parseField), namedObjectParser, parseField);
+        }
+    }
+
+    @Override
+    public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
+            Consumer<Value> orderedModeCallback, ParseField parseField) {
+        if (consumer == null) {
+            throw new IllegalArgumentException("[consumer] is required");
+        }
+        if (namedObjectParser == null) {
+            throw new IllegalArgumentException("[parser] is required");
+        }
+        if (orderedModeCallback == null) {
+            throw new IllegalArgumentException("[orderedModeCallback] is required");
+        }
+        if (parseField == null) {
+            throw new IllegalArgumentException("[parseField] is required");
+        }
+
+        if (consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER) {
+            /*
+             * Constructor arguments are detected by this "marker" consumer. It
+             * keeps the API looking clean even if it is a bit sleezy. We then
+             * build a new consumer directly against the object parser that
+             * triggers the "constructor arg just arrived behavior" of the
+             * parser. Conveniently, we can close over the position of the
+             * constructor in the argument list so we don't need to do any fancy
+             * or expensive lookups whenever the constructor args come in.
+             */
+            int position = constructorArgInfos.size();
+            boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;
+            constructorArgInfos.add(new ConstructorArgInfo(parseField, required));
+            objectParser.declareNamedObjects((target, v) -> target.constructorArg(position, parseField, v), namedObjectParser,
+                    wrapOrderedModeCallBack(orderedModeCallback), parseField);
+        } else {
+            numberOfFields += 1;
+            objectParser.declareNamedObjects(queueingConsumer(consumer, parseField), namedObjectParser,
+                    wrapOrderedModeCallBack(orderedModeCallback), parseField);
+        }
+    }
+
+    private Consumer<Target> wrapOrderedModeCallBack(Consumer<Value> callback) {
+        return (target) -> {
+            if (target.targetObject != null) {
+                // The target has already been built. Call the callback now.
+                callback.accept(target.targetObject);
+                return;
+            }
+            /*
+             * The target hasn't been built. Queue the callback.
+             */
+            target.queuedOrderedModeCallback = callback;
+        };
     }
 
     /**
@@ -231,7 +340,7 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
 
     /**
      * The target of the {@linkplain ConstructingObjectParser}. One of these is built every time you call
-     * {@linkplain ConstructingObjectParser#apply(XContentParser, ParseFieldMatcherSupplier)} Note that it is not static so it inherits
+     * {@linkplain ConstructingObjectParser#apply(XContentParser, Object)} Note that it is not static so it inherits
      * {@linkplain ConstructingObjectParser}'s type parameters.
      */
     private class Target {
@@ -244,6 +353,12 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
          * location of each field so that we can give a useful error message when replaying the queue.
          */
         private final XContentParser parser;
+
+        /**
+         * The parse context that is used for this invocation. Stored here so that it can be passed to the {@link #builder}.
+         */
+        private Context context;
+
         /**
          * How many of the constructor parameters have we collected? We keep track of this so we don't have to count the
          * {@link #constructorArgs} array looking for nulls when we receive another constructor parameter. When this is equal to the size of
@@ -255,6 +370,11 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
          */
         private Consumer<Value>[] queuedFields;
         /**
+         * OrderedModeCallback to be called with the target object when we can
+         * build it. This is only allocated if the callback has to be queued.
+         */
+        private Consumer<Value> queuedOrderedModeCallback;
+        /**
          * The count of fields already queued.
          */
         private int queuedFieldsCount = 0;
@@ -263,8 +383,9 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
          */
         private Value targetObject;
 
-        public Target(XContentParser parser) {
+        Target(XContentParser parser, Context context) {
             this.parser = parser;
+            this.context = context;
         }
 
         /**
@@ -297,7 +418,7 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
         }
 
         /**
-         * Finish parsing the object. 
+         * Finish parsing the object.
          */
         private Value finish() {
             if (targetObject != null) {
@@ -338,7 +459,10 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
 
         private void buildTarget() {
             try {
-                targetObject = builder.apply(constructorArgs);
+                targetObject = builder.apply(constructorArgs, context);
+                if (queuedOrderedModeCallback != null) {
+                    queuedOrderedModeCallback.accept(targetObject);
+                }
                 while (queuedFieldsCount > 0) {
                     queuedFieldsCount -= 1;
                     queuedFields[queuedFieldsCount].accept(targetObject);
@@ -356,7 +480,7 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
         final ParseField field;
         final boolean required;
 
-        public ConstructorArgInfo(ParseField field, boolean required) {
+        ConstructorArgInfo(ParseField field, boolean required) {
             this.field = field;
             this.required = required;
         }

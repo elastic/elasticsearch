@@ -262,7 +262,7 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public double parseDouble(String value, boolean roundUp, LongSupplier now) {
-            throw new UnsupportedOperationException();
+            return parseLong(value, roundUp, now);
         }
 
         @Override
@@ -392,6 +392,23 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public BytesRef parseBytesRef(String value) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Decimal that = (Decimal) o;
+            return Objects.equals(pattern, that.pattern);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pattern);
         }
     }
 }

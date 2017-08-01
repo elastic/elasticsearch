@@ -19,16 +19,17 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -36,7 +37,10 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Objects;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to execute search against one or more indices (or all). Best created using
@@ -45,11 +49,16 @@ import java.util.Objects;
  * Note, the search {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}
  * is required. The search source is the different search options, including aggregations and such.
  * </p>
+ *
  * @see org.elasticsearch.client.Requests#searchRequest(String...)
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public final class SearchRequest extends ActionRequest<SearchRequest> implements IndicesRequest.Replaceable {
+public final class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
+
+    private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
+
+    public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 128;
 
     private SearchType searchType = SearchType.DEFAULT;
 
@@ -65,6 +74,12 @@ public final class SearchRequest extends ActionRequest<SearchRequest> implements
     private Boolean requestCache;
 
     private Scroll scroll;
+
+    private int batchedReduceSize = 512;
+
+    private int maxConcurrentShardRequests = 0;
+
+    private int preFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -96,7 +111,12 @@ public final class SearchRequest extends ActionRequest<SearchRequest> implements
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (source != null && source.trackTotalHits() == false && scroll() != null) {
+            validationException =
+                addValidationError("disabling [track_total_hits] is not allowed in a scroll context", validationException);
+        }
+        return validationException;
     }
 
     /**
@@ -194,7 +214,7 @@ public final class SearchRequest extends ActionRequest<SearchRequest> implements
      * "query_then_fetch"/"queryThenFetch", and "query_and_fetch"/"queryAndFetch".
      */
     public SearchRequest searchType(String searchType) {
-        return searchType(SearchType.fromString(searchType, ParseFieldMatcher.EMPTY));
+        return searchType(SearchType.fromString(searchType));
     }
 
     /**
@@ -271,6 +291,75 @@ public final class SearchRequest extends ActionRequest<SearchRequest> implements
     }
 
     /**
+     * Sets the number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection
+     * mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
+     */
+    public void setBatchedReduceSize(int batchedReduceSize) {
+        if (batchedReduceSize <= 1) {
+            throw new IllegalArgumentException("batchedReduceSize must be >= 2");
+        }
+        this.batchedReduceSize = batchedReduceSize;
+    }
+
+    /**
+     * Returns the number of shard results that should be reduced at once on the coordinating node. This value should be used as a
+     * protection mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
+     */
+    public int getBatchedReduceSize() {
+        return batchedReduceSize;
+    }
+
+    /**
+     * Returns the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
+     * reduce the number of shard reqeusts fired per high level search request. Searches that hit the entire cluster can be throttled
+     * with this number to reduce the cluster load. The default grows with the number of nodes in the cluster but is at most <tt>256</tt>.
+     */
+    public int getMaxConcurrentShardRequests() {
+        return maxConcurrentShardRequests == 0 ? 256 : maxConcurrentShardRequests;
+    }
+
+    /**
+     * Sets the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
+     * reduce the number of shard requests fired per high level search request. Searches that hit the entire cluster can be throttled
+     * with this number to reduce the cluster load. The default grows with the number of nodes in the cluster but is at most <tt>256</tt>.
+     */
+    public void setMaxConcurrentShardRequests(int maxConcurrentShardRequests) {
+        if (maxConcurrentShardRequests < 1) {
+            throw new IllegalArgumentException("maxConcurrentShardRequests must be >= 1");
+        }
+        this.maxConcurrentShardRequests = maxConcurrentShardRequests;
+    }
+    /**
+     * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
+     * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
+     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint. The default is <tt>128</tt>
+     */
+    public void setPreFilterShardSize(int preFilterShardSize) {
+        if (preFilterShardSize < 1) {
+            throw new IllegalArgumentException("preFilterShardSize must be >= 1");
+        }
+        this.preFilterShardSize = preFilterShardSize;
+    }
+
+    /**
+     * Returns a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
+     * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
+     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint. The default is <tt>128</tt>
+     */
+    public int getPreFilterShardSize() {
+        return preFilterShardSize;
+    }
+
+    /**
+     * Returns <code>true</code> iff the maxConcurrentShardRequest is set.
+     */
+    boolean isMaxConcurrentShardRequestsSet() {
+        return maxConcurrentShardRequests != 0;
+    }
+
+    /**
      * @return true if the request only has suggest
      */
     public boolean isSuggestOnly() {
@@ -279,7 +368,26 @@ public final class SearchRequest extends ActionRequest<SearchRequest> implements
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-        return new SearchTask(id, type, action, getDescription(), parentTaskId);
+        // generating description in a lazy way since source can be quite big
+        return new SearchTask(id, type, action, null, parentTaskId) {
+            @Override
+            public String getDescription() {
+                StringBuilder sb = new StringBuilder();
+                sb.append("indices[");
+                Strings.arrayToDelimitedString(indices, ",", sb);
+                sb.append("], ");
+                sb.append("types[");
+                Strings.arrayToDelimitedString(types, ",", sb);
+                sb.append("], ");
+                sb.append("search_type[").append(searchType).append("], ");
+                if (source != null) {
+                    sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
+                } else {
+                    sb.append("source[]");
+                }
+                return sb.toString();
+            }
+        };
     }
 
     @Override
@@ -297,6 +405,11 @@ public final class SearchRequest extends ActionRequest<SearchRequest> implements
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         requestCache = in.readOptionalBoolean();
+        batchedReduceSize = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
+            maxConcurrentShardRequests = in.readVInt();
+            preFilterShardSize = in.readVInt();
+        }
     }
 
     @Override
@@ -314,6 +427,11 @@ public final class SearchRequest extends ActionRequest<SearchRequest> implements
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
+        out.writeVInt(batchedReduceSize);
+        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
+            out.writeVInt(maxConcurrentShardRequests);
+            out.writeVInt(preFilterShardSize);
+        }
     }
 
     @Override
@@ -333,13 +451,16 @@ public final class SearchRequest extends ActionRequest<SearchRequest> implements
                 Objects.equals(requestCache, that.requestCache)  &&
                 Objects.equals(scroll, that.scroll) &&
                 Arrays.equals(types, that.types) &&
+                Objects.equals(batchedReduceSize, that.batchedReduceSize) &&
+                Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests) &&
+                Objects.equals(preFilterShardSize, that.preFilterShardSize) &&
                 Objects.equals(indicesOptions, that.indicesOptions);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
-                scroll, Arrays.hashCode(types), indicesOptions);
+                scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize);
     }
 
     @Override
@@ -353,6 +474,9 @@ public final class SearchRequest extends ActionRequest<SearchRequest> implements
                 ", preference='" + preference + '\'' +
                 ", requestCache=" + requestCache +
                 ", scroll=" + scroll +
+                ", maxConcurrentShardRequests=" + maxConcurrentShardRequests +
+                ", batchedReduceSize=" + batchedReduceSize +
+                ", preFilterShardSize=" + preFilterShardSize +
                 ", source=" + source + '}';
     }
 }

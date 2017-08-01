@@ -31,6 +31,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
@@ -92,7 +93,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
             client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type", mapping).execute().actionGet();
+                .addMapping("type", mapping, XContentType.JSON).execute().actionGet();
             numInitialDocs = between(10, 100);
             ensureGreen();
             for (int i = 0; i < numInitialDocs; i++) {
@@ -114,7 +115,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
             client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type", mapping).execute().actionGet();
+                .addMapping("type", mapping, XContentType.JSON).execute().actionGet();
         }
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster()
             .health(Requests.clusterHealthRequest().waitForYellowStatus().timeout(TimeValue.timeValueSeconds(5))).get(); // it's OK to timeout here

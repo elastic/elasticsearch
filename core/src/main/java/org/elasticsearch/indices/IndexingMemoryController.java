@@ -21,6 +21,7 @@ package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -30,10 +31,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -189,11 +190,6 @@ public class IndexingMemoryController extends AbstractComponent implements Index
         statusChecker.run();
     }
 
-    /** called by IndexShard to record that this many bytes were written to translog */
-    public void bytesWritten(int bytes) {
-        statusChecker.bytesWritten(bytes);
-    }
-
     /** Asks this shard to throttle indexing to one thread */
     protected void activateThrottling(IndexShard shard) {
         shard.activateThrottling();
@@ -205,24 +201,27 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     }
 
     @Override
-    public void postIndex(Engine.Index index, boolean created) {
-        recordOperationBytes(index);
+    public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
+        recordOperationBytes(index, result);
     }
 
     @Override
-    public void postDelete(Engine.Delete delete) {
-        recordOperationBytes(delete);
+    public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
+        recordOperationBytes(delete, result);
     }
 
-    private void recordOperationBytes(Engine.Operation op) {
-        bytesWritten(op.sizeInBytes());
+    /** called by IndexShard to record estimated bytes written to translog for the operation */
+    private void recordOperationBytes(Engine.Operation operation, Engine.Result result) {
+        if (result.hasFailure() == false) {
+            statusChecker.bytesWritten(operation.estimatedSizeInBytes());
+        }
     }
 
     private static final class ShardAndBytesUsed implements Comparable<ShardAndBytesUsed> {
         final long bytesUsed;
         final IndexShard shard;
 
-        public ShardAndBytesUsed(long bytesUsed, IndexShard shard) {
+        ShardAndBytesUsed(long bytesUsed, IndexShard shard) {
             this.bytesUsed = bytesUsed;
             this.shard = shard;
         }
@@ -385,7 +384,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     protected void checkIdle(IndexShard shard, long inactiveTimeNS) {
         try {
             shard.checkIdle(inactiveTimeNS);
-        } catch (EngineClosedException e) {
+        } catch (AlreadyClosedException e) {
             logger.trace((Supplier<?>) () -> new ParameterizedMessage("ignore exception while checking if shard {} is inactive", shard.shardId()), e);
         }
     }

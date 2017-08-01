@@ -32,10 +32,12 @@ import static org.elasticsearch.common.util.BigArrays.LONG_PAGE_SIZE;
  */
 final class BigLongArray extends AbstractBigArray implements LongArray {
 
+    private static final BigLongArray ESTIMATOR = new BigLongArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
+
     private long[][] pages;
 
     /** Constructor. */
-    public BigLongArray(long size, BigArrays bigArrays, boolean clearOnResize) {
+    BigLongArray(long size, BigArrays bigArrays, boolean clearOnResize) {
         super(LONG_PAGE_SIZE, bigArrays, clearOnResize);
         this.size = size;
         pages = new long[numPages(size)][];
@@ -109,6 +111,11 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
             }
             Arrays.fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);
         }
+    }
+
+    /** Estimates the number of bytes that would be consumed by an array of the given size. */
+    public static long estimateRamBytes(final long size) {
+        return ESTIMATOR.ramBytesEstimated(size);
     }
 
 }

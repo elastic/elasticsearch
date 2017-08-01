@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -36,10 +37,7 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchExtBuilder;
-import org.elasticsearch.search.SearchExtParser;
-import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -114,7 +112,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         @Override
         public List<SearchExtSpec<?>> getSearchExts() {
             return Collections.singletonList(new SearchExtSpec<>(TermVectorsFetchSubPhase.NAME,
-                    TermVectorsFetchBuilder::new, TermVectorsFetchParser.INSTANCE));
+                    TermVectorsFetchBuilder::new, TermVectorsFetchBuilder::fromXContent));
         }
     }
 
@@ -131,13 +129,13 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
             if (hitContext.hit().fieldsOrNull() == null) {
                 hitContext.hit().fields(new HashMap<>());
             }
-            SearchHitField hitField = hitContext.hit().fields().get(NAME);
+            DocumentField hitField = hitContext.hit().getFields().get(NAME);
             if (hitField == null) {
-                hitField = new InternalSearchHitField(NAME, new ArrayList<>(1));
-                hitContext.hit().fields().put(NAME, hitField);
+                hitField = new DocumentField(NAME, new ArrayList<>(1));
+                hitContext.hit().getFields().put(NAME, hitField);
             }
             TermVectorsRequest termVectorsRequest = new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(),
-                    hitContext.hit().type(), hitContext.hit().id());
+                    hitContext.hit().getType(), hitContext.hit().getId());
             TermVectorsResponse termVector = TermVectorsService.getTermVectors(context.indexShard(), termVectorsRequest);
             try {
                 Map<String, Integer> tv = new HashMap<>();
@@ -146,22 +144,15 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 while ((term = terms.next()) != null) {
                     tv.put(term.utf8ToString(), terms.postings(null, PostingsEnum.ALL).freq());
                 }
-                hitField.values().add(tv);
+                hitField.getValues().add(tv);
             } catch (IOException e) {
                 ESLoggerFactory.getLogger(FetchSubPhasePluginIT.class.getName()).info("Swallowed exception", e);
             }
         }
     }
 
-    private static final class TermVectorsFetchParser implements SearchExtParser<TermVectorsFetchBuilder> {
-
-        private static final TermVectorsFetchParser INSTANCE = new TermVectorsFetchParser();
-
-        private TermVectorsFetchParser() {
-        }
-
-        @Override
-        public TermVectorsFetchBuilder fromXContent(XContentParser parser) throws IOException {
+    private static final class TermVectorsFetchBuilder extends SearchExtBuilder {
+        public static TermVectorsFetchBuilder fromXContent(XContentParser parser) throws IOException {
             String field;
             XContentParser.Token token = parser.currentToken();
             if (token == XContentParser.Token.VALUE_STRING) {
@@ -174,9 +165,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
             }
             return new TermVectorsFetchBuilder(field);
         }
-    }
 
-    private static final class TermVectorsFetchBuilder extends SearchExtBuilder {
         private final String field;
 
         private TermVectorsFetchBuilder(String field) {

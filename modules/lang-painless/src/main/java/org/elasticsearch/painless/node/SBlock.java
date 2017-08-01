@@ -28,6 +28,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static java.util.Collections.emptyList;
+
 /**
  * Represents a set of statements as a branch of control-flow.
  */
@@ -85,5 +87,10 @@ public final class SBlock extends AStatement {
             statement.brake = brake;
             statement.write(writer, globals);
         }
+    }
+
+    @Override
+    public String toString() {
+        return multilineToString(emptyList(), statements);
     }
 }

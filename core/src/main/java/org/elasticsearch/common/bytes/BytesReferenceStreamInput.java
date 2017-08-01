@@ -32,17 +32,17 @@ import java.io.IOException;
  */
 final class BytesReferenceStreamInput extends StreamInput {
     private final BytesRefIterator iterator;
-    private int sliceOffset;
+    private int sliceIndex;
     private BytesRef slice;
     private final int length; // the total size of the stream
     private int offset; // the current position of the stream
 
-    public BytesReferenceStreamInput(BytesRefIterator iterator, final int length) throws IOException {
+    BytesReferenceStreamInput(BytesRefIterator iterator, final int length) throws IOException {
         this.iterator = iterator;
         this.slice = iterator.next();
         this.length = length;
         this.offset = 0;
-        this.sliceOffset = 0;
+        this.sliceIndex = 0;
     }
 
     @Override
@@ -51,15 +51,15 @@ final class BytesReferenceStreamInput extends StreamInput {
             throw new EOFException();
         }
         maybeNextSlice();
-        byte b = slice.bytes[slice.offset + (sliceOffset++)];
+        byte b = slice.bytes[slice.offset + (sliceIndex++)];
         offset++;
         return b;
     }
 
     private void maybeNextSlice() throws IOException {
-        while (sliceOffset == slice.length) {
+        while (sliceIndex == slice.length) {
             slice = iterator.next();
-            sliceOffset = 0;
+            sliceIndex = 0;
             if (slice == null) {
                 throw new EOFException();
             }
@@ -92,12 +92,12 @@ final class BytesReferenceStreamInput extends StreamInput {
         int destOffset = bOffset;
         while (remaining > 0) {
             maybeNextSlice();
-            final int currentLen = Math.min(remaining, slice.length - sliceOffset);
+            final int currentLen = Math.min(remaining, slice.length - sliceIndex);
             assert currentLen > 0 : "length has to be > 0 to make progress but was: " + currentLen;
-            System.arraycopy(slice.bytes, slice.offset + sliceOffset, b, destOffset, currentLen);
+            System.arraycopy(slice.bytes, slice.offset + sliceIndex, b, destOffset, currentLen);
             destOffset += currentLen;
             remaining -= currentLen;
-            sliceOffset += currentLen;
+            sliceIndex += currentLen;
             offset += currentLen;
             assert remaining >= 0 : "remaining: " + remaining;
         }
@@ -115,15 +115,23 @@ final class BytesReferenceStreamInput extends StreamInput {
     }
 
     @Override
+    protected void ensureCanReadBytes(int bytesToRead) throws EOFException {
+        int bytesAvailable = length - offset;
+        if (bytesAvailable < bytesToRead) {
+            throw new EOFException("tried to read: " + bytesToRead + " bytes but only " + bytesAvailable + " remaining");
+        }
+    }
+
+    @Override
     public long skip(long n) throws IOException {
         final int skip = (int) Math.min(Integer.MAX_VALUE, n);
         final int numBytesSkipped =  Math.min(skip, length - offset);
         int remaining = numBytesSkipped;
         while (remaining > 0) {
             maybeNextSlice();
-            int currentLen = Math.min(remaining, slice.length - (slice.offset + sliceOffset));
+            int currentLen = Math.min(remaining, slice.length - sliceIndex);
             remaining -= currentLen;
-            sliceOffset += currentLen;
+            sliceIndex += currentLen;
             offset += currentLen;
             assert remaining >= 0 : "remaining: " + remaining;
         }

@@ -32,11 +32,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.TcpTransport;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -63,8 +64,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
-
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0)
 @SuppressForbidden(reason = "use http server")
@@ -107,13 +106,12 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
             throw new RuntimeException(e);
         }
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), AzureDiscoveryPlugin.AZURE)
+            .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), AzureDiscoveryPlugin.AZURE)
             .put(Environment.PATH_LOGS_SETTING.getKey(), resolve)
-            .put(TransportSettings.PORT.getKey(), 0)
-            .put(Node.WRITE_PORTS_FIELD_SETTING.getKey(), "true")
+            .put(TcpTransport.PORT.getKey(), 0)
+            .put(Node.WRITE_PORTS_FILE_SETTING.getKey(), "true")
             .put(AzureComputeService.Management.ENDPOINT_SETTING.getKey(), "https://" + InetAddress.getLoopbackAddress().getHostAddress() +
                 ":" + httpsServer.getAddress().getPort())
-            .put(Environment.PATH_CONF_SETTING.getKey(), keyStoreFile.getParent().toAbsolutePath())
             .put(AzureComputeService.Management.KEYSTORE_PATH_SETTING.getKey(), keyStoreFile.toAbsolutePath())
             .put(AzureComputeService.Discovery.HOST_TYPE_SETTING.getKey(), AzureUnicastHostsProvider.HostType.PUBLIC_IP.name())
             .put(AzureComputeService.Management.KEYSTORE_PASSWORD_SETTING.getKey(), "keypass")
@@ -126,6 +124,11 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
             .build();
     }
 
+    @Override
+    protected Path nodeConfigPath(int nodeOrdinal) {
+        return keyStoreFile.getParent();
+    }
+
     /**
      * Creates mock EC2 endpoint providing the list of started nodes to the DescribeInstances API call
      */
@@ -133,7 +136,7 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
     public static void startHttpd() throws Exception {
         logDir = createTempDir();
         SSLContext sslContext = getSSLContext();
-        httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
+        httpsServer = MockHttpServer.createHttps(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
         httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
         httpsServer.createContext("/subscription/services/hostedservices/myservice", (s) -> {
             Headers headers = s.getResponseHeaders();
@@ -269,7 +272,7 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
         // only wait for the cluster to form
         ensureClusterSizeConsistency();
         // add one more node and wait for it to join
-        internalCluster().startDataOnlyNodeAsync().get();
+        internalCluster().startDataOnlyNode();
         ensureClusterSizeConsistency();
     }
 }

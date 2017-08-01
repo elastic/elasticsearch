@@ -32,15 +32,15 @@ PUT /my_index
 }
 ---------------------------------
 
-experimental[This is an expert-only setting and may be removed in the future]
+WARNING: This is an expert-only setting and may be removed in the future.
 
 The following sections lists all the different storage types supported.
 
 `fs`::
 
 Default file system implementation. This will pick the best implementation
-depending on the operating environment: `simplefs` on Windows 32bit, `niofs`
-on other 32bit systems and `mmapfs` on 64bit systems.
+depending on the operating environment, which is currently `mmapfs` on all
+supported systems but is subject to change.
 
 [[simplefs]]`simplefs`::
 
@@ -73,7 +73,7 @@ compatibility.
 
 === Pre-loading data into the file system cache
 
-experimental[This is an expert-only setting and may be removed in the future]
+NOTE: This is an expert setting, the details of which may change in the future.
 
 By default, elasticsearch completely relies on the operating system file system
 cache for caching I/O operations. It is possible to set `index.store.preload`
@@ -89,12 +89,12 @@ loaded into physical memory.
 This setting is best-effort only and may not work at all depending on the store
 type and host operating system.
 
-The `index.store.pre_load` is a static setting that can either be set in the
+The `index.store.preload` is a static setting that can either be set in the
 `config/elasticsearch.yml`:
 
 [source,yaml]
 ---------------------------------
-index.store.pre_load: ["nvd", "dvd"]
+index.store.preload: ["nvd", "dvd"]
 ---------------------------------
 
 or in the index settings at index creation time:
@@ -104,7 +104,7 @@ or in the index settings at index creation time:
 PUT /my_index
 {
   "settings": {
-    "index.store.pre_load": ["nvd", "dvd"]
+    "index.store.preload": ["nvd", "dvd"]
   }
 }
 ---------------------------------
@@ -116,7 +116,7 @@ values to be loaded eagerly into physical memory. These are the two first
 extensions to look at since elasticsearch performs random access on them.
 
 A wildcard can be used in order to indicate that all files should be preloaded:
-`index.store.pre_load: ["*"]`. Note however that it is generally not useful to
+`index.store.preload: ["*"]`. Note however that it is generally not useful to
 load all files into memory, in particular those for stored fields and term
 vectors, so a better option might be to set it to
 `["nvd", "dvd", "tim", "doc", "dim"]`, which will preload norms, doc values,

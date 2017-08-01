@@ -24,4 +24,7 @@ grant {
   // NOTE: no tests fail without this, but we know the problem
   // exists in AWS sdk, and tests here are not thorough
   permission java.lang.RuntimePermission "getClassLoader";
+
+  // ec2 client opens socket connections for discovery
+  permission java.net.SocketPermission "*", "connect";
 };

@@ -20,19 +20,21 @@
 package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-import org.apache.http.Header;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.ProtocolVersion;
-import org.apache.http.StatusLine;
-import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.conn.ConnectTimeoutException;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.message.BasicHttpResponse;
-import org.apache.http.message.BasicStatusLine;
-import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
-import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.HttpResponse;
+import org.elasticsearch.client.http.ProtocolVersion;
+import org.elasticsearch.client.http.StatusLine;
+import org.elasticsearch.client.http.client.methods.HttpUriRequest;
+import org.elasticsearch.client.http.client.protocol.HttpClientContext;
+import org.elasticsearch.client.http.concurrent.FutureCallback;
+import org.elasticsearch.client.http.conn.ConnectTimeoutException;
+import org.elasticsearch.client.http.impl.auth.BasicScheme;
+import org.elasticsearch.client.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.elasticsearch.client.http.message.BasicHttpResponse;
+import org.elasticsearch.client.http.message.BasicStatusLine;
+import org.elasticsearch.client.http.nio.protocol.HttpAsyncRequestProducer;
+import org.elasticsearch.client.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -73,13 +75,15 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
     public void createRestClient() throws IOException {
         CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
         when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
-                any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
+               any(HttpClientContext.class), any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
             @Override
             public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
                 HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
                 HttpUriRequest request = (HttpUriRequest)requestProducer.generateRequest();
                 HttpHost httpHost = requestProducer.getTarget();
-                FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[2];
+                HttpClientContext context = (HttpClientContext) invocationOnMock.getArguments()[2];
+                assertThat(context.getAuthCache().get(httpHost), instanceOf(BasicScheme.class));
+                FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
                 //return the desired status code or exception depending on the path
                 if (request.getURI().getPath().equals("/soe")) {
                     futureCallback.failed(new SocketTimeoutException(httpHost.toString()));

@@ -71,7 +71,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
         final int infoThreshold;
         final int debugThreshold;
 
-        public GcOverheadThreshold(final int warnThreshold, final int infoThreshold, final int debugThreshold) {
+        GcOverheadThreshold(final int warnThreshold, final int infoThreshold, final int debugThreshold) {
             this.warnThreshold = warnThreshold;
             this.infoThreshold = infoThreshold;
             this.debugThreshold = debugThreshold;
@@ -355,7 +355,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
             final JvmStats currentJvmStats;
             final ByteSizeValue maxHeapUsed;
 
-            public SlowGcEvent(
+            SlowGcEvent(
                 final GarbageCollector currentGc,
                 final long collectionCount,
                 final TimeValue collectionTime,
@@ -380,7 +380,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
         private final Map<String, JvmGcMonitorService.GcThreshold> gcThresholds;
         final GcOverheadThreshold gcOverheadThreshold;
 
-        public JvmMonitor(final Map<String, GcThreshold> gcThresholds, final GcOverheadThreshold gcOverheadThreshold) {
+        JvmMonitor(final Map<String, GcThreshold> gcThresholds, final GcOverheadThreshold gcOverheadThreshold) {
             this.gcThresholds = Objects.requireNonNull(gcThresholds);
             this.gcOverheadThreshold = Objects.requireNonNull(gcOverheadThreshold);
         }
@@ -486,9 +486,9 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
             return System.nanoTime();
         }
 
-        abstract void onSlowGc(final Threshold threshold, final long seq, final SlowGcEvent slowGcEvent);
+        abstract void onSlowGc(Threshold threshold, long seq, SlowGcEvent slowGcEvent);
 
-        abstract void onGcOverhead(final Threshold threshold, final long total, final long elapsed, final long seq);
+        abstract void onGcOverhead(Threshold threshold, long total, long elapsed, long seq);
 
     }
 

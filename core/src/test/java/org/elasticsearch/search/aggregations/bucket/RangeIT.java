@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -27,6 +28,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
@@ -52,6 +54,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
@@ -334,9 +337,9 @@ public class RangeIT extends ESIntegTestCase {
         assertThat(range.getName(), equalTo("range"));
         List<? extends Bucket> buckets = range.getBuckets();
         assertThat(range.getBuckets().size(), equalTo(3));
-        Object[] propertiesKeys = (Object[]) range.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) range.getProperty("_count");
-        Object[] propertiesCounts = (Object[]) range.getProperty("sum.value");
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)range).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)range).getProperty("_count");
+        Object[] propertiesCounts = (Object[]) ((InternalAggregation)range).getProperty("sum.value");
 
         Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
@@ -394,7 +397,7 @@ public class RangeIT extends ESIntegTestCase {
                 .addAggregation(
                         range("range")
                                 .field(SINGLE_VALUED_FIELD_NAME)
-                                .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))
                                 .addUnboundedTo(3)
                                 .addRange(3, 6)
                                 .addUnboundedFrom(6))
@@ -514,7 +517,7 @@ public class RangeIT extends ESIntegTestCase {
                 .addAggregation(
                         range("range")
                                 .field(MULTI_VALUED_FIELD_NAME)
-                                .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))
                                 .addUnboundedTo(3)
                                 .addRange(3, 6)
                                 .addUnboundedFrom(6))
@@ -575,7 +578,8 @@ public class RangeIT extends ESIntegTestCase {
      */
 
     public void testScriptSingleValue() throws Exception {
-        Script script = new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        Script script =
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", Collections.emptyMap());
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -659,8 +663,23 @@ public class RangeIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(0L));
     }
 
+    public void testNoRangesInQuery()  {
+        try {
+            client().prepareSearch("idx")
+                .addAggregation(range("foobar")
+                    .field(SINGLE_VALUED_FIELD_NAME))
+                .execute().actionGet();
+            fail();
+        } catch (SearchPhaseExecutionException spee){
+            Throwable rootCause = spee.getCause().getCause();
+            assertThat(rootCause, instanceOf(IllegalArgumentException.class));
+            assertEquals(rootCause.getMessage(), "No [ranges] specified for the [foobar] aggregation");
+        }
+    }
+
     public void testScriptMultiValued() throws Exception {
-        Script script = new Script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        Script script =
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "'].values", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -933,7 +952,8 @@ public class RangeIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("fieldname", "date");
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(
-                range("foo").field("i").script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, null)).addRange(0, 10))
+                range("foo").field("i").script(
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap())).addRange(0, 10))
                 .get();
         assertSearchResponse(r);
 

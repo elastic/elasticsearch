@@ -18,6 +18,29 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
+The `query_string` query parses the input and splits text around operators.
+Each textual part is analyzed independently of each other. For instance the following query:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "query_string" : {
+            "default_field" : "content",
+            "query" : "field:new york AND city"
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+... will be splitted in `new`, `york` and `city` and each part is analyzed independently.
+When multiple fields are provided it is also possible to modify how the different
+field queries are combined inside each textual part using the `type` parameter.
+The possible modes are described <<multi-match-types, here>> and the default is `best_fields`.
+
+
 The `query_string` top level parameters include:
 
 [cols="<,<",options="header",]
@@ -27,7 +50,10 @@ The `query_string` top level parameters include:
 
 |`default_field` |The default field for query terms if no prefix field
 is specified. Defaults to the `index.query.default_field` index
-settings, which in turn defaults to `_all`.
+settings, which in turn defaults to `*`.
+`*` extracts all fields in the mapping that are eligible to term queries
+and filters the metadata fields. All extracted fields are then combined
+to build a query when no prefix field is provided.
 
 |`default_operator` |The default operator used if no explicit operator
 is specified. For example, with a default operator of `OR`, the query
@@ -39,10 +65,6 @@ with default operator of `AND`, the same query is translated to
 
 |`allow_leading_wildcard` |When set, `*` or `?` are allowed as the first
 character. Defaults to `true`.
-
-|`lowercase_expanded_terms` |Whether terms of wildcard, prefix, fuzzy,
-and range queries are to be automatically lower-cased or not (since they
-are not analyzed). Default it `true`.
 
 |`enable_position_increments` |Set to `true` to enable position
 increments in result queries. Defaults to `true`.
@@ -61,11 +83,11 @@ phrase matches are required. Default value is `0`.
 
 |`boost` |Sets the boost value of the query. Defaults to `1.0`.
 
+|`auto_generate_phrase_queries` |Defaults to `false`.
+
 |`analyze_wildcard` |By default, wildcards terms in a query string are
 not analyzed. By setting this value to `true`, a best effort will be
 made to analyze those as well.
-
-|`auto_generate_phrase_queries` |Defaults to `false`.
 
 |`max_determinized_states` |Limit on how many automaton states regexp
 queries are allowed to create.  This protects against too-difficult
@@ -80,9 +102,6 @@ both>>.
 |`lenient` |If set to `true` will cause format based failures (like
 providing text to a numeric field) to be ignored.
 
-|`locale` | Locale that should be used for string conversions.
-Defaults to `ROOT`.
-
 |`time_zone` | Time Zone to be applied to any range query related to dates. See also
 http://www.joda.org/joda-time/apidocs/org/joda/time/DateTimeZone.html[JODA timezone].
 
@@ -90,6 +109,13 @@ http://www.joda.org/joda-time/apidocs/org/joda/time/DateTimeZone.html[JODA timez
 the query string. This allows to use a field that has a different analysis chain
 for exact matching. Look <<mixing-exact-search-with-stemming,here>> for a
 comprehensive example.
+
+|`all_fields` | deprecated[6.0.0, set `default_field` to `*` instead]
+Perform the query on all fields detected in the mapping that can
+be queried. Will be used by default when the `_all` field is disabled and no
+`default_field` is specified (either in the index settings or in the request
+body) and no `fields` are specified.
+
 |=======================================================================
 
 When a multi term query is being generated, one can control how it gets
@@ -102,10 +128,10 @@ parameter.
 
 When not explicitly specifying the field to search on in the query
 string syntax, the `index.query.default_field` will be used to derive
-which field to search on. It defaults to `_all` field.
-
-So, if `_all` field is disabled, it might make sense to change it to set
-a different default field.
+which field to search on. If the `index.query.default_field` is not specified,
+the `query_string` will automatically attempt to determine the existing fields in the index's
+mapping that are queryable, and perform the search on those fields. Note that this will not
+include nested documents, use a nested query to search those documents.
 
 [float]
 ==== Multi Field
@@ -151,9 +177,8 @@ GET /_search
 // CONSOLE
 
 Since several queries are generated from the individual search terms,
-combining them can be automatically done using either a `dis_max` query or a
-simple `bool` query. For example (the `name` is boosted by 5 using `^5`
-notation):
+combining them is automatically done using a `dis_max` query with a tie_breaker.
+For example (the `name` is boosted by 5 using `^5` notation):
 
 [source,js]
 --------------------------------------------------
@@ -163,7 +188,7 @@ GET /_search
         "query_string" : {
             "fields" : ["content", "name^5"],
             "query" : "this AND that OR thus",
-            "use_dis_max" : true
+            "tie_breaker" : 0
         }
     }
 }
@@ -182,8 +207,7 @@ GET /_search
     "query": {
         "query_string" : {
             "fields" : ["city.*"],
-            "query" : "this AND that OR thus",
-            "use_dis_max" : true
+            "query" : "this AND that OR thus"
         }
     }
 }
@@ -192,7 +216,23 @@ GET /_search
 
 Another option is to provide the wildcard fields search in the query
 string itself (properly escaping the `*` sign), for example:
-`city.\*:something`.
+`city.\*:something`:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "query_string" : {
+            "query" : "city.\\*:(this AND that OR thus)"
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+NOTE: Since `\` (backslash) is a special character in json strings, it needs to
+be escaped, hence the two backslashes in the above `query_string`.
 
 When running the `query_string` query against multiple fields, the
 following additional parameters are allowed:
@@ -200,11 +240,19 @@ following additional parameters are allowed:
 [cols="<,<",options="header",]
 |=======================================================================
 |Parameter |Description
-|`use_dis_max` |Should the queries be combined using `dis_max` (set it
-to `true`), or a `bool` query (set it to `false`). Defaults to `true`.
 
-|`tie_breaker` |When using `dis_max`, the disjunction max tie breaker.
-Defaults to `0`.
+|`type` |How the fields should be combined to build the text query.
+See <<multi-match-types, types>> for a complete example.
+Defaults to `best_fields`
+|=======================================================================
+
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Parameter |Description
+
+|`tie_breaker` |The disjunction max tie breaker for multi fields.
+Defaults to `0`
 |=======================================================================
 
 The fields parameter can also include pattern based field names,
@@ -218,8 +266,7 @@ GET /_search
     "query": {
         "query_string" : {
             "fields" : ["content", "name.*^5"],
-            "query" : "this AND that OR thus",
-            "use_dis_max" : true
+            "query" : "this AND that OR thus"
         }
     }
 }

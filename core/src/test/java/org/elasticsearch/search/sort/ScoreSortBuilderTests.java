@@ -21,10 +21,8 @@ package org.elasticsearch.search.sort;
 
 
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -62,29 +60,26 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
     public void testParseOrder() throws IOException {
         SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
         String scoreSortString = "{ \"_score\": { \"order\": \""+ order.toString() +"\" }}";
-        XContentParser parser = XContentFactory.xContent(scoreSortString).createParser(scoreSortString);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, scoreSortString);
         // need to skip until parser is located on second START_OBJECT
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
-        ScoreSortBuilder scoreSort = ScoreSortBuilder.fromXContent(context, "_score");
+        ScoreSortBuilder scoreSort = ScoreSortBuilder.fromXContent(parser, "_score");
         assertEquals(order, scoreSort.order());
     }
 
     public void testReverseOptionFails() throws IOException {
         String json = "{ \"_score\": { \"reverse\": true }}";
-        XContentParser parser = XContentFactory.xContent(json).createParser(json);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
         // need to skip until parser is located on second START_OBJECT
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
-
         try {
-          ScoreSortBuilder.fromXContent(context, "_score");
+          ScoreSortBuilder.fromXContent(parser, "_score");
           fail("adding reverse sorting option should fail with an exception");
         } catch (IllegalArgumentException e) {
             // all good
@@ -98,7 +93,7 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
     }
 
     @Override
-    protected ScoreSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
-        return ScoreSortBuilder.fromXContent(context, fieldName);
+    protected ScoreSortBuilder fromXContent(XContentParser parser, String fieldName) throws IOException {
+        return ScoreSortBuilder.fromXContent(parser, fieldName);
     }
 }

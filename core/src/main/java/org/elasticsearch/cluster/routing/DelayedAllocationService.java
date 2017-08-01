@@ -133,7 +133,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        clusterService.addFirst(this);
+        clusterService.addListener(this);
     }
 
     @Override
@@ -146,7 +146,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
 
     @Override
     protected void doClose() {
-        clusterService.remove(this);
+        clusterService.removeListener(this);
         removeTaskAndCancel();
     }
 
@@ -178,8 +178,8 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
     /**
      * Figure out if an existing scheduled reroute is good enough or whether we need to cancel and reschedule.
      */
-    private void scheduleIfNeeded(long currentNanoTime, ClusterState state) {
-        assertClusterStateThread();
+    private synchronized void scheduleIfNeeded(long currentNanoTime, ClusterState state) {
+        assertClusterOrMasterStateThread();
         long nextDelayNanos = UnassignedInfo.findNextDelayedAllocation(currentNanoTime, state);
         if (nextDelayNanos < 0) {
             logger.trace("no need to schedule reroute - no delayed unassigned shards");
@@ -214,7 +214,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
     }
 
     // protected so that it can be overridden (and disabled) by unit tests
-    protected void assertClusterStateThread() {
-        ClusterService.assertClusterStateThread();
+    protected void assertClusterOrMasterStateThread() {
+        assert ClusterService.assertClusterOrMasterStateThread();
     }
 }

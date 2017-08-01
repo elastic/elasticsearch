@@ -1,0 +1,26 @@
+# Integration tests for Mustache scripts
+#
+"Mustache loaded":
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - match:  { nodes.$master.modules.0.name: lang-mustache  }
+
+---
+"missing body":
+
+  - skip:
+      version: " - 5.99.99"
+      reason: NPE caused by missing body fixed in 6.0.0
+      
+  - do:
+      catch: /request body is required/
+      raw:
+        method: POST
+        path: _search/template/1

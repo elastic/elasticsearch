@@ -23,8 +23,8 @@ import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
@@ -57,13 +57,11 @@ import java.util.Set;
  * for operations on a specific shard.
  * <p>
  * Note: The term replica is not directly
- * reflected in the routing table or in releated classes, replicas are
+ * reflected in the routing table or in related classes, replicas are
  * represented as {@link ShardRouting}.
  * </p>
  */
 public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> implements Iterable<IndexShardRoutingTable> {
-
-    public static final IndexRoutingTable PROTO = builder(new Index("", "_na_")).build();
 
     private final Index index;
     private final ShardShuffler shuffler;
@@ -140,10 +138,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                         "allocation set " + inSyncAllocationIds);
                 }
 
-                if (indexMetaData.getCreationVersion().onOrAfter(Version.V_5_0_0_alpha1) &&
-                    IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings()) == false && // see #20650
-                    shardRouting.primary() && shardRouting.initializing() && shardRouting.relocating() == false &&
-                    RecoverySource.isInitialRecovery(shardRouting.recoverySource().getType()) == false &&
+                if (shardRouting.primary() && shardRouting.initializing() &&
+                    shardRouting.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE &&
                     inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false)
                     throw new IllegalStateException("a primary shard routing " + shardRouting + " is a primary that is recovering from " +
                         "a known allocation id but has no corresponding entry in the in-sync " +
@@ -268,37 +264,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         return new PlainShardsIterator(shuffler.shuffle(allActiveShards));
     }
 
-    /**
-     * A group shards iterator where each group ({@link ShardIterator}
-     * is an iterator across shard replication group.
-     */
-    public GroupShardsIterator groupByShardsIt() {
-        // use list here since we need to maintain identity across shards
-        ArrayList<ShardIterator> set = new ArrayList<>(shards.size());
-        for (IndexShardRoutingTable indexShard : this) {
-            set.add(indexShard.shardsIt());
-        }
-        return new GroupShardsIterator(set);
-    }
-
-    /**
-     * A groups shards iterator where each groups is a single {@link ShardRouting} and a group
-     * is created for each shard routing.
-     * <p>
-     * This basically means that components that use the {@link GroupShardsIterator} will iterate
-     * over *all* the shards (all the replicas) within the index.</p>
-     */
-    public GroupShardsIterator groupByAllIt() {
-        // use list here since we need to maintain identity across shards
-        ArrayList<ShardIterator> set = new ArrayList<>();
-        for (IndexShardRoutingTable indexShard : this) {
-            for (ShardRouting shardRouting : indexShard) {
-                set.add(shardRouting.shardsIt());
-            }
-        }
-        return new GroupShardsIterator(set);
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -319,8 +284,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         return result;
     }
 
-    @Override
-    public IndexRoutingTable readFrom(StreamInput in) throws IOException {
+    public static IndexRoutingTable readFrom(StreamInput in) throws IOException {
         Index index = new Index(in);
         Builder builder = new Builder(index);
 
@@ -330,6 +294,10 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         }
 
         return builder.build();
+    }
+
+    public static Diff<IndexRoutingTable> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(IndexRoutingTable::readFrom, in);
     }
 
     @Override
@@ -352,17 +320,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
         public Builder(Index index) {
             this.index = index;
-        }
-
-        /**
-         * Reads an {@link IndexRoutingTable} from an {@link StreamInput}
-         *
-         * @param in {@link StreamInput} to read the {@link IndexRoutingTable} from
-         * @return {@link IndexRoutingTable} read
-         * @throws IOException if something happens during read
-         */
-        public static IndexRoutingTable readFrom(StreamInput in) throws IOException {
-            return PROTO.readFrom(in);
         }
 
         /**
@@ -453,12 +410,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 final RecoverySource primaryRecoverySource;
                 if (indexMetaData.inSyncAllocationIds(shardNumber).isEmpty() == false) {
                     // we have previous valid copies for this shard. use them for recovery
-                    primaryRecoverySource = StoreRecoverySource.EXISTING_STORE_INSTANCE;
-                } else if (indexMetaData.getCreationVersion().before(Version.V_5_0_0_alpha1) &&
-                    unassignedInfo.getReason() != UnassignedInfo.Reason.INDEX_CREATED // tests can create old indices
-                    ) {
-                    // the index is old and didn't maintain inSyncAllocationIds. Fall back to old behavior and require
-                    // finding existing copies
                     primaryRecoverySource = StoreRecoverySource.EXISTING_STORE_INSTANCE;
                 } else if (indexMetaData.getMergeSourceIndex() != null) {
                     // this is a new index but the initial shards should merged from another index

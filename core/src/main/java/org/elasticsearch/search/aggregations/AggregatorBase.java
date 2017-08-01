@@ -25,7 +25,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.bucket.BestBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
@@ -45,7 +45,7 @@ public abstract class AggregatorBase extends Aggregator {
 
     protected final String name;
     protected final Aggregator parent;
-    protected final AggregationContext context;
+    protected final SearchContext context;
     private final Map<String, Object> metaData;
 
     protected final Aggregator[] subAggregators;
@@ -55,7 +55,7 @@ public abstract class AggregatorBase extends Aggregator {
     private DeferringBucketCollector recordingWrapper;
     private final List<PipelineAggregator> pipelineAggregators;
     private final CircuitBreakerService breakerService;
-    private boolean failed = false;
+    private long requestBytesUsed;
 
     /**
      * Constructs a new Aggregator.
@@ -66,7 +66,7 @@ public abstract class AggregatorBase extends Aggregator {
      * @param parent                The parent aggregator (may be {@code null} for top level aggregators)
      * @param metaData              The metaData associated with this aggregator
      */
-    protected AggregatorBase(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
+    protected AggregatorBase(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         this.name = name;
         this.pipelineAggregators = pipelineAggregators;
@@ -76,11 +76,11 @@ public abstract class AggregatorBase extends Aggregator {
         this.breakerService = context.bigArrays().breakerService();
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
         this.subAggregators = factories.createSubAggregators(this);
-        context.searchContext().addReleasable(this, Lifetime.PHASE);
+        context.addReleasable(this, Lifetime.PHASE);
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
         collectableSubAggregators = new BucketCollector() {
             void badState(){
-                throw new QueryPhaseExecutionException(AggregatorBase.this.context.searchContext(),
+                throw new QueryPhaseExecutionException(AggregatorBase.this.context,
                         "preCollection not called on new Aggregator before use", null);
             }
             @Override
@@ -105,16 +105,35 @@ public abstract class AggregatorBase extends Aggregator {
                 return false; // unreachable
             }
         };
-        try {
+        addRequestCircuitBreakerBytes(DEFAULT_WEIGHT);
+    }
+    
+    /**
+     * Increment or decrement the number of bytes that have been allocated to service
+     * this request and potentially trigger a {@link CircuitBreakingException}. The
+     * number of bytes allocated is automatically decremented with the circuit breaker
+     * service on closure of this aggregator.
+     * If memory has been returned, decrement it without tripping the breaker.
+     * For performance reasons subclasses should not call this millions of times
+     * each with small increments and instead batch up into larger allocations.
+     * 
+     * @param bytes the number of bytes to register or negative to deregister the bytes
+     * @return the cumulative size in bytes allocated by this aggregator to service this request
+     */
+    protected long addRequestCircuitBreakerBytes(long bytes) {
+        // Only use the potential to circuit break if bytes are being incremented
+        if (bytes > 0) {
             this.breakerService
                     .getBreaker(CircuitBreaker.REQUEST)
-                    .addEstimateBytesAndMaybeBreak(DEFAULT_WEIGHT, "<agg [" + name + "]>");
-        } catch (CircuitBreakingException cbe) {
-            this.failed = true;
-            throw cbe;
+                    .addEstimateBytesAndMaybeBreak(bytes, "<agg [" + name + "]>");
+        } else {
+            this.breakerService
+                    .getBreaker(CircuitBreaker.REQUEST)
+                    .addWithoutBreaking(bytes);
         }
+        this.requestBytesUsed += bytes;
+        return requestBytesUsed;
     }
-
     /**
      * Most aggregators don't need scores, make sure to extend this method if
      * your aggregator needs them.
@@ -186,7 +205,7 @@ public abstract class AggregatorBase extends Aggregator {
     }
 
     /**
-     * This method should be overidden by subclasses that want to defer calculation
+     * This method should be overridden by subclasses that want to defer calculation
      * of a child aggregation until a first pass is complete and a set of buckets has
      * been pruned.
      * Deferring collection will require the recording of all doc/bucketIds from the first
@@ -245,7 +264,7 @@ public abstract class AggregatorBase extends Aggregator {
      * @return  The current aggregation context.
      */
     @Override
-    public AggregationContext context() {
+    public SearchContext context() {
         return context;
     }
 
@@ -265,9 +284,7 @@ public abstract class AggregatorBase extends Aggregator {
         try {
             doClose();
         } finally {
-            if (!this.failed) {
-                this.breakerService.getBreaker(CircuitBreaker.REQUEST).addWithoutBreaking(-DEFAULT_WEIGHT);
-            }
+            this.breakerService.getBreaker(CircuitBreaker.REQUEST).addWithoutBreaking(-this.requestBytesUsed);
         }
     }
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 

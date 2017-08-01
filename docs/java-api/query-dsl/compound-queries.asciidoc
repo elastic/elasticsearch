@@ -37,15 +37,9 @@ implemented with scripting.
 Return documents which match a `positive` query, but reduce the score of
 documents which also match a `negative` query.
 
-<<java-query-dsl-indices-query,`indices` query>>::
-
-Execute one query for the specified indices, and another for other indices.
-
 
 include::constant-score-query.asciidoc[]
 include::bool-query.asciidoc[]
 include::dis-max-query.asciidoc[]
 include::function-score-query.asciidoc[]
 include::boosting-query.asciidoc[]
-include::indices-query.asciidoc[]
-

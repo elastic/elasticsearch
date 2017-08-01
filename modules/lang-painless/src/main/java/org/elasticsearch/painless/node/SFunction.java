@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
 /**
@@ -53,17 +54,11 @@ import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
  */
 public final class SFunction extends AStatement {
     public static final class FunctionReserved implements Reserved {
-        public static final String THIS = "#this";
-        public static final String LOOP = "#loop";
-
         private int maxLoopCounter = 0;
 
-        public void markReserved(String name) {
+        @Override
+        public void markUsedVariable(String name) {
             // Do nothing.
-        }
-
-        public boolean isReserved(String name) {
-            return name.equals(THIS) || name.equals(LOOP);
         }
 
         @Override
@@ -111,9 +106,9 @@ public final class SFunction extends AStatement {
         throw new IllegalStateException("Illegal tree structure");
     }
 
-    void generateSignature() {
+    void generateSignature(Definition definition) {
         try {
-            rtnType = Definition.getType(rtnTypeStr);
+            rtnType = definition.getType(rtnTypeStr);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Illegal return type [" + rtnTypeStr + "] for function [" + name + "]."));
         }
@@ -127,7 +122,7 @@ public final class SFunction extends AStatement {
 
         for (int param = 0; param < this.paramTypeStrs.size(); ++param) {
             try {
-                Type paramType = Definition.getType(this.paramTypeStrs.get(param));
+                Type paramType = definition.getType(this.paramTypeStrs.get(param));
 
                 paramClasses[param] = paramType.clazz;
                 paramTypes.add(paramType);
@@ -140,7 +135,7 @@ public final class SFunction extends AStatement {
 
         org.objectweb.asm.commons.Method method =
             new org.objectweb.asm.commons.Method(name, MethodType.methodType(rtnType.clazz, paramClasses).toMethodDescriptorString());
-        this.method = new Method(name, null, false, rtnType, paramTypes, method, Modifier.STATIC | Modifier.PRIVATE, null);
+        this.method = new Method(name, null, null, rtnType, paramTypes, method, Modifier.STATIC | Modifier.PRIVATE, null);
     }
 
     @Override
@@ -173,13 +168,13 @@ public final class SFunction extends AStatement {
         }
 
         if (reserved.getMaxLoopCounter() > 0) {
-            loop = locals.getVariable(null, FunctionReserved.LOOP);
+            loop = locals.getVariable(null, Locals.LOOP);
         }
     }
 
     /** Writes the function to given ClassVisitor. */
     void write (ClassVisitor writer, CompilerSettings settings, Globals globals) {
-        int access = Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC;
+        int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;
         if (synthetic) {
             access |= Opcodes.ACC_SYNTHETIC;
         }
@@ -222,5 +217,16 @@ public final class SFunction extends AStatement {
                 method.method.getDescriptor(),
                 false);
         writer.push(handle);
+    }
+
+    @Override
+    public String toString() {
+        List<Object> description = new ArrayList<>();
+        description.add(rtnTypeStr);
+        description.add(name);
+        if (false == (paramTypeStrs.isEmpty() && paramNameStrs.isEmpty())) {
+            description.add(joinWithName("Args", pairwiseToString(paramTypeStrs, paramNameStrs), emptyList()));
+        }
+        return multilineToString(description, statements);
     }
 }

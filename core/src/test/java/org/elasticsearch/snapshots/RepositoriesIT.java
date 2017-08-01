@@ -142,30 +142,6 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         } catch (RepositoryException ex) {
             assertThat(ex.toString(), containsString("location [" + location + "] doesn't match any of the locations specified by path.repo"));
         }
-
-        String repoUrl = invalidRepoPath.toAbsolutePath().toUri().toURL().toString();
-        String unsupportedUrl = repoUrl.replace("file:/", "netdoc:/");
-        logger.info("--> trying creating url repository with unsupported url protocol");
-        try {
-            client().admin().cluster().preparePutRepository("test-repo")
-                    .setType("url").setSettings(Settings.builder().put("url", unsupportedUrl))
-                    .get();
-            fail("Shouldn't be here");
-        } catch (RepositoryException ex) {
-            assertThat(ex.toString(),
-                either(containsString("unsupported url protocol [netdoc]"))
-                    .or(containsString("unknown protocol: netdoc"))); // newer versions of JDK 9
-        }
-
-        logger.info("--> trying creating url repository with location that is not registered in path.repo setting");
-        try {
-            client().admin().cluster().preparePutRepository("test-repo")
-                    .setType("url").setSettings(Settings.builder().put("url", invalidRepoPath.toUri().toURL()))
-                    .get();
-            fail("Shouldn't be here");
-        } catch (RepositoryException ex) {
-            assertThat(ex.toString(), containsString("doesn't match any of the locations specified by path.repo"));
-        }
     }
 
     public void testRepositoryAckTimeout() throws Exception {

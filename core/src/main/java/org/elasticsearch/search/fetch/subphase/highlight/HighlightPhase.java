@@ -27,7 +27,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.StringFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -40,8 +39,6 @@ import java.util.List;
 import java.util.Map;
 
 public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
-    private static final List<String> STANDARD_HIGHLIGHTERS_BY_PRECEDENCE = Arrays.asList("fvh", "postings", "plain");
-
     private final Map<String, Highlighter> highlighters;
 
     public HighlightPhase(Settings settings, Map<String, Highlighter> highlighters) {
@@ -58,17 +55,17 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
         for (SearchContextHighlight.Field field : context.highlight().fields()) {
             Collection<String> fieldNamesToHighlight;
             if (Regex.isSimpleMatchPattern(field.field())) {
-                DocumentMapper documentMapper = context.mapperService().documentMapper(hitContext.hit().type());
+                DocumentMapper documentMapper = context.mapperService().documentMapper(hitContext.hit().getType());
                 fieldNamesToHighlight = documentMapper.mappers().simpleMatchToFullName(field.field());
             } else {
                 fieldNamesToHighlight = Collections.singletonList(field.field());
             }
 
             if (context.highlight().forceSource(field)) {
-                SourceFieldMapper sourceFieldMapper = context.mapperService().documentMapper(hitContext.hit().type()).sourceMapper();
+                SourceFieldMapper sourceFieldMapper = context.mapperService().documentMapper(hitContext.hit().getType()).sourceMapper();
                 if (!sourceFieldMapper.enabled()) {
                     throw new IllegalArgumentException("source is forced for fields " +  fieldNamesToHighlight
-                            + " but type [" + hitContext.hit().type() + "] has disabled _source");
+                            + " but type [" + hitContext.hit().getType() + "] has disabled _source");
                 }
             }
 
@@ -89,20 +86,13 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 // what they were doing and try to highlight anyway.
                 if (fieldNameContainsWildcards) {
                     if (fieldMapper.fieldType().typeName().equals(TextFieldMapper.CONTENT_TYPE) == false &&
-                        fieldMapper.fieldType().typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false &&
-                        fieldMapper.fieldType().typeName().equals(StringFieldMapper.CONTENT_TYPE) == false) {
+                        fieldMapper.fieldType().typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false) {
                         continue;
                     }
                 }
                 String highlighterType = field.fieldOptions().highlighterType();
                 if (highlighterType == null) {
-                    for(String highlighterCandidate : STANDARD_HIGHLIGHTERS_BY_PRECEDENCE) {
-                        if (highlighters.get(highlighterCandidate).canHighlight(fieldMapper)) {
-                            highlighterType = highlighterCandidate;
-                            break;
-                        }
-                    }
-                    assert highlighterType != null;
+                    highlighterType = "unified";
                 }
                 Highlighter highlighter = highlighters.get(highlighterType);
                 if (highlighter == null) {
@@ -131,7 +121,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
     }
 
     private FieldMapper getMapperForField(String fieldName, SearchContext searchContext, HitContext hitContext) {
-        DocumentMapper documentMapper = searchContext.mapperService().documentMapper(hitContext.hit().type());
+        DocumentMapper documentMapper = searchContext.mapperService().documentMapper(hitContext.hit().getType());
         // TODO: no need to lookup the doc mapper with unambiguous field names? just look at the mapper service
         return documentMapper.mappers().smartNameFieldMapper(fieldName);
     }

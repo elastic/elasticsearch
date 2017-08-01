@@ -54,7 +54,7 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         private final Object array;
         private final int length;
 
-        public ArrayMap(Object array) {
+        ArrayMap(Object array) {
             this.array = array;
             this.length = Array.getLength(array);
         }
@@ -113,7 +113,7 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
 
         private final Collection<Object> col;
 
-        public CollectionMap(Collection<Object> col) {
+        CollectionMap(Collection<Object> col) {
             this.col = col;
         }
 

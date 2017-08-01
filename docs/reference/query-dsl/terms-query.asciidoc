@@ -9,18 +9,11 @@ Filters documents that have fields that match any of the provided terms
 GET /_search
 {
     "query": {
-        "constant_score" : {
-            "filter" : {
-                "terms" : { "user" : ["kimchy", "elasticsearch"]}
-            }
-        }
+        "terms" : { "user" : ["kimchy", "elasticsearch"]}
     }
 }
 --------------------------------------------------
 // CONSOLE
-
-The `terms` query is also aliased with `in` as the filter name for
-simpler usage deprecated[5.0.0,use `terms` instead].
 
 [float]
 [[query-dsl-terms-lookup]]
@@ -37,8 +30,7 @@ The terms lookup mechanism supports the following options:
 
 [horizontal]
 `index`::
-    The index to fetch the term values from. Defaults to the
-    current index.
+    The index to fetch the term values from.
 
 `type`::
     The type to fetch the term values from.
@@ -68,7 +60,7 @@ possible, reducing the need for networking.
 [float]
 ===== Terms lookup twitter example
 At first we index the information for user with id 2, specifically, its
-followers, than index a tweet from user with id 1. Finally we search on
+followers, then index a tweet from user with id 1. Finally we search on
 all the tweets that match the followers of user 2.
 
 [source,js]
@@ -99,12 +91,13 @@ GET /tweets/_search
 --------------------------------------------------
 // CONSOLE
 
-The structure of the external terms document can also include array of
+The structure of the external terms document can also include an array of
 inner objects, for example:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/users/user/2 -d '{
+PUT /users/user/2
+{
  "followers" : [
    {
      "id" : "1"
@@ -113,7 +106,8 @@ curl -XPUT localhost:9200/users/user/2 -d '{
      "id" : "2"
    }
  ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 In which case, the lookup path will be `followers.id`.

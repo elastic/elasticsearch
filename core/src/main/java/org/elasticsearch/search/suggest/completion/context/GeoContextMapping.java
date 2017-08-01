@@ -33,7 +33,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -225,8 +224,8 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     }
 
     @Override
-    protected GeoQueryContext fromXContent(QueryParseContext context) throws IOException {
-        return GeoQueryContext.fromXContent(context);
+    protected GeoQueryContext fromXContent(XContentParser parser) throws IOException {
+        return GeoQueryContext.fromXContent(parser);
     }
 
     /**

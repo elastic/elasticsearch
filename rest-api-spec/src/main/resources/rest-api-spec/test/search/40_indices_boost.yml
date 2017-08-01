@@ -1,0 +1,196 @@
+setup:
+  - do:
+      indices.create:
+          index:  test_1
+  - do:
+      indices.create:
+          index:  test_2
+
+  - do:
+      indices.put_alias:
+        index: test_1
+        name: alias_1
+
+  - do:
+      indices.put_alias:
+        index: test_2
+        name: alias_2
+
+  - do:
+      index:
+          index:  test_1
+          type:   test
+          id:     1
+          body:   { foo: bar }
+
+  - do:
+      index:
+          index:  test_2
+          type:   test
+          id:     1
+          body:   { foo: bar }
+
+  - do:
+      indices.refresh:
+        index: [test_1, test_2]
+
+---
+"Indices boost using object":
+  - skip:
+      version: " - 5.1.99"
+      reason: deprecation was added in 5.2.0
+      features: "warnings"
+
+  - do:
+      warnings:
+        - 'Object format in indices_boost is deprecated, please use array format instead'
+      search:
+        index: _all
+        body:
+          indices_boost: {test_1: 2.0, test_2: 1.0}
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._index: test_1 }
+  - match: { hits.hits.1._index: test_2 }
+
+  - do:
+      warnings:
+        - 'Object format in indices_boost is deprecated, please use array format instead'
+      search:
+        index: _all
+        body:
+          indices_boost: {test_1: 1.0, test_2: 2.0}
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._index: test_2 }
+  - match: { hits.hits.1._index: test_1 }
+
+---
+"Indices boost using array":
+  - skip:
+      version: " - 5.1.99"
+      reason: array format was added in 5.2.0
+
+  - do:
+      search:
+        index: _all
+        body:
+          indices_boost: [{test_1: 2.0}, {test_2: 1.0}]
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._index: test_1 }
+  - match: { hits.hits.1._index: test_2 }
+
+  - do:
+      search:
+        index: _all
+        body:
+          indices_boost: [{test_1: 1.0}, {test_2: 2.0}]
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._index: test_2 }
+  - match: { hits.hits.1._index: test_1 }
+
+---
+"Indices boost using array with alias":
+  - skip:
+      version: " - 5.1.99"
+      reason: array format was added in 5.2.0
+
+  - do:
+      search:
+        index: _all
+        body:
+          indices_boost: [{alias_1: 2.0}]
+
+  - match: { hits.total: 2}
+  - match: { hits.hits.0._index: test_1 }
+  - match: { hits.hits.1._index: test_2 }
+
+  - do:
+      search:
+        index: _all
+        body:
+          indices_boost: [{alias_2: 2.0}]
+
+  - match: { hits.total: 2}
+  - match: { hits.hits.0._index: test_2 }
+  - match: { hits.hits.1._index: test_1 }
+
+---
+"Indices boost using array with wildcard":
+  - skip:
+      version: " - 5.1.99"
+      reason: array format was added in 5.2.0
+
+  - do:
+      search:
+        index: _all
+        body:
+          indices_boost: [{"*_1": 2.0}]
+
+  - match: { hits.total: 2}
+  - match: { hits.hits.0._index: test_1 }
+  - match: { hits.hits.1._index: test_2 }
+
+  - do:
+      search:
+        index: _all
+        body:
+          indices_boost: [{"*_2": 2.0}]
+
+  - match: { hits.total: 2}
+  - match: { hits.hits.0._index: test_2 }
+  - match: { hits.hits.1._index: test_1 }
+
+---
+"Indices boost using array multiple match":
+  - skip:
+      version: " - 5.1.99"
+      reason: array format was added in 5.2.0
+
+  - do:
+      search:
+        index: _all
+        body:
+          # First match (3.0) is used for test_1
+          indices_boost: [{"*_1": 3.0}, {alias_1: 1.0}, {test_2: 2.0}]
+
+  - match: { hits.total: 2}
+  - match: { hits.hits.0._index: test_1 }
+  - match: { hits.hits.1._index: test_2 }
+
+  - do:
+      search:
+        index: _all
+        body:
+          # First match (1.0) is used for test_1
+          indices_boost: [{"*_1": 1.0}, {test_2: 2.0}, {alias_1: 3.0}]
+
+  - match: { hits.total: 2}
+  - match: { hits.hits.0._index: test_2 }
+  - match: { hits.hits.1._index: test_1 }
+
+---
+"Indices boost for nonexistent index/alias":
+  - skip:
+      version: " - 5.1.99"
+      reason: array format was added in 5.2.0
+
+  - do:
+      catch: /no such index/
+      search:
+        index: _all
+        body:
+          indices_boost: [{nonexistent: 2.0}, {test_1: 1.0}, {test_2: 2.0}]
+
+  - do:
+      search:
+        index: _all
+        ignore_unavailable: true
+        body:
+          indices_boost: [{nonexistent: 2.0}, {test_1: 1.0}, {test_2: 2.0}]
+
+  - match: { hits.total: 2}
+  - match: { hits.hits.0._index: test_2 }
+  - match: { hits.hits.1._index: test_1 }

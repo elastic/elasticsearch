@@ -20,25 +20,18 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -49,6 +42,8 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -57,12 +52,11 @@ import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
 public class RestSearchAction extends BaseRestHandler {
 
-    private final SearchRequestParsers searchRequestParsers;
+    public static final String TYPED_KEYS_PARAM = "typed_keys";
+    private static final Set<String> RESPONSE_PARAMS = Collections.singleton(TYPED_KEYS_PARAM);
 
-    @Inject
-    public RestSearchAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers) {
+    public RestSearchAction(Settings settings, RestController controller) {
         super(settings);
-        this.searchRequestParsers = searchRequestParsers;
         controller.registerHandler(GET, "/_search", this);
         controller.registerHandler(POST, "/_search", this);
         controller.registerHandler(GET, "/{index}/_search", this);
@@ -72,44 +66,54 @@ public class RestSearchAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "search_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
-        BytesReference restContent = RestActions.hasBodyContent(request) ? RestActions.getRestContent(request) : null;
-        parseSearchRequest(searchRequest, request, searchRequestParsers, parseFieldMatcher, restContent);
+        request.withContentOrSourceParamParserOrNull(parser ->
+            parseSearchRequest(searchRequest, request, parser));
 
         return channel -> client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }
 
     /**
-     * Parses the rest request on top of the SearchRequest, preserving values
-     * that are not overridden by the rest request.
+     * Parses the rest request on top of the SearchRequest, preserving values that are not overridden by the rest request.
      *
-     * @param restContent
-     *            override body content to use for the request. If null body
-     *            content is read from the request using
-     *            RestAction.hasBodyContent.
+     * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
+     *        parameter
      */
-    public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request, SearchRequestParsers searchRequestParsers,
-                                          ParseFieldMatcher parseFieldMatcher, BytesReference restContent) throws IOException {
+    public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request,
+                                          XContentParser requestContentParser) throws IOException {
 
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
-        if (restContent != null) {
-            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
-                searchRequest.source().parseXContent(context, searchRequestParsers.aggParsers, searchRequestParsers.suggesters,
-                        searchRequestParsers.searchExtParsers);
-            }
+        if (requestContentParser != null) {
+            searchRequest.source().parseXContent(requestContentParser);
+        }
+
+        final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());
+        searchRequest.setBatchedReduceSize(batchedReduceSize);
+        searchRequest.setPreFilterShardSize(request.paramAsInt("pre_filter_shard_size", searchRequest.getPreFilterShardSize()));
+
+        if (request.hasParam("max_concurrent_shard_requests")) {
+            // only set if we have the parameter since we auto adjust the max concurrency on the coordinator
+            // based on the number of nodes in the cluster
+            final int maxConcurrentShardRequests = request.paramAsInt("max_concurrent_shard_requests",
+                searchRequest.getMaxConcurrentShardRequests());
+            searchRequest.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
         }
 
         // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types
         // from the REST layer. these modes are an internal optimization and should
         // not be specified explicitly by the user.
         String searchType = request.param("search_type");
-        if (SearchType.fromString(searchType, parseFieldMatcher).equals(SearchType.QUERY_AND_FETCH) ||
-                SearchType.fromString(searchType, parseFieldMatcher).equals(SearchType.DFS_QUERY_AND_FETCH)) {
+        if ("query_and_fetch".equals(searchType) ||
+                "dfs_query_and_fetch".equals(searchType)) {
             throw new IllegalArgumentException("Unsupported search type [" + searchType + "]");
         } else {
             searchRequest.searchType(searchType);
@@ -166,23 +170,12 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
-        if (request.param("fields") != null) {
-            throw new IllegalArgumentException("The parameter [" +
-                SearchSourceBuilder.FIELDS_FIELD + "] is no longer supported, please use [" +
-                SearchSourceBuilder.STORED_FIELDS_FIELD + "] to retrieve stored fields or _source filtering " +
-                "if the field is not stored");
-        }
-
-
         StoredFieldsContext storedFieldsContext =
             StoredFieldsContext.fromRestRequest(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), request);
         if (storedFieldsContext != null) {
             searchSourceBuilder.storedFields(storedFieldsContext);
         }
         String sDocValueFields = request.param("docvalue_fields");
-        if (sDocValueFields == null) {
-            sDocValueFields = request.param("fielddata_fields");
-        }
         if (sDocValueFields != null) {
             if (Strings.hasText(sDocValueFields)) {
                 String[] sFields = Strings.splitStringByCommaToArray(sDocValueFields);
@@ -198,6 +191,10 @@ public class RestSearchAction extends BaseRestHandler {
 
         if (request.hasParam("track_scores")) {
             searchSourceBuilder.trackScores(request.paramAsBoolean("track_scores", false));
+        }
+
+        if (request.hasParam("track_total_hits")) {
+            searchSourceBuilder.trackTotalHits(request.paramAsBoolean("track_total_hits", true));
         }
 
         String sSorts = request.param("sort");
@@ -234,5 +231,10 @@ public class RestSearchAction extends BaseRestHandler {
                         .text(suggestText).size(suggestSize)
                         .suggestMode(SuggestMode.resolve(suggestMode))));
         }
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 }

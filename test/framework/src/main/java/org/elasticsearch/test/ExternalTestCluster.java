@@ -69,7 +69,8 @@ public final class ExternalTestCluster extends TestCluster {
     private final int numDataNodes;
     private final int numMasterAndDataNodes;
 
-    public ExternalTestCluster(Path tempDir, Settings additionalSettings, Collection<Class<? extends Plugin>> pluginClasses, TransportAddress... transportAddresses) {
+    public ExternalTestCluster(Path tempDir, Settings additionalSettings, Collection<Class<? extends Plugin>> pluginClasses,
+                               TransportAddress... transportAddresses) {
         super(0);
         Settings.Builder clientSettingsBuilder = Settings.builder()
             .put(additionalSettings)
@@ -162,9 +163,12 @@ public final class ExternalTestCluster extends TestCluster {
                 // because checking it requires a network request, which in
                 // turn increments the breaker, making it non-0
 
-                assertThat("Fielddata size must be 0 on node: " + stats.getNode(), stats.getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0L));
-                assertThat("Query cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getQueryCache().getMemorySizeInBytes(), equalTo(0L));
-                assertThat("FixedBitSet cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
+                assertThat("Fielddata size must be 0 on node: " +
+                    stats.getNode(), stats.getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0L));
+                assertThat("Query cache size must be 0 on node: " +
+                    stats.getNode(), stats.getIndices().getQueryCache().getMemorySizeInBytes(), equalTo(0L));
+                assertThat("FixedBitSet cache size must be 0 on node: " +
+                    stats.getNode(), stats.getIndices().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
             }
         }
     }

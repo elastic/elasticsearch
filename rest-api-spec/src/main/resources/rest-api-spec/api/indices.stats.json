@@ -17,7 +17,7 @@
         },
         "metric" : {
           "type" : "list",
-          "options" : ["_all", "completion", "docs", "fielddata", "query_cache", "flush", "get", "indexing", "merge", "percolate", "request_cache", "refresh", "search", "segments", "store", "warmer", "suggest"],
+          "options" : ["_all", "completion", "docs", "fielddata", "query_cache", "flush", "get", "indexing", "merge", "request_cache", "refresh", "search", "segments", "store", "warmer", "suggest"],
           "description" : "Limit the information returned the specific metrics."
         }
       },
@@ -38,11 +38,6 @@
           "type" : "list",
           "description" : "A comma-separated list of search groups for `search` index metric"
         },
-        "human": {
-            "type": "boolean",
-            "description": "Whether to return time and byte values in human-readable format.",
-            "default": false
-        },
         "level": {
           "type" : "enum",
           "description": "Return stats aggregated at cluster, index or shard level",
@@ -52,6 +47,11 @@
         "types" : {
           "type" : "list",
           "description" : "A comma-separated list of document types for the `indexing` index metric"
+        },
+        "include_segment_file_sizes": {
+          "type": "boolean",
+          "description": "Whether to report the aggregated disk usage of each one of the Lucene index files (only applies if segment stats are requested)",
+          "default": false
         }
       }
     },

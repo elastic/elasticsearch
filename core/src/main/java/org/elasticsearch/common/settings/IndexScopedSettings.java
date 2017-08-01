@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
@@ -36,9 +36,9 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryService;
-import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesRequestCache;
 
@@ -60,8 +60,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     public static final Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
         MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY,
         IndexSettings.INDEX_TTL_DISABLE_PURGE_SETTING,
-        IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING,
-        IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING,
         MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
         MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
         MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
@@ -71,15 +69,15 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexMetaData.INDEX_AUTO_EXPAND_REPLICAS_SETTING,
         IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING,
         IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING,
-        IndexMetaData.INDEX_SHADOW_REPLICAS_SETTING,
-        IndexMetaData.INDEX_SHARED_FILESYSTEM_SETTING,
+        IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING,
         IndexMetaData.INDEX_READ_ONLY_SETTING,
         IndexMetaData.INDEX_BLOCKS_READ_SETTING,
         IndexMetaData.INDEX_BLOCKS_WRITE_SETTING,
         IndexMetaData.INDEX_BLOCKS_METADATA_SETTING,
-        IndexMetaData.INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING,
+        IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING,
         IndexMetaData.INDEX_PRIORITY_SETTING,
         IndexMetaData.INDEX_DATA_PATH_SETTING,
+        IndexMetaData.INDEX_FORMAT_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -89,7 +87,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL,
-        SearchSlowLog.INDEX_SEARCH_SLOWLOG_REFORMAT,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING,
@@ -105,16 +102,22 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING,
+        IndexSortConfig.INDEX_SORT_FIELD_SETTING,
+        IndexSortConfig.INDEX_SORT_ORDER_SETTING,
+        IndexSortConfig.INDEX_SORT_MISSING_SETTING,
+        IndexSortConfig.INDEX_SORT_MODE_SETTING,
         IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
         IndexSettings.INDEX_WARMER_ENABLED_SETTING,
         IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
         IndexSettings.MAX_RESULT_WINDOW_SETTING,
         IndexSettings.MAX_RESCORE_WINDOW_SETTING,
+        IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
         IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
         IndexSettings.DEFAULT_FIELD_SETTING,
         IndexSettings.QUERY_STRING_LENIENT_SETTING,
         IndexSettings.ALLOW_UNMAPPED,
         IndexSettings.INDEX_CHECK_ON_STARTUP,
+        LocalCheckpointTracker.SETTINGS_BIT_ARRAYS_SIZE,
         IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
         IndexSettings.MAX_SLICES_PER_SCROLL,
         ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
@@ -124,6 +127,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING,
         EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING,
         IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
+        IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
+        IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,
+        IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
         IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
         FieldMapper.IGNORE_MALFORMED_SETTING,
         FieldMapper.COERCE_SETTING,
@@ -137,7 +143,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
         IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
         IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING,
-        PrimaryShardAllocator.INDEX_RECOVERY_INITIAL_SHARDS_SETTING,
+        IndexModule.INDEX_QUERY_CACHE_TERM_QUERIES_SETTING,
         FsDirectoryService.INDEX_LOCK_FACTOR_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
         EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
@@ -188,9 +194,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             case IndexMetaData.SETTING_VERSION_UPGRADED:
             case IndexMetaData.SETTING_INDEX_PROVIDED_NAME:
             case MergePolicyConfig.INDEX_MERGE_ENABLED:
+            case IndexMetaData.INDEX_SHRINK_SOURCE_UUID_KEY:
+            case IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY:
+            case IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY:
+                // this was settable in 5.x but not anymore in 6.x so we have to preserve the value ie. make it read-only
+                // this can be removed in later versions
                 return true;
             default:
-                return false;
+                return IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);
         }
     }
 }

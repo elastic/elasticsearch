@@ -10,6 +10,10 @@ link:/downloads/elasticsearch[Download Elasticsearch] page.
 Other versions can be found on the
 link:/downloads/past-releases[Past Releases page].
 
+NOTE: Elasticsearch requires Java 8 or later. Use the
+http://www.oracle.com/technetwork/java/javase/downloads/index.html[official Oracle distribution]
+or an open-source distribution such as http://openjdk.java.net[OpenJDK].
+
 [[install-zip]]
 ==== Download and install the `.zip` package
 
@@ -76,6 +80,11 @@ Elasticsearch can be started from the command line as follows:
 
 By default, Elasticsearch runs in the foreground, prints its logs to the
 standard output (`stdout`), and can be stopped by pressing `Ctrl-C`.
+
+NOTE: All scripts packaged with Elasticsearch require a version of Bash
+that supports arrays and assume that Bash is available at `/bin/bash`.
+As such, Bash should be available at this path either directly or via a
+symbolic link.
 
 include::check-running.asciidoc[]
 
@@ -155,7 +164,7 @@ directory so that you do not delete important data later on.
 | conf
   | Configuration files including `elasticsearch.yml`
   | $ES_HOME/config
-  | path.conf
+  | <<config-files-location,CONF_DIR>>
 
 | data
   | The location of the data files of each index / shard allocated
@@ -171,6 +180,7 @@ directory so that you do not delete important data later on.
 | plugins
   | Plugin files location. Each plugin will be contained in a subdirectory.
   | $ES_HOME/plugins
+  |
 
 | repo
   | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here.

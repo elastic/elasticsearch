@@ -19,310 +19,87 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.io.IOException;
 
 /**
- * Represents the allocation decision by an allocator for a shard.
+ * Represents the decision taken for the allocation of a single shard.  If
+ * the shard is unassigned, {@link #getAllocateDecision()} will return an
+ * object containing the decision and its explanation, and {@link #getMoveDecision()}
+ * will return an object for which {@link MoveDecision#isDecisionTaken()} returns
+ * {@code false}.  If the shard is in the started state, then {@link #getMoveDecision()}
+ * will return an object containing the decision to move/rebalance the shard, and
+ * {@link #getAllocateDecision()} will return an object for which
+ * {@link AllocateUnassignedDecision#isDecisionTaken()} returns {@code false}.  If
+ * the shard is neither unassigned nor started (i.e. it is initializing or relocating),
+ * then both {@link #getAllocateDecision()} and {@link #getMoveDecision()} will return
+ * objects whose {@code isDecisionTaken()} method returns {@code false}.
  */
-public class ShardAllocationDecision {
-    /** a constant representing a shard decision where no decision was taken */
-    public static final ShardAllocationDecision DECISION_NOT_TAKEN =
-        new ShardAllocationDecision(null, null, null, null, null, null, null);
-    /**
-     * a map of cached common no/throttle decisions that don't need explanations,
-     * this helps prevent unnecessary object allocations for the non-explain API case
-     */
-    private static final Map<AllocationStatus, ShardAllocationDecision> CACHED_DECISIONS;
-    static {
-        Map<AllocationStatus, ShardAllocationDecision> cachedDecisions = new HashMap<>();
-        cachedDecisions.put(AllocationStatus.FETCHING_SHARD_DATA,
-            new ShardAllocationDecision(Type.NO, AllocationStatus.FETCHING_SHARD_DATA, null, null, null, null, null));
-        cachedDecisions.put(AllocationStatus.NO_VALID_SHARD_COPY,
-            new ShardAllocationDecision(Type.NO, AllocationStatus.NO_VALID_SHARD_COPY, null, null, null, null, null));
-        cachedDecisions.put(AllocationStatus.DECIDERS_NO,
-            new ShardAllocationDecision(Type.NO, AllocationStatus.DECIDERS_NO, null, null, null, null, null));
-        cachedDecisions.put(AllocationStatus.DECIDERS_THROTTLED,
-            new ShardAllocationDecision(Type.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, null, null, null, null, null));
-        cachedDecisions.put(AllocationStatus.DELAYED_ALLOCATION,
-            new ShardAllocationDecision(Type.NO, AllocationStatus.DELAYED_ALLOCATION, null, null, null, null, null));
-        CACHED_DECISIONS = Collections.unmodifiableMap(cachedDecisions);
+public final class ShardAllocationDecision implements ToXContent, Writeable {
+    public static final ShardAllocationDecision NOT_TAKEN =
+        new ShardAllocationDecision(AllocateUnassignedDecision.NOT_TAKEN, MoveDecision.NOT_TAKEN);
+
+    private final AllocateUnassignedDecision allocateDecision;
+    private final MoveDecision moveDecision;
+
+    public ShardAllocationDecision(AllocateUnassignedDecision allocateDecision,
+                                   MoveDecision moveDecision) {
+        this.allocateDecision = allocateDecision;
+        this.moveDecision = moveDecision;
     }
 
-    @Nullable
-    private final Type finalDecision;
-    @Nullable
-    private final AllocationStatus allocationStatus;
-    @Nullable
-    private final String finalExplanation;
-    @Nullable
-    private final String assignedNodeId;
-    @Nullable
-    private final String allocationId;
-    @Nullable
-    private final Map<String, WeightedDecision> nodeDecisions;
-    @Nullable
-    private final Decision shardDecision;
+    public ShardAllocationDecision(StreamInput in) throws IOException {
+        allocateDecision = new AllocateUnassignedDecision(in);
+        moveDecision = new MoveDecision(in);
+    }
 
-    private ShardAllocationDecision(Type finalDecision,
-                                    AllocationStatus allocationStatus,
-                                    String finalExplanation,
-                                    String assignedNodeId,
-                                    String allocationId,
-                                    Map<String, WeightedDecision> nodeDecisions,
-                                    Decision shardDecision) {
-        assert assignedNodeId != null || finalDecision == null || finalDecision != Type.YES :
-            "a yes decision must have a node to assign the shard to";
-        assert allocationStatus != null || finalDecision == null || finalDecision == Type.YES :
-            "only a yes decision should not have an allocation status";
-        assert allocationId == null || assignedNodeId != null :
-            "allocation id can only be null if the assigned node is null";
-        this.finalDecision = finalDecision;
-        this.allocationStatus = allocationStatus;
-        this.finalExplanation = finalExplanation;
-        this.assignedNodeId = assignedNodeId;
-        this.allocationId = allocationId;
-        this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
-        this.shardDecision = shardDecision;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        allocateDecision.writeTo(out);
+        moveDecision.writeTo(out);
     }
 
     /**
-     * Returns a NO decision with the given shard-level decision and explanation (if in explain mode).
-     */
-    public static ShardAllocationDecision no(Decision shardDecision, @Nullable String explanation) {
-        if (explanation != null) {
-            return new ShardAllocationDecision(Type.NO, AllocationStatus.DECIDERS_NO, explanation, null, null, null, shardDecision);
-        } else {
-            return getCachedDecision(AllocationStatus.DECIDERS_NO);
-        }
-    }
-
-    /**
-     * Returns a NO decision with the given {@link AllocationStatus} and explanation for the NO decision, if in explain mode.
-     */
-    public static ShardAllocationDecision no(AllocationStatus allocationStatus, @Nullable String explanation) {
-        return no(allocationStatus, explanation, null);
-    }
-
-    /**
-     * Returns a NO decision with the given {@link AllocationStatus}, and the explanation for the NO decision
-     * as well as the individual node-level decisions that comprised the final NO decision if in explain mode.
-     */
-    public static ShardAllocationDecision no(AllocationStatus allocationStatus, @Nullable String explanation,
-                                             @Nullable Map<String, Decision> nodeDecisions) {
-        Objects.requireNonNull(allocationStatus, "allocationStatus must not be null");
-        if (explanation != null) {
-            return new ShardAllocationDecision(Type.NO, allocationStatus, explanation, null, null, asExplanations(nodeDecisions), null);
-        } else {
-            return getCachedDecision(allocationStatus);
-        }
-    }
-
-    /**
-     * Returns a THROTTLE decision, with the given explanation and individual node-level decisions that
-     * comprised the final THROTTLE decision if in explain mode.
-     */
-    public static ShardAllocationDecision throttle(@Nullable String explanation, @Nullable Map<String, Decision> nodeDecisions) {
-        if (explanation != null) {
-            return new ShardAllocationDecision(Type.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, explanation, null, null,
-                                               asExplanations(nodeDecisions), null);
-        } else {
-            return getCachedDecision(AllocationStatus.DECIDERS_THROTTLED);
-        }
-    }
-
-    /**
-     * Creates a YES decision with the given explanation and individual node-level decisions that
-     * comprised the final YES decision, along with the node id to which the shard is assigned and
-     * the allocation id for the shard, if available.
-     */
-    public static ShardAllocationDecision yes(String assignedNodeId, @Nullable String explanation, @Nullable String allocationId,
-                                              @Nullable Map<String, Decision> nodeDecisions) {
-        Objects.requireNonNull(assignedNodeId, "assignedNodeId must not be null");
-        return new ShardAllocationDecision(Type.YES, null, explanation, assignedNodeId, allocationId, asExplanations(nodeDecisions), null);
-    }
-
-    /**
-     * Creates a {@link ShardAllocationDecision} from the given {@link Decision} and the assigned node, if any.
-     */
-    public static ShardAllocationDecision fromDecision(Decision decision, @Nullable String assignedNodeId, boolean explain,
-                                                       @Nullable Map<String, WeightedDecision> nodeDecisions) {
-        final Type decisionType = decision.type();
-        AllocationStatus allocationStatus = decisionType != Type.YES ? AllocationStatus.fromDecision(decisionType) : null;
-        String explanation = null;
-        if (explain) {
-            if (decision.type() == Type.YES) {
-                assert assignedNodeId != null;
-                explanation = "shard assigned to node [" + assignedNodeId + "]";
-            } else if (decision.type() == Type.THROTTLE) {
-                assert assignedNodeId != null;
-                explanation = "shard assignment throttled on node [" + assignedNodeId + "]";
-            } else {
-                explanation = "shard cannot be assigned to any node in the cluster";
-            }
-        }
-        return new ShardAllocationDecision(decisionType, allocationStatus, explanation, assignedNodeId, null, nodeDecisions, null);
-    }
-
-    private static ShardAllocationDecision getCachedDecision(AllocationStatus allocationStatus) {
-        ShardAllocationDecision decision = CACHED_DECISIONS.get(allocationStatus);
-        return Objects.requireNonNull(decision, "precomputed decision not found for " + allocationStatus);
-    }
-
-    private static Map<String, WeightedDecision> asExplanations(Map<String, Decision> decisionMap) {
-        if (decisionMap != null) {
-            Map<String, WeightedDecision> explanationMap = new HashMap<>();
-            for (Map.Entry<String, Decision> entry : decisionMap.entrySet()) {
-                explanationMap.put(entry.getKey(), new WeightedDecision(entry.getValue(), Float.POSITIVE_INFINITY));
-            }
-            return explanationMap;
-        }
-        return null;
-    }
-
-    /**
-     * Returns <code>true</code> if a decision was taken by the allocator, {@code false} otherwise.
-     * If no decision was taken, then the rest of the fields in this object are meaningless and return {@code null}.
+     * Returns {@code true} if either an allocation decision or a move decision was taken
+     * for the shard.  If no decision was taken, as in the case of initializing or relocating
+     * shards, then this method returns {@code false}.
      */
     public boolean isDecisionTaken() {
-        return finalDecision != null;
+        return allocateDecision.isDecisionTaken() || moveDecision.isDecisionTaken();
     }
 
     /**
-     * Returns the final decision made by the allocator on whether to assign the shard.
-     * This value can only be {@code null} if {@link #isDecisionTaken()} returns {@code false}.
+     * Gets the unassigned allocation decision for the shard.  If the shard was not in the unassigned state,
+     * the instance of {@link AllocateUnassignedDecision} that is returned will have {@link AllocateUnassignedDecision#isDecisionTaken()}
+     * return {@code false}.
      */
-    @Nullable
-    public Type getFinalDecisionType() {
-        return finalDecision;
+    public AllocateUnassignedDecision getAllocateDecision() {
+        return allocateDecision;
     }
 
     /**
-     * Returns the final decision made by the allocator on whether to assign the shard.
-     * Only call this method if {@link #isDecisionTaken()} returns {@code true}, otherwise it will
-     * throw an {@code IllegalArgumentException}.
+     * Gets the move decision for the shard.  If the shard was not in the started state,
+     * the instance of {@link MoveDecision} that is returned will have {@link MoveDecision#isDecisionTaken()}
+     * return {@code false}.
      */
-    public Type getFinalDecisionSafe() {
-        if (isDecisionTaken() == false) {
-            throw new IllegalArgumentException("decision must have been taken in order to return the final decision");
+    public MoveDecision getMoveDecision() {
+        return moveDecision;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (allocateDecision.isDecisionTaken()) {
+            allocateDecision.toXContent(builder, params);
         }
-        return finalDecision;
-    }
-
-    /**
-     * Returns the status of an unsuccessful allocation attempt.  This value will be {@code null} if
-     * no decision was taken or if the decision was {@link Decision.Type#YES}.
-     */
-    @Nullable
-    public AllocationStatus getAllocationStatus() {
-        return allocationStatus;
-    }
-
-    /**
-     * Returns the free-text explanation for the reason behind the decision taken in {@link #getFinalDecisionType()}.
-     */
-    @Nullable
-    public String getFinalExplanation() {
-        return finalExplanation;
-    }
-
-    /**
-     * Get the node id that the allocator will assign the shard to, unless {@link #getFinalDecisionType()} returns
-     * a value other than {@link Decision.Type#YES}, in which case this returns {@code null}.
-     */
-    @Nullable
-    public String getAssignedNodeId() {
-        return assignedNodeId;
-    }
-
-    /**
-     * Gets the allocation id for the existing shard copy that the allocator is assigning the shard to.
-     * This method returns a non-null value iff {@link #getAssignedNodeId()} returns a non-null value
-     * and the node on which the shard is assigned already has a shard copy with an in-sync allocation id
-     * that we can re-use.
-     */
-    @Nullable
-    public String getAllocationId() {
-        return allocationId;
-    }
-
-    /**
-     * Gets the individual node-level decisions that went into making the final decision as represented by
-     * {@link #getFinalDecisionType()}.  The map that is returned has the node id as the key and a {@link Decision}
-     * as the decision for the given node.
-     */
-    @Nullable
-    public Map<String, WeightedDecision> getNodeDecisions() {
-        return nodeDecisions;
-    }
-
-    /**
-     * Gets the decision on allocating a shard, without examining any specific nodes to allocate to
-     * (e.g. a replica can never be allocated if the primary is not allocated, so this is a shard-level
-     * decision, not having taken any node into account).
-     */
-    @Nullable
-    public Decision getShardDecision() {
-        return shardDecision;
-    }
-
-    /**
-     * This class represents the shard allocation decision for a single node,
-     * including the {@link Decision} whether to allocate to the node and the
-     * weight assigned to the node for the shard in question.
-     */
-    public static final class WeightedDecision {
-
-        private final Decision decision;
-        private final float weight;
-
-        public WeightedDecision(Decision decision) {
-            this.decision = Objects.requireNonNull(decision);
-            this.weight = Float.POSITIVE_INFINITY;
+        if (moveDecision.isDecisionTaken()) {
+            moveDecision.toXContent(builder, params);
         }
-
-        public WeightedDecision(Decision decision, float weight) {
-            this.decision = Objects.requireNonNull(decision);
-            this.weight = Objects.requireNonNull(weight);
-        }
-
-        /**
-         * The decision for allocating to the node.
-         */
-        public Decision getDecision() {
-            return decision;
-        }
-
-        /**
-         * The calculated weight for allocating a shard to the node.  A value of {@link Float#POSITIVE_INFINITY}
-         * means the weight was not calculated or factored into the decision.
-         */
-        public float getWeight() {
-            return weight;
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) {
-                return true;
-            }
-            if (other == null || getClass() != other.getClass()) {
-                return false;
-            }
-            WeightedDecision that = (WeightedDecision) other;
-            return decision.equals(that.decision) && Float.compare(weight, that.weight) == 0;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(decision, weight);
-        }
+        return builder;
     }
+
 }

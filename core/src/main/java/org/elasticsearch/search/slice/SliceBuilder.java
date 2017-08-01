@@ -30,11 +30,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.UidFieldMapper;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -43,7 +44,7 @@ import java.util.Objects;
 /**
  *  A slice builder allowing to split a scroll in multiple partitions.
  *  If the provided field is the "_uid" it uses a {@link org.elasticsearch.search.slice.TermsSliceQuery}
- *  to do the slicing. The slicing is done at the shard level first and then each shard is splitted in multiple slices.
+ *  to do the slicing. The slicing is done at the shard level first and then each shard is split into multiple slices.
  *  For instance if the number of shards is equal to 2 and the user requested 4 slices
  *  then the slices 0 and 2 are assigned to the first shard and the slices 1 and 3 are assigned to the second shard.
  *  This way the total number of bitsets that we need to build on each shard is bounded by the number of slices
@@ -55,7 +56,7 @@ public class SliceBuilder extends ToXContentToBytes implements Writeable {
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField ID_FIELD = new ParseField("id");
     public static final ParseField MAX_FIELD = new ParseField("max");
-    private static final ObjectParser<SliceBuilder, QueryParseContext> PARSER =
+    private static final ObjectParser<SliceBuilder, Void> PARSER =
         new ObjectParser<>("slice", SliceBuilder::new);
 
     static {
@@ -167,8 +168,8 @@ public class SliceBuilder extends ToXContentToBytes implements Writeable {
         builder.field(MAX_FIELD.getPreferredName(), max);
     }
 
-    public static SliceBuilder fromXContent(QueryParseContext context) throws IOException {
-        SliceBuilder builder = PARSER.parse(context.parser(), new SliceBuilder(), context);
+    public static SliceBuilder fromXContent(XContentParser parser) throws IOException {
+        SliceBuilder builder = PARSER.parse(parser, new SliceBuilder(), null);
         return builder;
     }
 
@@ -194,9 +195,14 @@ public class SliceBuilder extends ToXContentToBytes implements Writeable {
             throw new IllegalArgumentException("field " + field + " not found");
         }
 
+        String field = this.field;
         boolean useTermQuery = false;
         if (UidFieldMapper.NAME.equals(field)) {
-           useTermQuery = true;
+            if (context.getIndexSettings().isSingleType()) {
+                // on new indices, the _id acts as a _uid
+                field = IdFieldMapper.NAME;
+            }
+            useTermQuery = true;
         } else if (type.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot load numeric doc values on " + field);
         } else {

@@ -29,12 +29,10 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A static factory for simple "import static" usage.
@@ -120,7 +118,7 @@ public abstract class QueryBuilders {
      * @param types The mapping/doc type
      */
     public static IdsQueryBuilder idsQuery(String... types) {
-        return new IdsQueryBuilder(types);
+        return new IdsQueryBuilder().types(types);
     }
 
     /**
@@ -199,13 +197,9 @@ public abstract class QueryBuilders {
      * @param name  The name of the field
      * @param value The value of the term
      *
-     * @deprecated Fuzzy queries are not useful enough and will be removed with Elasticsearch 4.0. In most cases you may want to use
-     * a match query with the fuzziness parameter for strings or range queries for numeric and date fields.
-     *
      * @see #matchQuery(String, Object)
      * @see #rangeQuery(String)
      */
-    @Deprecated
     public static FuzzyQueryBuilder fuzzyQuery(String name, String value) {
         return new FuzzyQueryBuilder(name, value);
     }
@@ -216,13 +210,9 @@ public abstract class QueryBuilders {
      * @param name  The name of the field
      * @param value The value of the term
      *
-     * @deprecated Fuzzy queries are not useful enough and will be removed with Elasticsearch 4.0. In most cases you may want to use
-     * a match query with the fuzziness parameter for strings or range queries for numeric and date fields.
-     *
      * @see #matchQuery(String, Object)
      * @see #rangeQuery(String)
      */
-    @Deprecated
     public static FuzzyQueryBuilder fuzzyQuery(String name, Object value) {
         return new FuzzyQueryBuilder(name, value);
     }
@@ -277,7 +267,7 @@ public abstract class QueryBuilders {
      * when no field is added (using {@link QueryStringQueryBuilder#field(String)}, will run the query once and non prefixed fields
      * will use the {@link QueryStringQueryBuilder#defaultField(String)} set. The second, when one or more fields are added
      * (using {@link QueryStringQueryBuilder#field(String)}), will run the parsed query against the provided fields, and combine
-     * them either using DisMax or a plain boolean query (see {@link QueryStringQueryBuilder#useDisMax(boolean)}).
+     * them either using Dismax.
      *
      * @param queryString The query string to run
      */
@@ -481,38 +471,6 @@ public abstract class QueryBuilders {
         return moreLikeThisQuery(null, null, likeItems);
     }
 
-    /**
-     * Constructs a new has_child query, with the child type and the query to run on the child documents. The
-     * results of this query are the parent docs that those child docs matched.
-     *
-     * @param type      The child type.
-     * @param query     The query.
-     * @param scoreMode How the scores from the children hits should be aggregated into the parent hit.
-     */
-    public static HasChildQueryBuilder hasChildQuery(String type, QueryBuilder query, ScoreMode scoreMode) {
-        return new HasChildQueryBuilder(type, query, scoreMode);
-    }
-
-    /**
-     * Constructs a new parent query, with the parent type and the query to run on the parent documents. The
-     * results of this query are the children docs that those parent docs matched.
-     *
-     * @param type      The parent type.
-     * @param query     The query.
-     * @param score     Whether the score from the parent hit should propogate to the child hit
-     */
-    public static HasParentQueryBuilder hasParentQuery(String type, QueryBuilder query, boolean score) {
-        return new HasParentQueryBuilder(type, query, score);
-    }
-
-    /**
-     * Constructs a new parent id query that returns all child documents of the specified type that
-     * point to the specified id.
-     */
-    public static ParentIdQueryBuilder parentId(String type, String id) {
-        return new ParentIdQueryBuilder(type, id);
-    }
-
     public static NestedQueryBuilder nestedQuery(String path, QueryBuilder query, ScoreMode scoreMode) {
         return new NestedQueryBuilder(path, query, scoreMode);
     }
@@ -588,18 +546,6 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A query that will execute the wrapped query only for the specified
-     * indices, and "match_all" when it does not match those indices.
-     *
-     * @deprecated instead search on the `_index` field
-     */
-    @Deprecated
-    public static IndicesQueryBuilder indicesQuery(QueryBuilder queryBuilder, String... indices) {
-        // TODO remove this method in 6.0
-        return new IndicesQueryBuilder(queryBuilder, indices);
-    }
-
-    /**
      * A Query builder which allows building a query thanks to a JSON string or binary data.
      */
     public static WrapperQueryBuilder wrapperQuery(String source) {
@@ -654,80 +600,12 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A filter to filter based on a specific range from a specific geo location / point.
-     *
-     * @param name The location field name.
-     * @param point The point
-     */
-    public static GeoDistanceRangeQueryBuilder geoDistanceRangeQuery(String name, GeoPoint point) {
-        return new GeoDistanceRangeQueryBuilder(name, point);
-    }
-
-    /**
-     * A filter to filter based on a specific range from a specific geo location / point.
-     *
-     * @param name The location field name.
-     * @param geohash The point as geohash
-     */
-    public static GeoDistanceRangeQueryBuilder geoDistanceRangeQuery(String name, String geohash) {
-        return new GeoDistanceRangeQueryBuilder(name, geohash);
-    }
-
-    /**
-     * A filter to filter based on a specific range from a specific geo location / point.
-     *
-     * @param name The location field name.
-     * @param lat The points latitude
-     * @param lon The points longitude
-     */
-    public static GeoDistanceRangeQueryBuilder geoDistanceRangeQuery(String name, double lat, double lon) {
-        return new GeoDistanceRangeQueryBuilder(name, lat, lon);
-    }
-
-    /**
      * A filter to filter based on a bounding box defined by top left and bottom right locations / points
      *
      * @param name The location field name.
      */
     public static GeoBoundingBoxQueryBuilder geoBoundingBoxQuery(String name) {
         return new GeoBoundingBoxQueryBuilder(name);
-    }
-
-    /**
-     * A filter based on a bounding box defined by geohash. The field this filter is applied to
-     * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
-     * to work.
-     *
-     * @param name The geo point field name.
-     * @param geohash The Geohash to filter
-     */
-    public static GeohashCellQuery.Builder geoHashCellQuery(String name, String geohash) {
-        return new GeohashCellQuery.Builder(name, geohash);
-    }
-
-    /**
-     * A filter based on a bounding box defined by geohash. The field this filter is applied to
-     * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
-     * to work.
-     *
-     * @param name The geo point field name.
-     * @param point a geo point within the geohash bucket
-     */
-    public static GeohashCellQuery.Builder geoHashCellQuery(String name, GeoPoint point) {
-        return new GeohashCellQuery.Builder(name, point);
-    }
-
-    /**
-     * A filter based on a bounding box defined by geohash. The field this filter is applied to
-     * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
-     * to work.
-     *
-     * @param name The geo point field name
-     * @param geohash The Geohash to filter
-     * @param neighbors should the neighbor cell also be filtered
-     */
-    public static GeohashCellQuery.Builder geoHashCellQuery(String name, String geohash, boolean neighbors) {
-        return new GeohashCellQuery.Builder(name, geohash, neighbors);
     }
 
     /**

@@ -4,7 +4,8 @@
 By default, when a previously unseen field is found in a document,
 Elasticsearch will add the new field to the type mapping.   This behaviour can
 be disabled, both at the document and at the <<object,`object`>>  level, by
-setting the <<dynamic,`dynamic`>> parameter to `false` or to `strict`.
+setting the <<dynamic,`dynamic`>> parameter to `false` (to ignore new fields) or to `strict` (to throw
+an exception if an unknown field is encountered).
 
 Assuming `dynamic` field mapping is enabled, some simple rules are used to
 determine which datatype the field should have:

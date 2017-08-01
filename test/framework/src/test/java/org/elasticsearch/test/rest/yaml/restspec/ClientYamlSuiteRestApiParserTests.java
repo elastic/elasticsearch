@@ -18,18 +18,16 @@
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.rest.yaml.parser.AbstractParserTestCase;
-import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
-import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApiParser;
+import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.elasticsearch.test.rest.yaml.section.AbstractClientYamlTestFragmentParserTestCase;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class ClientYamlSuiteRestApiParserTests extends AbstractParserTestCase {
+public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseRestSpecIndexApi() throws Exception {
-        parser = JsonXContent.jsonXContent.createParser(REST_SPEC_INDEX_API);
+        parser = createParser(YamlXContent.yamlXContent, REST_SPEC_INDEX_API);
         ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("location", parser);
 
         assertThat(restApi, notNullValue());
@@ -51,7 +49,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractParserTestCase {
     }
 
     public void testParseRestSpecGetTemplateApi() throws Exception {
-        parser = JsonXContent.jsonXContent.createParser(REST_SPEC_GET_TEMPLATE_API);
+        parser = createParser(YamlXContent.yamlXContent, REST_SPEC_GET_TEMPLATE_API);
         ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("location", parser);
         assertThat(restApi, notNullValue());
         assertThat(restApi.getName(), equalTo("indices.get_template"));
@@ -68,7 +66,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractParserTestCase {
     }
 
     public void testParseRestSpecCountApi() throws Exception {
-        parser = JsonXContent.jsonXContent.createParser(REST_SPEC_COUNT_API);
+        parser = createParser(YamlXContent.yamlXContent, REST_SPEC_COUNT_API);
         ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("location", parser);
         assertThat(restApi, notNullValue());
         assertThat(restApi.getName(), equalTo("count"));

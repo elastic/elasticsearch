@@ -31,8 +31,10 @@ public class ItalianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Itali
 
     public ItalianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new ItalianAnalyzer(Analysis.parseStopWords(env, settings, ItalianAnalyzer.getDefaultStopSet()),
-                                       Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer = new ItalianAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, ItalianAnalyzer.getDefaultStopSet()),
+            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
+        );
         analyzer.setVersion(version);
     }
 

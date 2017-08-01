@@ -21,11 +21,6 @@ The queries in this group are:
     Finds document with geo-points within the specified distance of a central
     point.
 
-<<java-query-dsl-geo-distance-range-query,`geo_distance_range`>> query::
-
-    Like the `geo_point` query, but the range starts at a specified distance
-    from the central point.
-
 <<java-query-dsl-geo-polygon-query,`geo_polygon`>> query::
 
     Find documents with geo-points within the specified polygon.
@@ -35,7 +30,5 @@ include::geo-shape-query.asciidoc[]
 include::geo-bounding-box-query.asciidoc[]
 
 include::geo-distance-query.asciidoc[]
-
-include::geo-distance-range-query.asciidoc[]
 
 include::geo-polygon-query.asciidoc[]

@@ -18,14 +18,13 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -33,48 +32,32 @@ import org.elasticsearch.search.aggregations.support.AggregationPath;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
  */
 public abstract class InternalAggregation implements Aggregation, ToXContent, NamedWriteable {
-    /**
-     * The aggregation type that holds all the string types that are associated with an aggregation:
-     * <ul>
-     *     <li>name - used as the parser type</li>
-     * </ul>
-     */
-    public static class Type {
-        private final String name;
-
-        public Type(String name) {
-            this.name = name;
-        }
-
-        /**
-         * @return The name of the type of aggregation.  This is the key for parsing the aggregation from XContent and is the name of the
-         * aggregation's builder when serialized.
-         */
-        public String name() {
-            return name;
-        }
-
-        @Override
-        public String toString() {
-            return name;
-        }
-    }
 
     public static class ReduceContext {
 
         private final BigArrays bigArrays;
         private final ScriptService scriptService;
-        private final ClusterState clusterState;
+        private final boolean isFinalReduce;
 
-        public ReduceContext(BigArrays bigArrays, ScriptService scriptService, ClusterState clusterState) {
+        public ReduceContext(BigArrays bigArrays, ScriptService scriptService, boolean isFinalReduce) {
             this.bigArrays = bigArrays;
             this.scriptService = scriptService;
-            this.clusterState = clusterState;
+            this.isFinalReduce = isFinalReduce;
+        }
+
+        /**
+         * Returns <code>true</code> iff the current reduce phase is the final reduce phase. This indicates if operations like
+         * pipeline aggregations should be applied or if specific features like <tt>minDocCount</tt> should be taken into account.
+         * Operations that are potentially loosing information can only be applied during the final reduce phase.
+         */
+        public boolean isFinalReduce() {
+            return isFinalReduce;
         }
 
         public BigArrays bigArrays() {
@@ -83,10 +66,6 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
 
         public ScriptService scriptService() {
             return scriptService;
-        }
-
-        public ClusterState clusterState() {
-            return clusterState;
         }
     }
 
@@ -126,7 +105,6 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
 
     protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
-
     @Override
     public String getName() {
         return name;
@@ -140,15 +118,23 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
      */
     public final InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         InternalAggregation aggResult = doReduce(aggregations, reduceContext);
-        for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
-            aggResult = pipelineAggregator.reduce(aggResult, reduceContext);
+        if (reduceContext.isFinalReduce()) {
+            for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
+                aggResult = pipelineAggregator.reduce(aggResult, reduceContext);
+            }
         }
         return aggResult;
     }
 
     public abstract InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
 
-    @Override
+    /**
+     * Get the value of specified path in the aggregation.
+     *
+     * @param path
+     *            the path to the property in the aggregation tree
+     * @return the value of the property
+     */
     public Object getProperty(String path) {
         AggregationPath aggPath = AggregationPath.parse(path);
         return getProperty(aggPath.getPathElementsAsStringList());
@@ -184,10 +170,20 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
     }
 
     @Override
+    public String getType() {
+        return getWriteableName();
+    }
+
+    @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        if (params.paramAsBoolean(RestSearchAction.TYPED_KEYS_PARAM, false)) {
+            // Concatenates the type and the name of the aggregation (ex: top_hits#foo)
+            builder.startObject(String.join(TYPED_KEYS_DELIMITER, getType(), getName()));
+        } else {
+            builder.startObject(getName());
+        }
         if (this.metaData != null) {
-            builder.field(CommonFields.META);
+            builder.field(CommonFields.META.getPreferredName());
             builder.map(this.metaData);
         }
         doXContentBody(builder, params);
@@ -197,23 +193,45 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
 
     public abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, metaData, pipelineAggregators, doHashCode());
+    }
+
     /**
-     * Common xcontent fields that are shared among addAggregation
+     * Opportunity for subclasses to the {@link #hashCode()} for this
+     * class.
+     **/
+    protected int doHashCode() {
+        return System.identityHashCode(this);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (obj.getClass() != getClass()) {
+            return false;
+        }
+        InternalAggregation other = (InternalAggregation) obj;
+        return Objects.equals(name, other.name) &&
+                Objects.equals(pipelineAggregators, other.pipelineAggregators) &&
+                Objects.equals(metaData, other.metaData) &&
+                doEquals(obj);
+    }
+
+    // norelease: make this abstract when all InternalAggregations implement this method
+    /**
+     * Opportunity for subclasses to add criteria to the {@link #equals(Object)}
+     * method for this class.
+     *
+     * This method can safely cast <code>obj</code> to the subclass since the
+     * {@link #equals(Object)} method checks that <code>obj</code> is the same
+     * class as <code>this</code>
      */
-    public static final class CommonFields extends ParseField.CommonFields {
-        // todo convert these to ParseField
-        public static final String META = "meta";
-        public static final String BUCKETS = "buckets";
-        public static final String VALUE = "value";
-        public static final String VALUES = "values";
-        public static final String VALUE_AS_STRING = "value_as_string";
-        public static final String DOC_COUNT = "doc_count";
-        public static final String KEY = "key";
-        public static final String KEY_AS_STRING = "key_as_string";
-        public static final String FROM = "from";
-        public static final String FROM_AS_STRING = "from_as_string";
-        public static final String TO = "to";
-        public static final String TO_AS_STRING = "to_as_string";
+    protected boolean doEquals(Object obj) {
+        return this == obj;
     }
 
 }

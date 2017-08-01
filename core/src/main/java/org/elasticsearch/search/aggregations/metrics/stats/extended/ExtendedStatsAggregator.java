@@ -32,8 +32,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -54,7 +54,7 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
     DoubleArray sumOfSqrs;
 
     public ExtendedStatsAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter,
-            AggregationContext context, Aggregator parent, double sigma, List<PipelineAggregator> pipelineAggregators,
+            SearchContext context, Aggregator parent, double sigma, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData)
             throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
@@ -102,24 +102,25 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
                     maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
                 }
 
-                values.setDocument(doc);
-                final int valuesCount = values.count();
-                counts.increment(bucket, valuesCount);
-                double sum = 0;
-                double sumOfSqr = 0;
-                double min = mins.get(bucket);
-                double max = maxes.get(bucket);
-                for (int i = 0; i < valuesCount; i++) {
-                    double value = values.valueAt(i);
-                    sum += value;
-                    sumOfSqr += value * value;
-                    min = Math.min(min, value);
-                    max = Math.max(max, value);
+                if (values.advanceExact(doc)) {
+                    final int valuesCount = values.docValueCount();
+                    counts.increment(bucket, valuesCount);
+                    double sum = 0;
+                    double sumOfSqr = 0;
+                    double min = mins.get(bucket);
+                    double max = maxes.get(bucket);
+                    for (int i = 0; i < valuesCount; i++) {
+                        double value = values.nextValue();
+                        sum += value;
+                        sumOfSqr += value * value;
+                        min = Math.min(min, value);
+                        max = Math.max(max, value);
+                    }
+                    sums.increment(bucket, sum);
+                    sumOfSqrs.increment(bucket, sumOfSqr);
+                    mins.set(bucket, min);
+                    maxes.set(bucket, max);
                 }
-                sums.increment(bucket, sum);
-                sumOfSqrs.increment(bucket, sumOfSqr);
-                mins.set(bucket, min);
-                maxes.set(bucket, max);
             }
 
         };
@@ -189,8 +190,8 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, sigma, format, pipelineAggregators(),
-                metaData());
+        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d,
+            sigma, format, pipelineAggregators(), metaData());
     }
 
     @Override

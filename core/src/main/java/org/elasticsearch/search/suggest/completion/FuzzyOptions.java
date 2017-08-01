@@ -22,7 +22,6 @@ package org.elasticsearch.search.suggest.completion;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -56,7 +55,7 @@ public class FuzzyOptions implements ToXContent, Writeable {
      *     "max_determinized_states" : INT
      * }
      */
-    private static ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(FUZZY_OPTIONS.getPreferredName(),
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(FUZZY_OPTIONS.getPreferredName(),
             Builder::new);
     static {
         PARSER.declareInt(Builder::setFuzzyMinLength, MIN_LENGTH_FIELD);
@@ -65,6 +64,14 @@ public class FuzzyOptions implements ToXContent, Writeable {
         PARSER.declareInt(Builder::setFuzzyPrefixLength, PREFIX_LENGTH_FIELD);
         PARSER.declareBoolean(Builder::setTranspositions, TRANSPOSITION_FIELD);
         PARSER.declareField(Builder::setFuzziness, Fuzziness::parse, Fuzziness.FIELD, ObjectParser.ValueType.VALUE);
+    }
+
+    static FuzzyOptions parse(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null).build();
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     private int editDistance;
@@ -104,14 +111,6 @@ public class FuzzyOptions implements ToXContent, Writeable {
         out.writeVInt(fuzzyMinLength);
         out.writeVInt(fuzzyPrefixLength);
         out.writeVInt(maxDeterminizedStates);
-    }
-
-    static FuzzyOptions parse(XContentParser parser, ParseFieldMatcherSupplier context) throws IOException {
-        return PARSER.parse(parser, context).build();
-    }
-
-    public static Builder builder() {
-        return new Builder();
     }
 
     /**

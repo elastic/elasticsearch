@@ -21,9 +21,9 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -46,10 +46,10 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
     public QuerySearchRequest() {
     }
 
-    public QuerySearchRequest(SearchRequest request, long id, AggregatedDfs dfs) {
+    public QuerySearchRequest(OriginalIndices originalIndices, long id, AggregatedDfs dfs) {
         this.id = id;
         this.dfs = dfs;
-        this.originalIndices = new OriginalIndices(request);
+        this.originalIndices = originalIndices;
     }
 
     public long id() {
@@ -90,4 +90,16 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
     public Task createTask(long id, String type, String action, TaskId parentTaskId) {
         return new SearchTask(id, type, action, getDescription(), parentTaskId);
     }
+
+    public String getDescription() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("id[");
+        sb.append(id);
+        sb.append("], ");
+        sb.append("indices[");
+        Strings.arrayToDelimitedString(originalIndices.indices(), ",", sb);
+        sb.append("]");
+        return sb.toString();
+    }
+
 }

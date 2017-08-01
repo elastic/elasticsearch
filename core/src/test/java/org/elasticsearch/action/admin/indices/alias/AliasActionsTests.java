@@ -20,13 +20,11 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -49,9 +47,9 @@ public class AliasActionsTests extends ESTestCase {
             assertEquals("One of [index] or [indices] is required", e.getMessage());
         } else {
             Exception e = expectThrows(IllegalArgumentException.class,
-                    () -> new AliasActions(type).alias(randomAsciiOfLength(5)).validate());
+                    () -> new AliasActions(type).alias(randomAlphaOfLength(5)).validate());
             assertEquals("One of [index] or [indices] is required", e.getMessage());
-            e = expectThrows(IllegalArgumentException.class, () -> new AliasActions(type).index(randomAsciiOfLength(5)).validate());
+            e = expectThrows(IllegalArgumentException.class, () -> new AliasActions(type).index(randomAlphaOfLength(5)).validate());
             assertEquals("One of [alias] or [aliases] is required", e.getMessage());
         }
     }
@@ -142,8 +140,8 @@ public class AliasActionsTests extends ESTestCase {
         }
         b.endObject();
         b = shuffleXContent(b, "filter");
-        try (XContentParser parser = XContentHelper.createParser(b.bytes())) {
-            AliasActions action = AliasActions.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
+        try (XContentParser parser = createParser(b)) {
+            AliasActions action = AliasActions.PARSER.apply(parser, null);
             assertEquals(AliasActions.Type.ADD, action.actionType());
             assertThat(action.indices(), equalTo(indices));
             assertThat(action.aliases(), equalTo(aliases));
@@ -158,8 +156,8 @@ public class AliasActionsTests extends ESTestCase {
     }
 
     public void testParseAddDefaultRouting() throws IOException {
-        String index = randomAsciiOfLength(5);
-        String alias = randomAsciiOfLength(5);
+        String index = randomAlphaOfLength(5);
+        String alias = randomAlphaOfLength(5);
         Object searchRouting = randomRouting();
         Object indexRouting = randomRouting();
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
@@ -179,8 +177,8 @@ public class AliasActionsTests extends ESTestCase {
         }
         b.endObject();
         b = shuffleXContent(b);
-        try (XContentParser parser = XContentHelper.createParser(b.bytes())) {
-            AliasActions action = AliasActions.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
+        try (XContentParser parser = createParser(b)) {
+            AliasActions action = AliasActions.PARSER.apply(parser, null);
             assertEquals(AliasActions.Type.ADD, action.actionType());
             assertThat(action.indices(), arrayContaining(index));
             assertThat(action.aliases(), arrayContaining(alias));
@@ -210,8 +208,8 @@ public class AliasActionsTests extends ESTestCase {
         }
         b.endObject();
         b = shuffleXContent(b);
-        try (XContentParser parser = XContentHelper.createParser(b.bytes())) {
-            AliasActions action = AliasActions.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
+        try (XContentParser parser = createParser(b)) {
+            AliasActions action = AliasActions.PARSER.apply(parser, null);
             assertEquals(AliasActions.Type.REMOVE, action.actionType());
             assertThat(action.indices(), equalTo(indices));
             assertThat(action.aliases(), equalTo(aliases));
@@ -219,7 +217,7 @@ public class AliasActionsTests extends ESTestCase {
     }
 
     public void testParseRemoveIndex() throws IOException {
-        String[] indices = randomBoolean() ? new String[] {randomAsciiOfLength(5)} : generateRandomStringArray(10, 5, false, false);
+        String[] indices = randomBoolean() ? new String[] {randomAlphaOfLength(5)} : generateRandomStringArray(10, 5, false, false);
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
         b.startObject(); {
             b.startObject("remove_index"); {
@@ -233,8 +231,8 @@ public class AliasActionsTests extends ESTestCase {
         }
         b.endObject();
         b = shuffleXContent(b);
-        try (XContentParser parser = XContentHelper.createParser(b.bytes())) {
-            AliasActions action = AliasActions.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
+        try (XContentParser parser = createParser(b)) {
+            AliasActions action = AliasActions.PARSER.apply(parser, null);
             assertEquals(AliasActions.Type.REMOVE_INDEX, action.actionType());
             assertArrayEquals(indices, action.indices());
             assertThat(action.aliases(), arrayWithSize(0));
@@ -245,15 +243,15 @@ public class AliasActionsTests extends ESTestCase {
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
         b.startObject(); {
             b.startObject(randomFrom("add", "remove")); {
-                b.field("index", randomAsciiOfLength(5));
+                b.field("index", randomAlphaOfLength(5));
                 b.array("indices", generateRandomStringArray(10, 5, false, false));
-                b.field("alias", randomAsciiOfLength(5));
+                b.field("alias", randomAlphaOfLength(5));
             }
             b.endObject();
         }
         b.endObject();
-        try (XContentParser parser = XContentHelper.createParser(b.bytes())) {
-            Exception e = expectThrows(ParsingException.class, () -> AliasActions.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT));
+        try (XContentParser parser = createParser(b)) {
+            Exception e = expectThrows(ParsingException.class, () -> AliasActions.PARSER.apply(parser, null));
             assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
             assertEquals("Only one of [index] and [indices] is supported", e.getCause().getCause().getMessage());
         }
@@ -263,15 +261,15 @@ public class AliasActionsTests extends ESTestCase {
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
         b.startObject(); {
             b.startObject(randomFrom("add", "remove")); {
-                b.field("index", randomAsciiOfLength(5));
-                b.field("alias", randomAsciiOfLength(5));
+                b.field("index", randomAlphaOfLength(5));
+                b.field("alias", randomAlphaOfLength(5));
                 b.array("aliases", generateRandomStringArray(10, 5, false, false));
             }
             b.endObject();
         }
         b.endObject();
-        try (XContentParser parser = XContentHelper.createParser(b.bytes())) {
-            Exception e = expectThrows(ParsingException.class, () -> AliasActions.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT));
+        try (XContentParser parser = createParser(b)) {
+            Exception e = expectThrows(ParsingException.class, () -> AliasActions.PARSER.apply(parser, null));
             assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
             assertEquals("Only one of [alias] and [aliases] is supported", e.getCause().getCause().getMessage());
         }
@@ -280,27 +278,27 @@ public class AliasActionsTests extends ESTestCase {
     public void testRoundTrip() throws IOException {
         AliasActions action = new AliasActions(randomFrom(AliasActions.Type.values()));
         if (randomBoolean()) {
-            action.index(randomAsciiOfLength(5));
+            action.index(randomAlphaOfLength(5));
         } else {
             action.indices(generateRandomStringArray(5, 5, false, false));
         }
         if (action.actionType() != AliasActions.Type.REMOVE_INDEX) {
             if (randomBoolean()) {
-                action.alias(randomAsciiOfLength(5));
+                action.alias(randomAlphaOfLength(5));
             } else {
                 action.aliases(generateRandomStringArray(5, 5, false, false));
             }
         }
         if (action.actionType() == AliasActions.Type.ADD) {
             if (randomBoolean()) {
-                action.filter(randomAsciiOfLength(10));
+                action.filter(randomAlphaOfLength(10));
             }
             if (randomBoolean()) {
                 if (randomBoolean()) {
-                    action.routing(randomAsciiOfLength(5));
+                    action.routing(randomAlphaOfLength(5));
                 } else {
-                    action.searchRouting(randomAsciiOfLength(5));
-                    action.indexRouting(randomAsciiOfLength(5));
+                    action.searchRouting(randomAlphaOfLength(5));
+                    action.indexRouting(randomAlphaOfLength(5));
                 }
             }
         }
@@ -324,11 +322,11 @@ public class AliasActionsTests extends ESTestCase {
                 if (maxDepth > 0) {
                     value = randomMap(maxDepth - 1);
                 } else {
-                    value = randomAsciiOfLength(5);
+                    value = randomAlphaOfLength(5);
                 }
                 break;
             case 1:
-                value = randomAsciiOfLength(5);
+                value = randomAlphaOfLength(5);
                 break;
             case 2:
                 value = randomBoolean();
@@ -339,12 +337,12 @@ public class AliasActionsTests extends ESTestCase {
             default:
                 throw new UnsupportedOperationException();
             }
-            result.put(randomAsciiOfLength(5), value);
+            result.put(randomAlphaOfLength(5), value);
         }
         return result;
     }
 
     private Object randomRouting() {
-        return randomBoolean() ? randomAsciiOfLength(5) : randomInt();
+        return randomBoolean() ? randomAlphaOfLength(5) : randomInt();
     }
 }

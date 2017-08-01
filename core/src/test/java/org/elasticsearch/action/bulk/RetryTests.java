@@ -31,6 +31,8 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -44,12 +46,21 @@ public class RetryTests extends ESTestCase {
     private static final int CALLS_TO_FAIL = 5;
 
     private MockBulkClient bulkClient;
+    /**
+     * Headers that are expected to be sent with all bulk requests.
+     */
+    private Map<String, String> expectedHeaders = new HashMap<>();
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
         this.bulkClient = new MockBulkClient(getTestName(), CALLS_TO_FAIL);
+        // Stash some random headers so we can assert that we preserve them
+        bulkClient.threadPool().getThreadContext().stashContext();
+        expectedHeaders.clear();
+        expectedHeaders.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        bulkClient.threadPool().getThreadContext().putHeader(expectedHeaders);
     }
 
     @Override
@@ -69,40 +80,37 @@ public class RetryTests extends ESTestCase {
         return request;
     }
 
-    public void testSyncRetryBacksOff() throws Exception {
+    public void testRetryBacksOff() throws Exception {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL);
 
         BulkRequest bulkRequest = createBulkRequest();
-        BulkResponse response = Retry
-                .on(EsRejectedExecutionException.class)
-                .policy(backoff)
-                .withSyncBackoff(bulkClient, bulkRequest);
+        BulkResponse response = new Retry(EsRejectedExecutionException.class, backoff, bulkClient.threadPool())
+            .withBackoff(bulkClient::bulk, bulkRequest, bulkClient.settings())
+            .actionGet();
 
         assertFalse(response.hasFailures());
         assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
     }
 
-    public void testSyncRetryFailsAfterBackoff() throws Exception {
+    public void testRetryFailsAfterBackoff() throws Exception {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL - 1);
 
         BulkRequest bulkRequest = createBulkRequest();
-        BulkResponse response = Retry
-                .on(EsRejectedExecutionException.class)
-                .policy(backoff)
-                .withSyncBackoff(bulkClient, bulkRequest);
+        BulkResponse response = new Retry(EsRejectedExecutionException.class, backoff, bulkClient.threadPool())
+            .withBackoff(bulkClient::bulk, bulkRequest, bulkClient.settings())
+            .actionGet();
 
         assertTrue(response.hasFailures());
         assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
     }
 
-    public void testAsyncRetryBacksOff() throws Exception {
+    public void testRetryWithListenerBacksOff() throws Exception {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL);
         AssertingListener listener = new AssertingListener();
 
         BulkRequest bulkRequest = createBulkRequest();
-        Retry.on(EsRejectedExecutionException.class)
-                .policy(backoff)
-                .withAsyncBackoff(bulkClient, bulkRequest, listener);
+        Retry retry = new Retry(EsRejectedExecutionException.class, backoff, bulkClient.threadPool());
+        retry.withBackoff(bulkClient::bulk, bulkRequest, listener, bulkClient.settings());
 
         listener.awaitCallbacksCalled();
         listener.assertOnResponseCalled();
@@ -111,14 +119,13 @@ public class RetryTests extends ESTestCase {
         listener.assertOnFailureNeverCalled();
     }
 
-    public void testAsyncRetryFailsAfterBacksOff() throws Exception {
+    public void testRetryWithListenerFailsAfterBacksOff() throws Exception {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL - 1);
         AssertingListener listener = new AssertingListener();
 
         BulkRequest bulkRequest = createBulkRequest();
-        Retry.on(EsRejectedExecutionException.class)
-                .policy(backoff)
-                .withAsyncBackoff(bulkClient, bulkRequest, listener);
+        Retry retry = new Retry(EsRejectedExecutionException.class, backoff, bulkClient.threadPool());
+        retry.withBackoff(bulkClient::bulk, bulkRequest, listener, bulkClient.settings());
 
         listener.awaitCallbacksCalled();
 
@@ -178,7 +185,7 @@ public class RetryTests extends ESTestCase {
         }
     }
 
-    private static class MockBulkClient extends NoOpClient {
+    private class MockBulkClient extends NoOpClient {
         private int numberOfCallsToFail;
 
         private MockBulkClient(String testName, int numberOfCallsToFail) {
@@ -195,6 +202,12 @@ public class RetryTests extends ESTestCase {
 
         @Override
         public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
+            if (false == expectedHeaders.equals(threadPool().getThreadContext().getHeaders())) {
+                listener.onFailure(
+                        new RuntimeException("Expected " + expectedHeaders + " but got " + threadPool().getThreadContext().getHeaders()));
+                return;
+            }
+
             // do everything synchronously, that's fine for a test
             boolean shouldFail = numberOfCallsToFail > 0;
             numberOfCallsToFail--;

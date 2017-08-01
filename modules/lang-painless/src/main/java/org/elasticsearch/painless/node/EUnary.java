@@ -249,4 +249,9 @@ public final class EUnary extends AExpression {
             }
         }
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(operation.symbol, child);
+    }
 }

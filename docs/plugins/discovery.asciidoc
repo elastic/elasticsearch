@@ -30,9 +30,7 @@ The File-based discovery plugin allows providing the unicast hosts list through 
 
 A number of discovery plugins have been contributed by our community:
 
-* https://github.com/grantr/elasticsearch-srv-discovery[DNS SRV Discovery Plugin] (by Grant Rodgers)
 * https://github.com/shikhar/eskka[eskka Discovery Plugin] (by Shikhar Bhushan)
-* https://github.com/grmblfrz/elasticsearch-zookeeper[ZooKeeper Discovery Plugin] (by Sonian Inc.)
 * https://github.com/fabric8io/elasticsearch-cloud-kubernetes[Kubernetes Discovery Plugin] (by Jimmi Dyson, http://fabric8.io[fabric8])
 
 include::discovery-ec2.asciidoc[]
@@ -42,4 +40,3 @@ include::discovery-azure-classic.asciidoc[]
 include::discovery-gce.asciidoc[]
 
 include::discovery-file.asciidoc[]
-

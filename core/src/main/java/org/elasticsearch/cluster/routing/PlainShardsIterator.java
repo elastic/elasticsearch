@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.cluster.routing;
 
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -74,33 +76,12 @@ public class PlainShardsIterator implements ShardsIterator {
     }
 
     @Override
-    public int assignedReplicasIncludingRelocating() {
-        int count = 0;
-        for (ShardRouting shard : shards) {
-            if (shard.unassigned()) {
-                continue;
-            }
-            // if the shard is primary and relocating, add one to the counter since we perform it on the replica as well
-            // (and we already did it on the primary)
-            if (shard.primary()) {
-                if (shard.relocating()) {
-                    count++;
-                }
-            } else {
-                count++;
-                // if we are relocating the replica, we want to perform the index operation on both the relocating
-                // shard and the target shard. This means that we won't loose index operations between end of recovery
-                // and reassignment of the shard by the master node
-                if (shard.relocating()) {
-                    count++;
-                }
-            }
-        }
-        return count;
+    public List<ShardRouting> getShardRoutings() {
+        return Collections.unmodifiableList(shards);
     }
 
     @Override
-    public Iterable<ShardRouting> asUnordered() {
-        return shards;
+    public Iterator<ShardRouting> iterator() {
+        return shards.iterator();
     }
 }

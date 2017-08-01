@@ -24,10 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.search.highlight.WeightedSpanTerm;
 import org.apache.lucene.search.highlight.WeightedSpanTermExtractor;
-import org.apache.lucene.spatial.geopoint.search.GeoPointInBBoxQuery;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.index.query.HasChildQueryBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -67,27 +64,24 @@ public final class CustomQueryScorer extends QueryScorer {
 
     private static class CustomWeightedSpanTermExtractor extends WeightedSpanTermExtractor {
 
-        public CustomWeightedSpanTermExtractor() {
+        CustomWeightedSpanTermExtractor() {
             super();
         }
 
-        public CustomWeightedSpanTermExtractor(String defaultField) {
+        CustomWeightedSpanTermExtractor(String defaultField) {
             super(defaultField);
         }
 
         @Override
         protected void extractUnknownQuery(Query query,
                                            Map<String, WeightedSpanTerm> terms) throws IOException {
-            if (query instanceof FiltersFunctionScoreQuery) {
-                query = ((FiltersFunctionScoreQuery) query).getSubQuery();
-                extract(query, 1F, terms);
-            } else if (terms.isEmpty()) {
+            if (terms.isEmpty()) {
                 extractWeightedTerms(terms, query, 1F);
             }
         }
 
         protected void extract(Query query, float boost, Map<String, WeightedSpanTerm> terms) throws IOException {
-            if (query instanceof HasChildQueryBuilder.LateParsingQuery) {
+            if (isChildOrParentQuery(query.getClass())) {
                 // skip has_child or has_parent queries, see: https://github.com/elastic/elasticsearch/issues/14999
                 return;
             } else if (query instanceof FunctionScoreQuery) {
@@ -95,6 +89,14 @@ public final class CustomQueryScorer extends QueryScorer {
             } else {
                 super.extract(query, boost, terms);
             }
+        }
+
+        /**
+         * Workaround to detect parent/child query
+         */
+        private static final String PARENT_CHILD_QUERY_NAME = "HasChildQueryBuilder$LateParsingQuery";
+        private static boolean isChildOrParentQuery(Class<?> clazz) {
+            return clazz.getName().endsWith(PARENT_CHILD_QUERY_NAME);
         }
     }
 }

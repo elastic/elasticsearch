@@ -19,43 +19,33 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.ContentTooLongException;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpException;
-import org.apache.http.HttpResponse;
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.ContentDecoder;
-import org.apache.http.nio.IOControl;
-import org.apache.http.nio.entity.ContentBufferEntity;
-import org.apache.http.nio.protocol.AbstractAsyncResponseConsumer;
-import org.apache.http.nio.util.ByteBufferAllocator;
-import org.apache.http.nio.util.HeapByteBufferAllocator;
-import org.apache.http.nio.util.SimpleInputBuffer;
-import org.apache.http.protocol.HttpContext;
+import org.elasticsearch.client.http.ContentTooLongException;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.HttpException;
+import org.elasticsearch.client.http.HttpResponse;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.nio.ContentDecoder;
+import org.elasticsearch.client.http.nio.IOControl;
+import org.elasticsearch.client.http.nio.entity.ContentBufferEntity;
+import org.elasticsearch.client.http.nio.protocol.AbstractAsyncResponseConsumer;
+import org.elasticsearch.client.http.nio.util.ByteBufferAllocator;
+import org.elasticsearch.client.http.nio.util.HeapByteBufferAllocator;
+import org.elasticsearch.client.http.nio.util.SimpleInputBuffer;
+import org.elasticsearch.client.http.protocol.HttpContext;
 
 import java.io.IOException;
 
 /**
- * Default implementation of {@link org.apache.http.nio.protocol.HttpAsyncResponseConsumer}. Buffers the whole
+ * Default implementation of {@link org.elasticsearch.client.http.nio.protocol.HttpAsyncResponseConsumer}. Buffers the whole
  * response content in heap memory, meaning that the size of the buffer is equal to the content-length of the response.
- * Limits the size of responses that can be read to {@link #DEFAULT_BUFFER_LIMIT} by default, configurable value.
- * Throws an exception in case the entity is longer than the configured buffer limit.
+ * Limits the size of responses that can be read based on a configurable argument. Throws an exception in case the entity is longer
+ * than the configured buffer limit.
  */
 public class HeapBufferedAsyncResponseConsumer extends AbstractAsyncResponseConsumer<HttpResponse> {
 
-    //default buffer limit is 10MB
-    public static final int DEFAULT_BUFFER_LIMIT = 10 * 1024 * 1024;
-
-    private final int bufferLimit;
+    private final int bufferLimitBytes;
     private volatile HttpResponse response;
     private volatile SimpleInputBuffer buf;
-
-    /**
-     * Creates a new instance of this consumer with a buffer limit of {@link #DEFAULT_BUFFER_LIMIT}
-     */
-    public HeapBufferedAsyncResponseConsumer() {
-        this.bufferLimit = DEFAULT_BUFFER_LIMIT;
-    }
 
     /**
      * Creates a new instance of this consumer with the provided buffer limit
@@ -64,7 +54,14 @@ public class HeapBufferedAsyncResponseConsumer extends AbstractAsyncResponseCons
         if (bufferLimit <= 0) {
             throw new IllegalArgumentException("bufferLimit must be greater than 0");
         }
-        this.bufferLimit = bufferLimit;
+        this.bufferLimitBytes = bufferLimit;
+    }
+
+    /**
+     * Get the limit of the buffer.
+     */
+    public int getBufferLimit() {
+        return bufferLimitBytes;
     }
 
     @Override
@@ -75,9 +72,9 @@ public class HeapBufferedAsyncResponseConsumer extends AbstractAsyncResponseCons
     @Override
     protected void onEntityEnclosed(HttpEntity entity, ContentType contentType) throws IOException {
         long len = entity.getContentLength();
-        if (len > bufferLimit) {
+        if (len > bufferLimitBytes) {
             throw new ContentTooLongException("entity content is too long [" + len +
-                    "] for the configured buffer limit [" + bufferLimit + "]");
+                    "] for the configured buffer limit [" + bufferLimitBytes + "]");
         }
         if (len < 0) {
             len = 4096;

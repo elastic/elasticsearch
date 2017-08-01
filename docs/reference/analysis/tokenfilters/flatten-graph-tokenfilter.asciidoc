@@ -1,0 +1,20 @@
+[[analysis-flatten-graph-tokenfilter]]
+=== Flatten Graph Token Filter
+
+experimental[This functionality is marked as experimental in Lucene]
+
+The `flatten_graph` token filter accepts an arbitrary graph token
+stream, such as that produced by
+<<analysis-synonym-graph-tokenfilter>>, and flattens it into a single
+linear chain of tokens suitable for indexing.
+
+This is a lossy process, as separate side paths are squashed on top of
+one another, but it is necessary if you use a graph token stream
+during indexing because a Lucene index cannot currently represent a
+graph.  For this reason, it's best to apply graph analyzers only at
+search time because that preserves the full graph structure and gives
+correct matches for proximity queries.
+
+For more information on this topic and its various complexities,
+please read the http://blog.mikemccandless.com/2012/04/lucenes-tokenstreams-are-actually.html[Lucene's
+TokenStreams are actually graphs] blog post.

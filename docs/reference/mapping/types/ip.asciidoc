@@ -34,7 +34,7 @@ GET my_index/_search
 }
 --------------------------------------------------
 // CONSOLE
-
+// TESTSETUP
 
 [[ip-params]]
 ==== Parameters for `ip` fields
@@ -53,14 +53,6 @@ The following parameters are accepted by `ip` fields:
     Should the field be stored on disk in a column-stride fashion, so that it
     can later be used for sorting, aggregations, or scripting? Accepts `true`
     (default) or `false`.
-
-<<include-in-all,`include_in_all`>>::
-
-    Whether or not the field value should be included in the
-    <<mapping-all-field,`_all`>> field? Accepts `true` or `false`.  Defaults
-    to `false` if <<mapping-index,`index`>> is set to `false`, or if a parent
-    <<object,`object`>> field sets `include_in_all` to `false`.
-    Otherwise defaults to `true`.
 
 <<mapping-index,`index`>>::
 
@@ -94,6 +86,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 or
 
@@ -108,6 +101,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 Also beware that colons are special characters to the
 <<query-dsl-query-string-query,`query_string`>> query, so ipv6 addresses will
@@ -116,7 +110,7 @@ searched value:
 
 [source,js]
 --------------------------------------------------
-GET t/_search
+GET my_index/_search
 {
   "query": {
     "query_string" : {
@@ -125,3 +119,4 @@ GET t/_search
   }
 }
 --------------------------------------------------
+// CONSOLE

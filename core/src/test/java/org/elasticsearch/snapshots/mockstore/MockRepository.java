@@ -33,6 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -45,6 +46,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
@@ -62,8 +64,8 @@ public class MockRepository extends FsRepository {
 
 
         @Override
-        public Map<String, Repository.Factory> getRepositories(Environment env) {
-            return Collections.singletonMap("mock", (metadata) -> new MockRepository(metadata, env));
+        public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+            return Collections.singletonMap("mock", (metadata) -> new MockRepository(metadata, env, namedXContentRegistry));
         }
 
         @Override
@@ -98,10 +100,20 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean blockOnDataFiles;
 
+    /** Allows blocking on writing the index-N blob; this is a way to enforce blocking the
+     *  finalization of a snapshot, while permitting other IO operations to proceed unblocked. */
+    private volatile boolean blockOnWriteIndexFile;
+
+    /** Allows blocking on writing the snapshot file at the end of snapshot creation to simulate a died master node */
+    private volatile boolean blockAndFailOnWriteSnapFile;
+
+    private volatile boolean atomicMove;
+
     private volatile boolean blocked = false;
 
-    public MockRepository(RepositoryMetaData metadata, Environment environment) throws IOException {
-        super(overrideSettings(metadata, environment), environment);
+    public MockRepository(RepositoryMetaData metadata, Environment environment,
+                          NamedXContentRegistry namedXContentRegistry) throws IOException {
+        super(overrideSettings(metadata, environment), environment, namedXContentRegistry);
         randomControlIOExceptionRate = metadata.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = metadata.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
         useLuceneCorruptionException = metadata.settings().getAsBoolean("use_lucene_corruption", false);
@@ -109,8 +121,10 @@ public class MockRepository extends FsRepository {
         blockOnControlFiles = metadata.settings().getAsBoolean("block_on_control", false);
         blockOnDataFiles = metadata.settings().getAsBoolean("block_on_data", false);
         blockOnInitialization = metadata.settings().getAsBoolean("block_on_init", false);
+        blockAndFailOnWriteSnapFile = metadata.settings().getAsBoolean("block_on_snap", false);
         randomPrefix = metadata.settings().get("random", "default");
         waitAfterUnblock = metadata.settings().getAsLong("wait_after_unblock", 0L);
+        atomicMove = metadata.settings().getAsBoolean("atomic_move", true);
         logger.info("starting mock repository with random prefix {}", randomPrefix);
         mockBlobStore = new MockBlobStore(super.blobStore());
     }
@@ -151,29 +165,27 @@ public class MockRepository extends FsRepository {
         return mockBlobStore;
     }
 
-    public void unblock() {
-        unblockExecution();
+    public synchronized void unblock() {
+        blocked = false;
+        // Clean blocking flags, so we wouldn't try to block again
+        blockOnDataFiles = false;
+        blockOnControlFiles = false;
+        blockOnInitialization = false;
+        blockOnWriteIndexFile = false;
+        blockAndFailOnWriteSnapFile = false;
+        this.notifyAll();
     }
 
     public void blockOnDataFiles(boolean blocked) {
         blockOnDataFiles = blocked;
     }
 
-    public void blockOnControlFiles(boolean blocked) {
-        blockOnControlFiles = blocked;
+    public void setBlockAndFailOnWriteSnapFiles(boolean blocked) {
+        blockAndFailOnWriteSnapFile = blocked;
     }
 
-    public boolean blockOnDataFiles() {
-        return blockOnDataFiles;
-    }
-
-    public synchronized void unblockExecution() {
-        blocked = false;
-        // Clean blocking flags, so we wouldn't try to block again
-        blockOnDataFiles = false;
-        blockOnControlFiles = false;
-        blockOnInitialization = false;
-        this.notifyAll();
+    public void setBlockOnWriteIndexFile(boolean blocked) {
+        blockOnWriteIndexFile = blocked;
     }
 
     public boolean blocked() {
@@ -184,7 +196,8 @@ public class MockRepository extends FsRepository {
         logger.debug("Blocking execution");
         boolean wasBlocked = false;
         try {
-            while (blockOnDataFiles || blockOnControlFiles || blockOnInitialization) {
+            while (blockOnDataFiles || blockOnControlFiles || blockOnInitialization || blockOnWriteIndexFile ||
+                blockAndFailOnWriteSnapFile) {
                 blocked = true;
                 this.wait();
                 wasBlocked = true;
@@ -255,38 +268,43 @@ public class MockRepository extends FsRepository {
                             throw new IOException("Random IOException");
                         }
                     } else if (blockOnDataFiles) {
-                        logger.info("blocking I/O operation for file [{}] at path [{}]", blobName, path());
-                        if (blockExecution() && waitAfterUnblock > 0) {
-                            try {
-                                // Delay operation after unblocking
-                                // So, we can start node shutdown while this operation is still running.
-                                Thread.sleep(waitAfterUnblock);
-                            } catch (InterruptedException ex) {
-                                //
-                            }
-                        }
+                        blockExecutionAndMaybeWait(blobName);
                     }
                 } else {
                     if (shouldFail(blobName, randomControlIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
                         throw new IOException("Random IOException");
                     } else if (blockOnControlFiles) {
-                        logger.info("blocking I/O operation for file [{}] at path [{}]", blobName, path());
-                        if (blockExecution() && waitAfterUnblock > 0) {
-                            try {
-                                // Delay operation after unblocking
-                                // So, we can start node shutdown while this operation is still running.
-                                Thread.sleep(waitAfterUnblock);
-                            } catch (InterruptedException ex) {
-                                //
-                            }
-                        }
+                        blockExecutionAndMaybeWait(blobName);
+                    } else if (blobName.startsWith("snap-") && blockAndFailOnWriteSnapFile) {
+                        blockExecutionAndFail(blobName);
                     }
                 }
             }
 
+            private void blockExecutionAndMaybeWait(final String blobName) {
+                logger.info("blocking I/O operation for file [{}] at path [{}]", blobName, path());
+                if (blockExecution() && waitAfterUnblock > 0) {
+                    try {
+                        // Delay operation after unblocking
+                        // So, we can start node shutdown while this operation is still running.
+                        Thread.sleep(waitAfterUnblock);
+                    } catch (InterruptedException ex) {
+                        //
+                    }
+                }
+            }
 
-            public MockBlobContainer(BlobContainer delegate) {
+            /**
+             * Blocks an I/O operation on the blob fails and throws an exception when unblocked
+             */
+            private void blockExecutionAndFail(final String blobName) throws IOException {
+                logger.info("blocking I/O operation for file [{}] at path [{}]", blobName, path());
+                blockExecution();
+                throw new IOException("exception after block");
+            }
+
+            MockBlobContainer(BlobContainer delegate) {
                 super(delegate);
             }
 
@@ -321,14 +339,31 @@ public class MockRepository extends FsRepository {
 
             @Override
             public void move(String sourceBlob, String targetBlob) throws IOException {
-                maybeIOExceptionOrBlock(targetBlob);
-                super.move(sourceBlob, targetBlob);
+                if (blockOnWriteIndexFile && targetBlob.startsWith("index-")) {
+                    blockExecutionAndMaybeWait(targetBlob);
+                }
+                if (atomicMove) {
+                    // atomic move since this inherits from FsBlobContainer which provides atomic moves
+                    maybeIOExceptionOrBlock(targetBlob);
+                    super.move(sourceBlob, targetBlob);
+                } else {
+                    // simulate a non-atomic move, since many blob container implementations
+                    // will not have an atomic move, and we should be able to handle that
+                    maybeIOExceptionOrBlock(targetBlob);
+                    super.writeBlob(targetBlob, super.readBlob(sourceBlob), 0L);
+                    super.deleteBlob(sourceBlob);
+                }
             }
 
             @Override
             public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
                 maybeIOExceptionOrBlock(blobName);
                 super.writeBlob(blobName, inputStream, blobSize);
+                if (RandomizedContext.current().getRandom().nextBoolean()) {
+                    // for network based repositories, the blob may have been written but we may still
+                    // get an error with the client connection, so an IOException here simulates this
+                    maybeIOExceptionOrBlock(blobName);
+                }
             }
         }
     }

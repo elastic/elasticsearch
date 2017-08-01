@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
@@ -44,20 +45,32 @@ public class UserAgentProcessor extends AbstractProcessor {
     private final String field;
     private final String targetField;
     private final Set<Property> properties;
-    
     private final UserAgentParser parser;
+    private final boolean ignoreMissing;
 
-    public UserAgentProcessor(String tag, String field, String targetField, UserAgentParser parser, Set<Property> properties) {
+    public UserAgentProcessor(String tag, String field, String targetField, UserAgentParser parser, Set<Property> properties,
+                              boolean ignoreMissing) {
         super(tag);
         this.field = field;
         this.targetField = targetField;
         this.parser = parser;
         this.properties = properties;
+        this.ignoreMissing = ignoreMissing;
+    }
+
+    boolean isIgnoreMissing() {
+        return ignoreMissing;
     }
 
     @Override
     public void execute(IngestDocument ingestDocument) throws Exception {
-        String userAgent = ingestDocument.getFieldValue(field, String.class);
+        String userAgent = ingestDocument.getFieldValue(field, String.class, ignoreMissing);
+
+        if (userAgent == null && ignoreMissing) {
+            return;
+        } else if (userAgent == null) {
+            throw new IllegalArgumentException("field [" + field + "] is null, cannot parse user-agent.");
+        }
 
         Details uaClient = parser.parse(userAgent);
 
@@ -99,7 +112,7 @@ public class UserAgentProcessor extends AbstractProcessor {
                     else {
                         uaDetails.put("os", "Other");
                     }
-                    
+
                     break;
                 case OS_NAME:
                     if (uaClient.operatingSystem != null && uaClient.operatingSystem.name != null) {
@@ -168,7 +181,7 @@ public class UserAgentProcessor extends AbstractProcessor {
     public String getType() {
         return TYPE;
     }
-    
+
     String getField() {
         return field;
     }
@@ -180,7 +193,7 @@ public class UserAgentProcessor extends AbstractProcessor {
     Set<Property> getProperties() {
         return properties;
     }
-    
+
     UserAgentParser getUaParser() {
         return parser;
     }
@@ -188,7 +201,7 @@ public class UserAgentProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
 
         private final Map<String, UserAgentParser> userAgentParsers;
-        
+
         public Factory(Map<String, UserAgentParser> userAgentParsers) {
             this.userAgentParsers = userAgentParsers;
         }
@@ -200,13 +213,14 @@ public class UserAgentProcessor extends AbstractProcessor {
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");
             String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", IngestUserAgentPlugin.DEFAULT_PARSER_NAME);
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
+            boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
 
             UserAgentParser parser = userAgentParsers.get(regexFilename);
             if (parser == null) {
                 throw newConfigurationException(TYPE, processorTag,
                         "regex_file", "regex file [" + regexFilename + "] doesn't exist (has to exist at node startup)");
             }
-            
+
             final Set<Property> properties;
             if (propertyNames != null) {
                 properties = EnumSet.noneOf(Property.class);
@@ -221,7 +235,7 @@ public class UserAgentProcessor extends AbstractProcessor {
                 properties = EnumSet.allOf(Property.class);
             }
 
-            return new UserAgentProcessor(processorTag, field, targetField, parser, properties);
+            return new UserAgentProcessor(processorTag, field, targetField, parser, properties, ignoreMissing);
         }
     }
 

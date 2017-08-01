@@ -21,6 +21,8 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -28,12 +30,21 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+
+import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -85,5 +96,33 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         for (ShardRouting shardRouting : clusterState.getRoutingNodes().shardsWithState(INITIALIZING)) {
             assertThat(shardRouting.currentNodeId(), equalTo("node3"));
         }
+    }
+
+    public void testForceAllocatePrimaryOnSameNodeNotAllowed() {
+        SameShardAllocationDecider decider = new SameShardAllocationDecider(
+            Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomIntBetween(2, 4), 1);
+        Index index = clusterState.getMetaData().index("idx").getIndex();
+        ShardRouting primaryShard = clusterState.routingTable().index(index).shard(0).primaryShard();
+        RoutingNode routingNode = clusterState.getRoutingNodes().node(primaryShard.currentNodeId());
+        RoutingAllocation routingAllocation = new RoutingAllocation(new AllocationDeciders(Settings.EMPTY, Collections.emptyList()),
+            new RoutingNodes(clusterState, false), clusterState, ClusterInfo.EMPTY, System.nanoTime(), false
+        );
+
+        // can't force allocate same shard copy to the same node
+        ShardRouting newPrimary = TestShardRouting.newShardRouting(primaryShard.shardId(), null, true, ShardRoutingState.UNASSIGNED);
+        Decision decision = decider.canForceAllocatePrimary(newPrimary, routingNode, routingAllocation);
+        assertEquals(Decision.Type.NO, decision.type());
+
+        // can force allocate to a different node
+        RoutingNode unassignedNode = null;
+        for (RoutingNode node : clusterState.getRoutingNodes()) {
+            if (node.isEmpty()) {
+                unassignedNode = node;
+                break;
+            }
+        }
+        decision = decider.canForceAllocatePrimary(newPrimary, unassignedNode, routingAllocation);
+        assertEquals(Decision.Type.YES, decision.type());
     }
 }

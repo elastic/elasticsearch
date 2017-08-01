@@ -20,18 +20,13 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ShardValidateQueryRequestTests;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -41,20 +36,16 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.AbstractSearchTestCase;
 
 import java.io.IOException;
-import java.util.Base64;
-import java.util.function.Function;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -73,7 +64,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
                 ShardSearchTransportRequest deserializedRequest = new ShardSearchTransportRequest();
                 deserializedRequest.readFrom(in);
                 assertEquals(deserializedRequest.scroll(), shardSearchTransportRequest.scroll());
-                assertEquals(deserializedRequest.filteringAliases(), shardSearchTransportRequest.filteringAliases());
+                assertEquals(deserializedRequest.getAliasFilter(), shardSearchTransportRequest.getAliasFilter());
                 assertArrayEquals(deserializedRequest.indices(), shardSearchTransportRequest.indices());
                 assertArrayEquals(deserializedRequest.types(), shardSearchTransportRequest.types());
                 assertEquals(deserializedRequest.indicesOptions(), shardSearchTransportRequest.indicesOptions());
@@ -85,16 +76,15 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
                 assertEquals(deserializedRequest.numberOfShards(), shardSearchTransportRequest.numberOfShards());
                 assertEquals(deserializedRequest.cacheKey(), shardSearchTransportRequest.cacheKey());
                 assertNotSame(deserializedRequest, shardSearchTransportRequest);
-                assertEquals(deserializedRequest.filteringAliases(), shardSearchTransportRequest.filteringAliases());
+                assertEquals(deserializedRequest.getAliasFilter(), shardSearchTransportRequest.getAliasFilter());
+                assertEquals(deserializedRequest.indexBoost(), shardSearchTransportRequest.indexBoost(), 0.0f);
             }
         }
     }
 
     private ShardSearchTransportRequest createShardSearchTransportRequest() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
-        ShardId shardId = new ShardId(randomAsciiOfLengthBetween(2, 10), randomAsciiOfLengthBetween(2, 10), randomInt());
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, null, null, randomBoolean(), ShardRoutingState.UNASSIGNED,
-            new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "reason"));
+        ShardId shardId = new ShardId(randomAlphaOfLengthBetween(2, 10), randomAlphaOfLengthBetween(2, 10), randomInt());
         final AliasFilter filteringAliases;
         if (randomBoolean()) {
             String[] strings = generateRandomStringArray(10, 10, false, false);
@@ -102,8 +92,8 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
         } else {
             filteringAliases = new AliasFilter(null, Strings.EMPTY_ARRAY);
         }
-        return new ShardSearchTransportRequest(searchRequest, shardRouting,
-                randomIntBetween(1, 100), filteringAliases, Math.abs(randomLong()));
+        return new ShardSearchTransportRequest(new OriginalIndices(searchRequest), searchRequest, shardId,
+                randomIntBetween(1, 100), filteringAliases, randomBoolean() ? 1.0f : randomFloat(), Math.abs(randomLong()), null);
     }
 
     public void testFilteringAliases() throws Exception {
@@ -169,55 +159,11 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
     }
 
     public QueryBuilder aliasFilter(IndexMetaData indexMetaData, String... aliasNames) {
-        Function<XContentParser, QueryParseContext> contextFactory = (p) -> new QueryParseContext(queriesRegistry,
-            p, new ParseFieldMatcher(Settings.EMPTY));
-        return ShardSearchRequest.parseAliasFilter(contextFactory, indexMetaData, aliasNames);
+        CheckedFunction<byte[], QueryBuilder, IOException> filterParser = bytes -> {
+            try (XContentParser parser = XContentFactory.xContent(bytes).createParser(xContentRegistry(), bytes)) {
+                return parseInnerQueryBuilder(parser);
+            }
+        };
+        return ShardSearchRequest.parseAliasFilter(filterParser, indexMetaData, aliasNames);
     }
-
-    // BWC test for changes from #20916
-    public void testSerialize50Request() throws IOException {
-        BytesArray requestBytes = new BytesArray(Base64.getDecoder()
-            // this is a base64 encoded request generated with the same input
-            .decode("AAh4cXptdEhJcgdnT0d1ZldWyfL/sgQBJAHkDAMBAAIBAQ4TWlljWlZ5TkVmRU5xQnFQVHBjVBRZbUpod2pRV2dDSXVxRXpRaEdGVBRFZWFJY0plT2hn" +
-                "UEpISFhmSXR6Qw5XZ1hQcmFidWhWalFSQghuUWNwZ2JjQxBtZldRREJPaGF3UnlQSE56EVhQSUtRa25Iekh3bU5kbGVECWlFT2NIeEh3RgZIYXpMTWgUeGJq" +
-                "VU9Tdkdua3RORU5QZkNrb1EOalRyWGh5WXhvZ3plV2UUcWlXZFl2eUFUSXdPVGdMUUtYTHAJU3RKR3JxQkVJEkdEQ01xUHpnWWNaT3N3U3prSRIUeURlVFpM" +
-                "Q1lBZERZcWpDb3NOVWIST1NyQlZtdUNrd0F1UXRvdVRjEGp6RlVMd1dqc3VtUVNaTk0JT3N2cnpLQ3ZLBmRpS1J6cgdYbmVhZnBxBUlTUU9pEEJMcm1ERXVs" +
-                "eXhESlBoVkgTaWdUUmtVZGh4d0FFc2ZKRm9ZahNrb01XTnFFd2NWSVVDU3pWS2xBC3JVTWV3V2tUUWJUE3VGQU1Hd21CYUFMTmNQZkxobXUIZ3dxWHBxWXcF" +
-                "bmNDZUEOTFBSTEpYZVF6Z3d2eE0PV1BucUFacll6WWRxa1hCDGxkbXNMaVRzcUZXbAtSY0NsY3FNdlJQcv8BAP////8PAQAAARQAAQp5THlIcHdQeGtMAAAB" +
-                "AQAAAAEDbkVLAQMBCgACAAADAQABAAAAAQhIc25wRGxQbwEBQgABAAACAQMAAAEIAAAJMF9OSG9kSmh2HwABAwljRW5MVWxFbVQFemlxWG8KcXZQTkRUUGJk" +
-                "bgECCkpMbXVMT1dtVnkISEdUUHhsd0cBAAEJAAABA2lkcz+rKsUAAAAAAAAAAAECAQYAAgwxX0ZlRWxSQkhzQ07/////DwABAAEDCnRyYXFHR1hjVHkKTERY" +
-                "aE1HRWVySghuSWtzbEtXUwABCgEHSlRwQnhwdwAAAQECAgAAAAAAAQcyX3FlYmNDGQEEBklxZU9iUQdTc01Gek5YCWlMd2xuamNRQwNiVncAAUHt61kAAQR0" +
-                "ZXJtP4AAAAANbUtDSnpHU3lidm5KUBUMaVpqeG9vcm5QSFlvAAEBLGdtcWxuRWpWTXdvTlhMSHh0RWlFdHBnbEF1cUNmVmhoUVlwRFZxVllnWWV1A2ZvbwEA" +
-                "AQhwYWlubGVzc/8AALk4AAAAAAABAAAAAAAAAwpKU09PU0ZmWnhFClVqTGxMa2p3V2gKdUJwZ3R3dXFER5Hg97uT7MOmPgEADw"));
-        try (StreamInput in = new NamedWriteableAwareStreamInput(requestBytes.streamInput(), namedWriteableRegistry)) {
-            in.setVersion(ShardValidateQueryRequestTests.V_5_0_0);
-            ShardSearchTransportRequest readRequest = new ShardSearchTransportRequest();
-            readRequest.readFrom(in);
-            assertEquals(0, in.available());
-            IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, () -> readRequest.filteringAliases());
-            assertEquals("alias filter for aliases: [JSOOSFfZxE, UjLlLkjwWh, uBpgtwuqDG] must be rewritten first",
-                illegalStateException.getMessage());
-            IndexMetaData.Builder indexMetadata = new IndexMetaData.Builder(baseMetaData)
-                .putAlias(AliasMetaData.newAliasMetaDataBuilder("JSOOSFfZxE").filter("{\"term\" : {\"foo\" : \"bar\"}}"))
-                .putAlias(AliasMetaData.newAliasMetaDataBuilder("UjLlLkjwWh").filter("{\"term\" : {\"foo\" : \"bar1\"}}"))
-                .putAlias(AliasMetaData.newAliasMetaDataBuilder("uBpgtwuqDG").filter("{\"term\" : {\"foo\" : \"bar2\"}}"));
-            IndexSettings indexSettings = new IndexSettings(indexMetadata.build(), Settings.EMPTY);
-            final long nowInMillis = randomPositiveLong();
-            QueryShardContext context = new QueryShardContext(
-                0, indexSettings, null, null, null, null, null, queriesRegistry, null, null, null,
-                () -> nowInMillis);
-            readRequest.rewrite(context);
-            QueryBuilder queryBuilder = readRequest.filteringAliases();
-            assertEquals(queryBuilder, QueryBuilders.boolQuery()
-                .should(QueryBuilders.termQuery("foo", "bar"))
-                .should(QueryBuilders.termQuery("foo", "bar1"))
-                .should(QueryBuilders.termQuery("foo", "bar2"))
-            );
-            BytesStreamOutput output = new BytesStreamOutput();
-            output.setVersion(ShardValidateQueryRequestTests.V_5_0_0);
-            readRequest.writeTo(output);
-            assertEquals(output.bytes().toBytesRef(), requestBytes.toBytesRef());
-        }
-    }
-
 }

@@ -74,8 +74,9 @@ public class IndexRequestBuilderTests extends ESTestCase {
         ByteArrayOutputStream docOut = new ByteArrayOutputStream();
         XContentBuilder doc = XContentFactory.jsonBuilder(docOut).startObject().field("SomeKey", "SomeValue").endObject();
         doc.close();
-        indexRequestBuilder.setSource(docOut.toByteArray());
-        assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true));
+        indexRequestBuilder.setSource(docOut.toByteArray(), XContentType.JSON);
+        assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true,
+            indexRequestBuilder.request().getContentType()));
 
         doc = XContentFactory.jsonBuilder().startObject().field("SomeKey", "SomeValue").endObject();
         doc.close();

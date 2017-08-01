@@ -35,7 +35,7 @@ import java.util.function.Supplier;
 /**
  * A TransportAction that self registers a handler into the transport service
  */
-public abstract class HandledTransportAction<Request extends ActionRequest<Request>, Response extends ActionResponse>
+public abstract class HandledTransportAction<Request extends ActionRequest, Response extends ActionResponse>
         extends TransportAction<Request, Response> {
     protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService,
                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,

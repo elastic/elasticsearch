@@ -28,15 +28,21 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.BooleanFieldMapper.BooleanFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -46,6 +52,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DynamicMappingTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(InternalSettingsPlugin.class);
+    }
 
     public void testDynamicTrue() throws IOException {
         String mapping = jsonBuilder().startObject().startObject("type")
@@ -57,12 +68,13 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", jsonBuilder()
                 .startObject()
                 .field("field1", "value1")
                 .field("field2", "value2")
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
         assertThat(doc.rootDoc().get("field2"), equalTo("value2"));
@@ -78,12 +90,13 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", jsonBuilder()
                 .startObject()
                 .field("field1", "value1")
                 .field("field2", "value2")
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
         assertThat(doc.rootDoc().get("field2"), nullValue());
@@ -100,20 +113,22 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        StrictDynamicMappingException e = expectThrows(StrictDynamicMappingException.class, () -> defaultMapper.parse("test", "type", "1", jsonBuilder()
+        StrictDynamicMappingException e = expectThrows(StrictDynamicMappingException.class, () -> defaultMapper.parse(SourceToParse.source("test", "type", "1", jsonBuilder()
                 .startObject()
                 .field("field1", "value1")
                 .field("field2", "value2")
                 .endObject()
-                .bytes()));
+                .bytes(),
+                XContentType.JSON)));
         assertThat(e.getMessage(), equalTo("mapping set to strict, dynamic introduction of [field2] within [type] is not allowed"));
 
-        e = expectThrows(StrictDynamicMappingException.class, () -> defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        e = expectThrows(StrictDynamicMappingException.class, () -> defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                     .startObject()
                     .field("field1", "value1")
                     .field("field2", (String) null)
                     .endObject()
-                    .bytes()));
+                    .bytes(),
+                    XContentType.JSON)));
         assertThat(e.getMessage(), equalTo("mapping set to strict, dynamic introduction of [field2] within [type] is not allowed"));
     }
 
@@ -129,13 +144,14 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", jsonBuilder()
                 .startObject().startObject("obj1")
                 .field("field1", "value1")
                 .field("field2", "value2")
                 .endObject()
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         assertThat(doc.rootDoc().get("obj1.field1"), equalTo("value1"));
         assertThat(doc.rootDoc().get("obj1.field2"), nullValue());
@@ -154,13 +170,14 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         StrictDynamicMappingException e = expectThrows(StrictDynamicMappingException.class, () ->
-            defaultMapper.parse("test", "type", "1", jsonBuilder()
+            defaultMapper.parse(SourceToParse.source("test", "type", "1", jsonBuilder()
                     .startObject().startObject("obj1")
                     .field("field1", "value1")
                     .field("field2", "value2")
                     .endObject()
                     .endObject()
-                    .bytes()));
+                    .bytes(),
+                    XContentType.JSON)));
         assertThat(e.getMessage(), equalTo("mapping set to strict, dynamic introduction of [field2] within [obj1] is not allowed"));
     }
 
@@ -175,9 +192,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("_default_")
                 .field("dynamic", "strict")
                 .endObject().endObject();
-
-        IndexService indexService = createIndex("test", Settings.EMPTY, "_default_", mapping);
-
+        createIndex("test", Settings.EMPTY, "_default_", mapping);
         try {
             client().prepareIndex().setIndex("test").setType("type").setSource(jsonBuilder().startObject().field("test", "test").endObject()).get();
             fail();
@@ -197,13 +212,15 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
     private Mapper parse(DocumentMapper mapper, DocumentMapperParser parser, XContentBuilder builder) throws Exception {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        SourceToParse source = SourceToParse.source("test", mapper.type(), "some_id", builder.bytes());
-        ParseContext.InternalParseContext ctx = new ParseContext.InternalParseContext(settings, parser, mapper, source, XContentHelper.createParser(source.source()));
-        assertEquals(XContentParser.Token.START_OBJECT, ctx.parser().nextToken());
-        ctx.parser().nextToken();
-        DocumentParser.parseObjectOrNested(ctx, mapper.root(), true);
-        Mapping mapping = DocumentParser.createDynamicUpdate(mapper.mapping(), mapper, ctx.getDynamicMappers());
-        return mapping == null ? null : mapping.root();
+        SourceToParse source = SourceToParse.source("test", mapper.type(), "some_id", builder.bytes(), builder.contentType());
+        try (XContentParser xContentParser = createParser(JsonXContent.jsonXContent, source.source())) {
+            ParseContext.InternalParseContext ctx = new ParseContext.InternalParseContext(settings, parser, mapper, source, xContentParser);
+            assertEquals(XContentParser.Token.START_OBJECT, ctx.parser().nextToken());
+            ctx.parser().nextToken();
+            DocumentParser.parseObjectOrNested(ctx, mapper.root(), true);
+            Mapping mapping = DocumentParser.createDynamicUpdate(mapper.mapping(), mapper, ctx.getDynamicMappers());
+            return mapping == null ? null : mapping.root();
+        }
     }
 
     public void testDynamicMappingsNotNeeded() throws Exception {
@@ -517,7 +534,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
     public void testMixTemplateMultiFieldAndMappingReuse() throws Exception {
         IndexService indexService = createIndex("test");
         XContentBuilder mappings1 = jsonBuilder().startObject()
-                .startObject("type1")
+                .startObject("doc")
                     .startArray("dynamic_templates")
                         .startObject()
                             .startObject("template1")
@@ -534,21 +551,61 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endArray()
                 .endObject().endObject();
-        indexService.mapperService().merge("type1", new CompressedXContent(mappings1.bytes()), MapperService.MergeReason.MAPPING_UPDATE, false);
-        XContentBuilder mappings2 = jsonBuilder().startObject()
-                .startObject("type2")
-                    .startObject("properties")
-                        .startObject("field")
-                            .field("type", "text")
-                        .endObject()
-                    .endObject()
-                .endObject().endObject();
-        indexService.mapperService().merge("type2", new CompressedXContent(mappings2.bytes()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        indexService.mapperService().merge("doc", new CompressedXContent(mappings1.bytes()),
+            MapperService.MergeReason.MAPPING_UPDATE, false);
 
         XContentBuilder json = XContentFactory.jsonBuilder().startObject()
                     .field("field", "foo")
                 .endObject();
-        SourceToParse source = SourceToParse.source("test", "type1", "1", json.bytes());
+        SourceToParse source = SourceToParse.source("test", "doc", "1", json.bytes(), json.contentType());
+        DocumentMapper mapper = indexService.mapperService().documentMapper("doc");
+        assertNull(mapper.mappers().getMapper("field.raw"));
+        ParsedDocument parsed = mapper.parse(source);
+        assertNotNull(parsed.dynamicMappingsUpdate());
+
+        indexService.mapperService().merge("doc", new CompressedXContent(parsed.dynamicMappingsUpdate().toString()),
+            MapperService.MergeReason.MAPPING_UPDATE, false);
+        mapper = indexService.mapperService().documentMapper("doc");
+        assertNotNull(mapper.mappers().getMapper("field.raw"));
+        parsed = mapper.parse(source);
+        assertNull(parsed.dynamicMappingsUpdate());
+    }
+
+    public void testMixTemplateMultiFieldMultiTypeAndMappingReuse() throws Exception {
+        IndexService indexService = createIndex("test", Settings.builder().put("index.version.created", Version.V_5_6_0).build());
+        XContentBuilder mappings1 = jsonBuilder().startObject()
+            .startObject("type1")
+            .startArray("dynamic_templates")
+            .startObject()
+            .startObject("template1")
+            .field("match_mapping_type", "string")
+            .startObject("mapping")
+            .field("type", "text")
+            .startObject("fields")
+            .startObject("raw")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject().endObject();
+        indexService.mapperService().merge("type1", new CompressedXContent(mappings1.bytes()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        XContentBuilder mappings2 = jsonBuilder().startObject()
+            .startObject("type2")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject().endObject();
+        indexService.mapperService().merge("type2", new CompressedXContent(mappings2.bytes()), MapperService.MergeReason.MAPPING_UPDATE, false);
+
+        XContentBuilder json = XContentFactory.jsonBuilder().startObject()
+            .field("field", "foo")
+            .endObject();
+        SourceToParse source = SourceToParse.source("test", "type1", "1", json.bytes(), json.contentType());
         DocumentMapper mapper = indexService.mapperService().documentMapper("type1");
         assertNull(mapper.mappers().getMapper("field.raw"));
         ParsedDocument parsed = mapper.parse(source);
@@ -582,7 +639,8 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .field("baz", (double) 3.2f) // double that can be accurately represented as a float
                 .field("quux", "3.2") // float detected through numeric detection
                 .endObject().bytes();
-        ParsedDocument parsedDocument = mapper.parse("index", "type", "id", source);
+        ParsedDocument parsedDocument = mapper.parse(SourceToParse.source("index", "type", "id", source,
+                XContentType.JSON));
         Mapping update = parsedDocument.dynamicMappingsUpdate();
         assertNotNull(update);
         assertThat(((FieldMapper) update.root().getMapper("foo")).fieldType().typeName(), equalTo("float"));
@@ -597,17 +655,19 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
         DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
 
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("s_long", "100")
                 .field("s_double", "100.0")
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
         assertNotNull(doc.dynamicMappingsUpdate());
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get();
+        client().admin().indices().preparePutMapping("test").setType("type")
+            .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
         defaultMapper = index.mapperService().documentMapper("type");
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("s_long");
@@ -622,17 +682,19 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
         DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
 
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("s_long", "100")
                 .field("s_double", "100.0")
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
         assertNotNull(doc.dynamicMappingsUpdate());
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get());
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("type")
+            .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get());
 
         defaultMapper = index.mapperService().documentMapper("type");
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("s_long");
@@ -640,6 +702,61 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
         mapper = defaultMapper.mappers().smartNameFieldMapper("s_double");
         assertThat(mapper, instanceOf(TextFieldMapper.class));
+    }
+
+    public void testDateDetectionInheritsFormat() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_date_formats")
+                    .value("yyyy-MM-dd")
+                .endArray()
+                .startArray("dynamic_templates")
+                    .startObject()
+                        .startObject("dates")
+                            .field("match_mapping_type", "date")
+                            .field("match", "*2")
+                            .startObject("mapping")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                    .startObject()
+                        .startObject("dates")
+                            .field("match_mapping_type", "date")
+                            .field("match", "*3")
+                            .startObject("mapping")
+                                .field("format", "yyyy-MM-dd||epoch_millis")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endArray()
+                .endObject().endObject().string();
+
+        IndexService index = createIndex("test");
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
+        DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
+
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("date1", "2016-11-20")
+                    .field("date2", "2016-11-20")
+                    .field("date3", "2016-11-20")
+                .endObject()
+                .bytes(),
+                XContentType.JSON));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("type")
+            .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get());
+
+        defaultMapper = index.mapperService().documentMapper("type");
+
+        DateFieldMapper dateMapper1 = (DateFieldMapper) defaultMapper.mappers().smartNameFieldMapper("date1");
+        DateFieldMapper dateMapper2 = (DateFieldMapper) defaultMapper.mappers().smartNameFieldMapper("date2");
+        DateFieldMapper dateMapper3 = (DateFieldMapper) defaultMapper.mappers().smartNameFieldMapper("date3");
+        // inherited from dynamic date format
+        assertEquals("yyyy-MM-dd", dateMapper1.fieldType().dateTimeFormatter().format());
+        // inherited from dynamic date format since the mapping in the template did not specify a format
+        assertEquals("yyyy-MM-dd", dateMapper2.fieldType().dateTimeFormatter().format());
+        // not inherited from the dynamic date format since the template defined an explicit format
+        assertEquals("yyyy-MM-dd||epoch_millis", dateMapper3.fieldType().dateTimeFormatter().format());
     }
 
     public void testDynamicTemplateOrder() throws IOException {

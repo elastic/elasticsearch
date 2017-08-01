@@ -24,23 +24,20 @@ import org.apache.lucene.analysis.CannedTokenStream;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -80,26 +77,49 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(((TokenCountFieldMapper) stage2.mappers().smartNameFieldMapper("tc")).analyzer(), equalTo("standard"));
     }
 
-    public void testCountPositions() throws IOException {
-        // We're looking to make sure that we:
-        Token t1 = new Token();      // Don't count tokens without an increment
+    /**
+     *  When position increments are counted, we're looking to make sure that we:
+        - don't count tokens without an increment
+        - count normal tokens with one increment
+        - count funny tokens with more than one increment
+        - count the final token increments on the rare token streams that have them
+     */
+    public void testCountPositionsWithIncrements() throws IOException {
+        Analyzer analyzer = createMockAnalyzer();
+        assertThat(TokenCountFieldMapper.countPositions(analyzer, "", "", true), equalTo(7));
+    }
+
+    /**
+     *  When position increments are not counted (only positions are counted), we're looking to make sure that we:
+        - don't count tokens without an increment
+        - count normal tokens with one increment
+        - count funny tokens with more than one increment as only one
+        - don't count the final token increments on the rare token streams that have them
+     */
+    public void testCountPositionsWithoutIncrements() throws IOException {
+        Analyzer analyzer = createMockAnalyzer();
+        assertThat(TokenCountFieldMapper.countPositions(analyzer, "", "", false), equalTo(2));
+    }
+
+    private Analyzer createMockAnalyzer() {
+        Token t1 = new Token();      // Token without an increment
         t1.setPositionIncrement(0);
         Token t2 = new Token();
-        t2.setPositionIncrement(1);  // Count normal tokens with one increment
+        t2.setPositionIncrement(1);  // Normal token with one increment
         Token t3 = new Token();
-        t2.setPositionIncrement(2);  // Count funny tokens with more than one increment
-        int finalTokenIncrement = 4; // Count the final token increment on the rare token streams that have them
+        t2.setPositionIncrement(2);  // Funny token with more than one increment
+        int finalTokenIncrement = 4; // Final token increment
         Token[] tokens = new Token[] {t1, t2, t3};
         Collections.shuffle(Arrays.asList(tokens), random());
         final TokenStream tokenStream = new CannedTokenStream(finalTokenIncrement, 0, tokens);
         // TODO: we have no CannedAnalyzer?
         Analyzer analyzer = new Analyzer() {
-                @Override
-                public TokenStreamComponents createComponents(String fieldName) {
-                    return new TokenStreamComponents(new MockTokenizer(), tokenStream);
-                }
-            };
-        assertThat(TokenCountFieldMapper.countPositions(analyzer, "", ""), equalTo(7));
+            @Override
+            public TokenStreamComponents createComponents(String fieldName) {
+                return new TokenStreamComponents(new MockTokenizer(), tokenStream);
+            }
+        };
+        return analyzer;
     }
 
     @Override
@@ -125,14 +145,56 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
 
-        // empty name allowed in index created before 5.0
-        Version oldVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_2_0_0, Version.V_2_3_5);
-        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
-        indexService = createIndex("test_old", oldIndexSettings);
-        DocumentMapperParser parser2x = indexService.mapperService().documentMapperParser();
+    public void testParseNullValue() throws Exception {
+        DocumentMapper mapper = createIndexWithTokenCountField();
+        ParseContext.Document doc = parseDocument(mapper, createDocument(null));
+        assertNull(doc.getField("test.tc"));
+    }
 
-        DocumentMapper defaultMapper = parser2x.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, defaultMapper.mappingSource().string());
+    public void testParseEmptyValue() throws Exception {
+        DocumentMapper mapper = createIndexWithTokenCountField();
+        ParseContext.Document doc = parseDocument(mapper, createDocument(""));
+        assertEquals(0, doc.getField("test.tc").numericValue());
+    }
+
+    public void testParseNotNullValue() throws Exception {
+        DocumentMapper mapper = createIndexWithTokenCountField();
+        ParseContext.Document doc = parseDocument(mapper, createDocument("three tokens string"));
+        assertEquals(3, doc.getField("test.tc").numericValue());
+    }
+
+    private DocumentMapper createIndexWithTokenCountField() throws IOException {
+        final String content = XContentFactory.jsonBuilder().startObject()
+            .startObject("person")
+                .startObject("properties")
+                    .startObject("test")
+                        .field("type", "text")
+                        .startObject("fields")
+                            .startObject("tc")
+                                .field("type", "token_count")
+                                .field("analyzer", "standard")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject().endObject().string();
+
+        return createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(content));
+    }
+
+    private SourceToParse createDocument(String fieldValue) throws Exception {
+        BytesReference request = XContentFactory.jsonBuilder()
+            .startObject()
+                .field("test", fieldValue)
+            .endObject().bytes();
+
+        return SourceToParse.source("test", "person", "1", request, XContentType.JSON);
+    }
+
+    private ParseContext.Document parseDocument(DocumentMapper mapper, SourceToParse request) {
+        return mapper.parse(request)
+            .docs().stream().findFirst().orElseThrow(() -> new IllegalStateException("Test object not parsed"));
     }
 }

@@ -22,7 +22,7 @@
       }
     },
     "field5": {
-      "max_value" : {
+      "min_value" : {
         "gt": 2
       },
       "max_value" : {

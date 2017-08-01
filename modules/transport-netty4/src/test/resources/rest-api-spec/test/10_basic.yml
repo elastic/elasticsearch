@@ -1,0 +1,19 @@
+# Integration tests for Netty transport
+#
+"Netty loaded":
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - match:  { nodes.$master.modules.0.name: transport-netty4  }
+
+    - do:
+        cluster.stats: {}
+
+    - match:  { nodes.network_types.transport_types.netty4: 1 }
+    - match:  { nodes.network_types.http_types.netty4: 1 }

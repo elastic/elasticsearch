@@ -38,8 +38,8 @@ be "two hop" operations).
 // on startup
 
 TransportClient client = new PreBuiltTransportClient(Settings.EMPTY)
-        .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("host1"), 9300))
-        .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("host2"), 9300));
+        .addTransportAddress(new TransportAddress(InetAddress.getByName("host1"), 9300))
+        .addTransportAddress(new TransportAddress(InetAddress.getByName("host2"), 9300));
 
 // on shutdown
 
@@ -77,7 +77,7 @@ In order to enable sniffing, set `client.transport.sniff` to `true`:
 
 [source,java]
 --------------------------------------------------
-Settings settings = Settings.settingsBuilder()
+Settings settings = Settings.builder()
         .put("client.transport.sniff", true).build();
 TransportClient client = new PreBuiltTransportClient(settings);
 --------------------------------------------------

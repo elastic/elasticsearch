@@ -29,6 +29,8 @@ import java.util.Map;
 /**
  * A processor implementation may modify the data belonging to a document.
  * Whether changes are made and what exactly is modified is up to the implementation.
+ *
+ * Processors may get called concurrently and thus need to be thread-safe.
  */
 public interface Processor {
 
@@ -83,11 +85,6 @@ public interface Processor {
         public final ScriptService scriptService;
 
         /**
-         * Provides template support to pipeline settings.
-         */
-        public final TemplateService templateService;
-
-        /**
          * Provide analyzer support
          */
         public final AnalysisRegistry analysisRegistry;
@@ -98,11 +95,10 @@ public interface Processor {
          */
         public final ThreadContext threadContext;
 
-        public Parameters(Environment env, ScriptService scriptService, TemplateService templateService,
+        public Parameters(Environment env, ScriptService scriptService,
                           AnalysisRegistry analysisRegistry, ThreadContext threadContext) {
             this.env = env;
             this.scriptService = scriptService;
-            this.templateService = templateService;
             this.threadContext = threadContext;
             this.analysisRegistry = analysisRegistry;
         }

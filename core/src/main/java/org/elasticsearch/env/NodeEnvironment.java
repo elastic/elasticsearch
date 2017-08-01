@@ -44,6 +44,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -93,9 +94,6 @@ public final class NodeEnvironment  implements Closeable {
         public final Path indicesPath;
         /** Cached FileStore from path */
         public final FileStore fileStore;
-        /** Cached result of Lucene's {@code IOUtils.spins} on path.  This is a trilean value: null means we could not determine it (we are
-         *  not running on Linux, or we hit an exception trying), True means the device possibly spins and False means it does not. */
-        public final Boolean spins;
 
         public final int majorDeviceNumber;
         public final int minorDeviceNumber;
@@ -105,11 +103,9 @@ public final class NodeEnvironment  implements Closeable {
             this.indicesPath = path.resolve(INDICES_FOLDER);
             this.fileStore = Environment.getFileStore(path);
             if (fileStore.supportsFileAttributeView("lucene")) {
-                this.spins = (Boolean) fileStore.getAttribute("lucene:spins");
                 this.majorDeviceNumber = (int) fileStore.getAttribute("lucene:major_device_number");
                 this.minorDeviceNumber = (int) fileStore.getAttribute("lucene:minor_device_number");
             } else {
-                this.spins = null;
                 this.majorDeviceNumber = -1;
                 this.minorDeviceNumber = -1;
             }
@@ -135,9 +131,13 @@ public final class NodeEnvironment  implements Closeable {
         public String toString() {
             return "NodePath{" +
                     "path=" + path +
-                    ", spins=" + spins +
+                    ", indicesPath=" + indicesPath +
+                    ", fileStore=" + fileStore +
+                    ", majorDeviceNumber=" + majorDeviceNumber +
+                    ", minorDeviceNumber=" + minorDeviceNumber +
                     '}';
         }
+
     }
 
     private final NodePath[] nodePaths;
@@ -155,13 +155,6 @@ public final class NodeEnvironment  implements Closeable {
      */
     public static final Setting<Integer> MAX_LOCAL_STORAGE_NODES_SETTING = Setting.intSetting("node.max_local_storage_nodes", 1, 1,
         Property.NodeScope);
-
-    /**
-     * If true automatically append node lock id to custom data paths.
-     */
-    public static final Setting<Boolean> ADD_NODE_LOCK_ID_TO_CUSTOM_PATH =
-        Setting.boolSetting("node.add_lock_id_to_custom_path", true, Property.NodeScope);
-
 
     /**
      * Seed for determining a persisted unique uuid of this node. If the node has already a persisted uuid on disk,
@@ -206,9 +199,8 @@ public final class NodeEnvironment  implements Closeable {
             int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
             for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
                 for (int dirIndex = 0; dirIndex < environment.dataFiles().length; dirIndex++) {
-                    Path dataDirWithClusterName = environment.dataWithClusterFiles()[dirIndex];
                     Path dataDir = environment.dataFiles()[dirIndex];
-                    Path dir = buildNodePath(dataDir, possibleLockId);
+                    Path dir = resolveNodePath(dataDir, possibleLockId);
                     Files.createDirectories(dir);
 
                     try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
@@ -218,7 +210,8 @@ public final class NodeEnvironment  implements Closeable {
                             nodePaths[dirIndex] = new NodePath(dir);
                             nodeLockId = possibleLockId;
                         } catch (LockObtainFailedException ex) {
-                            startupTraceLogger.trace("failed to obtain node lock on {}", dir.toAbsolutePath());
+                            startupTraceLogger.trace(
+                                    new ParameterizedMessage("failed to obtain node lock on {}", dir.toAbsolutePath()), ex);
                             // release all the ones that were obtained up until now
                             releaseAndNullLocks(locks);
                             break;
@@ -274,8 +267,15 @@ public final class NodeEnvironment  implements Closeable {
         }
     }
 
-    static Path buildNodePath(Path dataDir, int lockId) {
-        return dataDir.resolve(NODES_FOLDER).resolve(Integer.toString(lockId));
+    /**
+     * Resolve a specific nodes/{node.id} path for the specified path and node lock id.
+     *
+     * @param path       the path
+     * @param nodeLockId the node lock id
+     * @return the resolved path
+     */
+    public static Path resolveNodePath(final Path path, final int nodeLockId) {
+        return path.resolve(NODES_FOLDER).resolve(Integer.toString(nodeLockId));
     }
 
     /** Returns true if the directory is empty */
@@ -303,15 +303,6 @@ public final class NodeEnvironment  implements Closeable {
             for (NodePath nodePath : nodePaths) {
                 sb.append('\n').append(" -> ").append(nodePath.path.toAbsolutePath());
 
-                String spinsDesc;
-                if (nodePath.spins == null) {
-                    spinsDesc = "unknown";
-                } else if (nodePath.spins) {
-                    spinsDesc = "possibly";
-                } else {
-                    spinsDesc = "no";
-                }
-
                 FsInfo.Path fsPath = FsProbe.getFSInfo(nodePath);
                 sb.append(", free_space [")
                     .append(fsPath.getFree())
@@ -319,8 +310,6 @@ public final class NodeEnvironment  implements Closeable {
                     .append(fsPath.getAvailable())
                     .append("], total_space [")
                     .append(fsPath.getTotal())
-                    .append("], spins? [")
-                    .append(spinsDesc)
                     .append("], mount [")
                     .append(fsPath.getMount())
                     .append("], type [")
@@ -331,7 +320,6 @@ public final class NodeEnvironment  implements Closeable {
         } else if (logger.isInfoEnabled()) {
             FsInfo.Path totFSPath = new FsInfo.Path();
             Set<String> allTypes = new HashSet<>();
-            Set<String> allSpins = new HashSet<>();
             Set<String> allMounts = new HashSet<>();
             for (NodePath nodePath : nodePaths) {
                 FsInfo.Path fsPath = FsProbe.getFSInfo(nodePath);
@@ -342,21 +330,13 @@ public final class NodeEnvironment  implements Closeable {
                     if (type != null) {
                         allTypes.add(type);
                     }
-                    Boolean spins = fsPath.getSpins();
-                    if (spins == null) {
-                        allSpins.add("unknown");
-                    } else if (spins.booleanValue()) {
-                        allSpins.add("possibly");
-                    } else {
-                        allSpins.add("no");
-                    }
                     totFSPath.add(fsPath);
                 }
             }
 
             // Just log a 1-line summary:
-            logger.info("using [{}] data paths, mounts [{}], net usable_space [{}], net total_space [{}], spins? [{}], types [{}]",
-                nodePaths.length, allMounts, totFSPath.getAvailable(), totFSPath.getTotal(), toString(allSpins), toString(allTypes));
+            logger.info("using [{}] data paths, mounts [{}], net usable_space [{}], net total_space [{}], types [{}]",
+                nodePaths.length, allMounts, totFSPath.getAvailable(), totFSPath.getTotal(), toString(allTypes));
         }
     }
 
@@ -375,7 +355,7 @@ public final class NodeEnvironment  implements Closeable {
     private static NodeMetaData loadOrCreateNodeMetaData(Settings settings, Logger logger,
                                                          NodePath... nodePaths) throws IOException {
         final Path[] paths = Arrays.stream(nodePaths).map(np -> np.path).toArray(Path[]::new);
-        NodeMetaData metaData = NodeMetaData.FORMAT.loadLatestState(logger, paths);
+        NodeMetaData metaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths);
         if (metaData == null) {
             metaData = new NodeMetaData(generateNodeId(settings));
         }
@@ -734,6 +714,14 @@ public final class NodeEnvironment  implements Closeable {
         return nodePaths;
     }
 
+    public int getNodeLockId() {
+        assertEnvIsLocked();
+        if (nodePaths == null || locks == null) {
+            throw new IllegalStateException("node is not configured to store local location");
+        }
+        return nodeLockId;
+    }
+
     /**
      * Returns all index paths.
      */
@@ -745,6 +733,8 @@ public final class NodeEnvironment  implements Closeable {
         }
         return indexPaths;
     }
+
+
 
     /**
      * Returns all shard paths excluding custom shard path. Note: Shards are only allocated on one of the
@@ -774,19 +764,36 @@ public final class NodeEnvironment  implements Closeable {
         assertEnvIsLocked();
         Set<String> indexFolders = new HashSet<>();
         for (NodePath nodePath : nodePaths) {
-            Path indicesLocation = nodePath.indicesPath;
-            if (Files.isDirectory(indicesLocation)) {
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(indicesLocation)) {
-                    for (Path index : stream) {
-                        if (Files.isDirectory(index)) {
-                            indexFolders.add(index.getFileName().toString());
-                        }
+            indexFolders.addAll(availableIndexFoldersForPath(nodePath));
+        }
+        return indexFolders;
+
+    }
+
+    /**
+     * Return all directory names in the nodes/{node.id}/indices directory for the given node path.
+     *
+     * @param nodePath the path
+     * @return all directories that could be indices for the given node path.
+     * @throws IOException if an I/O exception occurs traversing the filesystem
+     */
+    public Set<String> availableIndexFoldersForPath(final NodePath nodePath) throws IOException {
+        if (nodePaths == null || locks == null) {
+            throw new IllegalStateException("node is not configured to store local location");
+        }
+        assertEnvIsLocked();
+        final Set<String> indexFolders = new HashSet<>();
+        Path indicesLocation = nodePath.indicesPath;
+        if (Files.isDirectory(indicesLocation)) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(indicesLocation)) {
+                for (Path index : stream) {
+                    if (Files.isDirectory(index)) {
+                        indexFolders.add(index.getFileName().toString());
                     }
                 }
             }
         }
         return indexFolders;
-
     }
 
     /**
@@ -926,11 +933,7 @@ public final class NodeEnvironment  implements Closeable {
         if (customDataDir != null) {
             // This assert is because this should be caught by MetaDataCreateIndexService
             assert sharedDataPath != null;
-            if (ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.get(indexSettings.getNodeSettings())) {
-                return sharedDataPath.resolve(customDataDir).resolve(Integer.toString(this.nodeLockId));
-            } else {
-                return sharedDataPath.resolve(customDataDir);
-            }
+            return sharedDataPath.resolve(customDataDir).resolve(Integer.toString(this.nodeLockId));
         } else {
             throw new IllegalArgumentException("no custom " + IndexMetaData.SETTING_DATA_PATH + " setting available");
         }

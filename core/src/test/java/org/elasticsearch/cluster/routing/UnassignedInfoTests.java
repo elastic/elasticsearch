@@ -79,9 +79,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     public void testSerialization() throws Exception {
         UnassignedInfo.Reason reason = RandomPicks.randomFrom(random(), UnassignedInfo.Reason.values());
         UnassignedInfo meta = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ?
-            new UnassignedInfo(reason, randomBoolean() ? randomAsciiOfLength(4) : null, null, randomIntBetween(1, 100), System.nanoTime(),
+            new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null, null, randomIntBetween(1, 100), System.nanoTime(),
                                System.currentTimeMillis(), false, AllocationStatus.NO_ATTEMPT):
-            new UnassignedInfo(reason, randomBoolean() ? randomAsciiOfLength(4) : null);
+            new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null);
         BytesStreamOutput out = new BytesStreamOutput();
         meta.writeTo(out);
         out.close();
@@ -306,7 +306,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
         // make sure both replicas are marked as delayed (i.e. not reallocated)
         clusterState = allocation.deassociateDeadNodes(clusterState, true, "reroute");
-        assertThat(clusterState.prettyPrint(), UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(2));
+        assertThat(clusterState.toString(), UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(2));
     }
 
     public void testFindNextDelayedAllocation() {

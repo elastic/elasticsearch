@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -69,7 +68,7 @@ public final class SCatch extends AStatement {
         final Type type;
 
         try {
-            type = Definition.getType(this.type);
+            type = locals.getDefinition().getType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
@@ -116,5 +115,10 @@ public final class SCatch extends AStatement {
         if (exception != null && !block.allEscape) {
             writer.goTo(exception);
         }
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(type, name, block);
     }
 }

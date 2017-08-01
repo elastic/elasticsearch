@@ -19,11 +19,11 @@
 
 package org.elasticsearch.test.rest;
 
-import org.apache.http.Header;
-import org.apache.http.HttpHost;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
-import org.apache.http.ssl.SSLContexts;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.message.BasicHeader;
+import org.elasticsearch.client.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.elasticsearch.client.http.ssl.SSLContexts;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.client.Response;
@@ -32,11 +32,14 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -62,80 +65,96 @@ import static java.util.Collections.unmodifiableList;
 /**
  * Superclass for tests that interact with an external test cluster using Elasticsearch's {@link RestClient}.
  */
-public class ESRestTestCase extends ESTestCase {
+public abstract class ESRestTestCase extends ESTestCase {
     public static final String TRUSTSTORE_PATH = "truststore.path";
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
+    public static final String CLIENT_RETRY_TIMEOUT = "client.retry.timeout";
+    public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
      */
-    public static Map<String, Object> entityAsMap(Response response) throws IOException {
+    public Map<String, Object> entityAsMap(Response response) throws IOException {
         XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
-        try (XContentParser parser = xContentType.xContent().createParser(response.getEntity().getContent())) {
+        try (XContentParser parser = createParser(xContentType.xContent(), response.getEntity().getContent())) {
             return parser.map();
         }
     }
 
-    private final List<HttpHost> clusterHosts;
+    private static List<HttpHost> clusterHosts;
     /**
-     * A client for the running Elasticsearch cluster. Lazily initialized on first use.
+     * A client for the running Elasticsearch cluster
      */
-    private final RestClient client;
+    private static RestClient client;
     /**
      * A client for the running Elasticsearch cluster configured to take test administrative actions like remove all indexes after the test
-     * completes. Lazily initialized on first use.
+     * completes
      */
-    private final RestClient adminClient;
+    private static RestClient adminClient;
 
-    public ESRestTestCase() {
-        String cluster = System.getProperty("tests.rest.cluster");
-        if (cluster == null) {
-            throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
-                    + "to which to send REST requests");
-        }
-        String[] stringUrls = cluster.split(",");
-        List<HttpHost> clusterHosts = new ArrayList<>(stringUrls.length);
-        for (String stringUrl : stringUrls) {
-            int portSeparator = stringUrl.lastIndexOf(':');
-            if (portSeparator < 0) {
-                throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
+    @Before
+    public void initClient() throws IOException {
+        if (client == null) {
+            assert adminClient == null;
+            assert clusterHosts == null;
+            String cluster = System.getProperty("tests.rest.cluster");
+            if (cluster == null) {
+                throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
+                        + "to which to send REST requests");
             }
-            String host = stringUrl.substring(0, portSeparator);
-            int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
-            clusterHosts.add(new HttpHost(host, port, getProtocol()));
+            String[] stringUrls = cluster.split(",");
+            List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
+            for (String stringUrl : stringUrls) {
+                int portSeparator = stringUrl.lastIndexOf(':');
+                if (portSeparator < 0) {
+                    throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
+                }
+                String host = stringUrl.substring(0, portSeparator);
+                int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
+                hosts.add(new HttpHost(host, port, getProtocol()));
+            }
+            clusterHosts = unmodifiableList(hosts);
+            logger.info("initializing REST clients against {}", clusterHosts);
+            client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
+            adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
         }
-        this.clusterHosts = unmodifiableList(clusterHosts);
-        try {
-            client = buildClient(restClientSettings());
-            adminClient = buildClient(restAdminSettings());
-        } catch (IOException e) {
-            // Wrap the IOException so children don't have to declare a constructor just to rethrow it.
-            throw new RuntimeException("Error building clients", e);
-        }
+        assert client != null;
+        assert adminClient != null;
+        assert clusterHosts != null;
     }
-
 
     /**
      * Clean up after the test case.
      */
     @After
-    public final void after() throws Exception {
+    public final void cleanUpCluster() throws Exception {
         wipeCluster();
+        waitForClusterStateUpdatesToFinish();
         logIfThereAreRunningTasks();
-        closeClients();
+    }
+
+    @AfterClass
+    public static void closeClients() throws IOException {
+        try {
+            IOUtils.close(client, adminClient);
+        } finally {
+            clusterHosts = null;
+            client = null;
+            adminClient = null;
+        }
     }
 
     /**
-     * Get a client, building it if it hasn't been built for this test.
+     * Get the client used for ordinary api calls while writing a test
      */
-    protected final RestClient client() {
+    protected static RestClient client() {
         return client;
     }
 
     /**
      * Get the client used for test administrative actions. Do not use this while writing a test. Only use it for cleaning up after tests.
      */
-    protected final RestClient adminClient() {
+    protected static RestClient adminClient() {
         return adminClient;
     }
 
@@ -147,6 +166,33 @@ public class ESRestTestCase extends ESTestCase {
      * (for example, when testing rolling upgrades).
      */
     protected boolean preserveIndicesUponCompletion() {
+        return false;
+    }
+
+    /**
+     * Controls whether or not to preserve templates upon completion of this test. The default implementation is to delete not preserve
+     * templates.
+     *
+     * @return whether or not to preserve templates
+     */
+    protected boolean preserveTemplatesUponCompletion() {
+        return false;
+    }
+
+    /**
+     * Returns whether to preserve the repositories on completion of this test.
+     * Defaults to not preserving repos. See also
+     * {@link #preserveSnapshotsUponCompletion()}.
+     */
+    protected boolean preserveReposUponCompletion() {
+        return false;
+    }
+
+    /**
+     * Returns whether to preserve the snapshots in repositories on completion of this
+     * test. Defaults to not preserving snapshots. Only works for {@code fs} repositories.
+     */
+    protected boolean preserveSnapshotsUponCompletion() {
         return false;
     }
 
@@ -164,7 +210,9 @@ public class ESRestTestCase extends ESTestCase {
         }
 
         // wipe index templates
-        adminClient().performRequest("DELETE", "_template/*");
+        if (preserveTemplatesUponCompletion() == false) {
+            adminClient().performRequest("DELETE", "_template/*");
+        }
 
         wipeSnapshots();
     }
@@ -179,7 +227,7 @@ public class ESRestTestCase extends ESTestCase {
             String repoName = repo.getKey();
             Map<?, ?> repoSpec = (Map<?, ?>) repo.getValue();
             String repoType = (String) repoSpec.get("type");
-            if (repoType.equals("fs")) {
+            if (false == preserveSnapshotsUponCompletion() && repoType.equals("fs")) {
                 // All other repo types we really don't have a chance of being able to iterate properly, sadly.
                 String url = "_snapshot/" + repoName + "/_all";
                 Map<String, String> params = singletonMap("ignore_unavailable", "true");
@@ -191,8 +239,10 @@ public class ESRestTestCase extends ESTestCase {
                     adminClient().performRequest("DELETE", "_snapshot/" + repoName + "/" + name);
                 }
             }
-            logger.debug("wiping snapshot repository [{}]", repoName);
-            adminClient().performRequest("DELETE", "_snapshot/" + repoName);
+            if (preserveReposUponCompletion() == false) {
+                logger.debug("wiping snapshot repository [{}]", repoName);
+                adminClient().performRequest("DELETE", "_snapshot/" + repoName);
+            }
         }
     }
 
@@ -218,8 +268,26 @@ public class ESRestTestCase extends ESTestCase {
          */
     }
 
-    private void closeClients() throws IOException {
-        IOUtils.close(client, adminClient);
+    /**
+     * Waits for the cluster state updates to have been processed, so that no cluster
+     * state updates are still in-progress when the next test starts.
+     */
+    private void waitForClusterStateUpdatesToFinish() throws Exception {
+        assertBusy(() -> {
+            try {
+                Response response = adminClient().performRequest("GET", "_cluster/pending_tasks");
+                List<?> tasks = (List<?>) entityAsMap(response).get("tasks");
+                if (false == tasks.isEmpty()) {
+                    StringBuilder message = new StringBuilder("there are still running tasks:");
+                    for (Object task: tasks) {
+                        message.append('\n').append(task.toString());
+                    }
+                    fail(message.toString());
+                }
+            } catch (IOException e) {
+                fail("cannot get cluster's pending tasks: " + e.getMessage());
+            }
+        });
     }
 
     /**
@@ -250,9 +318,8 @@ public class ESRestTestCase extends ESTestCase {
         return "http";
     }
 
-    private RestClient buildClient(Settings settings) throws IOException {
-        RestClientBuilder builder = RestClient.builder(clusterHosts.toArray(new HttpHost[0])).setMaxRetryTimeoutMillis(30000)
-                .setRequestConfigCallback(requestConfigBuilder -> requestConfigBuilder.setSocketTimeout(30000));
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        RestClientBuilder builder = RestClient.builder(hosts);
         String keystorePath = settings.get(TRUSTSTORE_PATH);
         if (keystorePath != null) {
             final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);
@@ -284,6 +351,17 @@ public class ESRestTestCase extends ESTestCase {
             }
             builder.setDefaultHeaders(defaultHeaders);
         }
+
+        final String requestTimeoutString = settings.get(CLIENT_RETRY_TIMEOUT);
+        if (requestTimeoutString != null) {
+            final TimeValue maxRetryTimeout = TimeValue.parseTimeValue(requestTimeoutString, CLIENT_RETRY_TIMEOUT);
+            builder.setMaxRetryTimeoutMillis(Math.toIntExact(maxRetryTimeout.getMillis()));
+        }
+        final String socketTimeoutString = settings.get(CLIENT_SOCKET_TIMEOUT);
+        if (socketTimeoutString != null) {
+            final TimeValue socketTimeout = TimeValue.parseTimeValue(socketTimeoutString, CLIENT_SOCKET_TIMEOUT);
+            builder.setRequestConfigCallback(conf -> conf.setSocketTimeout(Math.toIntExact(socketTimeout.getMillis())));
+        }
         return builder.build();
     }
 
@@ -302,5 +380,4 @@ public class ESRestTestCase extends ESTestCase {
         }
         return runningTasks;
     }
-
 }

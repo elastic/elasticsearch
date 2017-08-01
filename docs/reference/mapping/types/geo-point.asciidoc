@@ -111,20 +111,17 @@ When accessing the value of a geo-point in a script, the value is returned as
 a `GeoPoint` object, which allows access to the `.lat` and `.lon` values
 respectively:
 
-
-[source,js]
+[source,painless]
 --------------------------------------------------
-geopoint = doc['location'].value;
-lat      = geopoint.lat;
-lon      = geopoint.lon;
+def geopoint = doc['location'].value;
+def lat      = geopoint.lat;
+def lon      = geopoint.lon;
 --------------------------------------------------
 
 For performance reasons, it is better to access the lat/lon values directly:
 
-[source,js]
+[source,painless]
 --------------------------------------------------
-lat      = doc['location'].lat;
-lon      = doc['location'].lon;
+def lat      = doc['location'].lat;
+def lon      = doc['location'].lon;
 --------------------------------------------------
-
-

@@ -24,7 +24,7 @@ grant {
   // expression runtime
   permission org.elasticsearch.script.ClassPermission "java.lang.String";
   permission org.elasticsearch.script.ClassPermission "org.apache.lucene.expressions.Expression";
-  permission org.elasticsearch.script.ClassPermission "org.apache.lucene.queries.function.FunctionValues";
+  permission org.elasticsearch.script.ClassPermission "org.apache.lucene.search.DoubleValues";
   // available functions
   permission org.elasticsearch.script.ClassPermission "java.lang.Math";
   permission org.elasticsearch.script.ClassPermission "org.apache.lucene.util.MathUtil";

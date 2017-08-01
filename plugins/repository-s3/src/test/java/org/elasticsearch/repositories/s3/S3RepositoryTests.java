@@ -21,21 +21,18 @@ package org.elasticsearch.repositories.s3;
 
 import java.io.IOException;
 
-import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AbstractAmazonS3;
 import com.amazonaws.services.s3.AmazonS3;
-import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
-import static org.elasticsearch.repositories.s3.S3Repository.Repositories;
-import static org.elasticsearch.repositories.s3.S3Repository.Repository;
-import static org.elasticsearch.repositories.s3.S3Repository.getValue;
 import static org.hamcrest.Matchers.containsString;
 
 public class S3RepositoryTests extends ESTestCase {
@@ -48,7 +45,7 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     private static class DummyS3Service extends AbstractLifecycleComponent implements AwsS3Service {
-        public DummyS3Service() {
+        DummyS3Service() {
             super(Settings.EMPTY);
         }
         @Override
@@ -58,20 +55,9 @@ public class S3RepositoryTests extends ESTestCase {
         @Override
         protected void doClose() {}
         @Override
-        public AmazonS3 client(Settings repositorySettings, String endpoint, Protocol protocol, String region, Integer maxRetries,
-                               boolean useThrottleRetries, Boolean pathStyleAccess) {
+        public AmazonS3 client(Settings settings) {
             return new DummyS3Client();
         }
-    }
-
-    public void testSettingsResolution() throws Exception {
-        Settings localSettings = Settings.builder().put(Repository.KEY_SETTING.getKey(), "key1").build();
-        Settings globalSettings = Settings.builder().put(Repositories.KEY_SETTING.getKey(), "key2").build();
-
-        assertEquals("key1", getValue(localSettings, globalSettings, Repository.KEY_SETTING, Repositories.KEY_SETTING));
-        assertEquals("key1", getValue(localSettings, Settings.EMPTY, Repository.KEY_SETTING, Repositories.KEY_SETTING));
-        assertEquals("key2", getValue(Settings.EMPTY, globalSettings, Repository.KEY_SETTING, Repositories.KEY_SETTING));
-        assertEquals("", getValue(Settings.EMPTY, Settings.EMPTY, Repository.KEY_SETTING, Repositories.KEY_SETTING));
     }
 
     public void testInvalidChunkBufferSizeSettings() throws IOException {
@@ -91,30 +77,31 @@ public class S3RepositoryTests extends ESTestCase {
 
     private void assertValidBuffer(long bufferMB, long chunkMB) throws IOException {
         RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
-            .put(Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(bufferMB, ByteSizeUnit.MB))
-            .put(Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkMB, ByteSizeUnit.MB)).build());
-        new S3Repository(metadata, Settings.EMPTY, new DummyS3Service());
+            .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(bufferMB, ByteSizeUnit.MB))
+            .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkMB, ByteSizeUnit.MB)).build());
+        new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service());
     }
 
     private void assertInvalidBuffer(int bufferMB, int chunkMB, Class<? extends Exception> clazz, String msg) throws IOException {
         RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
-            .put(Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(bufferMB, ByteSizeUnit.MB))
-            .put(Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkMB, ByteSizeUnit.MB)).build());
+            .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(bufferMB, ByteSizeUnit.MB))
+            .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkMB, ByteSizeUnit.MB)).build());
 
-        Exception e = expectThrows(clazz, () -> new S3Repository(metadata, Settings.EMPTY, new DummyS3Service()));
+        Exception e = expectThrows(clazz, () -> new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY,
+            new DummyS3Service()));
         assertThat(e.getMessage(), containsString(msg));
     }
 
     public void testBasePathSetting() throws IOException {
         RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
-            .put(Repository.BASE_PATH_SETTING.getKey(), "/foo/bar").build());
-        S3Repository s3repo = new S3Repository(metadata, Settings.EMPTY, new DummyS3Service());
-        assertEquals("foo/bar/", s3repo.basePath().buildAsString()); // make sure leading `/` is removed and trailing is added
-
-        metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.EMPTY);
-        Settings settings = Settings.builder().put(Repositories.BASE_PATH_SETTING.getKey(), "/foo/bar").build();
-        s3repo = new S3Repository(metadata, settings, new DummyS3Service());
-        assertEquals("foo/bar/", s3repo.basePath().buildAsString()); // make sure leading `/` is removed and trailing is added
+            .put(S3Repository.BASE_PATH_SETTING.getKey(), "foo/bar").build());
+        S3Repository s3repo = new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service());
+        assertEquals("foo/bar/", s3repo.basePath().buildAsString());
     }
 
+    public void testDefaultBufferSize() {
+        ByteSizeValue defaultBufferSize = S3Repository.BUFFER_SIZE_SETTING.get(Settings.EMPTY);
+        assertThat(defaultBufferSize, Matchers.lessThanOrEqualTo(new ByteSizeValue(100, ByteSizeUnit.MB)));
+        assertThat(defaultBufferSize, Matchers.greaterThanOrEqualTo(new ByteSizeValue(5, ByteSizeUnit.MB)));
+    }
 }

@@ -24,10 +24,10 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -42,13 +42,13 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
         ObjectArray<Aggregator> aggregators;
         ObjectArray<LeafBucketCollector> collectors;
 
-        MultiBucketAggregatorWrapper(BigArrays bigArrays, AggregationContext context, Aggregator parent, AggregatorFactory<?> factory,
+        MultiBucketAggregatorWrapper(BigArrays bigArrays, SearchContext context, Aggregator parent, AggregatorFactory<?> factory,
                 Aggregator first) {
             this.bigArrays = bigArrays;
             this.parent = parent;
             this.factory = factory;
             this.first = first;
-            context.searchContext().addReleasable(this, Lifetime.PHASE);
+            context.addReleasable(this, Lifetime.PHASE);
             aggregators = bigArrays.newObjectArray(1);
             aggregators.set(0, first);
             collectors = bigArrays.newObjectArray(1);
@@ -64,7 +64,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
         }
 
         @Override
-        public AggregationContext context() {
+        public SearchContext context() {
             return first.context();
         }
 
@@ -162,26 +162,22 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
     }
 
     protected final String name;
-    protected final Type type;
     protected final AggregatorFactory<?> parent;
     protected final AggregatorFactories factories;
     protected final Map<String, Object> metaData;
-    protected final AggregationContext context;
+    protected final SearchContext context;
 
     /**
      * Constructs a new aggregator factory.
      *
      * @param name
      *            The aggregation name
-     * @param type
-     *            The aggregation type
      * @throws IOException
      *             if an error occurs creating the factory
      */
-    public AggregatorFactory(String name, Type type, AggregationContext context, AggregatorFactory<?> parent,
+    public AggregatorFactory(String name, SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         this.name = name;
-        this.type = type;
         this.context = context;
         this.parent = parent;
         this.factories = subFactoriesBuilder.build(context, this);
@@ -225,10 +221,6 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
         return createInternal(parent, collectsFromSingleBucket, this.factories.createPipelineAggregators(), this.metaData);
     }
 
-    public String getType() {
-        return type.name();
-    }
-
     public AggregatorFactory<?> getParent() {
         return parent;
     }
@@ -238,7 +230,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
      * {@link Aggregator}s that only know how to collect bucket <tt>0</tt>, this
      * returns an aggregator that can collect any bucket.
      */
-    protected static Aggregator asMultiBucketAggregator(final AggregatorFactory<?> factory, final AggregationContext context,
+    protected static Aggregator asMultiBucketAggregator(final AggregatorFactory<?> factory, final SearchContext context,
             final Aggregator parent) throws IOException {
         final Aggregator first = factory.create(parent, true);
         final BigArrays bigArrays = context.bigArrays();

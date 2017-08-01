@@ -56,4 +56,9 @@ public final class EBoolean extends AExpression {
     void write(MethodWriter adapter, Globals globals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(constant);
+    }
 }

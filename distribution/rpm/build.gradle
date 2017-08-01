@@ -18,7 +18,7 @@
  */
 
 task buildRpm(type: Rpm) {
-  dependsOn dependencyFiles, preparePackagingFiles
+  dependsOn preparePackagingFiles
   baseName 'elasticsearch' // this is what pom generation uses for artifactId
   // Follow elasticsearch's rpm file naming convention
   archiveName "${packageName}-${project.version}.rpm"

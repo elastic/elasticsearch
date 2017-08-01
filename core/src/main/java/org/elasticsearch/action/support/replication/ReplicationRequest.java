@@ -43,7 +43,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Requests that are run on a particular replica, first on the primary and then on the replicas like {@link IndexRequest} or
  * {@link TransportShardRefreshAction}.
  */
-public abstract class ReplicationRequest<Request extends ReplicationRequest<Request>> extends ActionRequest<Request>
+public abstract class ReplicationRequest<Request extends ReplicationRequest<Request>> extends ActionRequest
         implements IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
@@ -54,8 +54,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      * and at request creation time for shard-level bulk, refresh and flush requests.
      */
     protected ShardId shardId;
-
-    long primaryTerm;
 
     protected TimeValue timeout = DEFAULT_TIMEOUT;
     protected String index;
@@ -170,16 +168,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         return routedBasedOnClusterVersion;
     }
 
-    /** returns the primary term active at the time the operation was performed on the primary shard */
-    public long primaryTerm() {
-        return primaryTerm;
-    }
-
-    /** marks the primary term in which the operation was performed */
-    public void primaryTerm(long term) {
-        primaryTerm = term;
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -201,7 +189,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         timeout = new TimeValue(in);
         index = in.readString();
         routedBasedOnClusterVersion = in.readVLong();
-        primaryTerm = in.readVLong();
     }
 
     @Override
@@ -217,7 +204,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         timeout.writeTo(out);
         out.writeString(index);
         out.writeVLong(routedBasedOnClusterVersion);
-        out.writeVLong(primaryTerm);
     }
 
     @Override
@@ -236,13 +222,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     @Override
-    public String toString() {
-        if (shardId != null) {
-            return shardId.toString();
-        } else {
-            return index;
-        }
-    }
+    public abstract String toString(); // force a proper to string to ease debugging
 
     @Override
     public String getDescription() {

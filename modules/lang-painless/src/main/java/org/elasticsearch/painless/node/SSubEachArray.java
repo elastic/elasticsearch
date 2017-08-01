@@ -47,7 +47,7 @@ final class SSubEachArray extends AStatement {
     private Variable index = null;
     private Type indexed = null;
 
-    public SSubEachArray(Location location, Variable variable, AExpression expression, SBlock block) {
+    SSubEachArray(Location location, Variable variable, AExpression expression, SBlock block) {
         super(location);
 
         this.variable = Objects.requireNonNull(variable);
@@ -64,9 +64,12 @@ final class SSubEachArray extends AStatement {
     void analyze(Locals locals) {
         // We must store the array and index as variables for securing slots on the stack, and
         // also add the location offset to make the names unique in case of nested for each loops.
-        array = locals.addVariable(location, expression.actual, "#array" + location.getOffset(), true);
-        index = locals.addVariable(location, Definition.INT_TYPE, "#index" + location.getOffset(), true);
-        indexed = Definition.getType(expression.actual.struct, expression.actual.dimensions - 1);
+        array = locals.addVariable(location, expression.actual, "#array" + location.getOffset(),
+                true);
+        index = locals.addVariable(location, Definition.INT_TYPE, "#index" + location.getOffset(),
+                true);
+        indexed = locals.getDefinition().getType(expression.actual.struct,
+                expression.actual.dimensions - 1);
         cast = AnalyzerCaster.getLegalCast(location, indexed, variable.type, true, true);
     }
 
@@ -106,5 +109,10 @@ final class SSubEachArray extends AStatement {
 
         writer.goTo(begin);
         writer.mark(end);
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(variable.type.name, variable.name, expression, block);
     }
 }

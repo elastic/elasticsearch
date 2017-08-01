@@ -50,11 +50,14 @@ final class CountMethodValueSource extends ValueSource {
         final SortedNumericDoubleValues values = leafData.getDoubleValues();
 
         return new DoubleDocValues(this) {
-          @Override
-          public double doubleVal(int doc) {
-            values.setDocument(doc);
-            return values.count();
-          }
+            @Override
+            public double doubleVal(int doc) throws IOException {
+                if (values.advanceExact(doc)) {
+                    return values.docValueCount();
+                } else {
+                    return 0;
+                }
+            }
         };
     }
 

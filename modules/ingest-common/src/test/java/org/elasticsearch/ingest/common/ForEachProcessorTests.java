@@ -22,9 +22,9 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -45,11 +45,11 @@ public class ForEachProcessorTests extends ESTestCase {
         values.add("bar");
         values.add("baz");
         IngestDocument ingestDocument = new IngestDocument(
-            "_index", "_type", "_id", null, null, null, null, Collections.singletonMap("values", values)
+            "_index", "_type", "_id", null, null, Collections.singletonMap("values", values)
         );
 
         ForEachProcessor processor = new ForEachProcessor(
-            "_tag", "values", new UppercaseProcessor("_tag", "_ingest._value", false)
+            "_tag", "values", new UppercaseProcessor("_tag", "_ingest._value", false, "_ingest._value")
         );
         processor.execute(ingestDocument);
 
@@ -61,7 +61,7 @@ public class ForEachProcessorTests extends ESTestCase {
 
     public void testExecuteWithFailure() throws Exception {
         IngestDocument ingestDocument = new IngestDocument(
-            "_index", "_type", "_id", null, null, null, null, Collections.singletonMap("values", Arrays.asList("a", "b", "c"))
+            "_index", "_type", "_id", null, null, Collections.singletonMap("values", Arrays.asList("a", "b", "c"))
         );
 
         TestProcessor testProcessor = new TestProcessor(id -> {
@@ -101,7 +101,7 @@ public class ForEachProcessorTests extends ESTestCase {
         values.add(new HashMap<>());
         values.add(new HashMap<>());
         IngestDocument ingestDocument = new IngestDocument(
-            "_index", "_type", "_id", null, null, null, null, Collections.singletonMap("values", values)
+            "_index", "_type", "_id", null, null, Collections.singletonMap("values", values)
         );
 
         TestProcessor innerProcessor = new TestProcessor(id -> {
@@ -132,12 +132,12 @@ public class ForEachProcessorTests extends ESTestCase {
         document.put("values", values);
         document.put("flat_values", new ArrayList<>());
         document.put("other", "value");
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, null, null, document);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, document);
 
-        TemplateService ts = TestTemplateService.instance();
         ForEachProcessor processor = new ForEachProcessor(
-                "_tag", "values", new SetProcessor("_tag", ts.compile("_ingest._value.new_field"), (model) -> model.get("other"))
-        );
+            "_tag", "values", new SetProcessor("_tag",
+            new TestTemplateService.MockTemplateScript.Factory("_ingest._value.new_field"),
+            (model) -> model.get("other")));
         processor.execute(ingestDocument);
 
         assertThat(ingestDocument.getFieldValue("values.0.new_field", String.class), equalTo("value"));
@@ -171,7 +171,7 @@ public class ForEachProcessorTests extends ESTestCase {
             values.add("");
         }
         IngestDocument ingestDocument = new IngestDocument(
-            "_index", "_type", "_id", null, null, null, null, Collections.singletonMap("values", values)
+            "_index", "_type", "_id", null, null, Collections.singletonMap("values", values)
         );
 
         ForEachProcessor processor = new ForEachProcessor("_tag", "values", innerProcessor);
@@ -190,16 +190,15 @@ public class ForEachProcessorTests extends ESTestCase {
         values.add(1);
         values.add(null);
         IngestDocument ingestDocument = new IngestDocument(
-                "_index", "_type", "_id", null, null, null, null, Collections.singletonMap("values", values)
+                "_index", "_type", "_id", null, null, Collections.singletonMap("values", values)
         );
 
-        TemplateService ts = TestTemplateService.instance();
+        TemplateScript.Factory template = new TestTemplateService.MockTemplateScript.Factory("errors");
 
         ForEachProcessor processor = new ForEachProcessor(
                 "_tag", "values", new CompoundProcessor(false,
-                Collections.singletonList(new UppercaseProcessor("_tag_upper", "_ingest._value", false)),
-                Collections.singletonList(new AppendProcessor("_tag",
-                        ts.compile("errors"), (model) -> (Collections.singletonList("added"))))
+                Collections.singletonList(new UppercaseProcessor("_tag_upper", "_ingest._value", false, "_ingest._value")),
+                Collections.singletonList(new AppendProcessor("_tag", template, (model) -> (Collections.singletonList("added"))))
         ));
         processor.execute(ingestDocument);
 
@@ -221,7 +220,7 @@ public class ForEachProcessorTests extends ESTestCase {
         source.put("_value", "new_value");
         source.put("values", values);
         IngestDocument ingestDocument = new IngestDocument(
-                "_index", "_type", "_id", null, null, null, null, source
+                "_index", "_type", "_id", null, null, source
         );
 
         TestProcessor processor = new TestProcessor(doc -> doc.setFieldValue("_ingest._value",
@@ -252,7 +251,7 @@ public class ForEachProcessorTests extends ESTestCase {
         values.add(value);
 
         IngestDocument ingestDocument = new IngestDocument(
-                "_index", "_type", "_id", null, null, null, null, Collections.singletonMap("values1", values)
+                "_index", "_type", "_id", null, null, Collections.singletonMap("values1", values)
         );
 
         TestProcessor testProcessor = new TestProcessor(

@@ -20,13 +20,13 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -38,7 +38,6 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -92,8 +91,27 @@ public class RangeAggregator extends BucketsAggregator {
             out.writeDouble(to);
         }
 
+        public double getFrom() {
+            return this.from;
+        }
 
-        protected Range(String key, Double from, String fromAsStr, Double to, String toAsStr) {
+        public double getTo() {
+            return this.to;
+        }
+
+        public String getFromAsString() {
+            return this.fromAsStr;
+        }
+
+        public String getToAsString() {
+            return this.toAsStr;
+        }
+
+        public String getKey() {
+            return this.key;
+        }
+
+        public Range(String key, Double from, String fromAsStr, Double to, String toAsStr) {
             this.key = key;
             this.from = from == null ? Double.NEGATIVE_INFINITY : from;
             this.fromAsStr = fromAsStr;
@@ -110,20 +128,7 @@ public class RangeAggregator extends BucketsAggregator {
             return "[" + from + " to " + to + ")";
         }
 
-        public Range process(DocValueFormat parser, SearchContext context) {
-            assert parser != null;
-            Double from = this.from;
-            Double to = this.to;
-            if (fromAsStr != null) {
-                from = parser.parseDouble(fromAsStr, false, context.getQueryShardContext()::nowInMillis);
-            }
-            if (toAsStr != null) {
-                to = parser.parseDouble(toAsStr, false, context.getQueryShardContext()::nowInMillis);
-            }
-            return new Range(key, from, fromAsStr, to, toAsStr);
-        }
-
-        public static Range fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        public static Range fromXContent(XContentParser parser) throws IOException {
             XContentParser.Token token;
             String currentFieldName = null;
             double from = Double.NEGATIVE_INFINITY;
@@ -135,19 +140,32 @@ public class RangeAggregator extends BucketsAggregator {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                    if (parseFieldMatcher.match(currentFieldName, FROM_FIELD)) {
+                    if (FROM_FIELD.match(currentFieldName)) {
                         from = parser.doubleValue();
-                    } else if (parseFieldMatcher.match(currentFieldName, TO_FIELD)) {
+                    } else if (TO_FIELD.match(currentFieldName)) {
                         to = parser.doubleValue();
+                    } else {
+                        XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (parseFieldMatcher.match(currentFieldName, FROM_FIELD)) {
+                    if (FROM_FIELD.match(currentFieldName)) {
                         fromAsStr = parser.text();
-                    } else if (parseFieldMatcher.match(currentFieldName, TO_FIELD)) {
+                    } else if (TO_FIELD.match(currentFieldName)) {
                         toAsStr = parser.text();
-                    } else if (parseFieldMatcher.match(currentFieldName, KEY_FIELD)) {
+                    } else if (KEY_FIELD.match(currentFieldName)) {
                         key = parser.text();
+                    } else {
+                        XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
                     }
+                } else if (token == XContentParser.Token.VALUE_NULL) {
+                    if (FROM_FIELD.match(currentFieldName) || TO_FIELD.match(currentFieldName)
+                            || KEY_FIELD.match(currentFieldName)) {
+                        // ignore null value
+                    } else {
+                        XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    }
+                } else {
+                    XContentParserUtils.throwUnknownToken(token, parser.getTokenLocation());
                 }
             }
             return new Range(key, from, fromAsStr, to, toAsStr);
@@ -206,10 +224,10 @@ public class RangeAggregator extends BucketsAggregator {
     final double[] maxTo;
 
     public RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
-            InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, AggregationContext aggregationContext,
+            InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, pipelineAggregators, metaData);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
         this.format = format;
@@ -238,11 +256,12 @@ public class RangeAggregator extends BucketsAggregator {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                values.setDocument(doc);
-                final int valuesCount = values.count();
-                for (int i = 0, lo = 0; i < valuesCount; ++i) {
-                    final double value = values.valueAt(i);
-                    lo = collect(doc, value, bucket, lo);
+                if (values.advanceExact(doc)) {
+                    final int valuesCount = values.docValueCount();
+                    for (int i = 0, lo = 0; i < valuesCount; ++i) {
+                        final double value = values.nextValue();
+                        lo = collect(doc, value, bucket, lo);
+                    }
                 }
             }
 
@@ -338,7 +357,7 @@ public class RangeAggregator extends BucketsAggregator {
 
         @SuppressWarnings("unchecked")
         public Unmapped(String name, R[] ranges, boolean keyed, DocValueFormat format,
-                AggregationContext context,
+                SearchContext context,
                 Aggregator parent, InternalRange.Factory factory, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                 throws IOException {
 

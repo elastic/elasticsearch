@@ -55,7 +55,7 @@ final class PSubBrace extends AStoreable {
         index.analyze(locals);
         index = index.cast(locals);
 
-        actual = Definition.getType(type.struct, type.dimensions - 1);
+        actual = locals.getDefinition().getType(type.struct, type.dimensions - 1);
     }
 
     @Override
@@ -95,5 +95,10 @@ final class PSubBrace extends AStoreable {
     void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
         writer.arrayStore(actual.type);
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(prefix, index);
     }
 }

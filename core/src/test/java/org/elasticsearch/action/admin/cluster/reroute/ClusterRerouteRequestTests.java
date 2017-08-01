@@ -25,15 +25,14 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimary
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.AllocationCommandRegistry;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -58,22 +57,21 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  */
 public class ClusterRerouteRequestTests extends ESTestCase {
     private static final int ROUNDS = 30;
-    private final List<Supplier<AllocationCommand>> RANDOM_COMMAND_GENERATORS = unmodifiableList(Arrays.asList(
-            () -> new AllocateReplicaAllocationCommand(randomAsciiOfLengthBetween(2, 10), between(0, 1000),
-                    randomAsciiOfLengthBetween(2, 10)),
-            () -> new AllocateEmptyPrimaryAllocationCommand(randomAsciiOfLengthBetween(2, 10), between(0, 1000),
-                    randomAsciiOfLengthBetween(2, 10), randomBoolean()),
-            () -> new AllocateStalePrimaryAllocationCommand(randomAsciiOfLengthBetween(2, 10), between(0, 1000),
-                    randomAsciiOfLengthBetween(2, 10), randomBoolean()),
-            () -> new CancelAllocationCommand(randomAsciiOfLengthBetween(2, 10), between(0, 1000),
-                    randomAsciiOfLengthBetween(2, 10), randomBoolean()),
-            () -> new MoveAllocationCommand(randomAsciiOfLengthBetween(2, 10), between(0, 1000),
-                    randomAsciiOfLengthBetween(2, 10), randomAsciiOfLengthBetween(2, 10))));
+    private final List<Supplier<AllocationCommand>> RANDOM_COMMAND_GENERATORS = unmodifiableList(
+            Arrays.<Supplier<AllocationCommand>> asList(
+            () -> new AllocateReplicaAllocationCommand(randomAlphaOfLengthBetween(2, 10), between(0, 1000),
+                    randomAlphaOfLengthBetween(2, 10)),
+            () -> new AllocateEmptyPrimaryAllocationCommand(randomAlphaOfLengthBetween(2, 10), between(0, 1000),
+                    randomAlphaOfLengthBetween(2, 10), randomBoolean()),
+            () -> new AllocateStalePrimaryAllocationCommand(randomAlphaOfLengthBetween(2, 10), between(0, 1000),
+                    randomAlphaOfLengthBetween(2, 10), randomBoolean()),
+            () -> new CancelAllocationCommand(randomAlphaOfLengthBetween(2, 10), between(0, 1000),
+                    randomAlphaOfLengthBetween(2, 10), randomBoolean()),
+            () -> new MoveAllocationCommand(randomAlphaOfLengthBetween(2, 10), between(0, 1000),
+                    randomAlphaOfLengthBetween(2, 10), randomAlphaOfLengthBetween(2, 10))));
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final AllocationCommandRegistry allocationCommandRegistry;
 
     public ClusterRerouteRequestTests() {
-        allocationCommandRegistry = NetworkModule.getAllocationCommandRegistry();
         namedWriteableRegistry = new NamedWriteableRegistry(NetworkModule.getNamedWriteables());
     }
 
@@ -175,10 +173,10 @@ public class ClusterRerouteRequestTests extends ESTestCase {
 
     private ClusterRerouteRequest roundTripThroughRestRequest(ClusterRerouteRequest original) throws IOException {
         RestRequest restRequest = toRestRequest(original);
-        return RestClusterRerouteAction.createRequest(restRequest, allocationCommandRegistry, ParseFieldMatcher.STRICT);
+        return RestClusterRerouteAction.createRequest(restRequest);
     }
 
-    private static RestRequest toRestRequest(ClusterRerouteRequest original) throws IOException {
+    private RestRequest toRestRequest(ClusterRerouteRequest original) throws IOException {
         Map<String, String> params = new HashMap<>();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         boolean hasBody = false;
@@ -208,11 +206,16 @@ public class ClusterRerouteRequestTests extends ESTestCase {
         }
         builder.endObject();
 
-        FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder();
+        FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
         requestBuilder.withParams(params);
         if (hasBody) {
-            requestBuilder.withContent(builder.bytes());
+            requestBuilder.withContent(builder.bytes(), builder.contentType());
         }
         return requestBuilder.build();
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(NetworkModule.getNamedXContents());
     }
 }

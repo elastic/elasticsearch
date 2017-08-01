@@ -20,27 +20,27 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.TTLFieldMapper;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Date;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TimeZone;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
@@ -56,8 +56,7 @@ public final class IngestDocument {
     private final Map<String, Object> sourceAndMetadata;
     private final Map<String, Object> ingestMetadata;
 
-    public IngestDocument(String index, String type, String id, String routing, String parent, String timestamp,
-                          String ttl, Map<String, Object> source) {
+    public IngestDocument(String index, String type, String id, String routing, String parent, Map<String, Object> source) {
         this.sourceAndMetadata = new HashMap<>();
         this.sourceAndMetadata.putAll(source);
         this.sourceAndMetadata.put(MetaData.INDEX.getFieldName(), index);
@@ -69,17 +68,9 @@ public final class IngestDocument {
         if (parent != null) {
             this.sourceAndMetadata.put(MetaData.PARENT.getFieldName(), parent);
         }
-        if (timestamp != null) {
-            this.sourceAndMetadata.put(MetaData.TIMESTAMP.getFieldName(), timestamp);
-        }
-        if (ttl != null) {
-            this.sourceAndMetadata.put(MetaData.TTL.getFieldName(), ttl);
-        }
 
         this.ingestMetadata = new HashMap<>();
-        DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZZ", Locale.ROOT);
-        df.setTimeZone(TimeZone.getTimeZone("UTC"));
-        this.ingestMetadata.put(TIMESTAMP, df.format(new Date()));
+        this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
     }
 
     /**
@@ -117,6 +108,28 @@ public final class IngestDocument {
     }
 
     /**
+     * Returns the value contained in the document for the provided path
+     *
+     * @param path The path within the document in dot-notation
+     * @param clazz The expected class of the field value
+     * @param ignoreMissing The flag to determine whether to throw an exception when `path` is not found in the document.
+     * @return the value for the provided path if existing, null otherwise.
+     * @throws IllegalArgumentException only if ignoreMissing is false and the path is null, empty, invalid, if the field doesn't exist
+     * or if the field that is found at the provided path is not of the expected type.
+     */
+    public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
+        try {
+            return getFieldValue(path, clazz);
+        } catch (IllegalArgumentException e) {
+            if (ignoreMissing && hasField(path) != true) {
+                return null;
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    /**
      * Returns the value contained in the document with the provided templated path
      * @param pathTemplate The path within the document in dot-notation
      * @param clazz The expected class fo the field value
@@ -124,7 +137,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the pathTemplate is null, empty, invalid, if the field doesn't exist,
      * or if the field that is found at the provided path is not of the expected type.
      */
-    public <T> T getFieldValue(TemplateService.Template pathTemplate, Class<T> clazz) {
+    public <T> T getFieldValue(TemplateScript.Factory pathTemplate, Class<T> clazz) {
         return getFieldValue(renderTemplate(pathTemplate), clazz);
     }
 
@@ -138,8 +151,24 @@ public final class IngestDocument {
      * or if the field that is found at the provided path is not of the expected type.
      */
     public byte[] getFieldValueAsBytes(String path) {
-        Object object = getFieldValue(path, Object.class);
-        if (object instanceof byte[]) {
+        return getFieldValueAsBytes(path, false);
+    }
+
+    /**
+     * Returns the value contained in the document for the provided path as a byte array.
+     * If the path value is a string, a base64 decode operation will happen.
+     * If the path value is a byte array, it is just returned
+     * @param path The path within the document in dot-notation
+     * @param ignoreMissing The flag to determine whether to throw an exception when `path` is not found in the document.
+     * @return the byte array for the provided path if existing
+     * @throws IllegalArgumentException if the path is null, empty, invalid, if the field doesn't exist
+     * or if the field that is found at the provided path is not of the expected type.
+     */
+    public byte[] getFieldValueAsBytes(String path, boolean ignoreMissing) {
+        Object object = getFieldValue(path, Object.class, ignoreMissing);
+        if (object == null) {
+            return null;
+        } else if (object instanceof byte[]) {
             return (byte[]) object;
         } else if (object instanceof String) {
             return Base64.getDecoder().decode(object.toString());
@@ -155,7 +184,7 @@ public final class IngestDocument {
      * @return true if the document contains a value for the field, false otherwise
      * @throws IllegalArgumentException if the path is null, empty or invalid
      */
-    public boolean hasField(TemplateService.Template fieldPathTemplate) {
+    public boolean hasField(TemplateScript.Factory fieldPathTemplate) {
         return hasField(renderTemplate(fieldPathTemplate));
     }
 
@@ -244,7 +273,7 @@ public final class IngestDocument {
      * @param fieldPathTemplate Resolves to the path with dot-notation within the document
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
      */
-    public void removeField(TemplateService.Template fieldPathTemplate) {
+    public void removeField(TemplateScript.Factory fieldPathTemplate) {
         removeField(renderTemplate(fieldPathTemplate));
     }
 
@@ -355,9 +384,9 @@ public final class IngestDocument {
      * @param valueSource The value source that will produce the value or values to append to the existing ones
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
-    public void appendFieldValue(TemplateService.Template fieldPathTemplate, ValueSource valueSource) {
+    public void appendFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
         Map<String, Object> model = createTemplateModel();
-        appendFieldValue(fieldPathTemplate.execute(model), valueSource.copyAndResolve(model));
+        appendFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model));
     }
 
     /**
@@ -383,9 +412,9 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
      * item identified by the provided path.
      */
-    public void setFieldValue(TemplateService.Template fieldPathTemplate, ValueSource valueSource) {
+    public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
         Map<String, Object> model = createTemplateModel();
-        setFieldValue(fieldPathTemplate.execute(model), valueSource.copyAndResolve(model), false);
+        setFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model), false);
     }
 
     private void setFieldValue(String path, Object value, boolean append) {
@@ -513,8 +542,8 @@ public final class IngestDocument {
                 clazz.getName() + "]");
     }
 
-    public String renderTemplate(TemplateService.Template template) {
-        return template.execute(createTemplateModel());
+    public String renderTemplate(TemplateScript.Factory template) {
+        return template.newInstance(createTemplateModel()).execute();
     }
 
     private Map<String, Object> createTemplateModel() {
@@ -531,7 +560,7 @@ public final class IngestDocument {
      * Metadata fields that used to be accessible as ordinary top level fields will be removed as part of this call.
      */
     public Map<MetaData, String> extractMetadata() {
-        Map<MetaData, String> metadataMap = new HashMap<>();
+        Map<MetaData, String> metadataMap = new EnumMap<>(MetaData.class);
         for (MetaData metaData : MetaData.values()) {
             metadataMap.put(metaData, cast(metaData.getFieldName(), sourceAndMetadata.remove(metaData.getFieldName()), String.class));
         }
@@ -582,6 +611,11 @@ public final class IngestDocument {
             value instanceof Long || value instanceof Float ||
             value instanceof Double || value instanceof Boolean) {
             return value;
+        } else if (value instanceof Date) {
+            return ((Date) value).clone();
+        } else if (value instanceof ZonedDateTime) {
+            ZonedDateTime zonedDateTime = (ZonedDateTime) value;
+            return ZonedDateTime.of(zonedDateTime.toLocalDate(), zonedDateTime.toLocalTime(), zonedDateTime.getZone());
         } else {
             throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
         }
@@ -617,9 +651,7 @@ public final class IngestDocument {
         TYPE(TypeFieldMapper.NAME),
         ID(IdFieldMapper.NAME),
         ROUTING(RoutingFieldMapper.NAME),
-        PARENT(ParentFieldMapper.NAME),
-        TIMESTAMP(TimestampFieldMapper.NAME),
-        TTL(TTLFieldMapper.NAME);
+        PARENT(ParentFieldMapper.NAME);
 
         private final String fieldName;
 

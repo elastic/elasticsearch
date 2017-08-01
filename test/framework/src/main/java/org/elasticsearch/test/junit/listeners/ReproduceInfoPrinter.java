@@ -36,9 +36,7 @@ import java.util.TimeZone;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_PREFIX;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
-import static org.elasticsearch.test.ESIntegTestCase.TESTS_CLUSTER;
 import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TESTS_BLACKLIST;
-import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TESTS_SPEC;
 import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TESTS_SUITE;
 
 /**
@@ -140,7 +138,7 @@ public class ReproduceInfoPrinter extends RunListener {
             appendProperties("tests.es.logger.level");
             if (inVerifyPhase()) {
                 // these properties only make sense for integration tests
-                appendProperties(TESTS_CLUSTER, ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
+                appendProperties(ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
             }
             appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms",
                              "tests.client.ratio", "tests.heap.size", "tests.bwc", "tests.bwc.version");
@@ -153,7 +151,7 @@ public class ReproduceInfoPrinter extends RunListener {
         }
 
         public ReproduceErrorMessageBuilder appendClientYamlSuiteProperties() {
-            return appendProperties(REST_TESTS_SUITE, REST_TESTS_SPEC, REST_TESTS_BLACKLIST);
+            return appendProperties(REST_TESTS_SUITE, REST_TESTS_BLACKLIST);
         }
 
         protected ReproduceErrorMessageBuilder appendProperties(String... properties) {

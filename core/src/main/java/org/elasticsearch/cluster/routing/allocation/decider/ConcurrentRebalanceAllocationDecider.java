@@ -66,9 +66,11 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
         }
         int relocatingShards = allocation.routingNodes().getRelocatingShardCount();
         if (relocatingShards >= clusterConcurrentRebalance) {
-            return allocation.decision(Decision.NO, NAME,
-                    "too many shards are concurrently rebalancing [%d], limit: [%d]",
-                    relocatingShards, clusterConcurrentRebalance);
+            return allocation.decision(Decision.THROTTLE, NAME,
+                    "reached the limit of concurrently rebalancing shards [%d], cluster setting [%s=%d]",
+                    relocatingShards,
+                    CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(),
+                    clusterConcurrentRebalance);
         }
         return allocation.decision(Decision.YES, NAME,
                 "below threshold [%d] for concurrent rebalances, current rebalance shard count [%d]",

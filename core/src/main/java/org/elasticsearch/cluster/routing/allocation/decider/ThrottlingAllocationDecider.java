@@ -126,8 +126,10 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             }
             if (primariesInRecovery >= primariesInitialRecoveries) {
                 // TODO: Should index creation not be throttled for primary shards?
-                return allocation.decision(THROTTLE, NAME, "too many primaries are currently recovering [%d], limit: [%d]",
-                    primariesInRecovery, primariesInitialRecoveries);
+                return allocation.decision(THROTTLE, NAME,
+                    "reached the limit of ongoing initial primary recoveries [%d], cluster setting [%s=%d]",
+                    primariesInRecovery, CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(),
+                    primariesInitialRecoveries);
             } else {
                 return allocation.decision(YES, NAME, "below primary recovery limit of [%d]", primariesInitialRecoveries);
             }
@@ -138,8 +140,11 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             // Allocating a shard to this node will increase the incoming recoveries
             int currentInRecoveries = allocation.routingNodes().getIncomingRecoveries(node.nodeId());
             if (currentInRecoveries >= concurrentIncomingRecoveries) {
-                return allocation.decision(THROTTLE, NAME, "too many incoming shards are currently recovering [%d], limit: [%d]",
-                    currentInRecoveries, concurrentIncomingRecoveries);
+                return allocation.decision(THROTTLE, NAME,
+                    "reached the limit of incoming shard recoveries [%d], cluster setting [%s=%d] (can also be set via [%s])",
+                    currentInRecoveries, CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                    concurrentIncomingRecoveries,
+                    CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey());
             } else {
                 // search for corresponding recovery source (= primary shard) and check number of outgoing recoveries on that node
                 ShardRouting primaryShard = allocation.routingNodes().activePrimary(shardRouting.shardId());
@@ -148,8 +153,13 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 }
                 int primaryNodeOutRecoveries = allocation.routingNodes().getOutgoingRecoveries(primaryShard.currentNodeId());
                 if (primaryNodeOutRecoveries >= concurrentOutgoingRecoveries) {
-                    return allocation.decision(THROTTLE, NAME, "too many outgoing shards are currently recovering [%d], limit: [%d]",
-                        primaryNodeOutRecoveries, concurrentOutgoingRecoveries);
+                    return allocation.decision(THROTTLE, NAME,
+                        "reached the limit of outgoing shard recoveries [%d] on the node [%s] which holds the primary, " +
+                        "cluster setting [%s=%d] (can also be set via [%s])",
+                        primaryNodeOutRecoveries, node.nodeId(),
+                        CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
+                        concurrentOutgoingRecoveries,
+                        CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey());
                 } else {
                     return allocation.decision(YES, NAME, "below shard recovery limit of outgoing: [%d < %d] incoming: [%d < %d]",
                         primaryNodeOutRecoveries,

@@ -25,22 +25,21 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
 
 import java.util.Arrays;
 import java.util.Map;
-import java.util.function.Supplier;
 
-public class Gateway extends AbstractComponent implements ClusterStateListener {
+public class Gateway extends AbstractComponent implements ClusterStateApplier {
 
     private final ClusterService clusterService;
 
@@ -48,19 +47,19 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
 
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
 
-    private final Supplier<Integer> minimumMasterNodesProvider;
+    private final int minimumMasterNodes;
     private final IndicesService indicesService;
 
     public Gateway(Settings settings, ClusterService clusterService, GatewayMetaState metaState,
-                   TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery,
+                   TransportNodesListGatewayMetaState listGatewayMetaState,
                    IndicesService indicesService) {
         super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.metaState = metaState;
         this.listGatewayMetaState = listGatewayMetaState;
-        this.minimumMasterNodesProvider = discovery::getMinimumMasterNodes;
-        clusterService.addLast(this);
+        this.minimumMasterNodes = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
+        clusterService.addLowPriorityApplier(this);
     }
 
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
@@ -69,7 +68,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
         TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
 
 
-        int requiredAllocation = Math.max(1, minimumMasterNodesProvider.get());
+        int requiredAllocation = Math.max(1, minimumMasterNodes);
 
 
         if (nodesState.hasFailures()) {
@@ -176,10 +175,10 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
     }
 
     @Override
-    public void clusterChanged(final ClusterChangedEvent event) {
+    public void applyClusterState(final ClusterChangedEvent event) {
         // order is important, first metaState, and then shardsState
         // so dangling indices will be recorded
-        metaState.clusterChanged(event);
+        metaState.applyClusterState(event);
     }
 
     public interface GatewayStateRecoveredListener {

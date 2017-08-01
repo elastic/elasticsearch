@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -62,8 +63,7 @@ public class JsonVsCborTests extends ESTestCase {
         xsonGen.close();
         jsonGen.close();
 
-        verifySameTokens(XContentFactory.xContent(XContentType.JSON).createParser(jsonOs.bytes()),
-            XContentFactory.xContent(XContentType.CBOR).createParser(xsonOs.bytes()));
+        verifySameTokens(createParser(JsonXContent.jsonXContent, jsonOs.bytes()), createParser(CborXContent.cborXContent, xsonOs.bytes()));
     }
 
     private void verifySameTokens(XContentParser parser1, XContentParser parser2) throws IOException {

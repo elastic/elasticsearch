@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.Sort;
@@ -39,14 +38,16 @@ import java.util.Set;
 public final class PCallInvoke extends AExpression {
 
     private final String name;
+    private final boolean nullSafe;
     private final List<AExpression> arguments;
 
     private AExpression sub = null;
 
-    public PCallInvoke(Location location, AExpression prefix, String name, List<AExpression> arguments) {
+    public PCallInvoke(Location location, AExpression prefix, String name, boolean nullSafe, List<AExpression> arguments) {
         super(location, prefix);
 
         this.name = Objects.requireNonNull(name);
+        this.nullSafe = nullSafe;
         this.arguments = Objects.requireNonNull(arguments);
     }
 
@@ -72,7 +73,7 @@ public final class PCallInvoke extends AExpression {
         Struct struct = prefix.actual.struct;
 
         if (prefix.actual.sort.primitive) {
-            struct = Definition.getType(prefix.actual.sort.boxed.getSimpleName()).struct;
+            struct = locals.getDefinition().getType(prefix.actual.sort.boxed.getSimpleName()).struct;
         }
 
         MethodKey methodKey = new MethodKey(name, arguments.size());
@@ -87,6 +88,10 @@ public final class PCallInvoke extends AExpression {
                 "Unknown call [" + name + "] with [" + arguments.size() + "] arguments on type [" + struct.name + "]."));
         }
 
+        if (nullSafe) {
+            sub = new PSubNullSafeCallInvoke(location, sub);
+        }
+
         sub.expected = expected;
         sub.explicit = explicit;
         sub.analyze(locals);
@@ -99,5 +104,10 @@ public final class PCallInvoke extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         prefix.write(writer, globals);
         sub.write(writer, globals);
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToStringWithOptionalArgs(arguments, prefix, name);
     }
 }

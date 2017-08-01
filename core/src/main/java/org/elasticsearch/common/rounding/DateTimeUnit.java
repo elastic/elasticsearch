@@ -40,7 +40,7 @@ public enum DateTimeUnit {
     private final byte id;
     private final Function<DateTimeZone, DateTimeField> fieldFunction;
 
-    private DateTimeUnit(byte id, Function<DateTimeZone, DateTimeField> fieldFunction) {
+    DateTimeUnit(byte id, Function<DateTimeZone, DateTimeField> fieldFunction) {
         this.id = id;
         this.fieldFunction = fieldFunction;
     }

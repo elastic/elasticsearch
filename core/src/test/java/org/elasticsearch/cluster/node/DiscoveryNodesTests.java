@@ -135,8 +135,8 @@ public class DiscoveryNodesTests extends ESTestCase {
 
         final DiscoveryNodes discoNodesA = builderA.build();
         final DiscoveryNodes discoNodesB = builderB.build();
-        logger.info("nodes A: {}", discoNodesA.prettyPrint());
-        logger.info("nodes B: {}", discoNodesB.prettyPrint());
+        logger.info("nodes A: {}", discoNodesA);
+        logger.info("nodes B: {}", discoNodesB);
 
         DiscoveryNodes.Delta delta = discoNodesB.delta(discoNodesA);
 
@@ -171,7 +171,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         for (int i = 0; i < numNodes; i++) {
             Map<String, String> attributes = new HashMap<>();
             if (frequently()) {
-                attributes.put("custom", randomBoolean() ? "match" : randomAsciiOfLengthBetween(3, 5));
+                attributes.put("custom", randomBoolean() ? "match" : randomAlphaOfLengthBetween(3, 5));
             }
             final DiscoveryNode node = newNode(idGenerator.getAndIncrement(), attributes,
                 new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))));
@@ -249,5 +249,23 @@ public class DiscoveryNodesTests extends ESTestCase {
         }
 
         abstract Set<String> matchingNodeIds(DiscoveryNodes nodes);
+    }
+
+    public void testMaxMinNodeVersion() {
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        discoBuilder.add(new DiscoveryNode("name_" + 1, "node_" + 1, buildNewFakeTransportAddress(), Collections.emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
+            Version.fromString("5.1.0")));
+        discoBuilder.add(new DiscoveryNode("name_" + 2, "node_" + 2, buildNewFakeTransportAddress(), Collections.emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
+            Version.fromString("6.3.0")));
+        discoBuilder.add(new DiscoveryNode("name_" + 3, "node_" + 3, buildNewFakeTransportAddress(), Collections.emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
+            Version.fromString("1.1.0")));
+        discoBuilder.localNodeId("name_1");
+        discoBuilder.masterNodeId("name_2");
+        DiscoveryNodes build = discoBuilder.build();
+        assertEquals( Version.fromString("6.3.0"), build.getMaxNodeVersion());
+        assertEquals( Version.fromString("1.1.0"), build.getMinNodeVersion());
     }
 }

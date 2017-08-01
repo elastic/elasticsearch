@@ -76,6 +76,20 @@ final class Natives {
         JNANatives.tryVirtualLock();
     }
 
+    /**
+     * Retrieves the short path form of the specified path.
+     *
+     * @param path the path
+     * @return the short path name (or the original path if getting the short path name fails for any reason)
+     */
+    static String getShortPathName(final String path) {
+        if (!JNA_AVAILABLE) {
+            logger.warn("cannot obtain short path for [{}] because JNA is not avilable", path);
+            return path;
+        }
+        return JNANatives.getShortPathName(path);
+    }
+
     static void addConsoleCtrlHandler(ConsoleCtrlHandler handler) {
         if (!JNA_AVAILABLE) {
             logger.warn("cannot register console handler because JNA is not available");
@@ -91,12 +105,12 @@ final class Natives {
         return JNANatives.LOCAL_MLOCKALL;
     }
 
-    static void trySeccomp(Path tmpFile) {
+    static void tryInstallSystemCallFilter(Path tmpFile) {
         if (!JNA_AVAILABLE) {
-            logger.warn("cannot install syscall filters because JNA is not available");
+            logger.warn("cannot install system call filter because JNA is not available");
             return;
         }
-        JNANatives.trySeccomp(tmpFile);
+        JNANatives.tryInstallSystemCallFilter(tmpFile);
     }
 
     static void trySetMaxNumberOfThreads() {
@@ -115,10 +129,18 @@ final class Natives {
         JNANatives.trySetMaxSizeVirtualMemory();
     }
 
-    static boolean isSeccompInstalled() {
+    static void trySetMaxFileSize() {
+        if (!JNA_AVAILABLE) {
+            logger.warn("cannot getrlimit RLIMIT_FSIZE because JNA is not available");
+            return;
+        }
+        JNANatives.trySetMaxFileSize();
+    }
+
+    static boolean isSystemCallFilterInstalled() {
         if (!JNA_AVAILABLE) {
             return false;
         }
-        return JNANatives.LOCAL_SECCOMP;
+        return JNANatives.LOCAL_SYSTEM_CALL_FILTER;
     }
 }

@@ -128,15 +128,38 @@ public abstract class Rounding implements Streamable {
         @Override
         public long round(long utcMillis) {
             long rounded = field.roundFloor(utcMillis);
-            if (timeZone.isFixed() == false && timeZone.getOffset(utcMillis) != timeZone.getOffset(rounded)) {
-                // in this case, we crossed a time zone transition. In some edge
-                // cases this will
-                // result in a value that is not a rounded value itself. We need
-                // to round again
-                // to make sure. This will have no affect in cases where
-                // 'rounded' was already a proper
-                // rounded value
-                rounded = field.roundFloor(rounded);
+            if (timeZone.isFixed() == false) {
+                // special cases for non-fixed time zones with dst transitions
+                if (timeZone.getOffset(utcMillis) != timeZone.getOffset(rounded)) {
+                    /*
+                     * the offset change indicates a dst transition. In some
+                     * edge cases this will result in a value that is not a
+                     * rounded value before the transition. We round again to
+                     * make sure we really return a rounded value. This will
+                     * have no effect in cases where we already had a valid
+                     * rounded value
+                     */
+                    rounded = field.roundFloor(rounded);
+                } else {
+                    /*
+                     * check if the current time instant is at a start of a DST
+                     * overlap by comparing the offset of the instant and the
+                     * previous millisecond. We want to detect negative offset
+                     * changes that result in an overlap
+                     */
+                    if (timeZone.getOffset(rounded) < timeZone.getOffset(rounded - 1)) {
+                        /*
+                         * we are rounding a date just after a DST overlap. if
+                         * the overlap is smaller than the time unit we are
+                         * rounding to, we want to add the overlapping part to
+                         * the following rounding interval
+                         */
+                        long previousRounded = field.roundFloor(rounded - 1);
+                        if (rounded - previousRounded < field.getDurationField().getUnitMillis()) {
+                            rounded = previousRounded;
+                        }
+                    }
+                }
             }
             assert rounded == field.roundFloor(rounded);
             return rounded;

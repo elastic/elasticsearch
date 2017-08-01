@@ -26,10 +26,9 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,21 +39,23 @@ import java.util.function.Function;
 
 public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedMetricAggregatorFactory> {
 
-    private final Function<Map<String, Object>, SearchScript> mapScript;
-    private final Function<Map<String, Object>, ExecutableScript> combineScript;
+    private final SearchScript.Factory mapScript;
+    private final ExecutableScript.Factory combineScript;
     private final Script reduceScript;
     private final Map<String, Object> params;
-    private final Function<Map<String, Object>, ExecutableScript> initScript;
+    private final SearchLookup lookup;
+    private final ExecutableScript.Factory initScript;
 
-    public ScriptedMetricAggregatorFactory(String name, Type type, Function<Map<String, Object>, SearchScript> mapScript,
-            Function<Map<String, Object>, ExecutableScript> initScript, Function<Map<String, Object>, ExecutableScript> combineScript,
-            Script reduceScript, Map<String, Object> params, AggregationContext context, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
-        super(name, type, context, parent, subFactories, metaData);
+    public ScriptedMetricAggregatorFactory(String name, SearchScript.Factory mapScript, ExecutableScript.Factory initScript,
+                                           ExecutableScript.Factory combineScript, Script reduceScript, Map<String, Object> params,
+                                           SearchLookup lookup, SearchContext context, AggregatorFactory<?> parent,
+                                           AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, subFactories, metaData);
         this.mapScript = mapScript;
         this.initScript = initScript;
         this.combineScript = combineScript;
         this.reduceScript = reduceScript;
+        this.lookup = lookup;
         this.params = params;
     }
 
@@ -66,17 +67,17 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
         }
         Map<String, Object> params = this.params;
         if (params != null) {
-            params = deepCopyParams(params, context.searchContext());
+            params = deepCopyParams(params, context);
         } else {
             params = new HashMap<>();
             params.put("_agg", new HashMap<String, Object>());
         }
 
-        final ExecutableScript initScript = this.initScript.apply(params);
-        final SearchScript mapScript = this.mapScript.apply(params);
-        final ExecutableScript combineScript = this.combineScript.apply(params);
+        final ExecutableScript initScript = this.initScript.newInstance(params);
+        final SearchScript.LeafFactory mapScript = this.mapScript.newFactory(params, lookup);
+        final ExecutableScript combineScript = this.combineScript.newInstance(params);
 
-        final Script reduceScript = deepCopyScript(this.reduceScript, context.searchContext());
+        final Script reduceScript = deepCopyScript(this.reduceScript, context);
         if (initScript != null) {
             initScript.run();
         }
@@ -91,7 +92,7 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
             if (params != null) {
                 params = deepCopyParams(params, context);
             }
-            return new Script(script.getScript(), script.getType(), script.getLang(), params);
+            return new Script(script.getType(), script.getLang(), script.getIdOrCode(), params);
         } else {
             return null;
         }

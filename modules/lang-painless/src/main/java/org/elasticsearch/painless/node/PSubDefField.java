@@ -99,4 +99,9 @@ final class PSubDefField extends AStoreable {
             org.objectweb.asm.Type.getMethodType(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, actual.type);
         writer.invokeDefCall(value, methodType, DefBootstrap.STORE);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(prefix, value);
+    }
 }

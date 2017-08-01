@@ -18,15 +18,32 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
+
+import java.util.Collection;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(InternalSettingsPlugin.class);
+    }
 
     // Tests _parent meta field logic, because part of the validation is in MetaDataMappingService
     public void testAddChildTypePointingToAlreadyExistingType() throws Exception {
@@ -46,6 +63,7 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
     // Tests _parent meta field logic, because part of the validation is in MetaDataMappingService
     public void testAddExtraChildTypePointingToAlreadyParentExistingType() throws Exception {
         IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test")
+                .setSettings("index.version.created", Version.V_5_6_0.id)
                 .addMapping("parent")
                 .addMapping("child1", "_parent", "type=parent")
         );
@@ -63,4 +81,43 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
         assertThat(documentMapper.parentFieldMapper().active(), is(true));
     }
 
+    public void testParentIsAString() throws Exception {
+        // Shouldn't be able the add the _parent field pointing to an already existing type, which isn't a parent type
+        Exception e = expectThrows(MapperParsingException.class, () -> client().admin().indices().prepareCreate("test")
+                .addMapping("parent", "{\"properties\":{}}", XContentType.JSON)
+                .addMapping("child", "{\"_parent\": \"parent\",\"properties\":{}}", XContentType.JSON)
+                .get());
+        assertEquals("Failed to parse mapping [child]: [_parent] must be an object containing [type]", e.getMessage());
+    }
+
+    public void testMappingClusterStateUpdateDoesntChangeExistingIndices() throws Exception {
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        final CompressedXContent currentMapping = indexService.mapperService().documentMapper("type").mappingSource();
+
+        final MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        // TODO - it will be nice to get a random mapping generator
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest().type("type");
+        request.source("{ \"properties\" { \"field\": { \"type\": \"string\" }}}");
+        mappingService.putMappingExecutor.execute(clusterService.state(), Collections.singletonList(request));
+        assertThat(indexService.mapperService().documentMapper("type").mappingSource(), equalTo(currentMapping));
+    }
+
+    public void testClusterStateIsNotChangedWithIdenticalMappings() throws Exception {
+        createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+
+        final MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest().type("type");
+        request.source("{ \"properties\" { \"field\": { \"type\": \"string\" }}}");
+        ClusterState result = mappingService.putMappingExecutor.execute(clusterService.state(), Collections.singletonList(request))
+            .resultingState;
+
+        assertFalse(result != clusterService.state());
+
+        ClusterState result2 = mappingService.putMappingExecutor.execute(result, Collections.singletonList(request))
+            .resultingState;
+
+        assertSame(result, result2);
+    }
 }

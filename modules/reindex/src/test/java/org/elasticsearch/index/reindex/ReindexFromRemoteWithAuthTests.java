@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -35,7 +35,6 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -48,6 +47,7 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -69,7 +69,6 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings());
-        // Weird incantation required to test with netty
         settings.put(NetworkModule.HTTP_ENABLED.getKey(), true);
         // Whitelist reindexing from the http host we're going to use
         settings.put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*");
@@ -88,29 +87,31 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
         address = nodeInfo.getHttp().getAddress().publishAddress();
     }
 
+    /**
+     * Build a {@link RemoteInfo}, defaulting values that we don't care about in this test to values that don't hurt anything.
+     */
+    private RemoteInfo newRemoteInfo(String username, String password, Map<String, String> headers) {
+        return new RemoteInfo("http", address.getAddress(), address.getPort(), new BytesArray("{\"match_all\":{}}"), username, password,
+                headers, RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
+    }
+
     public void testReindexFromRemoteWithAuthentication() throws Exception {
-        RemoteInfo remote = new RemoteInfo("http", address.getAddress(), address.getPort(), new BytesArray("{\"match_all\":{}}"), "Aladdin",
-                "open sesame", emptyMap());
         ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest")
-                .setRemoteInfo(remote);
+                .setRemoteInfo(newRemoteInfo("Aladdin", "open sesame", emptyMap()));
         assertThat(request.get(), matcher().created(1));
     }
 
     public void testReindexSendsHeaders() throws Exception {
-        RemoteInfo remote = new RemoteInfo("http", address.getAddress(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null,
-            null, singletonMap(TestFilter.EXAMPLE_HEADER, "doesn't matter"));
         ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest")
-                .setRemoteInfo(remote);
+                .setRemoteInfo(newRemoteInfo(null, null, singletonMap(TestFilter.EXAMPLE_HEADER, "doesn't matter")));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
         assertEquals(RestStatus.BAD_REQUEST, e.status());
         assertThat(e.getMessage(), containsString("Hurray! Sent the header!"));
     }
 
     public void testReindexWithoutAuthenticationWhenRequired() throws Exception {
-        RemoteInfo remote = new RemoteInfo("http", address.getAddress(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null,
-            null, emptyMap());
         ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest")
-                .setRemoteInfo(remote);
+                .setRemoteInfo(newRemoteInfo(null, null, emptyMap()));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
         assertEquals(RestStatus.UNAUTHORIZED, e.status());
         assertThat(e.getMessage(), containsString("\"reason\":\"Authentication required\""));
@@ -118,10 +119,8 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     }
 
     public void testReindexWithBadAuthentication() throws Exception {
-        RemoteInfo remote = new RemoteInfo("http", address.getAddress(), address.getPort(), new BytesArray("{\"match_all\":{}}"), "junk",
-                "auth", emptyMap());
         ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest")
-                .setRemoteInfo(remote);
+                .setRemoteInfo(newRemoteInfo("junk", "auth", emptyMap()));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
         assertThat(e.getMessage(), containsString("\"reason\":\"Bad Authorization\""));
     }
@@ -165,7 +164,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public <Request extends ActionRequest<Request>, Response extends ActionResponse> void apply(Task task, String action,
+        public <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action,
                 Request request, ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
             if (false == action.equals(SearchAction.NAME)) {
                 chain.proceed(task, action, request, listener);
@@ -185,12 +184,6 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
                 throw new ElasticsearchSecurityException("Bad Authorization", RestStatus.FORBIDDEN);
             }
             chain.proceed(task, action, request, listener);
-        }
-
-        @Override
-        public <Response extends ActionResponse> void apply(String action, Response response, ActionListener<Response> listener,
-                ActionFilterChain<?, Response> chain) {
-            chain.proceed(action, response, listener);
         }
     }
 }

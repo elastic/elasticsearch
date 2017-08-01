@@ -1,5 +1,5 @@
 [[analysis-whitespace-tokenizer]]
-=== Whitespace Analyzer
+=== Whitespace Tokenizer
 
 The `whitespace` tokenizer breaks text into terms whenever it encounters a
 whitespace character.

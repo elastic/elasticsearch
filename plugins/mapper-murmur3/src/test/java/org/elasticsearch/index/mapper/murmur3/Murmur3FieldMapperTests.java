@@ -22,28 +22,27 @@ package org.elasticsearch.index.mapper.murmur3;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.function.Supplier;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.hamcrest.Matchers.containsString;
 
 public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
@@ -53,13 +52,16 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
     DocumentMapperParser parser;
 
     @Before
-    public void before() {
+    public void setup() {
         indexService = createIndex("test");
         mapperRegistry = new MapperRegistry(
                 Collections.singletonMap(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser()),
                 Collections.emptyMap());
-        parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-        indexService.getIndexAnalyzers(), indexService.similarityService(), mapperRegistry, indexService::newQueryShardContext);
+        Supplier<QueryShardContext> queryShardContext = () -> {
+            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
+        };
+        parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(), indexService.getIndexAnalyzers(),
+                indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry, queryShardContext);
     }
 
     @Override
@@ -73,7 +75,11 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
                     .field("type", "murmur3")
                 .endObject().endObject().endObject().endObject().string();
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        ParsedDocument parsedDoc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject().field("field", "value").endObject().bytes());
+        ParsedDocument parsedDoc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "value")
+                .endObject().bytes(),
+                XContentType.JSON));
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertNotNull(fields);
         assertEquals(Arrays.toString(fields), 1, fields.length);
@@ -146,16 +152,5 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
-
-        // before 5.x
-        Version oldVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_2_0_0, Version.V_2_3_5);
-        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
-        IndexService indexService2x = createIndex("test_old", oldIndexSettings);
-
-        DocumentMapperParser parser = new DocumentMapperParser(indexService2x.getIndexSettings(), indexService2x.mapperService(), indexService2x.getIndexAnalyzers(),
-            indexService2x.similarityService(), mapperRegistry, indexService2x::newQueryShardContext);
-
-        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, defaultMapper.mappingSource().string());
     }
 }

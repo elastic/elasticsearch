@@ -19,21 +19,29 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalOrder;
+import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -41,27 +49,58 @@ import java.util.Objects;
  */
 public class HistogramAggregationBuilder
         extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, HistogramAggregationBuilder> {
-    public static final String NAME = InternalHistogram.TYPE.name();
+    public static final String NAME = "histogram";
+
+    private static final ObjectParser<double[], Void> EXTENDED_BOUNDS_PARSER = new ObjectParser<>(
+            Histogram.EXTENDED_BOUNDS_FIELD.getPreferredName(),
+            () -> new double[]{ Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY });
+    static {
+        EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[0] = d, new ParseField("min"));
+        EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[1] = d, new ParseField("max"));
+    }
+
+    private static final ObjectParser<HistogramAggregationBuilder, Void> PARSER;
+    static {
+        PARSER = new ObjectParser<>(HistogramAggregationBuilder.NAME);
+        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
+
+        PARSER.declareDouble(HistogramAggregationBuilder::interval, Histogram.INTERVAL_FIELD);
+
+        PARSER.declareDouble(HistogramAggregationBuilder::offset, Histogram.OFFSET_FIELD);
+
+        PARSER.declareBoolean(HistogramAggregationBuilder::keyed, Histogram.KEYED_FIELD);
+
+        PARSER.declareLong(HistogramAggregationBuilder::minDocCount, Histogram.MIN_DOC_COUNT_FIELD);
+
+        PARSER.declareField((histogram, extendedBounds) -> {
+            histogram.extendedBounds(extendedBounds[0], extendedBounds[1]);
+        }, parser -> EXTENDED_BOUNDS_PARSER.apply(parser, null), ExtendedBounds.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
+
+        PARSER.declareObjectArray(HistogramAggregationBuilder::order, (p, c) -> InternalOrder.Parser.parseOrderParam(p),
+            Histogram.ORDER_FIELD);
+    }
+
+    public static HistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new HistogramAggregationBuilder(aggregationName), null);
+    }
 
     private double interval;
     private double offset = 0;
     private double minBound = Double.POSITIVE_INFINITY;
     private double maxBound = Double.NEGATIVE_INFINITY;
-    private InternalOrder order = (InternalOrder) Histogram.Order.KEY_ASC;
+    private BucketOrder order = BucketOrder.key(true);
     private boolean keyed = false;
     private long minDocCount = 0;
 
     /** Create a new builder with the given name. */
     public HistogramAggregationBuilder(String name) {
-        super(name, InternalHistogram.TYPE, ValuesSourceType.NUMERIC, ValueType.DOUBLE);
+        super(name, ValuesSourceType.NUMERIC, ValueType.DOUBLE);
     }
 
     /** Read from a stream, for internal use only. */
     public HistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalHistogram.TYPE, ValuesSourceType.NUMERIC, ValueType.DOUBLE);
-        if (in.readBoolean()) {
-            order = InternalOrder.Streams.readOrder(in);
-        }
+        super(in, ValuesSourceType.NUMERIC, ValueType.DOUBLE);
+        order = InternalOrder.Streams.readHistogramOrder(in, true);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
         interval = in.readDouble();
@@ -72,11 +111,7 @@ public class HistogramAggregationBuilder
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
-        boolean hasOrder = order != null;
-        out.writeBoolean(hasOrder);
-        if (hasOrder) {
-            InternalOrder.Streams.writeOrder(order, out);
-        }
+        InternalOrder.Streams.writeHistogramOrder(order, out, true);
         out.writeBoolean(keyed);
         out.writeVLong(minDocCount);
         out.writeDouble(interval);
@@ -145,17 +180,34 @@ public class HistogramAggregationBuilder
     }
 
     /** Return the order to use to sort buckets of this histogram. */
-    public Histogram.Order order() {
+    public BucketOrder order() {
         return order;
     }
 
     /** Set a new order on this builder and return the builder so that calls
-     *  can be chained. */
-    public HistogramAggregationBuilder order(Histogram.Order order) {
+     *  can be chained. A tie-breaker may be added to avoid non-deterministic ordering. */
+    public HistogramAggregationBuilder order(BucketOrder order) {
         if (order == null) {
             throw new IllegalArgumentException("[order] must not be null: [" + name + "]");
         }
-        this.order = (InternalOrder) order;
+        if(order instanceof CompoundOrder || InternalOrder.isKeyOrder(order)) {
+            this.order = order; // if order already contains a tie-breaker we are good to go
+        } else { // otherwise add a tie-breaker by using a compound order
+            this.order = BucketOrder.compound(order);
+        }
+        return this;
+    }
+
+    /**
+     * Sets the order in which the buckets will be returned. A tie-breaker may be added to avoid non-deterministic
+     * ordering.
+     */
+    public HistogramAggregationBuilder order(List<BucketOrder> orders) {
+        if (orders == null) {
+            throw new IllegalArgumentException("[orders] must not be null: [" + name + "]");
+        }
+        // if the list only contains one order use that to avoid inconsistent xcontent
+        order(orders.size() > 1 ? BucketOrder.compound(orders) : orders.get(0));
         return this;
     }
 
@@ -219,14 +271,14 @@ public class HistogramAggregationBuilder
     }
 
     @Override
-    public String getWriteableName() {
-        return InternalHistogram.TYPE.name();
+    public String getType() {
+        return NAME;
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
+    protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-        return new HistogramAggregatorFactory(name, type, config, interval, offset, order, keyed, minDocCount, minBound, maxBound,
+        return new HistogramAggregatorFactory(name, config, interval, offset, order, keyed, minDocCount, minBound, maxBound,
                 context, parent, subFactoriesBuilder, metaData);
     }
 

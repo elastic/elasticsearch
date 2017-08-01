@@ -19,22 +19,35 @@
 
 package org.elasticsearch.cluster;
 
-public enum MasterNodeChangePredicate implements ClusterStateObserver.ChangePredicate {
-    INSTANCE;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 
-    @Override
-    public boolean apply(
-        ClusterState previousState,
-        ClusterState.ClusterStateStatus previousStatus,
-        ClusterState newState,
-        ClusterState.ClusterStateStatus newStatus) {
-        // checking if the masterNodeId changed is insufficient as the
-        // same master node might get re-elected after a disruption
-        return newState.nodes().getMasterNodeId() != null && newState != previousState;
+import java.util.function.Predicate;
+
+public final class MasterNodeChangePredicate {
+
+    private MasterNodeChangePredicate() {
+
     }
 
-    @Override
-    public boolean apply(ClusterChangedEvent changedEvent) {
-        return changedEvent.nodesDelta().masterNodeChanged();
+    /**
+     * builds a predicate that will accept a cluster state only if it was generated after the current has
+     * (re-)joined the master
+     */
+    public static Predicate<ClusterState> build(ClusterState currentState) {
+        final long currentVersion = currentState.version();
+        final DiscoveryNode masterNode = currentState.nodes().getMasterNode();
+        final String currentMasterId = masterNode == null ? null : masterNode.getEphemeralId();
+        return newState -> {
+            final DiscoveryNode newMaster = newState.nodes().getMasterNode();
+            final boolean accept;
+            if (newMaster == null) {
+                accept = false;
+            } else if (newMaster.getEphemeralId().equals(currentMasterId) == false) {
+                accept = true;
+            } else {
+                accept = newState.version() > currentVersion;
+            }
+            return accept;
+        };
     }
 }

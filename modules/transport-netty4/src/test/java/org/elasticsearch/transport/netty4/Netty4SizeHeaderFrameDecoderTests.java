@@ -26,9 +26,10 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.TcpTransport;
 import org.junit.After;
 import org.junit.Before;
 
@@ -49,8 +50,8 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
 
     private final Settings settings = Settings.builder()
         .put("node.name", "NettySizeHeaderFrameDecoderTests")
-        .put(TransportSettings.BIND_HOST.getKey(), "127.0.0.1")
-        .put(TransportSettings.PORT.getKey(), "0")
+        .put(TcpTransport.BIND_HOST.getKey(), "127.0.0.1")
+        .put(TcpTransport.PORT.getKey(), "0")
         .build();
 
     private ThreadPool threadPool;
@@ -61,7 +62,7 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
     @Before
     public void startThreadPool() {
         threadPool = new ThreadPool(settings);
-        NetworkService networkService = new NetworkService(settings, Collections.emptyList());
+        NetworkService networkService = new NetworkService(Collections.emptyList());
         BigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
         nettyTransport = new Netty4Transport(settings, threadPool, networkService, bigArrays,
             new NamedWriteableRegistry(Collections.emptyList()), new NoneCircuitBreakerService());
@@ -84,7 +85,7 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
         String randomMethod = randomFrom("GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH");
         String data = randomMethod + " / HTTP/1.1";
 
-        try (Socket socket = new Socket(host, port)) {
+        try (Socket socket = new MockSocket(host, port)) {
             socket.getOutputStream().write(data.getBytes(StandardCharsets.UTF_8));
             socket.getOutputStream().flush();
 
@@ -95,7 +96,7 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
     }
 
     public void testThatNothingIsReturnedForOtherInvalidPackets() throws Exception {
-        try (Socket socket = new Socket(host, port)) {
+        try (Socket socket = new MockSocket(host, port)) {
             socket.getOutputStream().write("FOOBAR".getBytes(StandardCharsets.UTF_8));
             socket.getOutputStream().flush();
 

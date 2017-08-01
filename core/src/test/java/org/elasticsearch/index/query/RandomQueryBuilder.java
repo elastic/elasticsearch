@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.util.Random;
@@ -69,13 +70,14 @@ public class RandomQueryBuilder {
                 multiTermQueryBuilder = stringRangeQuery;
                 break;
             case 1:
-                multiTermQueryBuilder = new FuzzyQueryBuilder(AbstractQueryTestCase.STRING_FIELD_NAME, RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
-                break;
-            case 2:
                 multiTermQueryBuilder = new PrefixQueryBuilderTests().createTestQueryBuilder();
                 break;
-            case 3:
+            case 2:
                 multiTermQueryBuilder = new WildcardQueryBuilderTests().createTestQueryBuilder();
+                break;
+            case 3:
+                multiTermQueryBuilder = new FuzzyQueryBuilder(AbstractQueryTestCase.STRING_FIELD_NAME,
+                        RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
                 break;
             default:
                 throw new UnsupportedOperationException();

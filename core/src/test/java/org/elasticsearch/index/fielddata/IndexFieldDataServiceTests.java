@@ -38,12 +38,6 @@ import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.LegacyByteFieldMapper;
-import org.elasticsearch.index.mapper.LegacyDoubleFieldMapper;
-import org.elasticsearch.index.mapper.LegacyFloatFieldMapper;
-import org.elasticsearch.index.mapper.LegacyIntegerFieldMapper;
-import org.elasticsearch.index.mapper.LegacyLongFieldMapper;
-import org.elasticsearch.index.mapper.LegacyShortFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -73,7 +67,9 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
 
     public void testGetForFieldDefaults() {
         final IndexService indexService = createIndex("test");
-        final IndexFieldDataService ifdService = indexService.fieldData();
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
+            indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string").build(ctx).fieldType();
         ifdService.clear();
@@ -158,7 +154,22 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
 
     public void testSetCacheListenerTwice() {
         final IndexService indexService = createIndex("test");
-        IndexFieldDataService shardPrivateService = indexService.fieldData();
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexFieldDataService shardPrivateService = new IndexFieldDataService(indexService.getIndexSettings(),
+            indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
+        // set it the first time...
+        shardPrivateService.setListener(new IndexFieldDataCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
+
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
+
+            }
+        });
+        // now set it again and make sure we fail
         try {
             shardPrivateService.setListener(new IndexFieldDataCache.Listener() {
                 @Override
@@ -198,11 +209,11 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRequireDocValuesOnLongs() {
-        doTestRequireDocValues(new LegacyLongFieldMapper.LongFieldType());
+        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
     }
 
     public void testRequireDocValuesOnDoubles() {
-        doTestRequireDocValues(new LegacyDoubleFieldMapper.DoubleFieldType());
+        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
     }
 
     public void testRequireDocValuesOnBools() {

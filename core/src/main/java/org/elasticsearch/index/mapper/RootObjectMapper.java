@@ -150,10 +150,10 @@ public class RootObjectMapper extends ObjectMapper {
                 builder.dynamicTemplates(templates);
                 return true;
             } else if (fieldName.equals("date_detection")) {
-                ((Builder) builder).dateDetection = new Explicit<>(nodeBooleanValue(fieldNode), true);
+                builder.dateDetection = new Explicit<>(nodeBooleanValue(fieldNode, "date_detection"), true);
                 return true;
             } else if (fieldName.equals("numeric_detection")) {
-                ((Builder) builder).numericDetection = new Explicit<>(nodeBooleanValue(fieldNode), true);
+                builder.numericDetection = new Explicit<>(nodeBooleanValue(fieldNode, "numeric_detection"), true);
                 return true;
             }
             return false;

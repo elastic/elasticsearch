@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.painless.api.Augmentation;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -33,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -63,32 +65,39 @@ public final class Definition {
                       "java.util.stream.txt",
                       "joda.time.txt"));
 
-    private static final Definition INSTANCE = new Definition();
+    /**
+     * Whitelist that is "built in" to Painless and required by all scripts.
+     */
+    public static final Definition BUILTINS = new Definition();
 
     /** Some native types as constants: */
-    public static final Type VOID_TYPE = getType("void");
-    public static final Type BOOLEAN_TYPE = getType("boolean");
-    public static final Type BOOLEAN_OBJ_TYPE = getType("Boolean");
-    public static final Type BYTE_TYPE = getType("byte");
-    public static final Type BYTE_OBJ_TYPE = getType("Byte");
-    public static final Type SHORT_TYPE = getType("short");
-    public static final Type SHORT_OBJ_TYPE = getType("Short");
-    public static final Type INT_TYPE = getType("int");
-    public static final Type INT_OBJ_TYPE = getType("Integer");
-    public static final Type LONG_TYPE = getType("long");
-    public static final Type LONG_OBJ_TYPE = getType("Long");
-    public static final Type FLOAT_TYPE = getType("float");
-    public static final Type FLOAT_OBJ_TYPE = getType("Float");
-    public static final Type DOUBLE_TYPE = getType("double");
-    public static final Type DOUBLE_OBJ_TYPE = getType("Double");
-    public static final Type CHAR_TYPE = getType("char");
-    public static final Type CHAR_OBJ_TYPE = getType("Character");
-    public static final Type OBJECT_TYPE = getType("Object");
-    public static final Type DEF_TYPE = getType("def");
-    public static final Type STRING_TYPE = getType("String");
-    public static final Type EXCEPTION_TYPE = getType("Exception");
-    public static final Type PATTERN_TYPE = getType("Pattern");
-    public static final Type MATCHER_TYPE = getType("Matcher");
+    public static final Type VOID_TYPE = BUILTINS.getType("void");
+    public static final Type BOOLEAN_TYPE = BUILTINS.getType("boolean");
+    public static final Type BOOLEAN_OBJ_TYPE = BUILTINS.getType("Boolean");
+    public static final Type BYTE_TYPE = BUILTINS.getType("byte");
+    public static final Type BYTE_OBJ_TYPE = BUILTINS.getType("Byte");
+    public static final Type SHORT_TYPE = BUILTINS.getType("short");
+    public static final Type SHORT_OBJ_TYPE = BUILTINS.getType("Short");
+    public static final Type INT_TYPE = BUILTINS.getType("int");
+    public static final Type INT_OBJ_TYPE = BUILTINS.getType("Integer");
+    public static final Type LONG_TYPE = BUILTINS.getType("long");
+    public static final Type LONG_OBJ_TYPE = BUILTINS.getType("Long");
+    public static final Type FLOAT_TYPE = BUILTINS.getType("float");
+    public static final Type FLOAT_OBJ_TYPE = BUILTINS.getType("Float");
+    public static final Type DOUBLE_TYPE = BUILTINS.getType("double");
+    public static final Type DOUBLE_OBJ_TYPE = BUILTINS.getType("Double");
+    public static final Type CHAR_TYPE = BUILTINS.getType("char");
+    public static final Type CHAR_OBJ_TYPE = BUILTINS.getType("Character");
+    public static final Type OBJECT_TYPE = BUILTINS.getType("Object");
+    public static final Type DEF_TYPE = BUILTINS.getType("def");
+    public static final Type NUMBER_TYPE = BUILTINS.getType("Number");
+    public static final Type STRING_TYPE = BUILTINS.getType("String");
+    public static final Type EXCEPTION_TYPE = BUILTINS.getType("Exception");
+    public static final Type PATTERN_TYPE = BUILTINS.getType("Pattern");
+    public static final Type MATCHER_TYPE = BUILTINS.getType("Matcher");
+    public static final Type ITERATOR_TYPE = BUILTINS.getType("Iterator");
+    public static final Type ARRAY_LIST_TYPE = BUILTINS.getType("ArrayList");
+    public static final Type HASH_MAP_TYPE = BUILTINS.getType("HashMap");
 
     public enum Sort {
         VOID(       void.class      , Void.class      , null          , 0 , true  , false , false , false ),
@@ -190,14 +199,14 @@ public final class Definition {
     public static class Method {
         public final String name;
         public final Struct owner;
-        public final boolean augmentation;
+        public final Class<?> augmentation;
         public final Type rtn;
         public final List<Type> arguments;
         public final org.objectweb.asm.commons.Method method;
         public final int modifiers;
         public final MethodHandle handle;
 
-        public Method(String name, Struct owner, boolean augmentation, Type rtn, List<Type> arguments,
+        public Method(String name, Struct owner, Class<?> augmentation, Type rtn, List<Type> arguments,
                       org.objectweb.asm.commons.Method method, int modifiers, MethodHandle handle) {
             this.name = name;
             this.augmentation = augmentation;
@@ -223,10 +232,10 @@ public final class Definition {
             // otherwise compute it
             final Class<?> params[];
             final Class<?> returnValue;
-            if (augmentation) {
+            if (augmentation != null) {
                 // static method disguised as virtual/interface method
                 params = new Class<?>[1 + arguments.size()];
-                params[0] = Augmentation.class;
+                params[0] = augmentation;
                 for (int i = 0; i < arguments.size(); i++) {
                     params[i + 1] = arguments.get(i).clazz;
                 }
@@ -259,9 +268,9 @@ public final class Definition {
 
         public void write(MethodWriter writer) {
             final org.objectweb.asm.Type type;
-            if (augmentation) {
+            if (augmentation != null) {
                 assert java.lang.reflect.Modifier.isStatic(modifiers);
-                type = WriterConstants.AUGMENTATION_TYPE;
+                type = org.objectweb.asm.Type.getType(augmentation);
             } else {
                 type = owner.type;
             }
@@ -432,23 +441,23 @@ public final class Definition {
         public final Type from;
         public final Type to;
         public final boolean explicit;
-        public final boolean unboxFrom;
-        public final boolean unboxTo;
-        public final boolean boxFrom;
-        public final boolean boxTo;
+        public final Type unboxFrom;
+        public final Type unboxTo;
+        public final Type boxFrom;
+        public final Type boxTo;
 
         public Cast(final Type from, final Type to, final boolean explicit) {
             this.from = from;
             this.to = to;
             this.explicit = explicit;
-            this.unboxFrom = false;
-            this.unboxTo = false;
-            this.boxFrom = false;
-            this.boxTo = false;
+            this.unboxFrom = null;
+            this.unboxTo = null;
+            this.boxFrom = null;
+            this.boxTo = null;
         }
 
         public Cast(final Type from, final Type to, final boolean explicit,
-                    final boolean unboxFrom, final boolean unboxTo, final boolean boxFrom, final boolean boxTo) {
+                    final Type unboxFrom, final Type unboxTo, final Type boxFrom, final Type boxTo) {
             this.from = from;
             this.to = to;
             this.explicit = explicit;
@@ -461,46 +470,46 @@ public final class Definition {
     }
 
     public static final class RuntimeClass {
+        private final Struct struct;
         public final Map<MethodKey, Method> methods;
         public final Map<String, MethodHandle> getters;
         public final Map<String, MethodHandle> setters;
 
-        private RuntimeClass(final Map<MethodKey, Method> methods,
+        private RuntimeClass(final Struct struct, final Map<MethodKey, Method> methods,
                              final Map<String, MethodHandle> getters, final Map<String, MethodHandle> setters) {
+            this.struct = struct;
             this.methods = Collections.unmodifiableMap(methods);
             this.getters = Collections.unmodifiableMap(getters);
             this.setters = Collections.unmodifiableMap(setters);
         }
-    }
 
-    /** Returns whether or not a non-array type exists. */
-    public static boolean isSimpleType(final String name) {
-        return INSTANCE.structsMap.containsKey(name);
-    }
-
-    /** Returns whether or not a type exists without an exception. */
-    public static boolean isType(final String name) {
-        try {
-            INSTANCE.getTypeInternal(name);
-
-            return true;
-        } catch (IllegalArgumentException exception) {
-            return false;
+        public Struct getStruct() {
+            return struct;
         }
     }
 
+    /** Returns whether or not a non-array type exists. */
+    public boolean isSimpleType(final String name) {
+        return BUILTINS.structsMap.containsKey(name);
+    }
+
     /** Gets the type given by its name */
-    public static Type getType(final String name) {
-        return INSTANCE.getTypeInternal(name);
+    public Type getType(final String name) {
+        return BUILTINS.getTypeInternal(name);
     }
 
     /** Creates an array type from the given Struct. */
-    public static Type getType(final Struct struct, final int dimensions) {
-        return INSTANCE.getTypeInternal(struct, dimensions);
+    public Type getType(final Struct struct, final int dimensions) {
+        return BUILTINS.getTypeInternal(struct, dimensions);
     }
 
-    public static RuntimeClass getRuntimeClass(Class<?> clazz) {
-        return INSTANCE.runtimeMap.get(clazz);
+    public RuntimeClass getRuntimeClass(Class<?> clazz) {
+        return BUILTINS.runtimeMap.get(clazz);
+    }
+
+    /** Collection of all simple types. Used by {@code PainlessDocGenerator} to generate an API reference. */
+    static Collection<Type> allSimpleTypes() {
+        return BUILTINS.simpleTypesMap.values();
     }
 
     // INTERNAL IMPLEMENTATION:
@@ -566,11 +575,11 @@ public final class Definition {
                         }
                         if (line.startsWith("class ")) {
                             String elements[] = line.split("\u0020");
-                            assert elements[2].equals("->");
+                            assert elements[2].equals("->") : "Invalid struct definition [" + String.join(" ", elements) +"]";
                             if (elements.length == 7) {
                                 hierarchy.put(elements[1], Arrays.asList(elements[5].split(",")));
                             } else {
-                                assert elements.length == 5;
+                                assert elements.length == 5 : "Invalid struct definition [" + String.join(" ", elements) + "]";
                             }
                             String className = elements[1];
                             String javaPeer = elements[3];
@@ -612,7 +621,7 @@ public final class Definition {
                     }
                 }
             } catch (Exception e) {
-                throw new RuntimeException("syntax error in " + file + ", line: " + currentLine, e);
+                throw new RuntimeException("error in " + file + ", line: " + currentLine, e);
             }
         }
         return hierarchy;
@@ -722,7 +731,7 @@ public final class Definition {
                 " with arguments " + Arrays.toString(classes) + ".");
         }
 
-        final Method constructor = new Method(name, owner, false, returnType, Arrays.asList(args), asm, reflect.getModifiers(), handle);
+        final Method constructor = new Method(name, owner, null, returnType, Arrays.asList(args), asm, reflect.getModifiers(), handle);
 
         owner.constructors.put(methodKey, constructor);
     }
@@ -766,10 +775,14 @@ public final class Definition {
                 }
                 addConstructorInternal(className, "<init>", args);
             } else {
-                if (methodName.indexOf("*") >= 0) {
-                    addMethodInternal(className, methodName.substring(0, methodName.length() - 1), true, rtn, args);
+                int index = methodName.lastIndexOf(".");
+
+                if (index >= 0) {
+                    String augmentation = methodName.substring(0, index);
+                    methodName = methodName.substring(index + 1);
+                    addMethodInternal(className, methodName, augmentation, rtn, args);
                 } else {
-                    addMethodInternal(className, methodName, false, rtn, args);
+                    addMethodInternal(className, methodName, null, rtn, args);
                 }
             }
         } else {
@@ -778,8 +791,7 @@ public final class Definition {
         }
     }
 
-    private void addMethodInternal(String struct, String name, boolean augmentation,
-                                   Type rtn, Type[] args) {
+    private void addMethodInternal(String struct, String name, String augmentation, Type rtn, Type[] args) {
         final Struct owner = structsMap.get(struct);
 
         if (owner == null) {
@@ -808,14 +820,20 @@ public final class Definition {
         final Class<?> implClass;
         final Class<?>[] params;
 
-        if (augmentation == false) {
+        if (augmentation == null) {
             implClass = owner.clazz;
             params = new Class<?>[args.length];
             for (int count = 0; count < args.length; ++count) {
                 params[count] = args[count].clazz;
             }
         } else {
-            implClass = Augmentation.class;
+            try {
+                implClass = Class.forName(augmentation);
+            } catch (ClassNotFoundException cnfe) {
+                throw new IllegalArgumentException("Augmentation class [" + augmentation + "]" +
+                    " not found for struct [" + struct + "] using method name [" + name + "].", cnfe);
+            }
+
             params = new Class<?>[args.length + 1];
             params[0] = owner.clazz;
             for (int count = 0; count < args.length; ++count) {
@@ -853,9 +871,10 @@ public final class Definition {
         }
 
         final int modifiers = reflect.getModifiers();
-        final Method method = new Method(name, owner, augmentation, rtn, Arrays.asList(args), asm, modifiers, handle);
+        final Method method =
+            new Method(name, owner, augmentation == null ? null : implClass, rtn, Arrays.asList(args), asm, modifiers, handle);
 
-        if (augmentation == false && java.lang.reflect.Modifier.isStatic(modifiers)) {
+        if (augmentation == null && java.lang.reflect.Modifier.isStatic(modifiers)) {
             owner.staticMethods.put(methodKey, method);
         } else {
             owner.methods.put(methodKey, method);
@@ -957,8 +976,8 @@ public final class Definition {
                             // TODO: we *have* to remove all these public members and use getter methods to encapsulate!
                             final Class<?> impl;
                             final Class<?> arguments[];
-                            if (method.augmentation) {
-                                impl = Augmentation.class;
+                            if (method.augmentation != null) {
+                                impl = method.augmentation;
                                 arguments = new Class<?>[method.arguments.size() + 1];
                                 arguments[0] = method.owner.clazz;
                                 for (int i = 0; i < method.arguments.size(); i++) {
@@ -1047,7 +1066,7 @@ public final class Definition {
             }
         }
 
-        runtimeMap.put(struct.clazz, new RuntimeClass(methods, getters, setters));
+        runtimeMap.put(struct.clazz, new RuntimeClass(struct, methods, getters, setters));
     }
 
     /** computes the functional interface method for a class, or returns null */

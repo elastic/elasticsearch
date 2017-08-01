@@ -20,9 +20,9 @@ package org.elasticsearch.transport;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -30,11 +30,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.mocksocket.MockServerSocket;
+import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.BufferedInputStream;
@@ -46,14 +49,16 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -65,10 +70,28 @@ import java.util.function.Consumer;
  */
 public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel> {
 
+    /**
+     * A pre-built light connection profile that shares a single connection across all
+     * types.
+     */
+    public static final ConnectionProfile LIGHT_PROFILE;
+
+    private final Set<MockChannel> openChannels = new HashSet<>();
+
+    static {
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.addConnections(1,
+            TransportRequestOptions.Type.BULK,
+            TransportRequestOptions.Type.PING,
+            TransportRequestOptions.Type.RECOVERY,
+            TransportRequestOptions.Type.REG,
+            TransportRequestOptions.Type.STATE);
+        LIGHT_PROFILE = builder.build();
+    }
+
     private final ExecutorService executor;
     private final Version mockVersion;
 
-    @Inject
     public MockTcpTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
                             CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
                             NetworkService networkService) {
@@ -93,9 +116,9 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
 
     @Override
     protected MockChannel bind(final String name, InetSocketAddress address) throws IOException {
-        ServerSocket socket = new ServerSocket();
+        MockServerSocket socket = new MockServerSocket();
         socket.bind(address);
-        socket.setReuseAddress(TCP_REUSE_ADDRESS.get(settings()));
+        socket.setReuseAddress(TCP_REUSE_ADDRESS.get(settings));
         ByteSizeValue tcpReceiveBufferSize = TCP_RECEIVE_BUFFER_SIZE.get(settings);
         if (tcpReceiveBufferSize.getBytes() > 0) {
             socket.setReceiveBufferSize(tcpReceiveBufferSize.bytesAsInt());
@@ -105,11 +128,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         executor.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
-                try {
-                    onException(serverMockChannel, e);
-                } catch (IOException ex) {
-                    logger.warn("failed on handling exception", ex);
-                }
+                onException(serverMockChannel, e);
             }
 
             @Override
@@ -157,43 +176,25 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected NodeChannels connectToChannelsLight(DiscoveryNode node) throws IOException {
-        return connectToChannels(node);
-    }
-
-    @Override
-    protected NodeChannels connectToChannels(DiscoveryNode node) throws IOException {
-        final NodeChannels nodeChannels = new NodeChannels(new MockChannel[1],
-            new MockChannel[1],
-            new MockChannel[1],
-            new MockChannel[1],
-            new MockChannel[1]);
+    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile,
+                                             Consumer<MockChannel> onChannelClose) throws IOException {
+        final MockChannel[] mockChannels = new MockChannel[1];
+        final NodeChannels nodeChannels = new NodeChannels(node, mockChannels, LIGHT_PROFILE); // we always use light here
         boolean success = false;
-        final Socket socket = new Socket();
+        final MockSocket socket = new MockSocket();
         try {
-            Consumer<MockChannel> onClose = (channel) -> {
-                final NodeChannels connected = connectedNodes.get(node);
-                if (connected != null && connected.hasChannel(channel)) {
-                    try {
-                        executor.execute(() -> {
-                            disconnectFromNode(node, channel, "channel closed event");
-                        });
-                    } catch (RejectedExecutionException ex) {
-                        logger.debug("failed to run disconnectFromNode - node is shutting down");
-                    }
-                }
-            };
             final InetSocketAddress address = node.getAddress().address();
             // we just use a single connections
             configureSocket(socket);
-            socket.connect(address, (int) TCP_CONNECT_TIMEOUT.get(settings).millis());
-            MockChannel channel = new MockChannel(socket, address, "none", onClose);
-            channel.loopRead(executor);
-            for (MockChannel[] channels : nodeChannels.getChannelArrays()) {
-                for (int i = 0; i < channels.length; i++) {
-                    channels[i] = channel;
-                }
+            final TimeValue connectTimeout = profile.getConnectTimeout();
+            try {
+                socket.connect(address, Math.toIntExact(connectTimeout.millis()));
+            } catch (SocketTimeoutException ex) {
+                throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", ex);
             }
+            MockChannel channel = new MockChannel(socket, address, "none", onChannelClose);
+            channel.loopRead(executor);
+            mockChannels[0] = channel;
             success = true;
         } finally {
             if (success == false) {
@@ -216,7 +217,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         if (tcpReceiveBufferSize.getBytes() > 0) {
             socket.setReceiveBufferSize(tcpReceiveBufferSize.bytesAsInt());
         }
-        socket.setReuseAddress(TCP_REUSE_ADDRESS.get(settings()));
+        socket.setReuseAddress(TCP_REUSE_ADDRESS.get(settings));
     }
 
     @Override
@@ -225,25 +226,28 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected void sendMessage(MockChannel mockChannel, BytesReference reference, Runnable sendListener) throws IOException {
-        synchronized (mockChannel) {
-            final Socket socket = mockChannel.activeChannel;
-            OutputStream outputStream = new BufferedOutputStream(socket.getOutputStream());
-            reference.writeTo(outputStream);
-            outputStream.flush();
-        }
-        if (sendListener != null) {
-            sendListener.run();
+    protected void sendMessage(MockChannel mockChannel, BytesReference reference, ActionListener<MockChannel> listener) {
+        try {
+            synchronized (mockChannel) {
+                final Socket socket = mockChannel.activeChannel;
+                OutputStream outputStream = new BufferedOutputStream(socket.getOutputStream());
+                reference.writeTo(outputStream);
+                outputStream.flush();
+            }
+            listener.onResponse(mockChannel);
+        } catch (IOException e) {
+            listener.onFailure(e);
+            onException(mockChannel, e);
         }
     }
 
     @Override
-    protected void closeChannels(List<MockChannel> channel) throws IOException {
+    protected void closeChannels(List<MockChannel> channel, boolean blocking) throws IOException {
         IOUtils.close(channel);
     }
 
     @Override
-    public long serverOpen() {
+    public long getNumOpenServerConnections() {
         return 1;
     }
 
@@ -251,7 +255,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         private final AtomicBoolean isOpen = new AtomicBoolean(true);
         private final InetSocketAddress localAddress;
         private final ServerSocket serverSocket;
-        private final ConcurrentHashMap<MockChannel, Boolean> workerChannels = new ConcurrentHashMap<>();
+        private final Set<MockChannel> workerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
         private final Socket activeChannel;
         private final String profile;
         private final CancellableThreads cancellableThreads = new CancellableThreads();
@@ -271,6 +275,9 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             this.serverSocket = null;
             this.profile = profile;
             this.onClose = () -> onClose.accept(this);
+            synchronized (openChannels) {
+                openChannels.add(this);
+            }
         }
 
         /**
@@ -285,6 +292,9 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             this.profile = profile;
             this.activeChannel = null;
             this.onClose = null;
+            synchronized (openChannels) {
+                openChannels.add(this);
+            }
         }
 
         public void accept(Executor executor) throws IOException {
@@ -293,11 +303,14 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
                 MockChannel incomingChannel = null;
                 try {
                     configureSocket(incomingSocket);
-                    incomingChannel = new MockChannel(incomingSocket, localAddress, profile, workerChannels::remove);
-                    //establish a happens-before edge between closing and accepting a new connection
                     synchronized (this) {
                         if (isOpen.get()) {
-                            workerChannels.put(incomingChannel, Boolean.TRUE);
+                            incomingChannel = new MockChannel(incomingSocket,
+                                new InetSocketAddress(incomingSocket.getLocalAddress(), incomingSocket.getPort()), profile,
+                                workerChannels::remove);
+                            //establish a happens-before edge between closing and accepting a new connection
+                            workerChannels.add(incomingChannel);
+
                             // this spawns a new thread immediately, so OK under lock
                             incomingChannel.loopRead(executor);
                             // the channel is properly registered and will be cleared by the close code.
@@ -320,8 +333,9 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
                     if (isOpen.get()) {
                         try {
                             onException(MockChannel.this, e);
-                        } catch (IOException ex) {
+                        } catch (Exception ex) {
                             logger.warn("failed on handling exception", ex);
+                            IOUtils.closeWhileHandlingException(MockChannel.this); // pure paranoia
                         }
                     }
                 }
@@ -338,14 +352,32 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         }
 
         @Override
-        public void close() throws IOException {
+        public synchronized void close() throws IOException {
+            // establish a happens-before edge between closing and accepting a new connection
+            // we have to sync this entire block to ensure that our openChannels checks work correctly.
+            // The close block below will close all worker channels but if one of the worker channels runs into an exception
+            // for instance due to a disconnect the handling of this exception might be executed concurrently.
+            // now if we are in-turn concurrently call close we might not wait for the actual close to happen and that will, down the road
+            // make the assertion trip that not all channels are closed.
             if (isOpen.compareAndSet(true, false)) {
-                //establish a happens-before edge between closing and accepting a new connection
-                synchronized (this) {
-                    IOUtils.close(serverSocket, activeChannel, () -> IOUtils.close(workerChannels.keySet()),
-                        () -> cancellableThreads.cancel("channel closed"), onClose);
+                final boolean removedChannel;
+                synchronized (openChannels) {
+                    removedChannel = openChannels.remove(this);
                 }
+                IOUtils.close(serverSocket, activeChannel, () -> IOUtils.close(workerChannels),
+                    () -> cancellableThreads.cancel("channel closed"), onClose);
+                assert removedChannel: "Channel was not removed or removed twice?";
             }
+        }
+
+        @Override
+        public String toString() {
+            return "MockChannel{" +
+                "profile='" + profile + '\'' +
+                ", isOpen=" + isOpen +
+                ", localAddress=" + localAddress +
+                ", isServerSocket=" + (serverSocket != null) +
+                '}';
         }
     }
 
@@ -356,10 +388,8 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         try {
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 // loop through all profiles and start them up, special handling for default one
-                for (Map.Entry<String, Settings> entry : buildProfileSettings().entrySet()) {
-                    final Settings settings = Settings.builder()
-                        .put(entry.getValue()).build();
-                    bindServer(entry.getKey(), settings);
+                for (ProfileSettings profileSettings : profileSettings) {
+                    bindServer(profileSettings);
                 }
             }
             super.doStart();
@@ -374,12 +404,14 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     @Override
     protected void stopInternal() {
         ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        synchronized (openChannels) {
+            assert openChannels.isEmpty() : "there are still open channels: " + openChannels;
+        }
     }
 
     @Override
     protected Version getCurrentVersion() {
         return mockVersion;
     }
-
 }
 

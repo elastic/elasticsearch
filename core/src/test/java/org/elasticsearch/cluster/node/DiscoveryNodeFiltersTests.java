@@ -245,6 +245,17 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         assertThat(filters.match(node), equalTo(true));
     }
 
+    public void testCommaSeparatedValuesTrimmed() {
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "B"), emptySet(), null);
+
+        Settings settings = shuffleSettings(Settings.builder()
+            .put("xxx." + randomFrom("_ip", "_host_ip", "_publish_ip"), "192.1.1.1, 192.1.1.54")
+            .put("xxx.tag", "A, B")
+            .build());
+        DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
+        assertTrue(filters.match(node));
+    }
+
     private Settings shuffleSettings(Settings source) {
         Settings.Builder settings = Settings.builder();
         List<String> keys = new ArrayList<>(source.getAsMap().keySet());

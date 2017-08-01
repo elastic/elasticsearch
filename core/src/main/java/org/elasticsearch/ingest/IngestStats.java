@@ -54,7 +54,7 @@ public class IngestStats implements Writeable, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         totalStats.writeTo(out);
-        out.writeVLong(statsPerPipeline.size());
+        out.writeVInt(statsPerPipeline.size());
         for (Map.Entry<String, Stats> entry : statsPerPipeline.entrySet()) {
             out.writeString(entry.getKey());
             entry.getValue().writeTo(out);

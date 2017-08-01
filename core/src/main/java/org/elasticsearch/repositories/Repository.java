@@ -115,16 +115,19 @@ public interface Repository extends LifecycleComponent {
      * @param failure       global failure reason or null
      * @param totalShards   total number of shards
      * @param shardFailures list of shard failures
+     * @param repositoryStateId the unique id identifying the state of the repository when the snapshot began
      * @return snapshot description
      */
-    SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards, List<SnapshotShardFailure> shardFailures);
+    SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
+                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId);
 
     /**
      * Deletes snapshot
      *
      * @param snapshotId snapshot id
+     * @param repositoryStateId the unique id identifying the state of the repository when the snapshot deletion began
      */
-    void deleteSnapshot(SnapshotId snapshotId);
+    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId);
 
     /**
      * Returns snapshot throttle time in nanoseconds

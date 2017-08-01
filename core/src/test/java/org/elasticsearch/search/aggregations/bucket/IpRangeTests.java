@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.IpRangeAggregationBuilder;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregationBuilder> {
 
@@ -51,7 +51,7 @@ public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregationBuil
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {
-                key = randomAsciiOfLengthBetween(1, 20);
+                key = randomAlphaOfLengthBetween(1, 20);
             }
             switch (randomInt(3)) {
             case 0:
@@ -87,4 +87,41 @@ public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregationBuil
         return factory;
     }
 
+    public void testMask() {
+        IpRangeAggregationBuilder b1 = new IpRangeAggregationBuilder("foo");
+        IpRangeAggregationBuilder b2 = new IpRangeAggregationBuilder("foo");
+        b1.addMaskRange("bar", "192.168.10.12/16");
+        b2.addRange("bar", "192.168.0.0", "192.169.0.0");
+        assertEquals(b1, b2);
+
+        b1 = new IpRangeAggregationBuilder("foo");
+        b2 = new IpRangeAggregationBuilder("foo");
+        b1.addMaskRange("bar", "192.168.0.0/31");
+        b2.addRange("bar", "192.168.0.0", "192.168.0.2");
+        assertEquals(b1, b2);
+
+        b1 = new IpRangeAggregationBuilder("foo");
+        b2 = new IpRangeAggregationBuilder("foo");
+        b1.addMaskRange("bar", "0.0.0.0/0");
+        b2.addRange("bar", "0.0.0.0", "::1:0:0:0");
+        assertEquals(b1, b2);
+
+        b1 = new IpRangeAggregationBuilder("foo");
+        b2 = new IpRangeAggregationBuilder("foo");
+        b1.addMaskRange("bar", "fe80::821f:2ff:fe4a:c5bd/64");
+        b2.addRange("bar", "fe80::", "fe80:0:0:1::");
+        assertEquals(b1, b2);
+
+        b1 = new IpRangeAggregationBuilder("foo");
+        b2 = new IpRangeAggregationBuilder("foo");
+        b1.addMaskRange("bar", "::/16");
+        b2.addRange("bar", null, "1::");
+        assertEquals(b1, b2);
+
+        b1 = new IpRangeAggregationBuilder("foo");
+        b2 = new IpRangeAggregationBuilder("foo");
+        b1.addMaskRange("bar", "::/0");
+        b2.addRange("bar", null, null);
+        assertEquals(b1, b2);
+    }
 }

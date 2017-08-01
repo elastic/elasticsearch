@@ -22,7 +22,7 @@ package org.elasticsearch.search.functionscore;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
@@ -94,8 +94,8 @@ public class FunctionScoreIT extends ESIntegTestCase {
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
 
-        Script scriptOne = new Script("1", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
-        Script scriptTwo = new Script("get score value", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        Script scriptOne = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "1", Collections.emptyMap());
+        Script scriptTwo = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
 
         SearchResponse response = client().search(
                 searchRequest().source(
@@ -110,7 +110,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                 )
         ).actionGet();
         assertSearchResponse(response);
-        assertThat(response.getHits().getAt(0).score(), equalTo(1.0f));
+        assertThat(response.getHits().getAt(0).getScore(), equalTo(1.0f));
     }
 
     public void testScriptScoresWithAgg() throws IOException {
@@ -118,7 +118,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
 
-        Script script = new Script("get score value", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
 
         SearchResponse response = client().search(
                 searchRequest().source(
@@ -128,7 +128,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                 )
         ).actionGet();
         assertSearchResponse(response);
-        assertThat(response.getHits().getAt(0).score(), equalTo(1.0f));
+        assertThat(response.getHits().getAt(0).getScore(), equalTo(1.0f));
         assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getKeyAsString(), equalTo("1.0"));
         assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1L));
     }
@@ -146,7 +146,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         refresh();
         ensureYellow();
 
-        Script script = new Script("doc['random_score']", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['random_score']", Collections.emptyMap());
         SearchResponse searchResponse = client().search(
                 searchRequest().source(searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)))
         ).actionGet();
@@ -160,7 +160,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                 searchRequest().source(searchSource().query(functionScoreQuery(new MatchAllQueryBuilder(), new FilterFunctionBuilder[] {
                                 new FilterFunctionBuilder(scriptFunction(script)),
                                 new FilterFunctionBuilder(scriptFunction(script))
-                        }).scoreMode(FiltersFunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)))
+                        }).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)))
                 ).actionGet();
         if (score < minScore) {
             assertThat(searchResponse.getHits().getTotalHits(), is(0L));
@@ -178,7 +178,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
             docs.add(client().prepareIndex(INDEX, TYPE, Integer.toString(i)).setSource("num", i + scoreOffset));
         }
         indexRandom(true, docs);
-        Script script = new Script("return (doc['num'].value)", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "return (doc['num'].value)", Collections.emptyMap());
         int numMatchingDocs = numDocs + scoreOffset - minScore;
         if (numMatchingDocs < 0) {
             numMatchingDocs = 0;
@@ -196,15 +196,15 @@ public class FunctionScoreIT extends ESIntegTestCase {
                 searchRequest().source(searchSource().query(functionScoreQuery(new MatchAllQueryBuilder(), new FilterFunctionBuilder[] {
                         new FilterFunctionBuilder(scriptFunction(script)),
                         new FilterFunctionBuilder(scriptFunction(script))
-                }).scoreMode(FiltersFunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)).size(numDocs))).actionGet();
+                }).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)).size(numDocs))).actionGet();
         assertMinScoreSearchResponses(numDocs, searchResponse, numMatchingDocs);
     }
 
     protected void assertMinScoreSearchResponses(int numDocs, SearchResponse searchResponse, int numMatchingDocs) {
         assertSearchResponse(searchResponse);
-        assertThat((int) searchResponse.getHits().totalHits(), is(numMatchingDocs));
+        assertThat((int) searchResponse.getHits().getTotalHits(), is(numMatchingDocs));
         int pos = 0;
-        for (int hitId = numDocs - 1; (numDocs - hitId) < searchResponse.getHits().totalHits(); hitId--) {
+        for (int hitId = numDocs - 1; (numDocs - hitId) < searchResponse.getHits().getTotalHits(); hitId--) {
             assertThat(searchResponse.getHits().getAt(pos).getId(), equalTo(Integer.toString(hitId)));
             pos++;
         }
@@ -221,7 +221,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                     searchSource().explain(true).query(
                             termQuery("text", "text")))).get();
         assertSearchResponse(termQuery);
-        assertThat(termQuery.getHits().totalHits(), equalTo(1L));
+        assertThat(termQuery.getHits().getTotalHits(), equalTo(1L));
         float termQueryScore = termQuery.getHits().getAt(0).getScore();
 
         for (CombineFunction combineFunction : CombineFunction.values()) {
@@ -235,7 +235,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                         searchSource().explain(true).query(
                                 functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(0.1f)))).get();
         assertSearchResponse(response);
-        assertThat(response.getHits().totalHits(), equalTo(1L));
+        assertThat(response.getHits().getTotalHits(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getScore(), equalTo(expectedScore));
 
         response = client().search(
@@ -244,7 +244,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                                 functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(2f)))).get();
 
         assertSearchResponse(response);
-        assertThat(response.getHits().totalHits(), equalTo(0L));
+        assertThat(response.getHits().getTotalHits(), equalTo(0L));
     }
 }
 

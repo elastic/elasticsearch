@@ -19,19 +19,19 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.get.GetResult;
@@ -43,11 +43,13 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuilder> {
@@ -65,7 +67,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             }
         }
         this.randomTerms = randomTerms;
-        termsPath = randomAsciiOfLength(10).replace('.', '_');
+        termsPath = randomAlphaOfLength(10).replace('.', '_');
     }
 
     @Override
@@ -77,7 +79,8 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             String fieldName;
             do {
                 fieldName = getRandomFieldName();
-            } while (fieldName.equals(GEO_POINT_FIELD_NAME) || fieldName.equals(GEO_SHAPE_FIELD_NAME));
+            } while (fieldName.equals(GEO_POINT_FIELD_NAME) || fieldName.equals(GEO_SHAPE_FIELD_NAME)
+                || fieldName.equals(INT_RANGE_FIELD_NAME) || fieldName.equals(DATE_RANGE_FIELD_NAME));
             Object[] values = new Object[randomInt(5)];
             for (int i = 0; i < values.length; i++) {
                 values[i] = getRandomValueForFieldName(fieldName);
@@ -85,14 +88,14 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             query = new TermsQueryBuilder(fieldName, values);
         } else {
             // right now the mock service returns us a list of strings
-            query = new TermsQueryBuilder(randomBoolean() ? randomAsciiOfLengthBetween(1,10) : STRING_FIELD_NAME, randomTermsLookup());
+            query = new TermsQueryBuilder(randomBoolean() ? randomAlphaOfLengthBetween(1,10) : STRING_FIELD_NAME, randomTermsLookup());
         }
         return query;
     }
 
     private TermsLookup randomTermsLookup() {
-        return new TermsLookup(randomBoolean() ? randomAsciiOfLength(10) : null, randomAsciiOfLength(10), randomAsciiOfLength(10),
-                termsPath).routing(randomBoolean() ? randomAsciiOfLength(10) : null);
+        return new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
+                termsPath).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
     }
 
     @Override
@@ -106,8 +109,12 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
             assertThat(matchNoDocsQuery.toString(), containsString("No terms supplied for \"terms\" query."));
         } else {
-            assertThat(query, instanceOf(BooleanQuery.class));
-            BooleanQuery booleanQuery = (BooleanQuery) query;
+            assertThat(query, either(instanceOf(TermInSetQuery.class))
+                    .or(instanceOf(PointInSetQuery.class))
+                    .or(instanceOf(ConstantScoreQuery.class)));
+            if (query instanceof ConstantScoreQuery) {
+                assertThat(((ConstantScoreQuery) query).getQuery(), instanceOf(BooleanQuery.class));
+            }
 
             // we only do the check below for string fields (otherwise we'd have to decode the values)
             if (queryBuilder.fieldName().equals(INT_FIELD_NAME) || queryBuilder.fieldName().equals(DOUBLE_FIELD_NAME)
@@ -123,24 +130,9 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 terms = queryBuilder.values();
             }
 
-            // compare whether we have the expected list of terms returned
-            final List<Term> booleanTerms = new ArrayList<>();
-            for (BooleanClause booleanClause : booleanQuery) {
-                assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-                assertThat(booleanClause.getQuery(), instanceOf(TermQuery.class));
-                Term term = ((TermQuery) booleanClause.getQuery()).getTerm();
-                booleanTerms.add(term);
-            }
-            CollectionUtil.timSort(booleanTerms);
-            List<Term> expectedTerms = new ArrayList<>();
-            for (Object term : terms) {
-                if (term != null) { // terms lookup filters this out
-                    expectedTerms.add(new Term(queryBuilder.fieldName(), term.toString()));
-                }
-            }
-            CollectionUtil.timSort(expectedTerms);
-            assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms.size(), booleanTerms.size());
-            assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms, booleanTerms);
+            TermInSetQuery expected = new TermInSetQuery(queryBuilder.fieldName(),
+                    terms.stream().filter(Objects::nonNull).map(Object::toString).map(BytesRef::new).collect(Collectors.toList()));
+            assertEquals(expected, query);
         }
     }
 
@@ -213,7 +205,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new int[]{1, 3, 4});
             TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
-            assertEquals(Arrays.asList(1, 3, 4), values);
+            assertEquals(Arrays.asList(1L, 3L, 4L), values);
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new double[]{1, 3, 4});
@@ -255,19 +247,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 2, parsed.values().size());
-
-        String deprecatedJson =
-                "{\n" +
-                        "  \"in\" : {\n" +
-                        "    \"user\" : [ \"kimchy\", \"elasticsearch\" ],\n" +
-                        "    \"boost\" : 1.0\n" +
-                        "  }\n" +
-                        "}";
-        QueryBuilder inShortcutParsed = parseQuery(json, ParseFieldMatcher.EMPTY);
-        assertThat(inShortcutParsed, equalTo(parsed));
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(deprecatedJson));
-        assertEquals("Deprecated field [in] used, expected [terms] instead", e.getMessage());
     }
 
     @Override
@@ -276,7 +255,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
                 () -> termsQueryBuilder.toQuery(createShardContext()));
         assertEquals("query must be rewritten first", e.getMessage());
-        assertEquals(termsQueryBuilder.rewrite(createShardContext()), new TermsQueryBuilder(STRING_FIELD_NAME,
+        assertEquals(rewriteAndFetch(termsQueryBuilder, createShardContext()), new TermsQueryBuilder(STRING_FIELD_NAME,
             randomTerms.stream().filter(x -> x != null).collect(Collectors.toList()))); // terms lookup removes null values
     }
 
@@ -288,6 +267,44 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 () -> query.toQuery(context));
         assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
                 e.getMessage());
+    }
+
+    @Override
+    protected boolean isCachable(TermsQueryBuilder queryBuilder) {
+        // even though we use a terms lookup here we do this during rewrite and that means we are cachable on toQuery
+        // that's why we return true here all the time
+        return super.isCachable(queryBuilder);
+    }
+
+    public void testSerializationFailsUnlessFetched() throws IOException {
+        QueryBuilder builder = new TermsQueryBuilder(STRING_FIELD_NAME, randomTermsLookup());
+        QueryBuilder termsQueryBuilder = Rewriteable.rewrite(builder, createShardContext());
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> termsQueryBuilder.writeTo(new BytesStreamOutput(10)));
+        assertEquals(ise.getMessage(), "supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
+        builder = rewriteAndFetch(builder, createShardContext());
+        builder.writeTo(new BytesStreamOutput(10));
+    }
+
+    public void testConversion() {
+        List<Object> list = Arrays.asList();
+        assertSame(Collections.emptyList(), TermsQueryBuilder.convert(list));
+        assertEquals(list, TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
+
+        list = Arrays.asList("abc");
+        assertEquals(Arrays.asList(new BytesRef("abc")), TermsQueryBuilder.convert(list));
+        assertEquals(list, TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
+
+        list = Arrays.asList("abc", new BytesRef("def"));
+        assertEquals(Arrays.asList(new BytesRef("abc"), new BytesRef("def")), TermsQueryBuilder.convert(list));
+        assertEquals(Arrays.asList("abc", "def"), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
+
+        list = Arrays.asList(5, 42L);
+        assertEquals(Arrays.asList(5L, 42L), TermsQueryBuilder.convert(list));
+        assertEquals(Arrays.asList(5L, 42L), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
+
+        list = Arrays.asList(5, 42d);
+        assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convert(list));
+        assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
     }
 }
 

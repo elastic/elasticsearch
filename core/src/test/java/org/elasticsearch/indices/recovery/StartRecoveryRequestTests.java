@@ -21,8 +21,10 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESTestCase;
@@ -36,33 +38,42 @@ import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 
 public class StartRecoveryRequestTests extends ESTestCase {
+
     public void testSerialization() throws Exception {
-        Version targetNodeVersion = randomVersion(random());
-        StartRecoveryRequest outRequest = new StartRecoveryRequest(
+        final Version targetNodeVersion = randomVersion(random());
+        final StartRecoveryRequest outRequest = new StartRecoveryRequest(
                 new ShardId("test", "_na_", 0),
+                UUIDs.randomBase64UUID(),
                 new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
                 Store.MetadataSnapshot.EMPTY,
                 randomBoolean(),
-                1L
-        );
-        ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
-        OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+                randomNonNegativeLong(),
+                randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
+
+        final ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+        final OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         out.setVersion(targetNodeVersion);
         outRequest.writeTo(out);
 
-        ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
+        final ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
         in.setVersion(targetNodeVersion);
-        StartRecoveryRequest inRequest = new StartRecoveryRequest();
+        final StartRecoveryRequest inRequest = new StartRecoveryRequest();
         inRequest.readFrom(in);
 
         assertThat(outRequest.shardId(), equalTo(inRequest.shardId()));
+        assertThat(outRequest.targetAllocationId(), equalTo(inRequest.targetAllocationId()));
         assertThat(outRequest.sourceNode(), equalTo(inRequest.sourceNode()));
         assertThat(outRequest.targetNode(), equalTo(inRequest.targetNode()));
         assertThat(outRequest.metadataSnapshot().asMap(), equalTo(inRequest.metadataSnapshot().asMap()));
-        assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
         assertThat(outRequest.isPrimaryRelocation(), equalTo(inRequest.isPrimaryRelocation()));
+        assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
+        if (targetNodeVersion.onOrAfter(Version.V_6_0_0_alpha1)) {
+            assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
+        } else {
+            assertThat(SequenceNumbersService.UNASSIGNED_SEQ_NO, equalTo(inRequest.startingSeqNo()));
+        }
     }
 
 }

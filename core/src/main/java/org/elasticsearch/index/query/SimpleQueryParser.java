@@ -19,6 +19,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
@@ -26,14 +27,17 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
-import java.util.Locale;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.List;
@@ -77,19 +81,21 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
 
     @Override
     public Query newDefaultQuery(String text) {
-        BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        bq.setDisableCoord(true);
+        List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             try {
                 Query q = createBooleanQuery(entry.getKey(), text, super.getDefaultOperator());
                 if (q != null) {
-                    bq.add(wrapWithBoost(q, entry.getValue()), BooleanClause.Occur.SHOULD);
+                    disjuncts.add(wrapWithBoost(q, entry.getValue()));
                 }
             } catch (RuntimeException e) {
                 rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq.build());
+        if (disjuncts.size() == 1) {
+            return disjuncts.get(0);
+        }
+        return new DisjunctionMaxQuery(disjuncts, 1.0f);
     }
 
     /**
@@ -98,26 +104,26 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      */
     @Override
     public Query newFuzzyQuery(String text, int fuzziness) {
-        if (settings.lowercaseExpandedTerms()) {
-            text = text.toLowerCase(settings.locale());
-        }
-        BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        bq.setDisableCoord(true);
+        List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
+            final String fieldName = entry.getKey();
             try {
-                Query query = new FuzzyQuery(new Term(entry.getKey(), text), fuzziness);
-                bq.add(wrapWithBoost(query, entry.getValue()), BooleanClause.Occur.SHOULD);
+                final BytesRef term = getAnalyzer().normalize(fieldName, text);
+                Query query = new FuzzyQuery(new Term(fieldName, term), fuzziness);
+                disjuncts.add(wrapWithBoost(query, entry.getValue()));
             } catch (RuntimeException e) {
                 rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq.build());
+        if (disjuncts.size() == 1) {
+            return disjuncts.get(0);
+        }
+        return new DisjunctionMaxQuery(disjuncts, 1.0f);
     }
 
     @Override
     public Query newPhraseQuery(String text, int slop) {
-        BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        bq.setDisableCoord(true);
+        List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             try {
                 String field = entry.getKey();
@@ -131,13 +137,16 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                 Float boost = entry.getValue();
                 Query q = createPhraseQuery(field, text, slop);
                 if (q != null) {
-                    bq.add(wrapWithBoost(q, boost), BooleanClause.Occur.SHOULD);
+                    disjuncts.add(wrapWithBoost(q, boost));
                 }
             } catch (RuntimeException e) {
                 rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq.build());
+        if (disjuncts.size() == 1) {
+            return disjuncts.get(0);
+        }
+        return new DisjunctionMaxQuery(disjuncts, 1.0f);
     }
 
     /**
@@ -146,27 +155,54 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      */
     @Override
     public Query newPrefixQuery(String text) {
-        if (settings.lowercaseExpandedTerms()) {
-            text = text.toLowerCase(settings.locale());
-        }
-        BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        bq.setDisableCoord(true);
+        List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
+            final String fieldName = entry.getKey();
             try {
                 if (settings.analyzeWildcard()) {
-                    Query analyzedQuery = newPossiblyAnalyzedQuery(entry.getKey(), text);
+                    Query analyzedQuery = newPossiblyAnalyzedQuery(fieldName, text);
                     if (analyzedQuery != null) {
-                        bq.add(wrapWithBoost(analyzedQuery, entry.getValue()), BooleanClause.Occur.SHOULD);
+                        disjuncts.add(wrapWithBoost(analyzedQuery, entry.getValue()));
                     }
                 } else {
-                    Query query = new PrefixQuery(new Term(entry.getKey(), text));
-                    bq.add(wrapWithBoost(query, entry.getValue()), BooleanClause.Occur.SHOULD);
+                    Term term = new Term(fieldName, getAnalyzer().normalize(fieldName, text));
+                    Query query = new PrefixQuery(term);
+                    disjuncts.add(wrapWithBoost(query, entry.getValue()));
                 }
             } catch (RuntimeException e) {
                 return rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq.build());
+        if (disjuncts.size() == 1) {
+            return disjuncts.get(0);
+        }
+        return new DisjunctionMaxQuery(disjuncts, 1.0f);
+    }
+
+    /**
+     * Checks if graph analysis should be enabled for the field depending
+     * on the provided {@link Analyzer}
+     */
+    protected Query createFieldQuery(Analyzer analyzer, BooleanClause.Occur operator, String field,
+                                     String queryText, boolean quoted, int phraseSlop) {
+        assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;
+
+        // Use the analyzer to get all the tokens, and then build an appropriate
+        // query based on the analysis chain.
+        try (TokenStream source = analyzer.tokenStream(field, queryText)) {
+            if (source.hasAttribute(DisableGraphAttribute.class)) {
+                /**
+                 * A {@link TokenFilter} in this {@link TokenStream} disabled the graph analysis to avoid
+                 * paths explosion. See {@link ShingleTokenFilterFactory} for details.
+                 */
+                setEnableGraphQueries(false);
+            }
+            Query query = super.createFieldQuery(source, operator, field, quoted, phraseSlop);
+            setEnableGraphQueries(true);
+            return query;
+        } catch (IOException e) {
+            throw new RuntimeException("Error analyzing query text", e);
+        }
     }
 
     private static Query wrapWithBoost(Query query, float boost) {
@@ -182,11 +218,11 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      * of {@code TermQuery}s and {@code PrefixQuery}s
      */
     private Query newPossiblyAnalyzedQuery(String field, String termStr) {
-        List<List<String>> tlist = new ArrayList<> ();
+        List<List<BytesRef>> tlist = new ArrayList<> ();
         // get Analyzer from superclass and tokenize the term
         try (TokenStream source = getAnalyzer().tokenStream(field, termStr)) {
             source.reset();
-            List<String> currentPos = new ArrayList<>();
+            List<BytesRef> currentPos = new ArrayList<>();
             CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
             PositionIncrementAttribute posAtt = source.addAttribute(PositionIncrementAttribute.class);
 
@@ -197,7 +233,8 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                         tlist.add(currentPos);
                         currentPos = new ArrayList<>();
                     }
-                    currentPos.add(termAtt.toString());
+                    final BytesRef term = getAnalyzer().normalize(field, termAtt.toString());
+                    currentPos.add(term);
                     hasMoreTokens = source.incrementToken();
                 }
                 if (currentPos.isEmpty() == false) {
@@ -223,7 +260,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         // build a boolean query with prefix on the last position only.
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (int pos = 0; pos < tlist.size(); pos++) {
-            List<String> plist = tlist.get(pos);
+            List<BytesRef> plist = tlist.get(pos);
             boolean isLastPos = (pos == tlist.size()-1);
             Query posQuery;
             if (plist.size() == 1) {
@@ -241,11 +278,11 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                 posQuery = new SynonymQuery(terms);
             } else {
                 BooleanQuery.Builder innerBuilder = new BooleanQuery.Builder();
-                for (String token : plist) {
+                for (BytesRef token : plist) {
                     innerBuilder.add(new BooleanClause(new PrefixQuery(new Term(field, token)),
                         BooleanClause.Occur.SHOULD));
                 }
-                posQuery = innerBuilder.setDisableCoord(true).build();
+                posQuery = innerBuilder.build();
             }
             builder.add(new BooleanClause(posQuery, getDefaultOperator()));
         }
@@ -257,10 +294,6 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      * their default values
      */
     static class Settings {
-        /** Locale to use for parsing. */
-        private Locale locale = SimpleQueryStringBuilder.DEFAULT_LOCALE;
-        /** Specifies whether parsed terms should be lowercased. */
-        private boolean lowercaseExpandedTerms = SimpleQueryStringBuilder.DEFAULT_LOWERCASE_EXPANDED_TERMS;
         /** Specifies whether lenient query parsing should be used. */
         private boolean lenient = SimpleQueryStringBuilder.DEFAULT_LENIENT;
         /** Specifies whether wildcards should be analyzed. */
@@ -272,30 +305,13 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
          * Generates default {@link Settings} object (uses ROOT locale, does
          * lowercase terms, no lenient parsing, no wildcard analysis).
          * */
-        public Settings() {
+        Settings() {
         }
 
-        /** Specifies the locale to use for parsing, Locale.ROOT by default. */
-        public void locale(Locale locale) {
-            this.locale = (locale != null) ? locale : SimpleQueryStringBuilder.DEFAULT_LOCALE;
-        }
-
-        /** Returns the locale to use for parsing. */
-        public Locale locale() {
-            return this.locale;
-        }
-
-        /**
-         * Specifies whether to lowercase parse terms, defaults to true if
-         * unset.
-         */
-        public void lowercaseExpandedTerms(boolean lowercaseExpandedTerms) {
-            this.lowercaseExpandedTerms = lowercaseExpandedTerms;
-        }
-
-        /** Returns whether to lowercase parse terms. */
-        public boolean lowercaseExpandedTerms() {
-            return this.lowercaseExpandedTerms;
+        Settings(Settings other) {
+            this.lenient = other.lenient;
+            this.analyzeWildcard = other.analyzeWildcard;
+            this.quoteFieldSuffix = other.quoteFieldSuffix;
         }
 
         /** Specifies whether to use lenient parsing, defaults to false. */
@@ -335,10 +351,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
 
         @Override
         public int hashCode() {
-            // checking the return value of toLanguageTag() for locales only.
-            // For further reasoning see
-            // https://issues.apache.org/jira/browse/LUCENE-4021
-            return Objects.hash(locale.toLanguageTag(), lowercaseExpandedTerms, lenient, analyzeWildcard, quoteFieldSuffix);
+            return Objects.hash(lenient, analyzeWildcard, quoteFieldSuffix);
         }
 
         @Override
@@ -350,15 +363,8 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                 return false;
             }
             Settings other = (Settings) obj;
-
-            // checking the return value of toLanguageTag() for locales only.
-            // For further reasoning see
-            // https://issues.apache.org/jira/browse/LUCENE-4021
-            return (Objects.equals(locale.toLanguageTag(), other.locale.toLanguageTag())
-                    && Objects.equals(lowercaseExpandedTerms, other.lowercaseExpandedTerms)
-                    && Objects.equals(lenient, other.lenient)
-                    && Objects.equals(analyzeWildcard, other.analyzeWildcard)
-                    && Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix));
+            return Objects.equals(lenient, other.lenient) && Objects.equals(analyzeWildcard, other.analyzeWildcard)
+                    && Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix);
         }
     }
 }

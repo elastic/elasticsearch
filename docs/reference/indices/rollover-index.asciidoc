@@ -7,7 +7,7 @@ index is considered to be too large or too old.
 The API accepts a single alias name and a list of `conditions`.  The alias
 must point to a single index only.  If the index satisfies the specified
 conditions then a new index is created and the alias is switched to point to
-the new alias.
+the new index.
 
 
 [source,js]
@@ -84,7 +84,7 @@ POST /my_alias/_rollover/my_new_index_name
 // TEST[s/^/PUT my_old_index_name\nPUT my_old_index_name\/_alias\/my_alias\n/]
 
 [float]
-=== Using date math with the rolllover API
+=== Using date math with the rollover API
 
 It can be useful to use <<date-math-index-names,date math>> to name the
 rollover index according to the date that the index rolled over, e.g.
@@ -95,7 +95,8 @@ over. For instance:
 
 [source,js]
 --------------------------------------------------
-PUT /<logs-{now/d}-1> <1>
+# PUT /<logs-{now/d}-1> with URI encoding:
+PUT /%3Clogs-%7Bnow%2Fd%7D-1%3E <1>
 {
   "aliases": {
     "logs_write": {}
@@ -107,6 +108,8 @@ PUT logs_write/log/1
   "message": "a dummy log"
 }
 
+POST logs_write/_refresh
+
 # Wait for a day to pass
 
 POST /logs_write/_rollover <2>
@@ -117,7 +120,7 @@ POST /logs_write/_rollover <2>
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/\{now\//{2016.10.31||%2f/]
+// TEST[s/now/2016.10.31||/]
 <1> Creates an index named with today's date (e.g.) `logs-2016.10.31-1`
 <2> Rolls over to a new index with today's date, e.g. `logs-2016.10.31-000002` if run immediately, or `logs-2016.11.01-000002` if run after 24 hours
 
@@ -153,11 +156,12 @@ over indices created in the last three days, you could do the following:
 
 [source,js]
 --------------------------------------------------
-GET /<logs-{now/d}-*>,<logs-{now/d-1d}-*>,<logs-{now/d-2d}-*>/_search
+# GET /<logs-{now/d}-*>,<logs-{now/d-1d}-*>,<logs-{now/d-2d}-*>/_search
+GET /%3Clogs-%7Bnow%2Fd%7D-*%3E%2C%3Clogs-%7Bnow%2Fd-1d%7D-*%3E%2C%3Clogs-%7Bnow%2Fd-2d%7D-*%3E/_search
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
-// TEST[s/now\//now%2f/]
+// TEST[s/now/2016.10.31||/]
 
 [float]
 === Defining the new index

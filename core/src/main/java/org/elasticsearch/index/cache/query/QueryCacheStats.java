@@ -106,13 +106,6 @@ public class QueryCacheStats implements Streamable, ToXContent {
         return cacheCount - cacheSize;
     }
 
-    public static QueryCacheStats readQueryCacheStats(StreamInput in) throws IOException {
-        QueryCacheStats stats = new QueryCacheStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         ramBytesUsed = in.readLong();

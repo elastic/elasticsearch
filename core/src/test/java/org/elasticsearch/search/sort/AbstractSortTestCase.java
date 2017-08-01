@@ -23,14 +23,12 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -39,81 +37,63 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.LegacyDoubleFieldMapper.DoubleFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptServiceTests.TestEngineService;
-import org.elasticsearch.script.ScriptSettings;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends ESTestCase {
+    private static final int NUMBER_OF_TESTBUILDERS = 20;
 
     protected static NamedWriteableRegistry namedWriteableRegistry;
 
-    private static final int NUMBER_OF_TESTBUILDERS = 20;
-    static IndicesQueriesRegistry indicesQueriesRegistry;
+    private static NamedXContentRegistry xContentRegistry;
     private static ScriptService scriptService;
 
     @BeforeClass
     public static void init() throws IOException {
-        Path genericConfigFolder = createTempDir();
         Settings baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
                 .build();
-        Environment environment = new Environment(baseSettings);
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new TestEngineService()));
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        scriptService = new ScriptService(baseSettings, environment,
-                new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
-            @Override
-            public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
-                return new CompiledScript(ScriptType.INLINE, "mockName", "test", script);
-            }
-        };
+        Map<String, Function<Map<String, Object>, Object>> scripts = Collections.singletonMap("dummy", p -> null);
+        ScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts);
+        scriptService = new ScriptService(baseSettings, Collections.singletonMap(engine.getType(), engine), ScriptModule.CORE_CONTEXTS);
 
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-        indicesQueriesRegistry = searchModule.getQueryParserRegistry();
+        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
-        indicesQueriesRegistry = null;
+        xContentRegistry = null;
     }
 
     /** Returns random sort that is put under test */
@@ -123,7 +103,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     protected abstract T mutate(T original) throws IOException;
 
     /** Parse the sort from xContent. Just delegate to the SortBuilder's static fromXContent method. */
-    protected abstract T fromXContent(QueryParseContext context, String fieldName) throws IOException;
+    protected abstract T fromXContent(XContentParser parser, String fieldName) throws IOException;
 
     /**
      * Test that creates new sort from a random test sort and checks both for equality
@@ -138,7 +118,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             }
             testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
             XContentBuilder shuffled = shuffleXContent(builder);
-            XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
+            XContentParser itemParser = createParser(shuffled);
             itemParser.nextToken();
 
             /*
@@ -148,8 +128,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             String elementName = itemParser.currentName();
             itemParser.nextToken();
 
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
-            T parsedItem = fromXContent(context, elementName);
+            T parsedItem = fromXContent(itemParser, elementName);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
@@ -194,7 +173,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     }
 
     protected QueryShardContext createMockShardContext() {
-        Index index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
+        Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index,
             Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
@@ -210,9 +189,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             public void onCache(ShardId shardId, Accountable accountable) {
             }
         });
-        long nowInMillis = randomPositiveLong();
-        return new QueryShardContext(0, idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
-                indicesQueriesRegistry, null, null, null, () -> nowInMillis) {
+        long nowInMillis = randomNonNegativeLong();
+        return new QueryShardContext(0, idxSettings, bitsetFilterCache, ifds::getForField, null, null, scriptService,
+                xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);
@@ -227,14 +206,19 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     }
 
     /**
-     * Return a field type. We use {@link DoubleFieldType} by default since it is compatible with all sort modes
+     * Return a field type. We use {@link NumberFieldMapper.NumberFieldType} by default since it is compatible with all sort modes
      * Tests that require other field type than double can override this.
      */
     protected MappedFieldType provideMappedFieldType(String name) {
-        DoubleFieldType doubleFieldType = new DoubleFieldType();
+        NumberFieldMapper.NumberFieldType doubleFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
         doubleFieldType.setName(name);
         doubleFieldType.setHasDocValues(true);
         return doubleFieldType;
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
     }
 
     protected static QueryBuilder randomNestedFilter() {
@@ -243,7 +227,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             case 0: return (new MatchAllQueryBuilder()).boost(randomFloat());
             case 1: return (new IdsQueryBuilder()).boost(randomFloat());
             case 2: return (new TermQueryBuilder(
-                    randomAsciiOfLengthBetween(1, 10),
+                    randomAlphaOfLengthBetween(1, 10),
                     randomDouble()).boost(randomFloat()));
             default: throw new IllegalStateException("Only three query builders supported for testing sort");
         }
@@ -251,7 +235,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
     @SuppressWarnings("unchecked")
     private T copy(T original) throws IOException {
-        return copyWriteable(original, namedWriteableRegistry,
-                (Writeable.Reader<T>) namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()));
+        /* The cast below is required to make Java 9 happy. Java 8 infers the T in copyWriterable to be the same as AbstractSortTestCase's
+         * T but Java 9 infers it to be SortBuilder. */
+        return (T) copyWriteable(original, namedWriteableRegistry,
+                namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()));
     }
 }

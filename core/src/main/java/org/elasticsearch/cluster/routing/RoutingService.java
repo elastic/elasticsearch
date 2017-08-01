@@ -109,7 +109,7 @@ public class RoutingService extends AbstractLifecycleComponent {
                     rerouting.set(false);
                     ClusterState state = clusterService.state();
                     if (logger.isTraceEnabled()) {
-                        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}], current state:\n{}", source, state.prettyPrint()), e);
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}], current state:\n{}", source, state), e);
                     } else {
                         logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}], current state version [{}]", source, state.version()), e);
                     }
@@ -118,7 +118,7 @@ public class RoutingService extends AbstractLifecycleComponent {
         } catch (Exception e) {
             rerouting.set(false);
             ClusterState state = clusterService.state();
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to reroute routing table, current state:\n{}", state.prettyPrint()), e);
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to reroute routing table, current state:\n{}", state), e);
         }
     }
 }

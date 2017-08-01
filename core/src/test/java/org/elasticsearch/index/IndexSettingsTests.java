@@ -21,7 +21,6 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -164,8 +163,7 @@ public class IndexSettingsTests extends ESTestCase {
         if (settings.length > 0) {
             settingSet.addAll(Arrays.asList(settings));
         }
-        return new IndexSettings(metaData, nodeSettings, (idx) -> Regex.simpleMatch(idx, metaData.getIndex().getName()),
-            new IndexScopedSettings(Settings.EMPTY, settingSet));
+        return new IndexSettings(metaData, nodeSettings, new IndexScopedSettings(Settings.EMPTY, settingSet));
     }
 
 
@@ -207,8 +205,7 @@ public class IndexSettingsTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(indexSettings)
                 .build();
-        IndexMetaData metaData = IndexMetaData.builder(name).settings(build).build();
-        return metaData;
+        return IndexMetaData.builder(name).settings(build).build();
     }
 
 
@@ -292,6 +289,29 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxResultWindow());
     }
 
+    public void testMaxAdjacencyMatrixFiltersSetting() {
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey(), 15)
+            .build());
+        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(15, settings.getMaxAdjacencyMatrixFilters());
+        settings.updateIndexMetaData(newIndexMeta("index",
+            Settings.builder().put(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey(),
+            42).build()));
+        assertEquals(42, settings.getMaxAdjacencyMatrixFilters());
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.get(Settings.EMPTY).intValue(),
+                settings.getMaxAdjacencyMatrixFilters());
+
+        metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.get(Settings.EMPTY).intValue(),
+                settings.getMaxAdjacencyMatrixFilters());
+    }
+
     public void testGCDeletesSetting() {
         TimeValue gcDeleteSetting = new TimeValue(Math.abs(randomInt()), TimeUnit.MILLISECONDS);
         IndexMetaData metaData = newIndexMeta("index", Settings.builder()
@@ -350,6 +370,27 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(actualNewTranslogFlushThresholdSize, settings.getFlushThresholdSize());
     }
 
+    public void testTranslogGenerationSizeThreshold() {
+        final ByteSizeValue size = new ByteSizeValue(Math.abs(randomInt()));
+        final String key = IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey();
+        final ByteSizeValue actualValue =
+                ByteSizeValue.parseBytesSizeValue(size.toString(), key);
+        final IndexMetaData metaData =
+                newIndexMeta(
+                        "index",
+                        Settings.builder()
+                                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                                .put(key, size.toString())
+                                .build());
+        final IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(actualValue, settings.getGenerationThresholdSize());
+        final ByteSizeValue newSize = new ByteSizeValue(Math.abs(randomInt()));
+        final ByteSizeValue actual = ByteSizeValue.parseBytesSizeValue(newSize.toString(), key);
+        settings.updateIndexMetaData(
+                newIndexMeta("index", Settings.builder().put(key, newSize.toString()).build()));
+        assertEquals(actual, settings.getGenerationThresholdSize());
+    }
+
     public void testArchiveBrokenIndexSettings() {
         Settings settings =
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
@@ -394,4 +435,48 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals("2s", settings.get("index.refresh_interval"));
     }
 
+    public void testSingleTypeSetting() {
+        {
+            IndexSettings index = newIndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
+            IndexScopedSettings scopedSettings = index.getScopedSettings();
+            Settings build = Settings.builder().put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, randomBoolean()).build();
+            scopedSettings.archiveUnknownOrInvalidSettings(build, e -> fail("unexpected unknown setting " + e),
+                (e, ex) -> fail("unexpected illegal setting"));
+            assertTrue(index.isSingleType());
+            expectThrows(IllegalArgumentException.class, () -> {
+                index.getScopedSettings()
+                    .validate(Settings.builder().put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, randomBoolean()).build());
+            });
+        }
+        {
+            boolean single_type = randomBoolean();
+            Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_6_0)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, single_type)
+                .build();
+            IndexMetaData meta = IndexMetaData.builder("index").settings(settings).build();
+            IndexSettings index = newIndexSettings(meta, Settings.EMPTY);
+            IndexScopedSettings scopedSettings = index.getScopedSettings();
+            Settings build = Settings.builder().put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, randomBoolean()).build();
+            scopedSettings.archiveUnknownOrInvalidSettings(build, e -> fail("unexpected unknown setting " + e),
+                (e, ex) -> fail("unexpected illegal setting"));
+            assertEquals(single_type, index.isSingleType());
+        }
+
+        {
+            Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, false)
+                .build();
+            IndexMetaData meta = IndexMetaData.builder("index").settings(settings).build();
+            try {
+                newIndexSettings(meta, Settings.EMPTY);
+                fail("should fail with assertion error");
+            } catch (AssertionError e) {
+                // all is well
+            }
+        }
+    }
 }

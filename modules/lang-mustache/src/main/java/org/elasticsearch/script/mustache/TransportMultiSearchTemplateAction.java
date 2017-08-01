@@ -20,59 +20,81 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.elasticsearch.script.mustache.TransportSearchTemplateAction.convert;
 
 public class TransportMultiSearchTemplateAction extends HandledTransportAction<MultiSearchTemplateRequest, MultiSearchTemplateResponse> {
 
-    private final TransportSearchTemplateAction searchTemplateAction;
+    private final ScriptService scriptService;
+    private final NamedXContentRegistry xContentRegistry;
+    private final TransportMultiSearchAction multiSearchAction;
 
     @Inject
     public TransportMultiSearchTemplateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                               ActionFilters actionFilters, IndexNameExpressionResolver resolver,
-                                              TransportSearchTemplateAction searchTemplateAction) {
+                                              ScriptService scriptService, NamedXContentRegistry xContentRegistry,
+                                              TransportMultiSearchAction multiSearchAction) {
         super(settings, MultiSearchTemplateAction.NAME, threadPool, transportService, actionFilters, resolver,
                 MultiSearchTemplateRequest::new);
-        this.searchTemplateAction = searchTemplateAction;
+        this.scriptService = scriptService;
+        this.xContentRegistry = xContentRegistry;
+        this.multiSearchAction = multiSearchAction;
     }
 
     @Override
     protected void doExecute(MultiSearchTemplateRequest request, ActionListener<MultiSearchTemplateResponse> listener) {
-        final AtomicArray<MultiSearchTemplateResponse.Item> responses = new AtomicArray<>(request.requests().size());
-        final AtomicInteger counter = new AtomicInteger(responses.length());
-
-        for (int i = 0; i < responses.length(); i++) {
-            final int index = i;
-            searchTemplateAction.execute(request.requests().get(i), new ActionListener<SearchTemplateResponse>() {
-                @Override
-                public void onResponse(SearchTemplateResponse searchTemplateResponse) {
-                    responses.set(index, new MultiSearchTemplateResponse.Item(searchTemplateResponse, null));
-                    if (counter.decrementAndGet() == 0) {
-                        finishHim();
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    responses.set(index, new MultiSearchTemplateResponse.Item(null, e));
-                    if (counter.decrementAndGet() == 0) {
-                        finishHim();
-                    }
-                }
-
-                private void finishHim() {
-                    MultiSearchTemplateResponse.Item[] items = responses.toArray(new MultiSearchTemplateResponse.Item[responses.length()]);
-                    listener.onResponse(new MultiSearchTemplateResponse(items));
-                }
-            });
+        List<Integer> originalSlots = new ArrayList<>();
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        multiSearchRequest.indicesOptions(request.indicesOptions());
+        if (request.maxConcurrentSearchRequests() != 0) {
+            multiSearchRequest.maxConcurrentSearchRequests(request.maxConcurrentSearchRequests());
         }
+
+        MultiSearchTemplateResponse.Item[] items = new MultiSearchTemplateResponse.Item[request.requests().size()];
+        for (int i = 0; i < items.length; i++) {
+            SearchTemplateRequest searchTemplateRequest = request.requests().get(i);
+            SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
+            SearchRequest searchRequest;
+            try {
+                searchRequest = convert(searchTemplateRequest, searchTemplateResponse, scriptService, xContentRegistry);
+            } catch (Exception e) {
+                items[i] = new MultiSearchTemplateResponse.Item(null, e);
+                continue;
+            }
+            items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);
+            if (searchRequest != null) {
+                multiSearchRequest.add(searchRequest);
+                originalSlots.add(i);
+            }
+        }
+
+        multiSearchAction.execute(multiSearchRequest, ActionListener.wrap(r -> {
+            for (int i = 0; i < r.getResponses().length; i++) {
+                MultiSearchResponse.Item item = r.getResponses()[i];
+                int originalSlot = originalSlots.get(i);
+                if (item.isFailure()) {
+                    items[originalSlot] = new MultiSearchTemplateResponse.Item(null, item.getFailure());
+                } else {
+                    items[originalSlot].getResponse().setResponse(item.getResponse());
+                }
+            }
+            listener.onResponse(new MultiSearchTemplateResponse(items));
+        }, listener::onFailure));
     }
 }

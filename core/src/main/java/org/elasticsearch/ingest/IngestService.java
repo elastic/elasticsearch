@@ -25,6 +25,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -32,20 +34,19 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import static org.elasticsearch.common.settings.Setting.Property;
+
 /**
  * Holder class for several ingest related services.
  */
 public class IngestService {
-
     private final PipelineStore pipelineStore;
     private final PipelineExecutionService pipelineExecutionService;
 
     public IngestService(Settings settings, ThreadPool threadPool,
                          Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,
                          List<IngestPlugin> ingestPlugins) {
-
-        final TemplateService templateService = new InternalTemplateService(scriptService);
-        Processor.Parameters parameters = new Processor.Parameters(env, scriptService, templateService,
+        Processor.Parameters parameters = new Processor.Parameters(env, scriptService,
             analysisRegistry, threadPool.getThreadContext());
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
         for (IngestPlugin ingestPlugin : ingestPlugins) {

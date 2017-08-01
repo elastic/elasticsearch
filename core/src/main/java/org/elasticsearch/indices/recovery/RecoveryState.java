@@ -45,7 +45,7 @@ import java.util.Map;
  */
 public class RecoveryState implements ToXContent, Streamable {
 
-    public static enum Stage {
+    public enum Stage {
         INIT((byte) 0),
 
         /**
@@ -464,6 +464,11 @@ public class RecoveryState implements ToXContent, Streamable {
 
         public synchronized void incrementRecoveredOperations() {
             recovered++;
+            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
+        }
+
+        public synchronized void incrementRecoveredOperations(int ops) {
+            recovered += ops;
             assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
         }
 

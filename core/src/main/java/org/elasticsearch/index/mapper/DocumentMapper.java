@@ -24,7 +24,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MetadataFieldMapper.TypeParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -74,7 +74,8 @@ public class DocumentMapper implements ToXContent {
                 final MetadataFieldMapper metadataMapper;
                 if (existingMetadataMapper == null) {
                     final TypeParser parser = entry.getValue();
-                    metadataMapper = parser.getDefault(indexSettings, mapperService.fullName(name), builder.name());
+                    metadataMapper = parser.getDefault(mapperService.fullName(name),
+                            mapperService.documentMapperParser().parserContext(builder.name()));
                 } else {
                     metadataMapper = existingMetadataMapper;
                 }
@@ -235,20 +236,12 @@ public class DocumentMapper implements ToXContent {
         return metadataMapper(ParentFieldMapper.class);
     }
 
-    public TimestampFieldMapper timestampFieldMapper() {
-        return metadataMapper(TimestampFieldMapper.class);
-    }
-
-    public TTLFieldMapper TTLFieldMapper() {
-        return metadataMapper(TTLFieldMapper.class);
-    }
-
     public IndexFieldMapper IndexFieldMapper() {
         return metadataMapper(IndexFieldMapper.class);
     }
 
-    public Query typeFilter() {
-        return typeMapper().fieldType().termQuery(type, null);
+    public Query typeFilter(QueryShardContext context) {
+        return typeMapper().fieldType().termQuery(type, context);
     }
 
     public boolean hasNestedObjects() {
@@ -261,10 +254,6 @@ public class DocumentMapper implements ToXContent {
 
     public Map<String, ObjectMapper> objectMappers() {
         return this.objectMappers;
-    }
-
-    public ParsedDocument parse(String index, String type, String id, BytesReference source) throws MapperParsingException {
-        return parse(SourceToParse.source(index, type, id, source));
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
@@ -287,7 +276,7 @@ public class DocumentMapper implements ToXContent {
             }
             // We can pass down 'null' as acceptedDocs, because nestedDocId is a doc to be fetched and
             // therefor is guaranteed to be a live doc.
-            final Weight nestedWeight = filter.createWeight(sc.searcher(), false);
+            final Weight nestedWeight = filter.createWeight(sc.searcher(), false, 1f);
             Scorer scorer = nestedWeight.scorer(context);
             if (scorer == null) {
                 continue;
@@ -335,6 +324,11 @@ public class DocumentMapper implements ToXContent {
      */
     public DocumentMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
         Mapping updated = this.mapping.updateFieldType(fullNameToFieldType);
+        if (updated == this.mapping) {
+            // no change
+            return this;
+        }
+        assert updated == updated.updateFieldType(fullNameToFieldType) : "updateFieldType operation is not idempotent";
         return new DocumentMapper(mapperService, updated);
     }
 

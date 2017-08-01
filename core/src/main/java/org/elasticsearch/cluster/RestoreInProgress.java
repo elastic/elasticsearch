@@ -39,11 +39,9 @@ import java.util.Objects;
 /**
  * Meta data about restore processes that are currently executing
  */
-public class RestoreInProgress extends AbstractDiffable<Custom> implements Custom {
+public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
     public static final String TYPE = "restore";
-
-    public static final RestoreInProgress PROTO = new RestoreInProgress();
 
     private final List<Entry> entries;
 
@@ -89,6 +87,18 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
     @Override
     public int hashCode() {
         return entries.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder("RestoreInProgress[");
+        for (int i = 0; i < entries.size(); i++) {
+            builder.append(entries.get(i).snapshot().getSnapshotId().getName());
+            if (i + 1 < entries.size()) {
+                builder.append(",");
+            }
+        }
+        return builder.append("]").toString();
     }
 
     /**
@@ -377,15 +387,15 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
      * {@inheritDoc}
      */
     @Override
-    public String type() {
+    public String getWriteableName() {
         return TYPE;
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public RestoreInProgress readFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(Custom.class, TYPE, in);
+    }
+
+    public RestoreInProgress(StreamInput in) throws IOException {
         Entry[] entries = new Entry[in.readVInt()];
         for (int i = 0; i < entries.length; i++) {
             Snapshot snapshot = new Snapshot(in);
@@ -404,7 +414,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
             }
             entries[i] = new Entry(snapshot, state, Collections.unmodifiableList(indexBuilder), builder.build());
         }
-        return new RestoreInProgress(entries);
+        this.entries = Arrays.asList(entries);
     }
 
     /**

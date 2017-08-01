@@ -112,6 +112,8 @@ include::analysis/testing.asciidoc[]
 
 include::analysis/analyzers.asciidoc[]
 
+include::analysis/normalizers.asciidoc[]
+
 include::analysis/tokenizers.asciidoc[]
 
 include::analysis/tokenfilters.asciidoc[]

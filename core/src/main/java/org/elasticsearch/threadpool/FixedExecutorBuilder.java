@@ -29,7 +29,7 @@ import org.elasticsearch.node.Node;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 
 /**
@@ -76,14 +76,6 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
             Setting.intSetting(queueSizeKey, queueSize, Setting.Property.NodeScope);
     }
 
-    private int applyHardSizeLimit(final Settings settings, final String name) {
-        if (name.equals(ThreadPool.Names.BULK) || name.equals(ThreadPool.Names.INDEX)) {
-            return 1 + EsExecutors.numberOfProcessors(settings);
-        } else {
-            return Integer.MAX_VALUE;
-        }
-    }
-
     @Override
     public List<Setting<?>> getRegisteredSettings() {
         return Arrays.asList(sizeSetting, queueSizeSetting);
@@ -102,7 +94,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         int size = settings.size;
         int queueSize = settings.queueSize;
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(EsExecutors.threadName(settings.nodeName, name()));
-        Executor executor = EsExecutors.newFixed(name(), size, queueSize, threadFactory, threadContext);
+        final ExecutorService executor = EsExecutors.newFixed(name(), size, queueSize, threadFactory, threadContext);
         final ThreadPool.Info info =
             new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.FIXED, size, size, null, queueSize < 0 ? null : new SizeValue(queueSize));
         return new ThreadPool.ExecutorHolder(executor, info);
@@ -123,7 +115,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         private final int size;
         private final int queueSize;
 
-        public FixedExecutorSettings(final String nodeName, final int size, final int queueSize) {
+        FixedExecutorSettings(final String nodeName, final int size, final int queueSize) {
             super(nodeName);
             this.size = size;
             this.queueSize = queueSize;

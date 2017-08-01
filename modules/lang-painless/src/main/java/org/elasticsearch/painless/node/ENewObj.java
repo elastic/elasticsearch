@@ -20,12 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
@@ -61,7 +61,7 @@ public final class ENewObj extends AExpression {
         final Type type;
 
         try {
-            type = Definition.getType(this.type);
+            type = locals.getDefinition().getType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
@@ -109,5 +109,10 @@ public final class ENewObj extends AExpression {
         }
 
         writer.invokeConstructor(constructor.owner.type, constructor.method);
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToStringWithOptionalArgs(arguments, type);
     }
 }

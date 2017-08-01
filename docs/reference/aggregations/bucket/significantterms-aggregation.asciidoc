@@ -3,8 +3,6 @@
 
 An aggregation that returns interesting or unusual occurrences of terms in a set.
 
-experimental[The `significant_terms` aggregation can be very heavy when run on large indices.  Work is in progress to provide more lightweight sampling techniques.  As a result, the API for this feature may change in non-backwards compatible ways]
-
 .Example use cases:
 * Suggesting "H5N1" when users search for "bird flu" in text
 * Identifying the merchant that is the "common point of compromise" from the transaction history of credit card owners reporting loss
@@ -48,6 +46,7 @@ Response:
     "aggregations" : {
         "significantCrimeTypes" : {
             "doc_count": 47347,
+            "bg_count": 5064554,
             "buckets" : [
                 {
                     "key": "Bicycle theft",
@@ -111,6 +110,7 @@ Response:
                 "doc_count": 894038,
                 "significantCrimeTypes": {
                     "doc_count": 894038,
+                    "bg_count": 5064554,
                     "buckets": [
                         {
                             "key": "Robbery",
@@ -127,6 +127,7 @@ Response:
                 "doc_count": 47347,
                 "significantCrimeTypes": {
                     "doc_count": 47347,
+                    "bg_count": 5064554,
                     "buckets": [
                         {
                             "key": "Bicycle theft",
@@ -353,7 +354,10 @@ Customized scores can be implemented via a script:
 --------------------------------------------------
 
 	    "script_heuristic": {
-              "script": "_subset_freq/(_superset_freq - _subset_freq + 1)"
+              "script": {
+	        "lang": "painless",
+	        "source": "params._subset_freq/(params._superset_freq - params._subset_freq + 1)"
+	      }
             }
 --------------------------------------------------
 

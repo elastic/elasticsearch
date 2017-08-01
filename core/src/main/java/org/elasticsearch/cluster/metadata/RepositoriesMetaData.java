@@ -21,6 +21,9 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.AbstractNamedDiffable;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,11 +42,9 @@ import java.util.List;
 /**
  * Contains metadata about registered snapshot repositories
  */
-public class RepositoriesMetaData extends AbstractDiffable<Custom> implements MetaData.Custom {
+public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implements Custom {
 
     public static final String TYPE = "repositories";
-
-    public static final RepositoriesMetaData PROTO = new RepositoriesMetaData();
 
     private final List<RepositoryMetaData> repositories;
 
@@ -100,20 +101,20 @@ public class RepositoriesMetaData extends AbstractDiffable<Custom> implements Me
      * {@inheritDoc}
      */
     @Override
-    public String type() {
+    public String getWriteableName() {
         return TYPE;
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Custom readFrom(StreamInput in) throws IOException {
+    public RepositoriesMetaData(StreamInput in) throws IOException {
         RepositoryMetaData[] repository = new RepositoryMetaData[in.readVInt()];
         for (int i = 0; i < repository.length; i++) {
-            repository[i] = RepositoryMetaData.readFrom(in);
+            repository[i] = new RepositoryMetaData(in);
         }
-        return new RepositoriesMetaData(repository);
+        this.repositories = Arrays.asList(repository);
+    }
+
+    public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws  IOException {
+        return readDiffFrom(Custom.class, TYPE, in);
     }
 
     /**
@@ -127,11 +128,7 @@ public class RepositoriesMetaData extends AbstractDiffable<Custom> implements Me
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public RepositoriesMetaData fromXContent(XContentParser parser) throws IOException {
+    public static RepositoriesMetaData fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
         List<RepositoryMetaData> repository = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

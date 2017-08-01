@@ -32,15 +32,15 @@ GET /_search
     "query": {
         "dis_max" : {
             "tie_breaker" : 0.7,
-                "boost" : 1.2,
-                "queries" : [
+            "boost" : 1.2,
+            "queries" : [
                 {
                     "term" : { "age" : 34 }
                 },
                 {
                     "term" : { "age" : 35 }
                 }
-                ]
+            ]
         }
     }
 }    

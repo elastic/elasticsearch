@@ -20,19 +20,20 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class IndexMetaDataTests extends ESTestCase {
 
@@ -54,8 +55,8 @@ public class IndexMetaDataTests extends ESTestCase {
         builder.startObject();
         metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        XContentParser parser = XContentType.JSON.xContent().createParser(builder.bytes());
-        final IndexMetaData fromXContentMeta = IndexMetaData.PROTO.fromXContent(parser, null);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
+        final IndexMetaData fromXContentMeta = IndexMetaData.fromXContent(parser);
         assertEquals(metaData, fromXContentMeta);
         assertEquals(metaData.hashCode(), fromXContentMeta.hashCode());
 
@@ -69,7 +70,7 @@ public class IndexMetaDataTests extends ESTestCase {
 
         final BytesStreamOutput out = new BytesStreamOutput();
         metaData.writeTo(out);
-        IndexMetaData deserialized = IndexMetaData.PROTO.readFrom(out.bytes().streamInput());
+        IndexMetaData deserialized = IndexMetaData.readFrom(out.bytes().streamInput());
         assertEquals(metaData, deserialized);
         assertEquals(metaData.hashCode(), deserialized.hashCode());
 
@@ -122,5 +123,37 @@ public class IndexMetaDataTests extends ESTestCase {
 
         assertEquals("the number of target shards (8) must be greater than the shard id: 8",
             expectThrows(IllegalArgumentException.class, () -> IndexMetaData.selectShrinkShards(8, metaData, 8)).getMessage());
+    }
+
+    public void testIndexFormat() {
+        Settings defaultSettings = Settings.builder()
+                .put("index.version.created", 1)
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 1)
+                .build();
+
+        // matching version
+        {
+            IndexMetaData metaData = IndexMetaData.builder("foo")
+                    .settings(Settings.builder()
+                            .put(defaultSettings)
+                            // intentionally not using the constant, so upgrading requires you to look at this test
+                            // where you have to update this part and the next one
+                            .put("index.format", 6)
+                            .build())
+                    .build();
+
+            assertThat(metaData.getSettings().getAsInt(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), 0), is(6));
+        }
+
+        // no setting configured
+        {
+            IndexMetaData metaData = IndexMetaData.builder("foo")
+                    .settings(Settings.builder()
+                            .put(defaultSettings)
+                            .build())
+                    .build();
+            assertThat(metaData.getSettings().getAsInt(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), 0), is(0));
+        }
     }
 }

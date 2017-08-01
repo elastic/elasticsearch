@@ -29,12 +29,12 @@ import org.elasticsearch.monitor.Probes;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -120,10 +120,7 @@ public class OsProbe {
      *
      * On Windows, this method returns {@code null}.
      *
-     * On Linux, this method should return the 1, 5, and 15-minute load
-     * averages. If obtaining these values from {@code /proc/loadavg}
-     * fails, the method will fallback to obtaining the 1-minute load
-     * average.
+     * On Linux, this method returns the 1, 5, and 15-minute load averages.
      *
      * On macOS, this method should return the 1-minute load average.
      *
@@ -133,53 +130,44 @@ public class OsProbe {
         if (Constants.WINDOWS) {
             return null;
         } else if (Constants.LINUX) {
-            final String procLoadAvg = readProcLoadavg();
-            if (procLoadAvg != null) {
+            try {
+                final String procLoadAvg = readProcLoadavg();
                 assert procLoadAvg.matches("(\\d+\\.\\d+\\s+){3}\\d+/\\d+\\s+\\d+");
                 final String[] fields = procLoadAvg.split("\\s+");
-                try {
-                    return new double[]{Double.parseDouble(fields[0]), Double.parseDouble(fields[1]), Double.parseDouble(fields[2])};
-                } catch (final NumberFormatException e) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug(String.format(Locale.ROOT, "error parsing /proc/loadavg [%s]", procLoadAvg), e);
-                    }
+                return new double[]{Double.parseDouble(fields[0]), Double.parseDouble(fields[1]), Double.parseDouble(fields[2])};
+            } catch (final IOException e) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("error reading /proc/loadavg", e);
                 }
+                return null;
             }
-            // fallback
-        }
-
-        if (getSystemLoadAverage == null) {
-            return null;
-        }
-        try {
-            final double oneMinuteLoadAverage = (double) getSystemLoadAverage.invoke(osMxBean);
-            return new double[] { oneMinuteLoadAverage >= 0 ? oneMinuteLoadAverage : -1, -1, -1 };
-        } catch (final Exception e) {
-            logger.debug("error obtaining system load average", e);
-            return null;
+        } else {
+            assert Constants.MAC_OS_X;
+            if (getSystemLoadAverage == null) {
+                return null;
+            }
+            try {
+                final double oneMinuteLoadAverage = (double) getSystemLoadAverage.invoke(osMxBean);
+                return new double[]{oneMinuteLoadAverage >= 0 ? oneMinuteLoadAverage : -1, -1, -1};
+            } catch (IllegalAccessException | InvocationTargetException e) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("error reading one minute load average from operating system", e);
+                }
+                return null;
+            }
         }
     }
 
     /**
-     * The line from {@code /proc/loadavg}. The first three fields are
-     * the load averages averaged over 1, 5, and 15 minutes. The fourth
-     * field is two numbers separated by a slash, the first is the
-     * number of currently runnable scheduling entities, the second is
-     * the number of scheduling entities on the system. The fifth field
-     * is the PID of the most recently created process.
+     * The line from {@code /proc/loadavg}. The first three fields are the load averages averaged over 1, 5, and 15 minutes. The fourth
+     * field is two numbers separated by a slash, the first is the number of currently runnable scheduling entities, the second is the
+     * number of scheduling entities on the system. The fifth field is the PID of the most recently created process.
      *
      * @return the line from {@code /proc/loadavg} or {@code null}
      */
     @SuppressForbidden(reason = "access /proc/loadavg")
-    String readProcLoadavg() {
-        try {
-            final List<String> lines = Files.readAllLines(PathUtils.get("/proc/loadavg"));
-            assert lines != null && lines.size() == 1;
-            return lines.get(0);
-        } catch (final IOException e) {
-            logger.debug("error reading /proc/loadavg", e);
-            return null;
-        }
+    String readProcLoadavg() throws IOException {
+        return readSingleLine(PathUtils.get("/proc/loadavg"));
     }
 
     public short getSystemCpuPercent() {
@@ -199,56 +187,60 @@ public class OsProbe {
         return lines.get(0);
     }
 
-    // pattern for lines in /proc/self/cgroup
-    private static final Pattern CONTROL_GROUP_PATTERN = Pattern.compile("\\d+:([^:,]+(?:,[^:,]+)?):(/.*)");
+    // this property is to support a hack to workaround an issue with Docker containers mounting the cgroups hierarchy inconsistently with
+    // respect to /proc/self/cgroup; for Docker containers this should be set to "/"
+    private static final String CONTROL_GROUPS_HIERARCHY_OVERRIDE = System.getProperty("es.cgroups.hierarchy.override");
 
     /**
-     * A map of the control groups to which the Elasticsearch process
-     * belongs. Note that this is a map because the control groups can
-     * vary from subsystem to subsystem. Additionally, this map can not
-     * be cached because a running process can be reclassified.
+     * A map of the control groups to which the Elasticsearch process belongs. Note that this is a map because the control groups can vary
+     * from subsystem to subsystem. Additionally, this map can not be cached because a running process can be reclassified.
      *
-     * @return a map from subsystems to the control group for the
-     * Elasticsearch process.
-     * @throws IOException if an I/O exception occurs reading
-     *                     {@code /proc/self/cgroup}
+     * @return a map from subsystems to the control group for the Elasticsearch process.
+     * @throws IOException if an I/O exception occurs reading {@code /proc/self/cgroup}
      */
     private Map<String, String> getControlGroups() throws IOException {
         final List<String> lines = readProcSelfCgroup();
         final Map<String, String> controllerMap = new HashMap<>();
         for (final String line : lines) {
-            final Matcher matcher = CONTROL_GROUP_PATTERN.matcher(line);
-            // note that Matcher#matches must be invoked as
-            // matching is lazy; this can not happen in an assert
-            // as assertions might not be enabled
-            final boolean matches = matcher.matches();
-            assert matches : line;
-            // at this point we have captured the subsystems and the
-            // control group
-            final String[] controllers = matcher.group(1).split(",");
+            /*
+             * The virtual file /proc/self/cgroup lists the control groups that the Elasticsearch process is a member of. Each line contains
+             * three colon-separated fields of the form hierarchy-ID:subsystem-list:cgroup-path. For cgroups version 1 hierarchies, the
+             * subsystem-list is a comma-separated list of subsystems. The subsystem-list can be empty if the hierarchy represents a cgroups
+             * version 2 hierarchy. For cgroups version 1
+             */
+            final String[] fields = line.split(":");
+            assert fields.length == 3;
+            final String[] controllers = fields[1].split(",");
             for (final String controller : controllers) {
-                controllerMap.put(controller, matcher.group(2));
+                final String controlGroupPath;
+                if (CONTROL_GROUPS_HIERARCHY_OVERRIDE != null) {
+                    /*
+                     * Docker violates the relationship between /proc/self/cgroup and the /sys/fs/cgroup hierarchy. It's possible that this
+                     * will be fixed in future versions of Docker with cgroup namespaces, but this requires modern kernels. Thus, we provide
+                     * an undocumented hack for overriding the control group path. Do not rely on this hack, it will be removed.
+                     */
+                    controlGroupPath = CONTROL_GROUPS_HIERARCHY_OVERRIDE;
+                } else {
+                    controlGroupPath = fields[2];
+                }
+                final String previous = controllerMap.put(controller, controlGroupPath);
+                assert previous == null;
             }
         }
         return controllerMap;
     }
 
     /**
-     * The lines from {@code /proc/self/cgroup}. This file represents
-     * the control groups to which the Elasticsearch process belongs.
-     * Each line in this file represents a control group hierarchy of
-     * the form
+     * The lines from {@code /proc/self/cgroup}. This file represents the control groups to which the Elasticsearch process belongs. Each
+     * line in this file represents a control group hierarchy of the form
      * <p>
      * {@code \d+:([^:,]+(?:,[^:,]+)?):(/.*)}
      * <p>
-     * with the first field representing the hierarchy ID, the second
-     * field representing a comma-separated list of the subsystems
-     * bound to the hierarchy, and the last field representing the
-     * control group.
+     * with the first field representing the hierarchy ID, the second field representing a comma-separated list of the subsystems bound to
+     * the hierarchy, and the last field representing the control group.
      *
      * @return the lines from {@code /proc/self/cgroup}
-     * @throws IOException if an I/O exception occurs reading
-     *                     {@code /proc/self/cgroup}
+     * @throws IOException if an I/O exception occurs reading {@code /proc/self/cgroup}
      */
     @SuppressForbidden(reason = "access /proc/self/cgroup")
     List<String> readProcSelfCgroup() throws IOException {
@@ -258,33 +250,24 @@ public class OsProbe {
     }
 
     /**
-     * The total CPU time in nanoseconds consumed by all tasks in the
-     * cgroup to which the Elasticsearch process belongs for the
-     * {@code cpuacct} subsystem.
+     * The total CPU time in nanoseconds consumed by all tasks in the cgroup to which the Elasticsearch process belongs for the {@code
+     * cpuacct} subsystem.
      *
-     * @param controlGroup the control group for the Elasticsearch
-     *                     process for the {@code cpuacct} subsystem
+     * @param controlGroup the control group for the Elasticsearch process for the {@code cpuacct} subsystem
      * @return the total CPU time in nanoseconds
-     * @throws IOException if an I/O exception occurs reading
-     *                     {@code cpuacct.usage} for the control group
+     * @throws IOException if an I/O exception occurs reading {@code cpuacct.usage} for the control group
      */
     private long getCgroupCpuAcctUsageNanos(final String controlGroup) throws IOException {
         return Long.parseLong(readSysFsCgroupCpuAcctCpuAcctUsage(controlGroup));
     }
 
     /**
-     * Returns the line from {@code cpuacct.usage} for the control
-     * group to which the Elasticsearch process belongs for the
-     * {@code cpuacct} subsystem. This line represents the total CPU
-     * time in nanoseconds consumed by all tasks in the same control
-     * group.
+     * Returns the line from {@code cpuacct.usage} for the control group to which the Elasticsearch process belongs for the {@code cpuacct}
+     * subsystem. This line represents the total CPU time in nanoseconds consumed by all tasks in the same control group.
      *
-     * @param controlGroup the control group to which the Elasticsearch
-     *                     process belongs for the {@code cpuacct}
-     *                     subsystem
+     * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code cpuacct} subsystem
      * @return the line from {@code cpuacct.usage}
-     * @throws IOException if an I/O exception occurs reading
-     *                     {@code cpuacct.usage} for the control group
+     * @throws IOException if an I/O exception occurs reading {@code cpuacct.usage} for the control group
      */
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpuacct")
     String readSysFsCgroupCpuAcctCpuAcctUsage(final String controlGroup) throws IOException {
@@ -292,33 +275,25 @@ public class OsProbe {
     }
 
     /**
-     * The total period of time in microseconds for how frequently the
-     * Elasticsearch control group's access to CPU resources will be
+     * The total period of time in microseconds for how frequently the Elasticsearch control group's access to CPU resources will be
      * reallocated.
      *
-     * @param controlGroup the control group for the Elasticsearch
-     *                     process for the {@code cpuacct} subsystem
+     * @param controlGroup the control group for the Elasticsearch process for the {@code cpuacct} subsystem
      * @return the CFS quota period in microseconds
-     * @throws IOException if an I/O exception occurs reading
-     *                     {@code cpu.cfs_period_us} for the control group
+     * @throws IOException if an I/O exception occurs reading {@code cpu.cfs_period_us} for the control group
      */
     private long getCgroupCpuAcctCpuCfsPeriodMicros(final String controlGroup) throws IOException {
         return Long.parseLong(readSysFsCgroupCpuAcctCpuCfsPeriod(controlGroup));
     }
 
     /**
-     * Returns the line from {@code cpu.cfs_period_us} for the control
-     * group to which the Elasticsearch process belongs for the
-     * {@code cpu} subsystem. This line represents the period of time
-     * in microseconds for how frequently the control group's access to
-     * CPU resources will be reallocated.
+     * Returns the line from {@code cpu.cfs_period_us} for the control group to which the Elasticsearch process belongs for the {@code cpu}
+     * subsystem. This line represents the period of time in microseconds for how frequently the control group's access to CPU resources
+     * will be reallocated.
      *
-     * @param controlGroup the control group to which the Elasticsearch
-     *                     process belongs for the {@code cpu}
-     *                     subsystem
+     * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code cpu} subsystem
      * @return the line from {@code cpu.cfs_period_us}
-     * @throws IOException if an I/O exception occurs reading
-     *                     {@code cpu.cfs_period_us} for the control group
+     * @throws IOException if an I/O exception occurs reading {@code cpu.cfs_period_us} for the control group
      */
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     String readSysFsCgroupCpuAcctCpuCfsPeriod(final String controlGroup) throws IOException {
@@ -326,33 +301,25 @@ public class OsProbe {
     }
 
     /**
-     * The total time in microseconds that all tasks in the
-     * Elasticsearch control group can run during one period as
-     * specified by {@code cpu.cfs_period_us}.
+     * The total time in microseconds that all tasks in the Elasticsearch control group can run during one period as specified by {@code
+     * cpu.cfs_period_us}.
      *
-     * @param controlGroup the control group for the Elasticsearch
-     *                     process for the {@code cpuacct} subsystem
+     * @param controlGroup the control group for the Elasticsearch process for the {@code cpuacct} subsystem
      * @return the CFS quota in microseconds
-     * @throws IOException if an I/O exception occurs reading
-     *                     {@code cpu.cfs_quota_us} for the control group
+     * @throws IOException if an I/O exception occurs reading {@code cpu.cfs_quota_us} for the control group
      */
     private long getCgroupCpuAcctCpuCfsQuotaMicros(final String controlGroup) throws IOException {
         return Long.parseLong(readSysFsCgroupCpuAcctCpuAcctCfsQuota(controlGroup));
     }
 
     /**
-     * Returns the line from {@code cpu.cfs_quota_us} for the control
-     * group to which the Elasticsearch process belongs for the
-     * {@code cpu} subsystem. This line represents the total time in
-     * microseconds that all tasks in the control group can run during
-     * one period as specified by {@code cpu.cfs_period_us}.
+     * Returns the line from {@code cpu.cfs_quota_us} for the control group to which the Elasticsearch process belongs for the {@code cpu}
+     * subsystem. This line represents the total time in microseconds that all tasks in the control group can run during one period as
+     * specified by {@code cpu.cfs_period_us}.
      *
-     * @param controlGroup the control group to which the Elasticsearch
-     *                     process belongs for the {@code cpu}
-     *                     subsystem
+     * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code cpu} subsystem
      * @return the line from {@code cpu.cfs_quota_us}
-     * @throws IOException if an I/O exception occurs reading
-     *                     {@code cpu.cfs_quota_us} for the control group
+     * @throws IOException if an I/O exception occurs reading {@code cpu.cfs_quota_us} for the control group
      */
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     String readSysFsCgroupCpuAcctCpuAcctCfsQuota(final String controlGroup) throws IOException {
@@ -360,14 +327,11 @@ public class OsProbe {
     }
 
     /**
-     * The CPU time statistics for all tasks in the Elasticsearch
-     * control group.
+     * The CPU time statistics for all tasks in the Elasticsearch control group.
      *
-     * @param controlGroup the control group for the Elasticsearch
-     *                     process for the {@code cpuacct} subsystem
+     * @param controlGroup the control group for the Elasticsearch process for the {@code cpuacct} subsystem
      * @return the CPU time statistics
-     * @throws IOException if an I/O exception occurs reading
-     *                     {@code cpu.stat} for the control group
+     * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
      */
     private OsStats.Cgroup.CpuStat getCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
         final List<String> lines = readSysFsCgroupCpuAcctCpuStat(controlGroup);
@@ -395,28 +359,20 @@ public class OsProbe {
     }
 
     /**
-     * Returns the lines from {@code cpu.stat} for the control
-     * group to which the Elasticsearch process belongs for the
-     * {@code cpu} subsystem. These lines represent the CPU time
-     * statistics and have the form
+     * Returns the lines from {@code cpu.stat} for the control group to which the Elasticsearch process belongs for the {@code cpu}
+     * subsystem. These lines represent the CPU time statistics and have the form
      * <blockquote><pre>
      * nr_periods \d+
      * nr_throttled \d+
      * throttled_time \d+
      * </pre></blockquote>
-     * where {@code nr_periods} is the number of period intervals
-     * as specified by {@code cpu.cfs_period_us} that have elapsed,
-     * {@code nr_throttled} is the number of times tasks in the given
-     * control group have been throttled, and {@code throttled_time} is
-     * the total time in nanoseconds for which tasks in the given
-     * control group have been throttled.
+     * where {@code nr_periods} is the number of period intervals as specified by {@code cpu.cfs_period_us} that have elapsed, {@code
+     * nr_throttled} is the number of times tasks in the given control group have been throttled, and {@code throttled_time} is the total
+     * time in nanoseconds for which tasks in the given control group have been throttled.
      *
-     * @param controlGroup the control group to which the Elasticsearch
-     *                     process belongs for the {@code cpu}
-     *                     subsystem
+     * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code cpu} subsystem
      * @return the lines from {@code cpu.stat}
-     * @throws IOException if an I/O exception occurs reading
-     *                     {@code cpu.stat} for the control group
+     * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
      */
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     List<String> readSysFsCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
@@ -426,14 +382,13 @@ public class OsProbe {
     }
 
     /**
-     * Checks if cgroup stats are available by checking for the existence of {@code /proc/self/cgroup},
-     * {@code /sys/fs/cgroup/cpu}, and {@code /sys/fs/cgroup/cpuacct}.
+     * Checks if cgroup stats are available by checking for the existence of {@code /proc/self/cgroup}, {@code /sys/fs/cgroup/cpu}, and
+     * {@code /sys/fs/cgroup/cpuacct}.
      *
-     * @return {@code true} if the stats are available, otherwise
-     * {@code false}
+     * @return {@code true} if the stats are available, otherwise {@code false}
      */
     @SuppressForbidden(reason = "access /proc/self/cgroup, /sys/fs/cgroup/cpu, and /sys/fs/cgroup/cpuacct")
-    protected boolean areCgroupStatsAvailable() {
+    boolean areCgroupStatsAvailable() {
         if (!Files.exists(PathUtils.get("/proc/self/cgroup"))) {
             return false;
         }
@@ -449,8 +404,7 @@ public class OsProbe {
     /**
      * Basic cgroup stats.
      *
-     * @return basic cgroup stats, or {@code null} if an I/O exception
-     * occurred reading the cgroup stats
+     * @return basic cgroup stats, or {@code null} if an I/O exception occurred reading the cgroup stats
      */
     private OsStats.Cgroup getCgroup() {
         try {
@@ -479,9 +433,7 @@ public class OsProbe {
                     cpuStat);
             }
         } catch (final IOException e) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("error reading control group stats", e);
-            }
+            logger.debug("error reading control group stats", e);
             return null;
         }
     }
@@ -514,8 +466,7 @@ public class OsProbe {
     }
 
     /**
-     * Returns a given method of the OperatingSystemMXBean,
-     * or null if the method is not found or unavailable.
+     * Returns a given method of the OperatingSystemMXBean, or null if the method is not found or unavailable.
      */
     private static Method getMethod(String methodName) {
         try {

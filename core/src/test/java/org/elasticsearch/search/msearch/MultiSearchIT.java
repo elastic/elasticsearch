@@ -21,6 +21,7 @@ package org.elasticsearch.search.msearch;
 
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -59,7 +60,7 @@ public class MultiSearchIT extends ESIntegTestCase {
         createIndex("test");
         int numDocs = randomIntBetween(0, 16);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource("{}").get();
+            client().prepareIndex("test", "type", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
         refresh();
 

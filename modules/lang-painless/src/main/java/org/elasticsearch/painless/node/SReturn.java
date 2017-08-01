@@ -65,4 +65,9 @@ public final class SReturn extends AStatement {
         expression.write(writer, globals);
         writer.returnValue();
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(expression); 
+    }
 }

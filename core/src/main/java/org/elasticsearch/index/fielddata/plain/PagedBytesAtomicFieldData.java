@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
@@ -38,6 +38,7 @@ public class PagedBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
     protected final Ordinals ordinals;
 
     public PagedBytesAtomicFieldData(PagedBytes.Reader bytes, PackedLongValues termOrdToBytesOffset, Ordinals ordinals) {
+        super(DEFAULT_SCRIPT_FUNCTION);
         this.bytes = bytes;
         this.termOrdToBytesOffset = termOrdToBytesOffset;
         this.ordinals = ordinals;
@@ -67,7 +68,7 @@ public class PagedBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
     }
 
     @Override
-    public RandomAccessOrds getOrdinalsValues() {
+    public SortedSetDocValues getOrdinalsValues() {
         return ordinals.ordinals(new ValuesHolder(bytes, termOrdToBytesOffset));
     }
 

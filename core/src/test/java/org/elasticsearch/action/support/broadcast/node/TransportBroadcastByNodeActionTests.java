@@ -116,7 +116,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     class TestTransportBroadcastByNodeAction extends TransportBroadcastByNodeAction<Request, Response, TransportBroadcastByNodeAction.EmptyResult> {
         private final Map<ShardRouting, Object> shards = new HashMap<>();
 
-        public TestTransportBroadcastByNodeAction(Settings settings, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request, String executor) {
+        TestTransportBroadcastByNodeAction(Settings settings, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request, String executor) {
             super(settings, "indices:admin/test", THREAD_POOL, TransportBroadcastByNodeActionTests.this.clusterService, transportService, actionFilters, indexNameExpressionResolver, request, executor);
         }
 
@@ -170,7 +170,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     class MyResolver extends IndexNameExpressionResolver {
-        public MyResolver() {
+        MyResolver() {
             super(Settings.EMPTY);
         }
 
@@ -191,7 +191,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
         final TransportService transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         transportService.start();
         transportService.acceptIncomingRequests();
         setClusterState(clusterService, TEST_INDEX);
@@ -262,7 +262,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         ClusterBlocks.Builder block = ClusterBlocks.builder()
-                .addGlobalBlock(new ClusterBlock(1, "test-block", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
+                .addGlobalBlock(new ClusterBlock(1, "test-block", false, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
         try {
             action.new AsyncAction(null, request, listener).start();
@@ -277,7 +277,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         ClusterBlocks.Builder block = ClusterBlocks.builder()
-                .addIndexBlock(TEST_INDEX, new ClusterBlock(1, "test-block", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
+                .addIndexBlock(TEST_INDEX, new ClusterBlock(1, "test-block", false, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
         try {
             action.new AsyncAction(null, request, listener).start();
@@ -296,7 +296,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
         Set<String> set = new HashSet<>();
-        for (ShardRouting shard : shardIt.asUnordered()) {
+        for (ShardRouting shard : shardIt) {
             set.add(shard.currentNodeId());
         }
 
@@ -332,7 +332,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         // the master should not be in the list of nodes that requests were sent to
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
         Set<String> set = new HashSet<>();
-        for (ShardRouting shard : shardIt.asUnordered()) {
+        for (ShardRouting shard : shardIt) {
             if (!shard.currentNodeId().equals(masterNode.getId())) {
                 set.add(shard.currentNodeId());
             }
@@ -352,8 +352,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     public void testOperationExecution() throws Exception {
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
         Set<ShardRouting> shards = new HashSet<>();
-        String nodeId = shardIt.asUnordered().iterator().next().currentNodeId();
-        for (ShardRouting shard : shardIt.asUnordered()) {
+        String nodeId = shardIt.iterator().next().currentNodeId();
+        for (ShardRouting shard : shardIt) {
             if (nodeId.equals(shard.currentNodeId())) {
                 shards.add(shard);
             }
@@ -417,7 +417,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         ShardsIterator shardIt = clusterService.state().getRoutingTable().allShards(new String[]{TEST_INDEX});
         Map<String, List<ShardRouting>> map = new HashMap<>();
-        for (ShardRouting shard : shardIt.asUnordered()) {
+        for (ShardRouting shard : shardIt) {
             if (!map.containsKey(shard.currentNodeId())) {
                 map.put(shard.currentNodeId(), new ArrayList<>());
             }

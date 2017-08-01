@@ -25,7 +25,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.Recycler;
@@ -91,7 +90,7 @@ public class BigArrays implements Releasable {
 
     private abstract static class AbstractArrayWrapper extends AbstractArray implements BigArray {
 
-        protected static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ByteArrayWrapper.class);
+        static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ByteArrayWrapper.class);
 
         private final Releasable releasable;
         private final long size;
@@ -377,6 +376,7 @@ public class BigArrays implements Releasable {
         // Checking the breaker is disabled if not specified
         this(new PageCacheRecycler(settings), breakerService, false);
     }
+
     // public for tests
     public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, boolean checkBreaker) {
         this.checkBreaker = checkBreaker;
@@ -392,9 +392,12 @@ public class BigArrays implements Releasable {
     /**
      * Adjust the circuit breaker with the given delta, if the delta is
      * negative, or checkBreaker is false, the breaker will be adjusted
-     * without tripping
+     * without tripping.  If the data was already created before calling
+     * this method, and the breaker trips, we add the delta without breaking
+     * to account for the created data.  If the data has not been created yet,
+     * we do not add the delta to the breaker if it trips.
      */
-    void adjustBreaker(long delta) {
+    void adjustBreaker(final long delta, final boolean isDataAlreadyCreated) {
         if (this.breakerService != null) {
             CircuitBreaker breaker = this.breakerService.getBreaker(CircuitBreaker.REQUEST);
             if (this.checkBreaker) {
@@ -404,9 +407,11 @@ public class BigArrays implements Releasable {
                     try {
                         breaker.addEstimateBytesAndMaybeBreak(delta, "<reused_arrays>");
                     } catch (CircuitBreakingException e) {
-                        // since we've already created the data, we need to
-                        // add it so closing the stream re-adjusts properly
-                        breaker.addWithoutBreaking(delta);
+                        if (isDataAlreadyCreated) {
+                            // since we've already created the data, we need to
+                            // add it so closing the stream re-adjusts properly
+                            breaker.addWithoutBreaking(delta);
+                        }
                         // re-throw the original exception
                         throw e;
                     }
@@ -435,15 +440,20 @@ public class BigArrays implements Releasable {
 
     private <T extends AbstractBigArray> T resizeInPlace(T array, long newSize) {
         final long oldMemSize = array.ramBytesUsed();
+        final long oldSize = array.size();
+        assert oldMemSize == array.ramBytesEstimated(oldSize) :
+            "ram bytes used should equal that which was previously estimated: ramBytesUsed=" +
+            oldMemSize + ", ramBytesEstimated=" + array.ramBytesEstimated(oldSize);
+        final long estimatedIncreaseInBytes = array.ramBytesEstimated(newSize) - oldMemSize;
+        adjustBreaker(estimatedIncreaseInBytes, false);
         array.resize(newSize);
-        adjustBreaker(array.ramBytesUsed() - oldMemSize);
         return array;
     }
 
     private <T extends BigArray> T validate(T array) {
         boolean success = false;
         try {
-            adjustBreaker(array.ramBytesUsed());
+            adjustBreaker(array.ramBytesUsed(), true);
             success = true;
         } finally {
             if (!success) {
@@ -459,16 +469,17 @@ public class BigArrays implements Releasable {
      * @param clearOnResize whether values should be set to 0 on initialization and resize
      */
     public ByteArray newByteArray(long size, boolean clearOnResize) {
-        final ByteArray array;
         if (size > BYTE_PAGE_SIZE) {
-            array = new BigByteArray(size, this, clearOnResize);
+            // when allocating big arrays, we want to first ensure we have the capacity by
+            // checking with the circuit breaker before attempting to allocate
+            adjustBreaker(BigByteArray.estimateRamBytes(size), false);
+            return new BigByteArray(size, this, clearOnResize);
         } else if (size >= BYTE_PAGE_SIZE / 2 && recycler != null) {
             final Recycler.V<byte[]> page = recycler.bytePage(clearOnResize);
-            array = new ByteArrayWrapper(this, page.v(), size, page, clearOnResize);
+            return validate(new ByteArrayWrapper(this, page.v(), size, page, clearOnResize));
         } else {
-            array = new ByteArrayWrapper(this, new byte[(int) size], size, null, clearOnResize);
+            return validate(new ByteArrayWrapper(this, new byte[(int) size], size, null, clearOnResize));
         }
-        return validate(array);
     }
 
     /**
@@ -541,16 +552,17 @@ public class BigArrays implements Releasable {
      * @param clearOnResize whether values should be set to 0 on initialization and resize
      */
     public IntArray newIntArray(long size, boolean clearOnResize) {
-        final IntArray array;
         if (size > INT_PAGE_SIZE) {
-            array = new BigIntArray(size, this, clearOnResize);
+            // when allocating big arrays, we want to first ensure we have the capacity by
+            // checking with the circuit breaker before attempting to allocate
+            adjustBreaker(BigIntArray.estimateRamBytes(size), false);
+            return new BigIntArray(size, this, clearOnResize);
         } else if (size >= INT_PAGE_SIZE / 2 && recycler != null) {
             final Recycler.V<int[]> page = recycler.intPage(clearOnResize);
-            array = new IntArrayWrapper(this, page.v(), size, page, clearOnResize);
+            return validate(new IntArrayWrapper(this, page.v(), size, page, clearOnResize));
         } else {
-            array = new IntArrayWrapper(this, new int[(int) size], size, null, clearOnResize);
+            return validate(new IntArrayWrapper(this, new int[(int) size], size, null, clearOnResize));
         }
-        return validate(array);
     }
 
     /**
@@ -591,16 +603,17 @@ public class BigArrays implements Releasable {
      * @param clearOnResize whether values should be set to 0 on initialization and resize
      */
     public LongArray newLongArray(long size, boolean clearOnResize) {
-        final LongArray array;
         if (size > LONG_PAGE_SIZE) {
-            array = new BigLongArray(size, this, clearOnResize);
+            // when allocating big arrays, we want to first ensure we have the capacity by
+            // checking with the circuit breaker before attempting to allocate
+            adjustBreaker(BigLongArray.estimateRamBytes(size), false);
+            return new BigLongArray(size, this, clearOnResize);
         } else if (size >= LONG_PAGE_SIZE / 2 && recycler != null) {
             final Recycler.V<long[]> page = recycler.longPage(clearOnResize);
-            array = new LongArrayWrapper(this, page.v(), size, page, clearOnResize);
+            return validate(new LongArrayWrapper(this, page.v(), size, page, clearOnResize));
         } else {
-            array = new LongArrayWrapper(this, new long[(int) size], size, null, clearOnResize);
+            return validate(new LongArrayWrapper(this, new long[(int) size], size, null, clearOnResize));
         }
-        return validate(array);
     }
 
     /**
@@ -641,16 +654,17 @@ public class BigArrays implements Releasable {
      * @param clearOnResize whether values should be set to 0 on initialization and resize
      */
     public DoubleArray newDoubleArray(long size, boolean clearOnResize) {
-        final DoubleArray arr;
         if (size > LONG_PAGE_SIZE) {
-            arr = new BigDoubleArray(size, this, clearOnResize);
+            // when allocating big arrays, we want to first ensure we have the capacity by
+            // checking with the circuit breaker before attempting to allocate
+            adjustBreaker(BigDoubleArray.estimateRamBytes(size), false);
+            return new BigDoubleArray(size, this, clearOnResize);
         } else if (size >= LONG_PAGE_SIZE / 2 && recycler != null) {
             final Recycler.V<long[]> page = recycler.longPage(clearOnResize);
-            arr = new DoubleArrayWrapper(this, page.v(), size, page, clearOnResize);
+            return validate(new DoubleArrayWrapper(this, page.v(), size, page, clearOnResize));
         } else {
-            arr = new DoubleArrayWrapper(this, new long[(int) size], size, null, clearOnResize);
+            return validate(new DoubleArrayWrapper(this, new long[(int) size], size, null, clearOnResize));
         }
-        return validate(arr);
     }
 
     /** Allocate a new {@link DoubleArray} of the given capacity. */
@@ -688,16 +702,17 @@ public class BigArrays implements Releasable {
      * @param clearOnResize whether values should be set to 0 on initialization and resize
      */
     public FloatArray newFloatArray(long size, boolean clearOnResize) {
-        final FloatArray array;
         if (size > INT_PAGE_SIZE) {
-            array = new BigFloatArray(size, this, clearOnResize);
+            // when allocating big arrays, we want to first ensure we have the capacity by
+            // checking with the circuit breaker before attempting to allocate
+            adjustBreaker(BigFloatArray.estimateRamBytes(size), false);
+            return new BigFloatArray(size, this, clearOnResize);
         } else if (size >= INT_PAGE_SIZE / 2 && recycler != null) {
             final Recycler.V<int[]> page = recycler.intPage(clearOnResize);
-            array = new FloatArrayWrapper(this, page.v(), size, page, clearOnResize);
+            return validate(new FloatArrayWrapper(this, page.v(), size, page, clearOnResize));
         } else {
-            array = new FloatArrayWrapper(this, new int[(int) size], size, null, clearOnResize);
+            return validate(new FloatArrayWrapper(this, new int[(int) size], size, null, clearOnResize));
         }
-        return validate(array);
     }
 
     /** Allocate a new {@link FloatArray} of the given capacity. */
@@ -736,14 +751,16 @@ public class BigArrays implements Releasable {
     public <T> ObjectArray<T> newObjectArray(long size) {
         final ObjectArray<T> array;
         if (size > OBJECT_PAGE_SIZE) {
-            array = new BigObjectArray<>(size, this);
+            // when allocating big arrays, we want to first ensure we have the capacity by
+            // checking with the circuit breaker before attempting to allocate
+            adjustBreaker(BigObjectArray.estimateRamBytes(size), false);
+            return new BigObjectArray<>(size, this);
         } else if (size >= OBJECT_PAGE_SIZE / 2 && recycler != null) {
             final Recycler.V<Object[]> page = recycler.objectPage();
-            array = new ObjectArrayWrapper<>(this, page.v(), size, page);
+            return validate(new ObjectArrayWrapper<>(this, page.v(), size, page));
         } else {
-            array = new ObjectArrayWrapper<>(this, new Object[(int) size], size, null);
+            return validate(new ObjectArrayWrapper<>(this, new Object[(int) size], size, null));
         }
-        return validate(array);
     }
 
     /** Resize the array to the exact provided size. */

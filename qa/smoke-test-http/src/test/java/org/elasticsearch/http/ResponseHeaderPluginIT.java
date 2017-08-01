@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.http;
 
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
@@ -43,11 +43,6 @@ public class ResponseHeaderPluginIT extends HttpSmokeTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("force.http.enabled", true)
                 .build();
-    }
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
     }
 
     @Override

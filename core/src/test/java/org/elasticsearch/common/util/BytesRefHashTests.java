@@ -63,7 +63,7 @@ public class BytesRefHashTests extends ESSingleNodeTestCase {
         final int len = randomIntBetween(1, 100000);
         final BytesRef[] values = new BytesRef[len];
         for (int i = 0; i < values.length; ++i) {
-            values[i] = new BytesRef(randomAsciiOfLength(5));
+            values[i] = new BytesRef(randomAlphaOfLength(5));
         }
         final ObjectLongMap<BytesRef> valueToId = new ObjectLongHashMap<>();
         final BytesRef[] idToValue = new BytesRef[values.length];

@@ -32,6 +32,7 @@ Dynamic templates are specified as an array of named objects:
     ...
   ]
 --------------------------------------------------
+// NOTCONSOLE
 <1> The template name can be any string value.
 <2> The match conditions can include any of : `match_mapping_type`, `match`, `match_pattern`, `unmatch`, `path_match`, `path_unmatch`.
 <3> The mapping that the matched field should use.
@@ -94,7 +95,6 @@ PUT my_index/my_type/1
   "my_integer": 5, <1>
   "my_string": "Some string" <2>
 }
-
 --------------------------------------------------
 // CONSOLE
 <1> The `my_integer` field is mapped as an `integer`.
@@ -156,6 +156,7 @@ instead of simple wildcards, for instance:
   "match_pattern": "regex",
   "match": "^profit_\d+$"
 --------------------------------------------------
+// NOTCONSOLE
 
 [[path-match-unmatch]]
 ==== `path_match` and `path_unmatch`
@@ -282,6 +283,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 ===== `text`-only mappings for strings
 
@@ -311,6 +313,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 ===== Disabled norms
 
@@ -345,6 +348,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 The sub `keyword` field appears in this template to be consistent with the
 default rules of dynamic mappings. Of course if you do not need them because
@@ -388,37 +392,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
+// CONSOLE
 <1> Like the default dynamic mapping rules, doubles are mapped as floats, which
     are usually accurate enough, yet require half the disk space.
 
-
-[[override-default-template]]
-=== Override default template
-
-You can override the default mappings for all indices and all types
-by specifying a `_default_` type mapping in an index template
-which matches all indices.
-
-For example, to disable the `_all` field by default for all types in all
-new indices, you could create the following index template:
-
-[source,js]
---------------------------------------------------
-PUT _template/disable_all_field
-{
-  "order": 0,
-  "template": "*", <1>
-  "mappings": {
-    "_default_": { <2>
-      "_all": { <3>
-        "enabled": false
-      }
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-<1> Applies the mappings to an `index` which matches the pattern `*`, in other
-    words, all new indices.
-<2> Defines the `_default_` type mapping types within the index.
-<3> Disables the `_all` field by default.

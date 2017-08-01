@@ -41,8 +41,8 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
         String delimiter = settings.get("delimiter");
         if (delimiter == null) {
             this.delimiter = PathHierarchyTokenizer.DEFAULT_DELIMITER;
-        } else if (delimiter.length() > 1) {
-            throw new IllegalArgumentException("delimiter can only be a one char value");
+        } else if (delimiter.length() != 1) {
+            throw new IllegalArgumentException("delimiter must be a one char value");
         } else {
             this.delimiter = delimiter.charAt(0);
         }
@@ -50,13 +50,14 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
         String replacement = settings.get("replacement");
         if (replacement == null) {
             this.replacement = this.delimiter;
-        } else if (replacement.length() > 1) {
-            throw new IllegalArgumentException("replacement can only be a one char value");
+        } else if (replacement.length() != 1) {
+            throw new IllegalArgumentException("replacement must be a one char value");
         } else {
             this.replacement = replacement.charAt(0);
         }
         this.skip = settings.getAsInt("skip", PathHierarchyTokenizer.DEFAULT_SKIP);
-        this.reverse = settings.getAsBoolean("reverse", false);
+        this.reverse =
+            settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "reverse", false, deprecationLogger);
     }
 
     @Override
@@ -66,4 +67,5 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
         }
         return new PathHierarchyTokenizer(bufferSize, delimiter, replacement, skip);
     }
+
 }

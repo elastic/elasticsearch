@@ -22,8 +22,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -35,16 +38,15 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -81,8 +83,13 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.RoutingTableTests.updateActiveAllocations;
-import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.cluster.service.MasterServiceTests.discoveryState;
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.VersionUtils.allVersions;
+import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
+import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -93,12 +100,12 @@ public class NodeJoinControllerTests extends ESTestCase {
 
     private static ThreadPool threadPool;
 
-    private ClusterService clusterService;
+    private MasterService masterService;
     private NodeJoinController nodeJoinController;
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new TestThreadPool("ShardReplicationTests");
+        threadPool = new TestThreadPool("NodeJoinControllerTests");
     }
 
     @AfterClass
@@ -110,26 +117,39 @@ public class NodeJoinControllerTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        clusterService = createClusterService(threadPool);
-        final DiscoveryNodes initialNodes = clusterService.state().nodes();
-        final DiscoveryNode localNode = initialNodes.getLocalNode();
-        // make sure we have a master
-        setState(clusterService, ClusterState.builder(clusterService.state()).nodes(
-            DiscoveryNodes.builder(initialNodes).masterNodeId(localNode.getId())));
-        nodeJoinController = new NodeJoinController(clusterService, createAllocationService(Settings.EMPTY),
-            new ElectMasterService(Settings.EMPTY), new DiscoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)), Settings.EMPTY);
     }
 
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        clusterService.close();
+        masterService.close();
+    }
+
+    private static ClusterState initialState(boolean withMaster) {
+        DiscoveryNode localNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
+            new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())),Version.CURRENT);
+        ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
+            .nodes(DiscoveryNodes.builder()
+                .add(localNode)
+                .localNodeId(localNode.getId())
+                .masterNodeId(withMaster ? localNode.getId() : null))
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
+        return initialClusterState;
+    }
+
+    private void setupMasterServiceAndNodeJoinController(ClusterState initialState) {
+        if (masterService != null || nodeJoinController != null) {
+            throw new IllegalStateException("method setupMasterServiceAndNodeJoinController can only be called once");
+        }
+        masterService = ClusterServiceUtils.createMasterService(threadPool, initialState);
+        nodeJoinController = new NodeJoinController(masterService, createAllocationService(Settings.EMPTY),
+            new ElectMasterService(Settings.EMPTY), Settings.EMPTY);
     }
 
     public void testSimpleJoinAccumulation() throws InterruptedException, ExecutionException {
+        setupMasterServiceAndNodeJoinController(initialState(true));
         List<DiscoveryNode> nodes = new ArrayList<>();
-        nodes.add(clusterService.localNode());
+        nodes.add(discoveryState(masterService).nodes().getLocalNode());
 
         int nodeId = 0;
         for (int i = randomInt(5); i > 0; i--) {
@@ -163,9 +183,7 @@ public class NodeJoinControllerTests extends ESTestCase {
     }
 
     public void testFailingJoinsWhenNotMaster() throws ExecutionException, InterruptedException {
-        // remove current master flag
-        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterService.state().nodes()).masterNodeId(null);
-        setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodes));
+        setupMasterServiceAndNodeJoinController(initialState(false));
         int nodeId = 0;
         try {
             joinNode(newNode(nodeId++));
@@ -195,8 +213,7 @@ public class NodeJoinControllerTests extends ESTestCase {
     }
 
     public void testSimpleMasterElectionWithoutRequiredJoins() throws InterruptedException, ExecutionException {
-        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterService.state().nodes()).masterNodeId(null);
-        setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodes));
+        setupMasterServiceAndNodeJoinController(initialState(false));
         int nodeId = 0;
         final int requiredJoins = 0;
         logger.debug("--> using requiredJoins [{}]", requiredJoins);
@@ -245,8 +262,7 @@ public class NodeJoinControllerTests extends ESTestCase {
     }
 
     public void testSimpleMasterElection() throws InterruptedException, ExecutionException {
-        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterService.state().nodes()).masterNodeId(null);
-        setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodes));
+        setupMasterServiceAndNodeJoinController(initialState(false));
         int nodeId = 0;
         final int requiredJoins = 1 + randomInt(5);
         logger.debug("--> using requiredJoins [{}]", requiredJoins);
@@ -357,10 +373,8 @@ public class NodeJoinControllerTests extends ESTestCase {
 
     }
 
-
     public void testMasterElectionTimeout() throws InterruptedException {
-        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterService.state().nodes()).masterNodeId(null);
-        setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodes));
+        setupMasterServiceAndNodeJoinController(initialState(false));
         int nodeId = 0;
         final int requiredJoins = 1 + randomInt(5);
         logger.debug("--> using requiredJoins [{}]", requiredJoins);
@@ -423,22 +437,23 @@ public class NodeJoinControllerTests extends ESTestCase {
     }
 
     public void testNewClusterStateOnExistingNodeJoin() throws InterruptedException, ExecutionException {
-        ClusterState state = clusterService.state();
+        ClusterState state = initialState(true);
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(state.nodes());
         final DiscoveryNode other_node = new DiscoveryNode("other_node", buildNewFakeTransportAddress(),
             emptyMap(), emptySet(), Version.CURRENT);
         nodesBuilder.add(other_node);
-        setState(clusterService, ClusterState.builder(state).nodes(nodesBuilder));
+        setupMasterServiceAndNodeJoinController(ClusterState.builder(state).nodes(nodesBuilder).build());
 
-        state = clusterService.state();
+        state = discoveryState(masterService);
         joinNode(other_node);
-        assertTrue("failed to publish a new state upon existing join", clusterService.state() != state);
+        assertTrue("failed to publish a new state upon existing join", discoveryState(masterService) != state);
     }
 
     public void testNormalConcurrentJoins() throws InterruptedException {
+        setupMasterServiceAndNodeJoinController(initialState(true));
         Thread[] threads = new Thread[3 + randomInt(5)];
         ArrayList<DiscoveryNode> nodes = new ArrayList<>();
-        nodes.add(clusterService.localNode());
+        nodes.add(discoveryState(masterService).nodes().getLocalNode());
         final CyclicBarrier barrier = new CyclicBarrier(threads.length);
         final List<Throwable> backgroundExceptions = new CopyOnWriteArrayList<>();
         for (int i = 0; i < threads.length; i++) {
@@ -473,15 +488,14 @@ public class NodeJoinControllerTests extends ESTestCase {
     }
 
     public void testElectionWithConcurrentJoins() throws InterruptedException, BrokenBarrierException {
-        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes()).masterNodeId(null);
-        setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodesBuilder));
+        setupMasterServiceAndNodeJoinController(initialState(false));
 
         nodeJoinController.startElectionContext();
 
         Thread[] threads = new Thread[3 + randomInt(5)];
         final int requiredJoins = randomInt(threads.length);
         ArrayList<DiscoveryNode> nodes = new ArrayList<>();
-        nodes.add(clusterService.localNode());
+        nodes.add(discoveryState(masterService).nodes().getLocalNode());
         final CyclicBarrier barrier = new CyclicBarrier(threads.length + 1);
         final List<Throwable> backgroundExceptions = new CopyOnWriteArrayList<>();
         for (int i = 0; i < threads.length; i++) {
@@ -540,7 +554,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
     public void testRejectingJoinWithSameAddressButDifferentId() throws InterruptedException, ExecutionException {
         addNodes(randomInt(5));
-        ClusterState state = clusterService.state();
+        ClusterState state = discoveryState(masterService);
         final DiscoveryNode existing = randomFrom(StreamSupport.stream(state.nodes().spliterator(), false).collect(Collectors.toList()));
         final DiscoveryNode other_node = new DiscoveryNode("other_node", existing.getAddress(), emptyMap(), emptySet(), Version.CURRENT);
 
@@ -550,7 +564,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
     public void testRejectingJoinWithSameIdButDifferentNode() throws InterruptedException, ExecutionException {
         addNodes(randomInt(5));
-        ClusterState state = clusterService.state();
+        ClusterState state = discoveryState(masterService);
         final DiscoveryNode existing = randomFrom(StreamSupport.stream(state.nodes().spliterator(), false).collect(Collectors.toList()));
         final DiscoveryNode other_node = new DiscoveryNode(
             randomBoolean() ? existing.getName() : "other_name",
@@ -558,7 +572,7 @@ public class NodeJoinControllerTests extends ESTestCase {
             randomBoolean() ? existing.getAddress() : buildNewFakeTransportAddress(),
             randomBoolean() ? existing.getAttributes() : Collections.singletonMap("attr", "other"),
             randomBoolean() ? existing.getRoles() : new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
-            randomBoolean() ? existing.getVersion() : VersionUtils.randomVersion(random()));
+            existing.getVersion());
 
         ExecutionException e = expectThrows(ExecutionException.class, () -> joinNode(other_node));
         assertThat(e.getMessage(), containsString("found existing node"));
@@ -566,7 +580,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
     public void testRejectingRestartedNodeJoinsBeforeProcessingNodeLeft() throws InterruptedException, ExecutionException {
         addNodes(randomInt(5));
-        ClusterState state = clusterService.state();
+        ClusterState state = discoveryState(masterService);
         final DiscoveryNode existing = randomFrom(StreamSupport.stream(state.nodes().spliterator(), false).collect(Collectors.toList()));
         joinNode(existing); // OK
 
@@ -577,20 +591,117 @@ public class NodeJoinControllerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("found existing node"));
     }
 
+    public void testRejectingJoinWithIncompatibleVersion() throws InterruptedException, ExecutionException {
+        addNodes(randomInt(5));
+        final Version badVersion;
+        if (randomBoolean()) {
+            badVersion = getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion());
+        } else {
+            badVersion = randomFrom(allVersions().stream().filter(v -> v.major < Version.CURRENT.major).collect(Collectors.toList()));
+        }
+        final DiscoveryNode badNode = new DiscoveryNode("badNode", buildNewFakeTransportAddress(), emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), badVersion);
+
+        final Version goodVersion =
+            randomFrom(allVersions().stream().filter(v -> v.major >= Version.CURRENT.major).collect(Collectors.toList()));
+        final DiscoveryNode goodNode = new DiscoveryNode("goodNode", buildNewFakeTransportAddress(), emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), goodVersion);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        // block cluster state
+        masterService.submitStateUpdateTask("test", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                latch.await();
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+
+        final SimpleFuture badJoin;
+        final SimpleFuture goodJoin;
+        if (randomBoolean()) {
+            badJoin = joinNodeAsync(badNode);
+            goodJoin = joinNodeAsync(goodNode);
+        } else {
+            goodJoin = joinNodeAsync(goodNode);
+            badJoin = joinNodeAsync(badNode);
+        }
+        assert goodJoin.isDone() == false;
+        assert badJoin.isDone() == false;
+        latch.countDown();
+        goodJoin.get();
+        ExecutionException e = expectThrows(ExecutionException.class, badJoin::get);
+        assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(e.getCause().getMessage(), allOf(containsString("node version"), containsString("not supported")));
+    }
+
+    public void testRejectingJoinWithIncompatibleVersionWithUnrecoveredState() throws InterruptedException, ExecutionException {
+        addNodes(randomInt(5));
+        ClusterState.Builder builder = ClusterState.builder(discoveryState(masterService));
+        builder.blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
+        setState(masterService, builder.build());
+        final Version badVersion = getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion());
+        final DiscoveryNode badNode = new DiscoveryNode("badNode", buildNewFakeTransportAddress(), emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), badVersion);
+
+        final Version goodVersion = randomFrom(randomCompatibleVersion(random(), Version.CURRENT));
+        final DiscoveryNode goodNode = new DiscoveryNode("goodNode", buildNewFakeTransportAddress(), emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), goodVersion);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        // block cluster state
+        masterService.submitStateUpdateTask("test", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                latch.await();
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+
+        final SimpleFuture badJoin;
+        final SimpleFuture goodJoin;
+        if (randomBoolean()) {
+            badJoin = joinNodeAsync(badNode);
+            goodJoin = joinNodeAsync(goodNode);
+        } else {
+            goodJoin = joinNodeAsync(goodNode);
+            badJoin = joinNodeAsync(badNode);
+        }
+        assert goodJoin.isDone() == false;
+        assert badJoin.isDone() == false;
+        latch.countDown();
+        goodJoin.get();
+        ExecutionException e = expectThrows(ExecutionException.class, badJoin::get);
+        assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(e.getCause().getMessage(), allOf(containsString("node version"), containsString("not supported")));
+    }
+
     /**
      * Tests tha node can become a master, even though the last cluster state it knows contains
      * nodes that conflict with the joins it got and needs to become a master
      */
     public void testElectionBasedOnConflictingNodes() throws InterruptedException, ExecutionException {
-        final DiscoveryNode masterNode = clusterService.localNode();
+        ClusterState initialState = initialState(true);
+        final DiscoveryNode masterNode = initialState.nodes().getLocalNode();
         final DiscoveryNode otherNode = new DiscoveryNode("other_node", buildNewFakeTransportAddress(), emptyMap(),
             EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
         // simulate master going down with stale nodes in it's cluster state (for example when min master nodes is set to 2)
         // also add some shards to that node
-        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder(initialState.nodes());
         discoBuilder.masterNodeId(null);
         discoBuilder.add(otherNode);
-        ClusterState.Builder stateBuilder = ClusterState.builder(clusterService.state()).nodes(discoBuilder);
+        ClusterState.Builder stateBuilder = ClusterState.builder(initialState).nodes(discoBuilder);
         if (randomBoolean()) {
             IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(Settings.builder()
                 .put(SETTING_VERSION_CREATED, Version.CURRENT)
@@ -624,14 +735,17 @@ public class NodeJoinControllerTests extends ESTestCase {
                         .routingTable(RoutingTable.builder().add(indexRoutingTable).build());
         }
 
-        setState(clusterService, stateBuilder.build());
+        setupMasterServiceAndNodeJoinController(stateBuilder.build());
 
-        final DiscoveryNode restartedNode = new DiscoveryNode(otherNode.getId(),
-            randomBoolean() ? otherNode.getAddress() : buildNewFakeTransportAddress(), otherNode.getAttributes(),
-            otherNode.getRoles(), Version.CURRENT);
+        // conflict on node id or address
+        final DiscoveryNode conflictingNode = randomBoolean() ?
+            new DiscoveryNode(otherNode.getId(), randomBoolean() ? otherNode.getAddress() : buildNewFakeTransportAddress(),
+                otherNode.getAttributes(), otherNode.getRoles(), Version.CURRENT) :
+            new DiscoveryNode("conflicting_address_node", otherNode.getAddress(), otherNode.getAttributes(), otherNode.getRoles(),
+                Version.CURRENT);
 
         nodeJoinController.startElectionContext();
-        final SimpleFuture joinFuture = joinNodeAsync(restartedNode);
+        final SimpleFuture joinFuture = joinNodeAsync(conflictingNode);
         final CountDownLatch elected = new CountDownLatch(1);
         nodeJoinController.waitToBeElectedAsMaster(1, TimeValue.timeValueHours(5), new NodeJoinController.ElectionCallback() {
             @Override
@@ -650,36 +764,36 @@ public class NodeJoinControllerTests extends ESTestCase {
 
         joinFuture.get(); // throw any exception
 
-        final ClusterState finalState = clusterService.state();
+        final ClusterState finalState = discoveryState(masterService);
         final DiscoveryNodes finalNodes = finalState.nodes();
         assertTrue(finalNodes.isLocalNodeElectedMaster());
         assertThat(finalNodes.getLocalNode(), equalTo(masterNode));
         assertThat(finalNodes.getSize(), equalTo(2));
-        assertThat(finalNodes.get(restartedNode.getId()), equalTo(restartedNode));
+        assertThat(finalNodes.get(conflictingNode.getId()), equalTo(conflictingNode));
         List<ShardRouting> activeShardsOnRestartedNode =
-            StreamSupport.stream(finalState.getRoutingNodes().node(restartedNode.getId()).spliterator(), false)
+            StreamSupport.stream(finalState.getRoutingNodes().node(conflictingNode.getId()).spliterator(), false)
                 .filter(ShardRouting::active).collect(Collectors.toList());
         assertThat(activeShardsOnRestartedNode, empty());
     }
 
 
     private void addNodes(int count) {
-        ClusterState state = clusterService.state();
+        ClusterState state = initialState(true);
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(state.nodes());
         for (int i = 0;i< count;i++) {
             final DiscoveryNode node = new DiscoveryNode("node_" + state.nodes().getSize() + i, buildNewFakeTransportAddress(),
                 emptyMap(), new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))), Version.CURRENT);
             nodesBuilder.add(node);
         }
-        setState(clusterService, ClusterState.builder(state).nodes(nodesBuilder));
+        setupMasterServiceAndNodeJoinController(ClusterState.builder(state).nodes(nodesBuilder).build());
     }
 
     protected void assertNodesInCurrentState(List<DiscoveryNode> expectedNodes) {
-        final ClusterState state = clusterService.state();
-        logger.info("assert for [{}] in:\n{}", expectedNodes, state.prettyPrint());
+        final ClusterState state = discoveryState(masterService);
+        logger.info("assert for [{}] in:\n{}", expectedNodes, state);
         DiscoveryNodes discoveryNodes = state.nodes();
         for (DiscoveryNode node : expectedNodes) {
-            assertThat("missing " + node + "\n" + discoveryNodes.prettyPrint(), discoveryNodes.get(node.getId()), equalTo(node));
+            assertThat("missing " + node + "\n" + discoveryNodes, discoveryNodes.get(node.getId()), equalTo(node));
         }
         assertThat(discoveryNodes.getSize(), equalTo(expectedNodes.size()));
     }

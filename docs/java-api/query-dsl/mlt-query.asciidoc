@@ -1,18 +1,11 @@
 [[java-query-dsl-mlt-query]]
-==== More Like This Query (mlt)
+==== More Like This Query
 
-See:
- * {ref}/query-dsl-mlt-query.html[More Like This Query]
+See {ref}/query-dsl-mlt-query.html[More Like This Query]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-String[] fields = {"name.first", "name.last"};                 <1>
-String[] texts = {"text like this one"};                       <2>
-Item[] items = null;
-                                
-QueryBuilder qb = moreLikeThisQuery(fields, texts, items)
-    .minTermFreq(1)                                            <3>
-    .maxQueryTerms(12);                                        <4>
+include-tagged::{query-dsl-test}[more_like_this]
 --------------------------------------------------
 <1> fields
 <2> text

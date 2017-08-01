@@ -32,10 +32,11 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.discovery.MockZenPing;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -66,7 +67,7 @@ public class TransportClientIT extends ESIntegTestCase {
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put("cluster.name", "foobar")
-                .build(), Arrays.asList(MockTcpTransportPlugin.class, MockZenPing.TestPlugin.class)).start()) {
+                .build(), Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class)).start()) {
             TransportAddress transportAddress = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
             client.addTransportAddress(transportAddress);
             // since we force transport clients there has to be one node started that we connect to.
@@ -95,8 +96,10 @@ public class TransportClientIT extends ESIntegTestCase {
     }
 
     public void testThatTransportClientSettingCannotBeChanged() {
+        String transport = randomTestTransport();
         Settings baseSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), transport)
             .build();
         try (TransportClient client = new MockTransportClient(baseSettings)) {
             Settings settings = client.injector.getInstance(Settings.class);

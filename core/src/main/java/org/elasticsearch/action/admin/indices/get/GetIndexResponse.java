@@ -104,7 +104,7 @@ public class GetIndexResponse extends ActionResponse {
             int valueSize = in.readVInt();
             ImmutableOpenMap.Builder<String, MappingMetaData> mappingEntryBuilder = ImmutableOpenMap.builder();
             for (int j = 0; j < valueSize; j++) {
-                mappingEntryBuilder.put(in.readString(), MappingMetaData.PROTO.readFrom(in));
+                mappingEntryBuilder.put(in.readString(), new MappingMetaData(in));
             }
             mappingsMapBuilder.put(key, mappingEntryBuilder.build());
         }
@@ -114,9 +114,9 @@ public class GetIndexResponse extends ActionResponse {
         for (int i = 0; i < aliasesSize; i++) {
             String key = in.readString();
             int valueSize = in.readVInt();
-            List<AliasMetaData> aliasEntryBuilder = new ArrayList<>();
+            List<AliasMetaData> aliasEntryBuilder = new ArrayList<>(valueSize);
             for (int j = 0; j < valueSize; j++) {
-                aliasEntryBuilder.add(AliasMetaData.Builder.readFrom(in));
+                aliasEntryBuilder.add(new AliasMetaData(in));
             }
             aliasesMapBuilder.put(key, Collections.unmodifiableList(aliasEntryBuilder));
         }

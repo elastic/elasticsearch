@@ -31,12 +31,12 @@ public class BulkItemRequest implements Streamable {
     private int id;
     private DocWriteRequest request;
     private volatile BulkItemResponse primaryResponse;
-    private volatile boolean ignoreOnReplica;
 
     BulkItemRequest() {
 
     }
 
+    // NOTE: public for testing only
     public BulkItemRequest(int id, DocWriteRequest request) {
         this.id = id;
         this.request = request;
@@ -63,17 +63,6 @@ public class BulkItemRequest implements Streamable {
         this.primaryResponse = primaryResponse;
     }
 
-    /**
-     * Marks this request to be ignored and *not* execute on a replica.
-     */
-    void setIgnoreOnReplica() {
-        this.ignoreOnReplica = true;
-    }
-
-    boolean isIgnoreOnReplica() {
-        return ignoreOnReplica;
-    }
-
     public static BulkItemRequest readBulkItem(StreamInput in) throws IOException {
         BulkItemRequest item = new BulkItemRequest();
         item.readFrom(in);
@@ -87,7 +76,6 @@ public class BulkItemRequest implements Streamable {
         if (in.readBoolean()) {
             primaryResponse = BulkItemResponse.readBulkItem(in);
         }
-        ignoreOnReplica = in.readBoolean();
     }
 
     @Override
@@ -95,6 +83,5 @@ public class BulkItemRequest implements Streamable {
         out.writeVInt(id);
         DocWriteRequest.writeDocumentRequest(out, request);
         out.writeOptionalStreamable(primaryResponse);
-        out.writeBoolean(ignoreOnReplica);
     }
 }

@@ -29,6 +29,7 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.text.Text;
@@ -41,14 +42,13 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsFetchSubPhase;
-import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHitField;
-import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -101,7 +101,7 @@ public class FetchPhase implements SearchPhase {
             for (String fieldName : context.storedFieldsContext().fieldNames()) {
                 if (fieldName.equals(SourceFieldMapper.NAME)) {
                     FetchSourceContext fetchSourceContext = context.hasFetchSourceContext() ? context.fetchSourceContext()
-                        : FetchSourceContext.FETCH_SOURCE;
+                            : FetchSourceContext.FETCH_SOURCE;
                     context.fetchSourceContext(new FetchSourceContext(true, fetchSourceContext.includes(), fetchSourceContext.excludes()));
                     continue;
                 }
@@ -130,45 +130,46 @@ public class FetchPhase implements SearchPhase {
                 fieldsVisitor = new FieldsVisitor(loadSource);
             } else {
                 fieldsVisitor = new CustomFieldsVisitor(fieldNames == null ? Collections.emptySet() : fieldNames,
-                    fieldNamePatterns == null ? Collections.emptyList() : fieldNamePatterns, loadSource);
+                        fieldNamePatterns == null ? Collections.emptyList() : fieldNamePatterns, loadSource);
             }
         }
 
-        InternalSearchHit[] hits = new InternalSearchHit[context.docIdsToLoadSize()];
-        FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
-        for (int index = 0; index < context.docIdsToLoadSize(); index++) {
-            if(context.isCancelled()) {
-                throw new TaskCancelledException("cancelled");
-            }
-            int docId = context.docIdsToLoad()[context.docIdsToLoadFrom() + index];
-            int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
-            LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
-            int subDocId = docId - subReaderContext.docBase;
+        try {
+            SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
+            FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
+            for (int index = 0; index < context.docIdsToLoadSize(); index++) {
+                if (context.isCancelled()) {
+                    throw new TaskCancelledException("cancelled");
+                }
+                int docId = context.docIdsToLoad()[context.docIdsToLoadFrom() + index];
+                int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
+                LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+                int subDocId = docId - subReaderContext.docBase;
 
-            final InternalSearchHit searchHit;
-            try {
+                final SearchHit searchHit;
                 int rootDocId = findRootDocumentIfNested(context, subReaderContext, subDocId);
                 if (rootDocId != -1) {
-                    searchHit = createNestedSearchHit(context, docId, subDocId, rootDocId, fieldNames, fieldNamePatterns, subReaderContext);
+                    searchHit = createNestedSearchHit(context, docId, subDocId, rootDocId, fieldNames, fieldNamePatterns,
+                            subReaderContext);
                 } else {
                     searchHit = createSearchHit(context, fieldsVisitor, docId, subDocId, subReaderContext);
                 }
-            } catch (IOException e) {
-                throw ExceptionsHelper.convertToElastic(e);
+
+                hits[index] = searchHit;
+                hitContext.reset(searchHit, subReaderContext, subDocId, context.searcher());
+                for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
+                    fetchSubPhase.hitExecute(context, hitContext);
+                }
             }
 
-            hits[index] = searchHit;
-            hitContext.reset(searchHit, subReaderContext, subDocId, context.searcher());
             for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-                fetchSubPhase.hitExecute(context, hitContext);
+                fetchSubPhase.hitsExecute(context, hits);
             }
-        }
 
-        for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-            fetchSubPhase.hitsExecute(context, hits);
+            context.fetchResult().hits(new SearchHits(hits, context.queryResult().getTotalHits(), context.queryResult().getMaxScore()));
+        } catch (IOException e) {
+            throw ExceptionsHelper.convertToElastic(e);
         }
-
-        context.fetchResult().hits(new InternalSearchHits(hits, context.queryResult().topDocs().totalHits, context.queryResult().topDocs().getMaxScore()));
     }
 
     private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
@@ -181,18 +182,19 @@ public class FetchPhase implements SearchPhase {
         return -1;
     }
 
-    private InternalSearchHit createSearchHit(SearchContext context, FieldsVisitor fieldsVisitor, int docId, int subDocId, LeafReaderContext subReaderContext) {
+    private SearchHit createSearchHit(SearchContext context, FieldsVisitor fieldsVisitor, int docId, int subDocId,
+                                      LeafReaderContext subReaderContext) {
         if (fieldsVisitor == null) {
-            return new InternalSearchHit(docId);
+            return new SearchHit(docId);
         }
         loadStoredFields(context, subReaderContext, fieldsVisitor, subDocId);
         fieldsVisitor.postProcess(context.mapperService());
 
-        Map<String, SearchHitField> searchFields = null;
+        Map<String, DocumentField> searchFields = null;
         if (!fieldsVisitor.fields().isEmpty()) {
             searchFields = new HashMap<>(fieldsVisitor.fields().size());
             for (Map.Entry<String, List<Object>> entry : fieldsVisitor.fields().entrySet()) {
-                searchFields.put(entry.getKey(), new InternalSearchHitField(entry.getKey(), entry.getValue()));
+                searchFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
             }
         }
 
@@ -203,7 +205,7 @@ public class FetchPhase implements SearchPhase {
         } else {
             typeText = documentMapper.typeText();
         }
-        InternalSearchHit searchHit = new InternalSearchHit(docId, fieldsVisitor.uid().id(), typeText, searchFields);
+        SearchHit searchHit = new SearchHit(docId, fieldsVisitor.uid().id(), typeText, searchFields);
         // Set _source if requested.
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
@@ -213,24 +215,39 @@ public class FetchPhase implements SearchPhase {
         return searchHit;
     }
 
-    private InternalSearchHit createNestedSearchHit(SearchContext context, int nestedTopDocId, int nestedSubDocId, int rootSubDocId, Set<String> fieldNames, List<String> fieldNamePatterns, LeafReaderContext subReaderContext) throws IOException {
+    private SearchHit createNestedSearchHit(SearchContext context, int nestedTopDocId, int nestedSubDocId,
+                                            int rootSubDocId, Set<String> fieldNames,
+                                            List<String> fieldNamePatterns, LeafReaderContext subReaderContext) throws IOException {
         // Also if highlighting is requested on nested documents we need to fetch the _source from the root document,
         // otherwise highlighting will attempt to fetch the _source from the nested doc, which will fail,
         // because the entire _source is only stored with the root document.
-        final FieldsVisitor rootFieldsVisitor = new FieldsVisitor(context.sourceRequested() || context.highlight() != null);
-        loadStoredFields(context, subReaderContext, rootFieldsVisitor, rootSubDocId);
-        rootFieldsVisitor.postProcess(context.mapperService());
+        final Uid uid;
+        final BytesReference source;
+        final boolean needSource = context.sourceRequested() || context.highlight() != null;
+        if (needSource || (context instanceof InnerHitsContext.InnerHitSubContext == false)) {
+            FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
+            loadStoredFields(context, subReaderContext, rootFieldsVisitor, rootSubDocId);
+            rootFieldsVisitor.postProcess(context.mapperService());
+            uid = rootFieldsVisitor.uid();
+            source = rootFieldsVisitor.source();
+        } else {
+            // In case of nested inner hits we already know the uid, so no need to fetch it from stored fields again!
+            uid = ((InnerHitsContext.InnerHitSubContext) context).getUid();
+            source = null;
+        }
 
-        Map<String, SearchHitField> searchFields = getSearchFields(context, nestedSubDocId, fieldNames, fieldNamePatterns, subReaderContext);
-        DocumentMapper documentMapper = context.mapperService().documentMapper(rootFieldsVisitor.uid().type());
+
+        Map<String, DocumentField> searchFields =
+                getSearchFields(context, nestedSubDocId, fieldNames, fieldNamePatterns, subReaderContext);
+        DocumentMapper documentMapper = context.mapperService().documentMapper(uid.type());
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, nestedSubDocId);
 
         ObjectMapper nestedObjectMapper = documentMapper.findNestedObjectMapper(nestedSubDocId, context, subReaderContext);
         assert nestedObjectMapper != null;
-        InternalSearchHit.InternalNestedIdentity nestedIdentity = getInternalNestedIdentity(context, nestedSubDocId, subReaderContext, documentMapper, nestedObjectMapper);
+        SearchHit.NestedIdentity nestedIdentity =
+                getInternalNestedIdentity(context, nestedSubDocId, subReaderContext, documentMapper, nestedObjectMapper);
 
-        BytesReference source = rootFieldsVisitor.source();
         if (source != null) {
             Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(source, true);
             Map<String, Object> sourceAsMap = tuple.v2();
@@ -250,7 +267,8 @@ public class FetchPhase implements SearchPhase {
                     // nested field has an array value in the _source
                     nestedParsedSource = (List<Map<String, Object>>) extractedValue;
                 } else if (extractedValue instanceof Map) {
-                    // nested field has an object value in the _source. This just means the nested field has just one inner object, which is valid, but uncommon.
+                    // nested field has an object value in the _source. This just means the nested field has just one inner object,
+                    // which is valid, but uncommon.
                     nestedParsedSource = Collections.singletonList((Map<String, Object>) extractedValue);
                 } else {
                     throw new IllegalStateException("extracted source isn't an object or an array");
@@ -270,22 +288,22 @@ public class FetchPhase implements SearchPhase {
             context.lookup().source().setSource(nestedSource);
             context.lookup().source().setSourceContentType(contentType);
         }
-
-        return new InternalSearchHit(nestedTopDocId, rootFieldsVisitor.uid().id(), documentMapper.typeText(), nestedIdentity, searchFields);
+        return new SearchHit(nestedTopDocId, uid.id(), documentMapper.typeText(), nestedIdentity, searchFields);
     }
 
-    private Map<String, SearchHitField> getSearchFields(SearchContext context, int nestedSubDocId, Set<String> fieldNames, List<String> fieldNamePatterns, LeafReaderContext subReaderContext) {
-        Map<String, SearchHitField> searchFields = null;
+    private Map<String, DocumentField> getSearchFields(SearchContext context, int nestedSubDocId, Set<String> fieldNames,
+                                                       List<String> fieldNamePatterns, LeafReaderContext subReaderContext) {
+        Map<String, DocumentField> searchFields = null;
         if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
             FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(fieldNames == null ? Collections.emptySet() : fieldNames,
-                fieldNamePatterns == null ? Collections.emptyList() : fieldNamePatterns, false);
+                    fieldNamePatterns == null ? Collections.emptyList() : fieldNamePatterns, false);
             if (nestedFieldsVisitor != null) {
                 loadStoredFields(context, subReaderContext, nestedFieldsVisitor, nestedSubDocId);
                 nestedFieldsVisitor.postProcess(context.mapperService());
                 if (!nestedFieldsVisitor.fields().isEmpty()) {
                     searchFields = new HashMap<>(nestedFieldsVisitor.fields().size());
                     for (Map.Entry<String, List<Object>> entry : nestedFieldsVisitor.fields().entrySet()) {
-                        searchFields.put(entry.getKey(), new InternalSearchHitField(entry.getKey(), entry.getValue()));
+                        searchFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
                     }
                 }
             }
@@ -293,12 +311,14 @@ public class FetchPhase implements SearchPhase {
         return searchFields;
     }
 
-    private InternalSearchHit.InternalNestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId, LeafReaderContext subReaderContext, DocumentMapper documentMapper, ObjectMapper nestedObjectMapper) throws IOException {
+    private SearchHit.NestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId,
+                                                               LeafReaderContext subReaderContext, DocumentMapper documentMapper,
+                                                               ObjectMapper nestedObjectMapper) throws IOException {
         int currentParent = nestedSubDocId;
         ObjectMapper nestedParentObjectMapper;
         ObjectMapper current = nestedObjectMapper;
         String originalName = nestedObjectMapper.name();
-        InternalSearchHit.InternalNestedIdentity nestedIdentity = null;
+        SearchHit.NestedIdentity nestedIdentity = null;
         do {
             Query parentFilter;
             nestedParentObjectMapper = documentMapper.findParentObjectMapper(current);
@@ -329,13 +349,14 @@ public class FetchPhase implements SearchPhase {
 
             int offset = 0;
             int nextParent = parentBits.nextSetBit(currentParent);
-            for (int docId = childIter.advance(currentParent + 1); docId < nextParent && docId != DocIdSetIterator.NO_MORE_DOCS; docId = childIter.nextDoc()) {
+            for (int docId = childIter.advance(currentParent + 1); docId < nextParent && docId != DocIdSetIterator.NO_MORE_DOCS;
+                 docId = childIter.nextDoc()) {
                 offset++;
             }
             currentParent = nextParent;
             current = nestedObjectMapper = nestedParentObjectMapper;
             int currentPrefix = current == null ? 0 : current.name().length() + 1;
-            nestedIdentity = new InternalSearchHit.InternalNestedIdentity(originalName.substring(currentPrefix), offset, nestedIdentity);
+            nestedIdentity = new SearchHit.NestedIdentity(originalName.substring(currentPrefix), offset, nestedIdentity);
             if (current != null) {
                 originalName = current.name();
             }

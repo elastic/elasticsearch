@@ -20,20 +20,31 @@
 package org.elasticsearch.index.search;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -41,15 +52,19 @@ import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
+import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
+
 public class MatchQuery {
 
-    public static enum Type implements Writeable {
+    public enum Type implements Writeable {
         /**
          * The text is analyzed and terms are added to a boolean query.
          */
@@ -65,7 +80,7 @@ public class MatchQuery {
 
         private final int ordinal;
 
-        private Type(int ordinal) {
+        Type(int ordinal) {
             this.ordinal = ordinal;
         }
 
@@ -85,13 +100,13 @@ public class MatchQuery {
         }
     }
 
-    public static enum ZeroTermsQuery implements Writeable {
+    public enum ZeroTermsQuery implements Writeable {
         NONE(0),
         ALL(1);
 
         private final int ordinal;
 
-        private ZeroTermsQuery(int ordinal) {
+        ZeroTermsQuery(int ordinal) {
             this.ordinal = ordinal;
         }
 
@@ -111,18 +126,24 @@ public class MatchQuery {
         }
     }
 
-    /** the default phrase slop */
+    /**
+     * the default phrase slop
+     */
     public static final int DEFAULT_PHRASE_SLOP = 0;
 
-    /** the default leniency setting */
+    /**
+     * the default leniency setting
+     */
     public static final boolean DEFAULT_LENIENCY = false;
 
-    /** the default zero terms query */
+    /**
+     * the default zero terms query
+     */
     public static final ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = ZeroTermsQuery.NONE;
 
     protected final QueryShardContext context;
 
-    protected String analyzer;
+    protected Analyzer analyzer;
 
     protected BooleanClause.Occur occur = BooleanClause.Occur.SHOULD;
 
@@ -150,7 +171,14 @@ public class MatchQuery {
         this.context = context;
     }
 
-    public void setAnalyzer(String analyzer) {
+    public void setAnalyzer(String analyzerName) {
+        this.analyzer = context.getMapperService().getIndexAnalyzers().get(analyzerName);
+        if (analyzer == null) {
+            throw new IllegalArgumentException("No analyzer found for [" + analyzerName + "]");
+        }
+    }
+
+    public void setAnalyzer(Analyzer analyzer) {
         this.analyzer = analyzer;
     }
 
@@ -198,29 +226,20 @@ public class MatchQuery {
         this.zeroTermsQuery = zeroTermsQuery;
     }
 
-    protected Analyzer getAnalyzer(MappedFieldType fieldType) {
-        if (this.analyzer == null) {
-            if (fieldType != null) {
-                return context.getSearchAnalyzer(fieldType);
-            }
-            return context.getMapperService().searchAnalyzer();
+    protected Analyzer getAnalyzer(MappedFieldType fieldType, boolean quoted) {
+        if (analyzer == null) {
+            return quoted ? context.getSearchQuoteAnalyzer(fieldType) : context.getSearchAnalyzer(fieldType);
         } else {
-            Analyzer analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
-            if (analyzer == null) {
-                throw new IllegalArgumentException("No analyzer found for [" + this.analyzer + "]");
-            }
             return analyzer;
         }
     }
 
     public Query parse(Type type, String fieldName, Object value) throws IOException {
-        final String field;
         MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType != null) {
-            field = fieldType.name();
-        } else {
-            field = fieldName;
+        if (fieldType == null) {
+            return newUnmappedFieldQuery(fieldName);
         }
+        final String field = fieldType.name();
 
         /*
          * If the user forced an analyzer we really don't care if they are
@@ -231,11 +250,11 @@ public class MatchQuery {
          * passing through QueryBuilder.
          */
         boolean noForcedAnalyzer = this.analyzer == null;
-        if (fieldType != null && fieldType.tokenized() == false && noForcedAnalyzer) {
+        if (fieldType.tokenized() == false && noForcedAnalyzer) {
             return blendTermQuery(new Term(fieldName, value.toString()), fieldType);
         }
 
-        Analyzer analyzer = getAnalyzer(fieldType);
+        Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE);
         assert analyzer != null;
         MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType);
         builder.setEnablePositionIncrements(this.enablePositionIncrements);
@@ -266,12 +285,12 @@ public class MatchQuery {
         }
     }
 
-    protected final Query termQuery(MappedFieldType fieldType, Object value, boolean lenient) {
+    protected final Query termQuery(MappedFieldType fieldType, BytesRef value, boolean lenient) {
         try {
             return fieldType.termQuery(value, context);
         } catch (RuntimeException e) {
             if (lenient) {
-                return null;
+                return newLenientFieldQuery(fieldType.name(), e);
             }
             throw e;
         }
@@ -291,7 +310,7 @@ public class MatchQuery {
         /**
          * Creates a new QueryBuilder using the given analyzer.
          */
-        public MatchQueryBuilder(Analyzer analyzer, @Nullable MappedFieldType mapper) {
+        MatchQueryBuilder(Analyzer analyzer, MappedFieldType mapper) {
             super(analyzer);
             this.mapper = mapper;
         }
@@ -301,84 +320,154 @@ public class MatchQuery {
             return blendTermQuery(term, mapper);
         }
 
+        @Override
+        protected Query newSynonymQuery(Term[] terms) {
+            return blendTermsQuery(terms, mapper);
+        }
+
+        /**
+         * Checks if graph analysis should be enabled for the field depending
+         * on the provided {@link Analyzer}
+         */
+        protected Query createFieldQuery(Analyzer analyzer, BooleanClause.Occur operator, String field,
+                                         String queryText, boolean quoted, int phraseSlop) {
+            assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;
+
+            // Use the analyzer to get all the tokens, and then build an appropriate
+            // query based on the analysis chain.
+            try (TokenStream source = analyzer.tokenStream(field, queryText)) {
+                if (source.hasAttribute(DisableGraphAttribute.class)) {
+                    /**
+                     * A {@link TokenFilter} in this {@link TokenStream} disabled the graph analysis to avoid
+                     * paths explosion. See {@link ShingleTokenFilterFactory} for details.
+                     */
+                    setEnableGraphQueries(false);
+                }
+                Query query = super.createFieldQuery(source, operator, field, quoted, phraseSlop);
+                setEnableGraphQueries(true);
+                return query;
+            } catch (IOException e) {
+                throw new RuntimeException("Error analyzing query text", e);
+            }
+        }
+
         public Query createPhrasePrefixQuery(String field, String queryText, int phraseSlop, int maxExpansions) {
             final Query query = createFieldQuery(getAnalyzer(), Occur.MUST, field, queryText, true, phraseSlop);
+            return toMultiPhrasePrefix(query, phraseSlop, maxExpansions);
+        }
+
+        private Query toMultiPhrasePrefix(final Query query, int phraseSlop, int maxExpansions) {
+            float boost = 1;
+            Query innerQuery = query;
+            while (innerQuery instanceof BoostQuery) {
+                BoostQuery bq = (BoostQuery) innerQuery;
+                boost *= bq.getBoost();
+                innerQuery = bq.getQuery();
+            }
+            if (query instanceof SpanQuery) {
+                return toSpanQueryPrefix((SpanQuery) query, boost);
+            }
             final MultiPhrasePrefixQuery prefixQuery = new MultiPhrasePrefixQuery();
             prefixQuery.setMaxExpansions(maxExpansions);
             prefixQuery.setSlop(phraseSlop);
-            if (query instanceof PhraseQuery) {
-                PhraseQuery pq = (PhraseQuery)query;
+            if (innerQuery instanceof PhraseQuery) {
+                PhraseQuery pq = (PhraseQuery) innerQuery;
                 Term[] terms = pq.getTerms();
                 int[] positions = pq.getPositions();
                 for (int i = 0; i < terms.length; i++) {
-                    prefixQuery.add(new Term[] {terms[i]}, positions[i]);
+                    prefixQuery.add(new Term[]{terms[i]}, positions[i]);
                 }
-                return prefixQuery;
-            } else if (query instanceof MultiPhraseQuery) {
-                MultiPhraseQuery pq = (MultiPhraseQuery)query;
+                return boost == 1 ? prefixQuery : new BoostQuery(prefixQuery, boost);
+            } else if (innerQuery instanceof MultiPhraseQuery) {
+                MultiPhraseQuery pq = (MultiPhraseQuery) innerQuery;
                 Term[][] terms = pq.getTermArrays();
                 int[] positions = pq.getPositions();
                 for (int i = 0; i < terms.length; i++) {
                     prefixQuery.add(terms[i], positions[i]);
                 }
-                return prefixQuery;
-            } else if (query instanceof TermQuery) {
-                prefixQuery.add(((TermQuery) query).getTerm());
-                return prefixQuery;
-            } else if (query instanceof AllTermQuery) {
-                prefixQuery.add(((AllTermQuery) query).getTerm());
-                return prefixQuery;
+                return boost == 1 ? prefixQuery : new BoostQuery(prefixQuery, boost);
+            } else if (innerQuery instanceof TermQuery) {
+                prefixQuery.add(((TermQuery) innerQuery).getTerm());
+                return boost == 1 ? prefixQuery : new BoostQuery(prefixQuery, boost);
+            } else if (innerQuery instanceof AllTermQuery) {
+                prefixQuery.add(((AllTermQuery) innerQuery).getTerm());
+                return boost == 1 ? prefixQuery : new BoostQuery(prefixQuery, boost);
             }
             return query;
         }
 
-        public Query createCommonTermsQuery(String field, String queryText, Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency, MappedFieldType fieldType) {
+        private Query toSpanQueryPrefix(SpanQuery query, float boost) {
+            if (query instanceof SpanTermQuery) {
+                SpanMultiTermQueryWrapper<PrefixQuery> ret =
+                    new SpanMultiTermQueryWrapper<>(new PrefixQuery(((SpanTermQuery) query).getTerm()));
+                return boost == 1 ? ret : new BoostQuery(ret, boost);
+            } else if (query instanceof SpanNearQuery) {
+                SpanNearQuery spanNearQuery = (SpanNearQuery) query;
+                SpanQuery[] clauses = spanNearQuery.getClauses();
+                if (clauses[clauses.length-1] instanceof SpanTermQuery) {
+                    clauses[clauses.length-1] = new SpanMultiTermQueryWrapper<>(
+                        new PrefixQuery(((SpanTermQuery) clauses[clauses.length-1]).getTerm())
+                    );
+                }
+                SpanNearQuery newQuery = new SpanNearQuery(clauses, spanNearQuery.getSlop(), spanNearQuery.isInOrder());
+                return boost == 1 ? newQuery : new BoostQuery(newQuery, boost);
+            } else if (query instanceof SpanOrQuery) {
+                SpanOrQuery orQuery = (SpanOrQuery) query;
+                SpanQuery[] clauses = new SpanQuery[orQuery.getClauses().length];
+                for (int i = 0; i < clauses.length; i++) {
+                    clauses[i] = (SpanQuery) toSpanQueryPrefix(orQuery.getClauses()[i], 1);
+                }
+                return boost == 1 ? new SpanOrQuery(clauses) : new BoostQuery(new SpanOrQuery(clauses), boost);
+            } else {
+                return query;
+            }
+        }
+
+        public Query createCommonTermsQuery(String field, String queryText, Occur highFreqOccur, Occur lowFreqOccur, float
+            maxTermFrequency, MappedFieldType fieldType) {
             Query booleanQuery = createBooleanQuery(field, queryText, lowFreqOccur);
             if (booleanQuery != null && booleanQuery instanceof BooleanQuery) {
                 BooleanQuery bq = (BooleanQuery) booleanQuery;
-                ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, ((BooleanQuery)booleanQuery).isCoordDisabled(), fieldType);
-                for (BooleanClause clause : bq.clauses()) {
-                    if (!(clause.getQuery() instanceof TermQuery)) {
-                        return booleanQuery;
-                    }
-                    query.add(((TermQuery) clause.getQuery()).getTerm());
-                }
-                return query;
+                return boolToExtendedCommonTermsQuery(bq, highFreqOccur, lowFreqOccur, maxTermFrequency, fieldType);
             }
             return booleanQuery;
-
         }
+
+        private Query boolToExtendedCommonTermsQuery(BooleanQuery bq, Occur highFreqOccur, Occur lowFreqOccur, float
+            maxTermFrequency, MappedFieldType fieldType) {
+            ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency,
+                fieldType);
+            for (BooleanClause clause : bq.clauses()) {
+                if (!(clause.getQuery() instanceof TermQuery)) {
+                    return bq;
+                }
+                query.add(((TermQuery) clause.getQuery()).getTerm());
+            }
+            return query;
+        }
+    }
+
+    protected Query blendTermsQuery(Term[] terms, MappedFieldType fieldType) {
+        return new SynonymQuery(terms);
     }
 
     protected Query blendTermQuery(Term term, MappedFieldType fieldType) {
         if (fuzziness != null) {
-            if (fieldType != null) {
-                try {
-                    Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions);
-                    if (query instanceof FuzzyQuery) {
-                        QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
-                    }
-                    return query;
-                } catch (RuntimeException e) {
-                    if (lenient) {
-                        return new TermQuery(term);
-                    } else {
-                        throw e;
-                    }
+            try {
+                Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions);
+                if (query instanceof FuzzyQuery) {
+                    QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
+                }
+                return query;
+            } catch (RuntimeException e) {
+                if (lenient) {
+                    return newLenientFieldQuery(fieldType.name(), e);
+                } else {
+                    throw e;
                 }
             }
-            int edits = fuzziness.asDistance(term.text());
-            FuzzyQuery query = new FuzzyQuery(term, edits, fuzzyPrefixLength, maxExpansions, transpositions);
-            QueryParsers.setRewriteMethod(query, fuzzyRewriteMethod);
-            return query;
         }
-        if (fieldType != null) {
-            Query query = termQuery(fieldType, term.bytes(), lenient);
-            if (query != null) {
-                return query;
-            }
-        }
-        return new TermQuery(term);
+        return termQuery(fieldType, term.bytes(), lenient);
     }
 
 }

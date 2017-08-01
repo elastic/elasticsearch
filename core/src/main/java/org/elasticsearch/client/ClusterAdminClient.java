@@ -45,6 +45,9 @@ import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
+import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
@@ -112,6 +115,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.tasks.TaskId;
 
 /**
@@ -264,8 +268,37 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     NodesStatsRequestBuilder prepareNodesStats(String... nodesIds);
 
     /**
-     * Returns top N hot-threads samples per node. The hot-threads are only sampled
-     * for the node ids specified in the request.
+     * Returns top N hot-threads samples per node. The hot-threads are only
+     * sampled for the node ids specified in the request. Nodes usage of the
+     * cluster.
+     *
+     * @param request
+     *            The nodes usage request
+     * @return The result future
+     * @see org.elasticsearch.client.Requests#nodesUsageRequest(String...)
+     */
+    ActionFuture<NodesUsageResponse> nodesUsage(NodesUsageRequest request);
+
+    /**
+     * Nodes usage of the cluster.
+     *
+     * @param request
+     *            The nodes usage request
+     * @param listener
+     *            A listener to be notified with a result
+     * @see org.elasticsearch.client.Requests#nodesUsageRequest(String...)
+     */
+    void nodesUsage(NodesUsageRequest request, ActionListener<NodesUsageResponse> listener);
+
+    /**
+     * Nodes usage of the cluster.
+     */
+    NodesUsageRequestBuilder prepareNodesUsage(String... nodesIds);
+
+    /**
+     * Returns top N hot-threads samples per node. The hot-threads are only
+     * sampled for the node ids specified in the request.
+     *
      */
     ActionFuture<NodesHotThreadsResponse> nodesHotThreads(NodesHotThreadsRequest request);
 
@@ -345,7 +378,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Cancel active tasks
      *
      * @param request  The nodes tasks request
-     * @param listener A cancelener to be notified with a result
+     * @param listener A listener to be notified with a result
      * @see org.elasticsearch.client.Requests#cancelTasksRequest()
      */
     void cancelTasks(CancelTasksRequest request, ActionListener<CancelTasksResponse> listener);
@@ -545,8 +578,15 @@ public interface ClusterAdminClient extends ElasticsearchClient {
 
     /**
      * Stores an ingest pipeline
+     * @deprecated use {@link #preparePutPipeline(String, BytesReference, XContentType)}
      */
+    @Deprecated
     PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source);
+
+    /**
+     * Stores an ingest pipeline
+     */
+    PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source, XContentType xContentType);
 
     /**
      * Deletes a stored ingest pipeline
@@ -562,6 +602,11 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Deletes a stored ingest pipeline
      */
     DeletePipelineRequestBuilder prepareDeletePipeline();
+
+    /**
+     * Deletes a stored ingest pipeline
+     */
+    DeletePipelineRequestBuilder prepareDeletePipeline(String id);
 
     /**
      * Returns a stored ingest pipeline
@@ -591,7 +636,13 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Simulates an ingest pipeline
      */
+    @Deprecated
     SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source);
+
+    /**
+     * Simulates an ingest pipeline
+     */
+    SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source, XContentType xContentType);
 
     /**
      * Explain the allocation of a shard
@@ -631,7 +682,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Delete a script from the cluster state
      */
-    DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String scriptLang, String id);
+    DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String id);
 
     /**
      * Store a script in the cluster state
@@ -651,7 +702,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Get a script from the cluster state
      */
-    GetStoredScriptRequestBuilder prepareGetStoredScript(@Nullable String scriptLang, String id);
+    GetStoredScriptRequestBuilder prepareGetStoredScript(String id);
 
     /**
      * Get a script from the cluster state

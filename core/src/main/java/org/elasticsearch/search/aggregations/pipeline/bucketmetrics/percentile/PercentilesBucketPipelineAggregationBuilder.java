@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -136,9 +135,9 @@ public class PercentilesBucketPipelineAggregationBuilder
         }
 
         @Override
-        protected boolean token(XContentParser parser, QueryParseContext context, String field,
-                                XContentParser.Token token, Map<String, Object> params) throws IOException {
-            if (context.getParseFieldMatcher().match(field, PERCENTS_FIELD) && token == XContentParser.Token.START_ARRAY) {
+        protected boolean token(XContentParser parser, String field, XContentParser.Token token, Map<String, Object> params)
+                throws IOException {
+            if (PERCENTS_FIELD.match(field) && token == XContentParser.Token.START_ARRAY) {
                 DoubleArrayList percents = new DoubleArrayList(10);
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                     percents.add(parser.doubleValue());

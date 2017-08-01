@@ -24,7 +24,7 @@ import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 public class AggregationProfileBreakdown extends AbstractProfileBreakdown<AggregationTimingType> {
 
     public AggregationProfileBreakdown() {
-        super(AggregationTimingType.values());
+        super(AggregationTimingType.class);
     }
 
 }

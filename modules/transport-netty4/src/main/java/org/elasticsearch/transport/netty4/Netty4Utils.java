@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
@@ -23,16 +24,23 @@ import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.util.NettyRuntime;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 public class Netty4Utils {
 
@@ -41,7 +49,7 @@ public class Netty4Utils {
 
             @Override
             public InternalLogger newInstance(final String name) {
-                return new Netty4InternalESLogger(name.replace("io.netty.", "netty."));
+                return new Netty4InternalESLogger(name);
             }
 
         });
@@ -49,6 +57,41 @@ public class Netty4Utils {
 
     public static void setup() {
 
+    }
+
+    private static AtomicBoolean isAvailableProcessorsSet = new AtomicBoolean();
+
+    /**
+     * Set the number of available processors that Netty uses for sizing various resources (e.g., thread pools).
+     *
+     * @param availableProcessors the number of available processors
+     * @throws IllegalStateException if available processors was set previously and the specified value does not match the already-set value
+     */
+    public static void setAvailableProcessors(final int availableProcessors) {
+        // we set this to false in tests to avoid tests that randomly set processors from stepping on each other
+        final boolean set = Booleans.parseBoolean(System.getProperty("es.set.netty.runtime.available.processors", "true"));
+        if (!set) {
+            return;
+        }
+
+        /*
+         * This can be invoked twice, once from Netty4Transport and another time from Netty4HttpServerTransport; however,
+         * Netty4Runtime#availableProcessors forbids settings the number of processors twice so we prevent double invocation here.
+         */
+        if (isAvailableProcessorsSet.compareAndSet(false, true)) {
+            NettyRuntime.setAvailableProcessors(availableProcessors);
+        } else if (availableProcessors != NettyRuntime.availableProcessors()) {
+            /*
+             * We have previously set the available processors yet either we are trying to set it to a different value now or there is a bug
+             * in Netty and our previous value did not take, bail.
+             */
+            final String message = String.format(
+                    Locale.ROOT,
+                    "available processors value [%d] did not match current value [%d]",
+                    availableProcessors,
+                    NettyRuntime.availableProcessors());
+            throw new IllegalStateException(message);
+        }
     }
 
     /**
@@ -63,8 +106,7 @@ public class Netty4Utils {
             return ((ByteBufBytesReference) reference).toByteBuf();
         } else {
             final BytesRefIterator iterator = reference.iterator();
-            // usually we have one, two, or three components
-            // from the header, the message, and a buffer
+            // usually we have one, two, or three components from the header, the message, and a buffer
             final List<ByteBuf> buffers = new ArrayList<>(3);
             try {
                 BytesRef slice;
@@ -115,6 +157,35 @@ public class Netty4Utils {
 
         if (closingExceptions != null) {
             throw closingExceptions;
+        }
+    }
+
+    /**
+     * If the specified cause is an unrecoverable error, this method will rethrow the cause on a separate thread so that it can not be
+     * caught and bubbles up to the uncaught exception handler.
+     *
+     * @param cause the throwable to test
+     */
+    public static void maybeDie(final Throwable cause) {
+        if (cause instanceof Error) {
+            /*
+             * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, Netty wraps too many
+             * invocations of user-code in try/catch blocks that swallow all throwables. This means that a rethrow here will not bubble up
+             * to where we want it to. So, we fork a thread and throw the exception from there where Netty can not get to it. We do not wrap
+             * the exception so as to not lose the original cause during exit.
+             */
+            try {
+                // try to log the current stack trace
+                final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+                final String formatted = Arrays.stream(stackTrace).skip(1).map(e -> "\tat " + e).collect(Collectors.joining("\n"));
+                ESLoggerFactory.getLogger(Netty4Utils.class).error("fatal error on the network layer\n{}", formatted);
+            } finally {
+                new Thread(
+                        () -> {
+                            throw (Error) cause;
+                        })
+                        .start();
+            }
         }
     }
 

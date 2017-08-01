@@ -20,7 +20,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -33,26 +32,21 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteStoredScriptAction extends BaseRestHandler {
 
-    @Inject
     public RestDeleteStoredScriptAction(Settings settings, RestController controller) {
-        this(settings, controller, true);
-    }
-
-    protected RestDeleteStoredScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers) {
         super(settings);
-        if (registerDefaultHandlers) {
-            controller.registerHandler(DELETE, "/_scripts/{lang}/{id}", this);
-        }
-    }
 
-    protected String getScriptLang(RestRequest request) {
-        return request.param("lang");
+        controller.registerHandler(DELETE, "/_scripts/{id}", this);
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
-        DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest(getScriptLang(request), request.param("id"));
-        return channel -> client.admin().cluster().deleteStoredScript(deleteStoredScriptRequest, new AcknowledgedRestListener<>(channel));
+    public String getName() {
+        return "delete_stored_script_action";
     }
 
+    @Override
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        String id = request.param("id");
+        DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest(id);
+        return channel -> client.admin().cluster().deleteStoredScript(deleteStoredScriptRequest, new AcknowledgedRestListener<>(channel));
+    }
 }

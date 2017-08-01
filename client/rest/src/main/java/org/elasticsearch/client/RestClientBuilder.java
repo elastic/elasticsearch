@@ -19,25 +19,27 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.Header;
-import org.apache.http.HttpHost;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.http.nio.conn.SchemeIOSessionStrategy;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.client.config.RequestConfig;
+import org.elasticsearch.client.http.impl.client.CloseableHttpClient;
+import org.elasticsearch.client.http.impl.client.HttpClientBuilder;
+import org.elasticsearch.client.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.elasticsearch.client.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.elasticsearch.client.http.nio.conn.SchemeIOSessionStrategy;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Objects;
 
 /**
  * Helps creating a new {@link RestClient}. Allows to set the most common http client configuration options when internally
- * creating the underlying {@link org.apache.http.nio.client.HttpAsyncClient}. Also allows to provide an externally created
- * {@link org.apache.http.nio.client.HttpAsyncClient} in case additional customization is needed.
+ * creating the underlying {@link org.elasticsearch.client.http.nio.client.HttpAsyncClient}. Also allows to provide an externally created
+ * {@link org.elasticsearch.client.http.nio.client.HttpAsyncClient} in case additional customization is needed.
  */
 public final class RestClientBuilder {
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 1000;
-    public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 10000;
+    public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 30000;
     public static final int DEFAULT_MAX_RETRY_TIMEOUT_MILLIS = DEFAULT_SOCKET_TIMEOUT_MILLIS;
     public static final int DEFAULT_CONNECTION_REQUEST_TIMEOUT_MILLIS = 500;
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
@@ -177,7 +179,12 @@ public final class RestClientBuilder {
         if (failureListener == null) {
             failureListener = new RestClient.FailureListener();
         }
-        CloseableHttpAsyncClient httpClient = createHttpClient();
+        CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(new PrivilegedAction<CloseableHttpAsyncClient>() {
+            @Override
+            public CloseableHttpAsyncClient run() {
+                return createHttpClient();
+            }
+        });
         RestClient restClient = new RestClient(httpClient, maxRetryTimeout, defaultHeaders, hosts, pathPrefix, failureListener);
         httpClient.start();
         return restClient;
@@ -185,7 +192,8 @@ public final class RestClientBuilder {
 
     private CloseableHttpAsyncClient createHttpClient() {
         //default timeouts are all infinite
-        RequestConfig.Builder requestConfigBuilder = RequestConfig.custom().setConnectTimeout(DEFAULT_CONNECT_TIMEOUT_MILLIS)
+        RequestConfig.Builder requestConfigBuilder = RequestConfig.custom()
+                .setConnectTimeout(DEFAULT_CONNECT_TIMEOUT_MILLIS)
                 .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS)
                 .setConnectionRequestTimeout(DEFAULT_CONNECTION_REQUEST_TIMEOUT_MILLIS);
         if (requestConfigCallback != null) {
@@ -194,11 +202,18 @@ public final class RestClientBuilder {
 
         HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create().setDefaultRequestConfig(requestConfigBuilder.build())
                 //default settings for connection pooling may be too constraining
-                .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL);
+                .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL).useSystemProperties();
         if (httpClientConfigCallback != null) {
             httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
         }
-        return httpClientBuilder.build();
+
+        final HttpAsyncClientBuilder finalBuilder = httpClientBuilder;
+        return AccessController.doPrivileged(new PrivilegedAction<CloseableHttpAsyncClient>() {
+            @Override
+            public CloseableHttpAsyncClient run() {
+                return finalBuilder.build();
+            }
+        });
     }
 
     /**
@@ -222,7 +237,7 @@ public final class RestClientBuilder {
     public interface HttpClientConfigCallback {
         /**
          * Allows to customize the {@link CloseableHttpAsyncClient} being created and used by the {@link RestClient}.
-         * Commonly used to customize the default {@link org.apache.http.client.CredentialsProvider} for authentication
+         * Commonly used to customize the default {@link org.elasticsearch.client.http.client.CredentialsProvider} for authentication
          * or the {@link SchemeIOSessionStrategy} for communication through ssl without losing any other useful default
          * value that the {@link RestClientBuilder} internally sets, like connection pooling.
          */

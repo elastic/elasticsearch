@@ -11,10 +11,6 @@
 
 
 
-# Sets the default values for elasticsearch variables used in this script
-ES_USER="elasticsearch"
-ES_GROUP="elasticsearch"
-
 # Source the default env file
 ES_ENV_FILE="${path.env}"
 if [ -f "$ES_ENV_FILE" ]; then
@@ -27,22 +23,22 @@ case "$1" in
     install|upgrade)
 
         # Create elasticsearch group if not existing
-        if ! getent group "$ES_GROUP" > /dev/null 2>&1 ; then
-            echo -n "Creating $ES_GROUP group..."
-            addgroup --quiet --system "$ES_GROUP"
+        if ! getent group elasticsearch > /dev/null 2>&1 ; then
+            echo -n "Creating elasticsearch group..."
+            addgroup --quiet --system elasticsearch
             echo " OK"
         fi
 
         # Create elasticsearch user if not existing
-        if ! id $ES_USER > /dev/null 2>&1 ; then
-            echo -n "Creating $ES_USER user..."
+        if ! id elasticsearch > /dev/null 2>&1 ; then
+            echo -n "Creating elasticsearch user..."
             adduser --quiet \
                     --system \
                     --no-create-home \
-                    --ingroup "$ES_GROUP" \
+                    --ingroup elasticsearch \
                     --disabled-password \
                     --shell /bin/false \
-                    "$ES_USER"
+                    elasticsearch
             echo " OK"
         fi
     ;;
@@ -53,21 +49,21 @@ case "$1" in
     1|2)
 
         # Create elasticsearch group if not existing
-        if ! getent group "$ES_GROUP" > /dev/null 2>&1 ; then
-            echo -n "Creating $ES_GROUP group..."
-            groupadd -r "$ES_GROUP"
+        if ! getent group elasticsearch > /dev/null 2>&1 ; then
+            echo -n "Creating elasticsearch group..."
+            groupadd -r elasticsearch
             echo " OK"
         fi
 
         # Create elasticsearch user if not existing
-        if ! id $ES_USER > /dev/null 2>&1 ; then
-            echo -n "Creating $ES_USER user..."
+        if ! id elasticsearch > /dev/null 2>&1 ; then
+            echo -n "Creating elasticsearch user..."
             useradd -r \
                     -M \
-                    --gid "$ES_GROUP" \
+                    --gid elasticsearch \
                     --shell /sbin/nologin \
                     --comment "elasticsearch user" \
-                    "$ES_USER"
+                    elasticsearch
             echo " OK"
         fi
     ;;

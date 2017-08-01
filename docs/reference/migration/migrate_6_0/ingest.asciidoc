@@ -1,0 +1,14 @@
+[[breaking_60_ingest_changes]]
+=== Ingest changes
+
+==== Timestamp meta-data field type has changed
+
+The type of the "timestamp" meta-data field has changed from `java.lang.String` to `java.util.Date`.
+
+==== The format of the string-formatted ingest.timestamp field has changed
+
+Previously, since Elasticsearch 5.4.0, you needed to use `ingest.new_date_format` to have the
+`ingest.timestamp` metadata field be formatted in such a way that ES can coerce it to a field
+of type `date` without further transformation. This is not necessary anymore and this setting was
+removed. You can now simply set a field to `{{ingest.timestamp}}` in a pipeline, and have that
+field be of type `date` without any mapping errors.

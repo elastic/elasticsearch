@@ -142,17 +142,8 @@ public final class ConvertProcessor extends AbstractProcessor {
 
     @Override
     public void execute(IngestDocument document) {
-        Object oldValue = null;
+        Object oldValue = document.getFieldValue(field, Object.class, ignoreMissing);
         Object newValue;
-
-        try {
-            oldValue = document.getFieldValue(field, Object.class);
-        } catch (IllegalArgumentException e) {
-            if (ignoreMissing) {
-                return;
-            }
-            throw e;
-        }
 
         if (oldValue == null && ignoreMissing) {
             return;
@@ -162,7 +153,7 @@ public final class ConvertProcessor extends AbstractProcessor {
 
         if (oldValue instanceof List) {
             List<?> list = (List<?>) oldValue;
-            List<Object> newList = new ArrayList<>();
+            List<Object> newList = new ArrayList<>(list.size());
             for (Object value : list) {
                 newList.add(convertType.convert(value));
             }

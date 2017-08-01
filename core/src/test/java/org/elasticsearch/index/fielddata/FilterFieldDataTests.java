@@ -22,12 +22,13 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 
+import java.util.List;
 import java.util.Random;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -58,61 +59,69 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
             writer.addDocument(d);
         }
         writer.forceMerge(1, true);
-        LeafReaderContext context = refreshReader();
+        List<LeafReaderContext> contexts = refreshReader();
         final BuilderContext builderCtx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
 
         {
-            ifdService.clear();
+            indexService.clearCaches(false, true);
             MappedFieldType ft = new TextFieldMapper.Builder("high_freq")
                     .fielddata(true)
                     .fielddataFrequencyFilter(0, random.nextBoolean() ? 100 : 0.5d, 0)
                     .build(builderCtx).fieldType();
-            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
-            AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-            RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
-            assertThat(2L, equalTo(bytesValues.getValueCount()));
-            assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
-            assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
+            IndexOrdinalsFieldData fieldData = shardContext.getForField(ft);
+            for (LeafReaderContext context : contexts) {
+                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
+                SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
+                assertThat(2L, equalTo(bytesValues.getValueCount()));
+                assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
+                assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
+            }
         }
         {
-            ifdService.clear();
+            indexService.clearCaches(false, true);
             MappedFieldType ft = new TextFieldMapper.Builder("high_freq")
                     .fielddata(true)
                     .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, 201, 100)
                     .build(builderCtx).fieldType();
-            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
-            AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-            RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
-            assertThat(1L, equalTo(bytesValues.getValueCount()));
-            assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("5"));
+            IndexOrdinalsFieldData fieldData = shardContext.getForField(ft);
+            for (LeafReaderContext context : contexts) {
+                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
+                SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
+                assertThat(1L, equalTo(bytesValues.getValueCount()));
+                assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("5"));
+            }
         }
 
         {
-            ifdService.clear(); // test # docs with value
+            indexService.clearCaches(false, true);// test # docs with value
             MappedFieldType ft = new TextFieldMapper.Builder("med_freq")
                     .fielddata(true)
                     .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, Integer.MAX_VALUE, 101)
                     .build(builderCtx).fieldType();
-            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
-            AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-            RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
-            assertThat(2L, equalTo(bytesValues.getValueCount()));
-            assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
-            assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
+            IndexOrdinalsFieldData fieldData = shardContext.getForField(ft);
+            for (LeafReaderContext context : contexts) {
+                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
+                SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
+                assertThat(2L, equalTo(bytesValues.getValueCount()));
+                assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
+                assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
+            }
         }
 
         {
-            ifdService.clear();
+            indexService.clearCaches(false, true);
             MappedFieldType ft = new TextFieldMapper.Builder("med_freq")
                     .fielddata(true)
                     .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, Integer.MAX_VALUE, 101)
                     .build(builderCtx).fieldType();
-            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
-            AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-            RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
-            assertThat(2L, equalTo(bytesValues.getValueCount()));
-            assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
-            assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
+            IndexOrdinalsFieldData fieldData = shardContext.getForField(ft);
+            for (LeafReaderContext context : contexts) {
+                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
+                SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
+                assertThat(2L, equalTo(bytesValues.getValueCount()));
+                assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
+                assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
+            }
         }
 
     }

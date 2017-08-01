@@ -1,5 +1,5 @@
 [[setup]]
-= Setup Elasticsearch
+= Set up Elasticsearch
 
 [partintro]
 --
@@ -40,11 +40,15 @@ include::setup/install.asciidoc[]
 
 include::setup/configuration.asciidoc[]
 
+include::setup/secure-settings.asciidoc[]
+
+include::setup/logging-config.asciidoc[]
+
 include::setup/important-settings.asciidoc[]
 
-include::setup/bootstrap-checks.asciidoc[]
-
 include::setup/sysconfig.asciidoc[]
+
+include::setup/bootstrap-checks.asciidoc[]
 
 include::setup/upgrade.asciidoc[]
 

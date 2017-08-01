@@ -19,10 +19,10 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,8 +33,9 @@ import java.util.List;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class MultiSearchTemplateRequest extends ActionRequest<MultiSearchTemplateRequest> implements CompositeIndicesRequest {
+public class MultiSearchTemplateRequest extends ActionRequest implements CompositeIndicesRequest {
 
+    private int maxConcurrentSearchRequests = 0;
     private List<SearchTemplateRequest> requests = new ArrayList<>();
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
@@ -57,13 +58,28 @@ public class MultiSearchTemplateRequest extends ActionRequest<MultiSearchTemplat
         return this;
     }
 
-    public List<SearchTemplateRequest> requests() {
-        return this.requests;
+
+    /**
+     * Returns the amount of search requests specified in this multi search requests are allowed to be ran concurrently.
+     */
+    public int maxConcurrentSearchRequests() {
+        return maxConcurrentSearchRequests;
     }
 
-    @Override
-    public List<? extends IndicesRequest> subRequests() {
-        return requests;
+    /**
+     * Sets how many search requests specified in this multi search requests are allowed to be ran concurrently.
+     */
+    public MultiSearchTemplateRequest maxConcurrentSearchRequests(int maxConcurrentSearchRequests) {
+        if (maxConcurrentSearchRequests < 1) {
+            throw new IllegalArgumentException("maxConcurrentSearchRequests must be positive");
+        }
+
+        this.maxConcurrentSearchRequests = maxConcurrentSearchRequests;
+        return this;
+    }
+
+    public List<SearchTemplateRequest> requests() {
+        return this.requests;
     }
 
     @Override
@@ -96,12 +112,18 @@ public class MultiSearchTemplateRequest extends ActionRequest<MultiSearchTemplat
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
+            maxConcurrentSearchRequests = in.readVInt();
+        }
         requests = in.readStreamableList(SearchTemplateRequest::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
+            out.writeVInt(maxConcurrentSearchRequests);
+        }
         out.writeStreamableList(requests);
     }
 }

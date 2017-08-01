@@ -20,10 +20,16 @@ the same response objects.
 
 --
 
+:doc-tests: {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation
+
 include::usage.asciidoc[]
 
 include::apis.asciidoc[]
 
 include::apis/index.asciidoc[]
 
+include::migration.asciidoc[]
+
 include::../license.asciidoc[]
+
+:doc-tests!:

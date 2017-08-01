@@ -1,0 +1,27 @@
+[[java-rest-high-main]]
+=== Info API
+
+[[java-rest-high-main-request]]
+==== Execution
+
+Cluster information can be retrieved using the `info()` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MainDocumentationIT.java[main-execute]
+--------------------------------------------------
+
+[[java-rest-high-main-response]]
+==== Response
+
+The returned `MainResponse` provides various kinds of information about the cluster:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MainDocumentationIT.java[main-response]
+--------------------------------------------------
+<1> Retrieve the name of the cluster as a `ClusterName`
+<2> Retrieve the unique identifier of the cluster
+<3> Retrieve the name of the node the request has been executed on
+<4> Retrieve the version of the node the request has been executed on
+<5> Retrieve the build information of the node the request has been executed on

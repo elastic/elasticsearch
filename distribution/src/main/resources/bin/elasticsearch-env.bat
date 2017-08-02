@@ -25,7 +25,13 @@ if defined JAVA_HOME (
 
 if not exist %JAVA% (
   echo could not find java; set JAVA_HOME or ensure java is in PATH 1>&2
-  exit /B 1
+  exit /b 1
+)
+
+rem do not let JAVA_TOOL_OPTIONS slip in (as the JVM does by default)
+if not "%JAVA_TOOL_OPTIONS%" == "" (
+  echo "warning: ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
+  set JAVA_TOOL_OPTIONS=
 )
 
 rem JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we
@@ -41,7 +47,7 @@ rem check the Java version
 if errorlevel 1 (
   echo|set /p="the minimum required Java version is 8; "
   echo your Java version from %JAVA% does not meet this requirement
-  exit /B 1
+  exit /b 1
 )
 
 if "%CONF_DIR%" == "" (

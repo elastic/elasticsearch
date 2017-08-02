@@ -185,7 +185,7 @@ locations for an RPM-based system:
 | conf
   | Configuration files including `elasticsearch.yml`
   | /etc/elasticsearch
-  | path.conf
+  | <<config-files-location,CONF_DIR>>
 
 | conf
   | Environment variables including heap size, file descriptors.

@@ -1,3 +1,4 @@
+[[java-rest-high-supported-apis]]
 == Supported APIs
 
 The Java High Level REST Client supports the following APIs:
@@ -15,3 +16,6 @@ The Java High Level REST Client supports the following APIs:
 * <<java-rest-high-search>>
 * <<java-rest-high-search-scroll>>
 * <<java-rest-high-clear-scroll>>
+
+.Miscellaneous APIs
+* <<java-rest-high-main>>

@@ -26,14 +26,11 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -50,7 +47,6 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static org.mockito.Mockito.mock;
@@ -203,21 +199,9 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
         return CollapseBuilder.fromXContent(parser);
     }
 
-    /**
-     * Rewrite this test to disable xcontent shuffling on the highlight builder
-     */
     @Override
-    public void testFromXContent() throws IOException {
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            CollapseBuilder testInstance = createTestInstance();
-            XContentType xContentType = randomFrom(XContentType.values());
-            XContentBuilder builder = toXContent(testInstance, xContentType);
-            XContentBuilder shuffled = shuffleXContent(builder, "fields");
-            assertParsedInstance(xContentType, shuffled.bytes(), testInstance);
-            for (Map.Entry<String, CollapseBuilder> alternateVersion : getAlternateVersions().entrySet()) {
-                String instanceAsString = alternateVersion.getKey();
-                assertParsedInstance(XContentType.JSON, new BytesArray(instanceAsString), alternateVersion.getValue());
-            }
-        }
+    protected String[] getShuffleFieldsExceptions() {
+        //disable xcontent shuffling on the highlight builder
+        return new String[]{"fields"};
     }
 }

@@ -28,6 +28,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -85,6 +86,7 @@ final class QueryAnalyzer {
         map.put(SynonymQuery.class, synonymQuery());
         map.put(FunctionScoreQuery.class, functionScoreQuery());
         map.put(PointRangeQuery.class, pointRangeQuery());
+        map.put(IndexOrDocValuesQuery.class, indexOrDocValuesQuery());
         queryProcessors = Collections.unmodifiableMap(map);
     }
 
@@ -367,6 +369,13 @@ final class QueryAnalyzer {
         byte[] result = new byte[BinaryRange.BYTES];
         System.arraycopy(original, 0, result, offset, original.length);
         return result;
+    }
+
+    private static Function<Query, Result> indexOrDocValuesQuery() {
+        return query -> {
+            IndexOrDocValuesQuery indexOrDocValuesQuery = (IndexOrDocValuesQuery) query;
+            return analyze(indexOrDocValuesQuery.getIndexQuery());
+        };
     }
 
     private static Result handleDisjunction(List<Query> disjunctions, int minimumShouldMatch, boolean otherClauses) {

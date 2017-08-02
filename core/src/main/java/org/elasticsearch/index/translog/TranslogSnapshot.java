@@ -24,7 +24,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-final class TranslogSnapshot extends BaseTranslogReader implements Translog.Snapshot {
+final class TranslogSnapshot extends BaseTranslogReader {
 
     private final int totalOperations;
     private final Checkpoint checkpoint;
@@ -59,7 +59,6 @@ final class TranslogSnapshot extends BaseTranslogReader implements Translog.Snap
         return checkpoint;
     }
 
-    @Override
     public Translog.Operation next() throws IOException {
         if (readOperations < totalOperations) {
             return readOperation();
@@ -101,6 +100,7 @@ final class TranslogSnapshot extends BaseTranslogReader implements Translog.Snap
                 ", position=" + position +
                 ", estimateTotalOperations=" + totalOperations +
                 ", length=" + length +
+                ", generation=" + generation +
                 ", reusableBuffer=" + reusableBuffer +
                 '}';
     }

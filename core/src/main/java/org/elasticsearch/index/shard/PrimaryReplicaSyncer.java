@@ -78,38 +78,44 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         this.chunkSize = chunkSize;
     }
 
-    public void resync(IndexShard indexShard, ActionListener<ResyncTask> listener) {
-        final Translog.View view = indexShard.acquireTranslogView();
-        ActionListener<ResyncTask> wrappedListener = new ActionListener<ResyncTask>() {
-            @Override
-            public void onResponse(ResyncTask resyncTask) {
-                try {
-                    view.close();
-                } catch (IOException e) {
-                    onFailure(e);
-                }
-                listener.onResponse(resyncTask);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    view.close();
-                } catch (IOException inner) {
-                    e.addSuppressed(inner);
-                }
-                listener.onFailure(e);
-            }
-        };
+    public void resync(final IndexShard indexShard, final ActionListener<ResyncTask> listener) {
+        ActionListener<ResyncTask> resyncListener = null;
         try {
             final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
-            Translog.Snapshot snapshot = view.snapshot(startingSeqNo);
+            Translog.Snapshot snapshot = indexShard.getTranslog().newSnapshotFromMinSeqNo(startingSeqNo);
+            resyncListener = new ActionListener<ResyncTask>() {
+                @Override
+                public void onResponse(final ResyncTask resyncTask) {
+                    try {
+                        snapshot.close();
+                        listener.onResponse(resyncTask);
+                    } catch (final Exception e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(final Exception e) {
+                    try {
+                        snapshot.close();
+                    } catch (final Exception inner) {
+                        e.addSuppressed(inner);
+                    } finally {
+                        listener.onFailure(e);
+                    }
+                }
+            };
             ShardId shardId = indexShard.shardId();
 
             // Wrap translog snapshot to make it synchronized as it is accessed by different threads through SnapshotSender.
             // Even though those calls are not concurrent, snapshot.next() uses non-synchronized state and is not multi-thread-compatible
             // Also fail the resync early if the shard is shutting down
             Translog.Snapshot wrappedSnapshot = new Translog.Snapshot() {
+
+                @Override
+                public synchronized void close() throws IOException {
+                    snapshot.close();
+                }
 
                 @Override
                 public synchronized int totalOperations() {
@@ -127,11 +133,14 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                     return snapshot.next();
                 }
             };
-
             resync(shardId, indexShard.routingEntry().allocationId().getId(), indexShard.getPrimaryTerm(), wrappedSnapshot,
-                startingSeqNo, wrappedListener);
+                startingSeqNo, resyncListener);
         } catch (Exception e) {
-            wrappedListener.onFailure(e);
+            if (resyncListener != null) {
+                resyncListener.onFailure(e);
+            } else {
+                listener.onFailure(e);
+            }
         }
     }
 

@@ -77,6 +77,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -181,6 +182,11 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
         operations.add(null);
         RecoverySourceHandler.SendSnapshotResult result = handler.sendSnapshot(startingSeqNo, new Translog.Snapshot() {
+            @Override
+            public void close() {
+
+            }
+
             private int counter = 0;
 
             @Override
@@ -371,8 +377,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final IndexShard shard = mock(IndexShard.class);
         when(shard.seqNoStats()).thenReturn(mock(SeqNoStats.class));
         when(shard.segmentStats(anyBoolean())).thenReturn(mock(SegmentsStats.class));
-        final Translog.View translogView = mock(Translog.View.class);
-        when(shard.acquireTranslogView()).thenReturn(translogView);
         when(shard.state()).thenReturn(IndexShardState.RELOCATED);
         when(shard.acquireIndexCommit(anyBoolean())).thenReturn(mock(Engine.IndexCommitRef.class));
         doAnswer(invocation -> {
@@ -389,13 +393,14 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             recoverySettings.getChunkSize().bytesAsInt(),
             Settings.EMPTY) {
 
+
             @Override
-            boolean isTranslogReadyForSequenceNumberBasedRecovery(final Translog.View translogView) {
+            boolean isTranslogReadyForSequenceNumberBasedRecovery() throws IOException {
                 return randomBoolean();
             }
 
             @Override
-            public void phase1(final IndexCommit snapshot, final Translog.View translogView, final long startSeqNo) {
+            public void phase1(final IndexCommit snapshot, final Supplier<Integer> translogOps) {
                 phase1Called.set(true);
             }
 

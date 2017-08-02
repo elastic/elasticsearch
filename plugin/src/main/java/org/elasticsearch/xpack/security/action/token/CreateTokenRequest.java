@@ -45,10 +45,10 @@ public final class CreateTokenRequest extends ActionRequest {
         if ("password".equals(grantType) == false) {
             validationException = addValidationError("only [password] grant_type is supported", validationException);
         }
-        if (Strings.isNullOrEmpty("username")) {
+        if (Strings.isNullOrEmpty(username)) {
             validationException = addValidationError("username is missing", validationException);
         }
-        if (Strings.isNullOrEmpty("password")) {
+        if (password == null || password.getChars() == null || password.getChars().length == 0) {
             validationException = addValidationError("password is missing", validationException);
         }
 

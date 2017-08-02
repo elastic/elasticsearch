@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.sql.analysis;
 
 import org.elasticsearch.xpack.sql.tree.Node;
 
-public class UnknownTypeException extends AnalysisException {
+public class InvalidIndexException extends AnalysisException {
 
-    public UnknownTypeException(String index, String type, Node<?> source) {
-        super(source, "Cannot resolve type %s in index %s", type, index);
+    public InvalidIndexException(String index, Node<?> source) {
+        super(source, "Invalid index %s; contains more than one type", index);
     }
 }

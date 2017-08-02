@@ -39,7 +39,7 @@ public class SqlSettings {
     }
 
     public DateTimeZone timeZone() {
-        return DateTimeZone.forID(TIMEZONE_ID);
+        return DateTimeZone.forID(timeZoneId());
     }
 
     public int pageSize() {

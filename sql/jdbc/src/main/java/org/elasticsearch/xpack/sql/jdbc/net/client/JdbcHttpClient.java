@@ -134,9 +134,9 @@ public class JdbcHttpClient implements Closeable {
             ExceptionResponse ex = (ExceptionResponse) response;
             throw ex.asException();
         }
-        if (response.responseType() == ResponseType.EXCEPTION) {
+        if (response.responseType() == ResponseType.ERROR) {
             ErrorResponse error = (ErrorResponse) response;
-            throw new JdbcException("%s", error.stack);
+            throw new JdbcException("Server returned error: %s", error.stack);
         }
         return response;
     }

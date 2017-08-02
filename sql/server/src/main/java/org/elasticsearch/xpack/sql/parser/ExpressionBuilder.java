@@ -133,7 +133,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         else if (ctx.table != null) {
             TableIdentifier table = visitTableIdentifier(ctx.table);
-            qualifier = table.index() + "." + table.type();
+            qualifier = table.index();
         }
         return new UnresolvedAttribute(source(ctx), visitIdentifier(ctx.name), qualifier);
     }

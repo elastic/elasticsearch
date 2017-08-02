@@ -4,7 +4,7 @@
 name
 
 // ES SQL query
-SELECT COUNT(*) FROM "emp.emp";
+SELECT COUNT(*) FROM "emp";
 
 //
 // expected result in CSV format

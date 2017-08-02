@@ -43,8 +43,6 @@ public class CsvSpecIT extends SpecBaseIntegrationTestCase {
             assertMatchesCsv(testCase.query, testName, testCase.expectedResults);            
         } catch (AssertionError ae) {
             throw reworkException(new AssertionError(errorMessage(ae), ae.getCause()));
-        } catch (Throwable th) {
-            throw reworkException(th);
         }
     }
 

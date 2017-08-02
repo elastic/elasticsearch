@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
-import org.elasticsearch.xpack.sql.analysis.catalog.EsType;
+import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
@@ -19,21 +19,17 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.toList;
 
 public class ShowTables extends Command {
 
-    private final String index, pattern;
+    private final String pattern;
 
-    public ShowTables(Location location, String index, String pattern) {
+    public ShowTables(Location location, String pattern) {
         super(location);
-        this.index = index;
         this.pattern = pattern;
-    }
-
-    public String index() {
-        return index;
     }
 
     public String pattern() {
@@ -42,24 +38,23 @@ public class ShowTables extends Command {
 
     @Override
     public List<Attribute> output() {
-        return asList(new RootFieldAttribute(location(), "index", DataTypes.KEYWORD),
-                      new RootFieldAttribute(location(), "type", DataTypes.KEYWORD));
+        return asList(new RootFieldAttribute(location(), "table", DataTypes.KEYWORD));
     }
 
     @Override
     protected RowSetCursor execute(SqlSession session) {
-        List<EsType> types = session.catalog().listTypes(index, pattern);
+        List<EsIndex> indices = session.catalog().listIndices(pattern);
         // Consistent sorting is nice both for testing and humans
-        Collections.sort(types, comparing(EsType::index).thenComparing(EsType::name));
+        Collections.sort(indices, comparing(EsIndex::name));
 
-        return Rows.of(output(), types.stream()
-                .map(t -> asList(t.index(), t.name()))
+        return Rows.of(output(), indices.stream()
+                .map(t -> singletonList(t.name()))
                 .collect(toList()));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, pattern);
+        return Objects.hash(pattern);
     }
 
     @Override
@@ -73,7 +68,6 @@ public class ShowTables extends Command {
         }
         
         ShowTables other = (ShowTables) obj;
-        return Objects.equals(index, other.index)
-                && Objects.equals(pattern, other.pattern);
+        return Objects.equals(pattern, other.pattern);
     }
 }

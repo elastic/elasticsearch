@@ -5,13 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Stream;
-
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.analysis.catalog.EsType;
+import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.NestedFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
@@ -21,20 +16,24 @@ import org.elasticsearch.xpack.sql.type.NestedType;
 import org.elasticsearch.xpack.sql.type.StringType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Stream;
+
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
-
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 public class CatalogTable extends LeafPlan {
 
-    private final EsType type;
+    private final EsIndex index;
     private final List<Attribute> attrs;
 
-    public CatalogTable(Location location, EsType type) {
+    public CatalogTable(Location location, EsIndex index) {
         super(location);
-        this.type = type;
-        attrs = flatten(location, type.mapping()).collect(toList());
+        this.index = index;
+        attrs = flatten(location, index.mapping()).collect(toList());
     }
 
     private static Stream<Attribute> flatten(Location location, Map<String, DataType> mapping) {
@@ -62,8 +61,8 @@ public class CatalogTable extends LeafPlan {
                 });
     }
 
-    public EsType type() {
-        return type;
+    public EsIndex index() {
+        return index;
     }
 
     @Override
@@ -78,7 +77,7 @@ public class CatalogTable extends LeafPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(type);
+        return Objects.hash(index);
     }
 
     @Override
@@ -92,11 +91,11 @@ public class CatalogTable extends LeafPlan {
         }
 
         CatalogTable other = (CatalogTable) obj;
-        return Objects.equals(type, other.type);
+        return Objects.equals(index, other.index);
     }
 
     @Override
     public String nodeString() {
-        return nodeName() + "[" + type + "]" + StringUtils.limitedToString(attrs);
+        return nodeName() + "[" + index + "]" + StringUtils.limitedToString(attrs);
     }
 }

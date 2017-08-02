@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
-import java.util.Locale;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.IdentifierContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QualifiedNameContext;
@@ -14,28 +12,20 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TableIdentifierContext;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.tree.Location;
 
+import java.util.Locale;
+
 import static java.lang.String.format;
 
 abstract class IdentifierBuilder extends AbstractBuilder {
 
     @Override
     public TableIdentifier visitTableIdentifier(TableIdentifierContext ctx) {
-        String index = null;
-        String type = null;
-
-        index = text(ctx.uindex);
-        type = text(ctx.utype);
+        String index = text(ctx.index);
         
-        if (index == null) {
-            index = text(ctx.index);
-            type = text(ctx.type);
-        }
-
         Location source = source(ctx);
         validateIndex(index, source);
-        validateType(type, source);
 
-        return new TableIdentifier(source, index, type);
+        return new TableIdentifier(source, index);
     }
 
     // see https://github.com/elastic/elasticsearch/issues/6736
@@ -49,10 +39,6 @@ abstract class IdentifierBuilder extends AbstractBuilder {
                 throw new ParsingException(source, format(Locale.ROOT, "Illegal character %c in index name %s", c, index));
             }
         }
-    }
-
-    private static void validateType(String type, Location source) {
-        // no-op
     }
 
     @Override

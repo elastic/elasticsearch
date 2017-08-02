@@ -108,7 +108,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
 
     @Override
     public Object visitShowTables(ShowTablesContext ctx) {
-        return new ShowTables(source(ctx), visitIdentifier(ctx.index), text(ctx.pattern));
+        return new ShowTables(source(ctx), text(ctx.pattern));
     }
 
     @Override
@@ -120,10 +120,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     @Override
     public Object visitShowColumns(ShowColumnsContext ctx) {
         TableIdentifier identifier = visitTableIdentifier(ctx.tableIdentifier());
-        if (!identifier.hasType()) {
-            throw new ParsingException(identifier.location(), "Target type needs to be specified");
-        }
-        return new ShowColumns(source(ctx), identifier.index(), identifier.type());
+        return new ShowColumns(source(ctx), identifier.index());
     }
 
     @Override

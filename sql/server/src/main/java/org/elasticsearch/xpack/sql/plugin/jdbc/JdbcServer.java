@@ -10,7 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.sql.analysis.catalog.EsType;
+import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.execution.search.SearchHitRowSetCursor;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
@@ -45,9 +45,7 @@ import java.util.regex.Pattern;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.ActionListener.wrap;
-import static org.elasticsearch.common.Strings.coalesceToEmpty;
 import static org.elasticsearch.common.Strings.hasText;
-import static org.elasticsearch.common.Strings.tokenizeToStringArray;
 import static org.elasticsearch.xpack.sql.util.StringUtils.EMPTY;
 
 public class JdbcServer extends AbstractSqlServer {
@@ -100,35 +98,29 @@ public class JdbcServer extends AbstractSqlServer {
     }
 
     public MetaTableResponse metaTable(MetaTableRequest req) {
-        String[] split = splitToIndexAndType(req.pattern());
-        String index = split[0];
-        String type = split[1];
-        String indexPattern = hasText(index) ? StringUtils.jdbcToEsPattern(index) : "*";
+        String indexPattern = hasText(req.pattern()) ? StringUtils.jdbcToEsPattern(req.pattern()) : "*";
 
-        Collection<EsType> types = executor.catalog().listTypes(indexPattern, type);
-        return new MetaTableResponse(types.stream()
-                .map(t -> t.index() + "." + t.name())
+        Collection<EsIndex> indices = executor.catalog().listIndices(indexPattern);
+        return new MetaTableResponse(indices.stream()
+                .map(EsIndex::name)
                 .collect(toList()));
     }
 
     public MetaColumnResponse metaColumn(MetaColumnRequest req) {
-        String[] split = splitToIndexAndType(req.tablePattern());
-        String index = split[0];
-        String type = split[1];
-        String indexPattern = Strings.hasText(index) ? StringUtils.jdbcToEsPattern(index) : "*";
+        String pattern = Strings.hasText(req.tablePattern()) ? StringUtils.jdbcToEsPattern(req.tablePattern()) : "*";
 
-        Collection<EsType> types = executor.catalog().listTypes(indexPattern, type);
+        Collection<EsIndex> indices = executor.catalog().listIndices(pattern);
 
         Pattern columnMatcher = hasText(req.columnPattern()) ? StringUtils.likeRegex(req.columnPattern()) : null;
 
         List<MetaColumnInfo> resp = new ArrayList<>();
-        for (EsType esType : types) {
+        for (EsIndex esIndex : indices) {
             int pos = 0;
-            for (Entry<String, DataType> entry : esType.mapping().entrySet()) {
+            for (Entry<String, DataType> entry : esIndex.mapping().entrySet()) {
                 pos++;
                 if (columnMatcher == null || columnMatcher.matcher(entry.getKey()).matches()) {
                     String name = entry.getKey();
-                    String table = esType.index() + "." + esType.name();
+                    String table = esIndex.name();
                     JDBCType tp = entry.getValue().sqlType();
                     int size = entry.getValue().precision();
                     resp.add(new MetaColumnInfo(table, name, tp, size, pos));
@@ -149,6 +141,7 @@ public class JdbcServer extends AbstractSqlServer {
                 .build()
         );
         
+        //NOCOMMIT: this should be pushed down to the TransportSqlAction to hook up pagination
         executor.sql(sqlCfg, req.query, wrap(c -> {
             long stop = System.currentTimeMillis();
             String requestId = EMPTY;
@@ -166,18 +159,5 @@ public class JdbcServer extends AbstractSqlServer {
 
     public void queryPage(QueryPageRequest req, ActionListener<Response> listener) {
         throw new UnsupportedOperationException();
-    }
-
-    static String[] splitToIndexAndType(String pattern) {
-        String[] tokens = tokenizeToStringArray(pattern, ".");
-
-        if (tokens.length == 2) {
-            return tokens;
-        }
-        if (tokens.length != 1) {
-            throw new IllegalArgumentException("bad pattern: [" + pattern + "]");
-        }
-
-        return new String[] {coalesceToEmpty(pattern), ""};
     }
 }

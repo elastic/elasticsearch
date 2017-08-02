@@ -118,7 +118,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 }
 
                 QueryContainer clone = new QueryContainer(queryC.query(), queryC.aggs(), queryC.refs(), aliases, processors, queryC.pseudoFunctions(), queryC.sort(), queryC.limit());
-                return new EsQueryExec(exec.location(), exec.index(), exec.type(), project.output(), clone);
+                return new EsQueryExec(exec.location(), exec.index(), project.output(), clone);
             }
             return project;
         }
@@ -323,7 +323,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 if (!aliases.isEmpty()) {
                     queryC = queryC.withAliases(combine(queryC.aliases(), aliases));
                 }
-                return new EsQueryExec(exec.location(), exec.index(), exec.type(), a.output(), queryC);
+                return new EsQueryExec(exec.location(), exec.index(), a.output(), queryC);
             }
             return a;
         }

@@ -60,16 +60,17 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
         String sessionId = request.sessionId();
         String query = request.query();
 
-        // NOCOMMIT this should be linked up
-//        SqlSettings sqlCfg = new SqlSettings(Settings.builder()
-//                // .put(SqlSettings.PAGE_SIZE, req.fetchSize)
-//                .put(SqlSettings.TIMEZONE_ID, request.timeZone().getID()).build());
         try {
             if (sessionId == null) {
                 if (!Strings.hasText(query)) {
                     listener.onFailure(new SqlIllegalArgumentException("No query is given and request not part of a session"));
                     return;
                 }
+
+                // NOCOMMIT this should be linked up
+//              SqlSettings sqlCfg = new SqlSettings(Settings.builder()
+//                      .put(SqlSettings.PAGE_SIZE, req.fetchSize)
+//                      .put(SqlSettings.TIMEZONE_ID, request.timeZone().getID()).build());
 
                 planExecutor.sql(query, chain(listener, c -> {
                             String id = generateId();

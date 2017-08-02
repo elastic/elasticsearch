@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
+import org.elasticsearch.xpack.sql.analysis.InvalidIndexException;
 import org.elasticsearch.xpack.sql.analysis.UnknownFunctionException;
 import org.elasticsearch.xpack.sql.analysis.UnknownIndexException;
-import org.elasticsearch.xpack.sql.analysis.UnknownTypeException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
 import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
@@ -217,7 +217,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         private LogicalPlan substituteCTE(LogicalPlan p, Map<String, SubQueryAlias> subQueries) {
             if (p instanceof UnresolvedRelation) {
                 UnresolvedRelation ur = (UnresolvedRelation) p;
-                SubQueryAlias subQueryAlias = subQueries.get(ur.table().type());
+                SubQueryAlias subQueryAlias = subQueries.get(ur.table().index());
                 if (subQueryAlias != null) {
                     if (ur.alias() != null) {
                         return new SubQueryAlias(ur.location(), subQueryAlias, ur.alias());
@@ -245,14 +245,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             if (!catalog.indexExists(index)) {
                 throw new UnknownIndexException(index, plan);
             }
-
-            String type = table.type();
-            if (!catalog.typeExists(index, type)) {
-                throw new UnknownTypeException(index, type, plan);
+            
+            if (!catalog.indexIsValid(index)) {
+                throw new InvalidIndexException(index, plan);
             }
 
-            LogicalPlan catalogTable = new CatalogTable(plan.location(), catalog.getType(index, type));
-            SubQueryAlias sa = new SubQueryAlias(plan.location(), catalogTable, type);
+            LogicalPlan catalogTable = new CatalogTable(plan.location(), catalog.getIndex(index));
+            SubQueryAlias sa = new SubQueryAlias(plan.location(), catalogTable, index);
 
             if (plan.alias() != null) {
                 sa = new SubQueryAlias(plan.location(), sa, plan.alias());

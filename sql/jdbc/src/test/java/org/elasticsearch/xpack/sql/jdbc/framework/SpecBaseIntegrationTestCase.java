@@ -5,14 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.framework;
 
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -46,21 +43,9 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
         loadDatasetIntoEs();
     }
 
-    @AfterClass
-    public static void cleanupTestData() throws IOException {
-        try {
-            client().performRequest("DELETE", "/*");
-        } catch (ResponseException e) {
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                // 404 means no indices which shouldn't cause a failure
-                throw e;
-            }
-        }
-    }
-
     @Override
     protected boolean preserveIndicesUponCompletion() {
-        return true;
+        return !SETUP_DATA;
     }
 
     public SpecBaseIntegrationTestCase(String groupName, String testName, Integer lineNumber, Path source) {
@@ -125,7 +110,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
 
         return pairs;
     }
-    
+
     public interface Parser {
         Object parse(String line);
     }

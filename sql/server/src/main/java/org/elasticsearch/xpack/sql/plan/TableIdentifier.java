@@ -5,37 +5,27 @@
  */
 package org.elasticsearch.xpack.sql.plan;
 
-import java.util.Objects;
-
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.tree.Location;
+
+import java.util.Objects;
 
 public class TableIdentifier {
 
-    private final String index, type;
+    private final String index;
     private final Location location;
 
-    public TableIdentifier(Location location, String index, String type) {
+    public TableIdentifier(Location location, String index) {
         this.location = location;
         this.index = index;
-        this.type = type;
     }
 
     public String index() {
         return index;
     }
 
-    public String type() {
-        return type;
-    }
-
-    public boolean hasType() {
-        return Strings.hasText(type);
-    }
-
     @Override
     public int hashCode() {
-        return Objects.hash(index, type);
+        return Objects.hash(index);
     }
     
     @Override
@@ -49,8 +39,7 @@ public class TableIdentifier {
         }
         
         TableIdentifier other = (TableIdentifier) obj;
-        return Objects.equals(index, other.index) 
-                && Objects.equals(type, other.type);
+        return Objects.equals(index, other.index);
     }
 
     public Location location() {
@@ -62,8 +51,6 @@ public class TableIdentifier {
         StringBuilder builder = new StringBuilder();
         builder.append("[index=");
         builder.append(index);
-        builder.append(", type=");
-        builder.append(type);
         builder.append("]");
         return builder.toString();
     }

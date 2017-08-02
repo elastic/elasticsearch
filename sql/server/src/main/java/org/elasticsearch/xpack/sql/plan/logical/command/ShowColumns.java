@@ -5,11 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-
 import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
@@ -21,26 +16,25 @@ import org.elasticsearch.xpack.sql.type.CompoundDataType;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 
 import static java.util.Arrays.asList;
 
 public class ShowColumns extends Command {
 
-    private final String index, type;
+    private final String index;
 
-    public ShowColumns(Location location, String index, String type) {
+    public ShowColumns(Location location, String index) {
         super(location);
         this.index = index;
-        this.type = type;
     }
 
     public String index() {
         return index;
-    }
-
-    public String type() {
-        return type;
     }
 
     @Override
@@ -52,7 +46,7 @@ public class ShowColumns extends Command {
     @Override
     protected RowSetCursor execute(SqlSession session) {
         Catalog catalog = session.catalog();
-        Map<String, DataType> mapping = catalog.getType(index, type).mapping();
+        Map<String, DataType> mapping = catalog.getIndex(index).mapping();
         
         List<List<?>> rows = new ArrayList<>();
         fillInRows(mapping, null, rows);
@@ -75,7 +69,7 @@ public class ShowColumns extends Command {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, type);
+        return Objects.hash(index);
     }
 
     @Override
@@ -89,7 +83,6 @@ public class ShowColumns extends Command {
         }
         
         ShowColumns other = (ShowColumns) obj;
-        return Objects.equals(index, other.index)
-                && Objects.equals(type, other.type);
+        return Objects.equals(index, other.index);
     }
 }

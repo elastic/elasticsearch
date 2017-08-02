@@ -108,7 +108,7 @@ test_emp        |emp
 // DESCRIBE
 
 describe
-DESCRIBE "test_emp.emp";
+DESCRIBE "test_emp";
 
     column     |         type
 birth_date     |TIMESTAMP

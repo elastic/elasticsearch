@@ -64,13 +64,13 @@ public class Scroller {
         this.size = size;
     }
 
-    public void scroll(Schema schema, QueryContainer query, String index, String type, ActionListener<RowSetCursor> listener) {
+    public void scroll(Schema schema, QueryContainer query, String index, ActionListener<RowSetCursor> listener) {
         // prepare the request
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query);
 
-        log.trace("About to execute query {}", sourceBuilder);
+        log.trace("About to execute query {} on {}", sourceBuilder, index);
 
-        SearchRequest search = client.prepareSearch(index).setTypes(type).setSource(sourceBuilder).request();
+        SearchRequest search = client.prepareSearch(index).setSource(sourceBuilder).request();
         search.scroll(keepAlive).source().timeout(timeout);
 
         // set the size only if it hasn't been specified (aggs only queries set the size to 0)
@@ -280,7 +280,7 @@ public class Scroller {
                     // is all the content already retrieved?
                     if (Boolean.TRUE.equals(response.isTerminatedEarly()) || response.getHits().getTotalHits() == hits.length
                     // or maybe the limit has been reached
-                            || docsRead >= limit) {
+                            || (docsRead >= limit && limit > -1)) {
                         // if so, clear the scroll
                         clearScroll(scrollId);
                         // and remove it to indicate no more data is expected

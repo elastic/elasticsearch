@@ -1,5 +1,5 @@
-DROP TABLE IF EXISTS "test_emp.emp";
-CREATE TABLE "test_emp.emp" ("birth_date" TIMESTAMP,
+DROP TABLE IF EXISTS "test_emp";
+CREATE TABLE "test_emp" ("birth_date" TIMESTAMP,
                    "emp_no" INT, 
                    "first_name" VARCHAR(50), 
                    "gender" VARCHAR(1), 

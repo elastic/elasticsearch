@@ -51,7 +51,7 @@ statement
         )*
         ')')?
         statement                                                                                         #debug
-    | SHOW TABLES ((FROM | IN) index=identifier)? (LIKE? pattern=STRING)?                                 #showTables
+    | SHOW TABLES (LIKE? pattern=STRING)?                                                                 #showTables
     | SHOW COLUMNS (FROM | IN) tableIdentifier                                                            #showColumns
     | (DESCRIBE | DESC) tableIdentifier                                                                   #showColumns
     | SHOW FUNCTIONS (LIKE? pattern=STRING)?                                                              #showFunctions
@@ -232,8 +232,7 @@ qualifiedName
     ;
 
 tableIdentifier
-    : index=identifier ('.' type=identifier)?
-    | '"' uindex=unquoteIdentifier ('.' utype=unquoteIdentifier)? '"'
+    : index=identifier
     ;
 
 identifier

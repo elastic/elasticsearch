@@ -195,9 +195,6 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitTableName(TableNameContext ctx) {
         String alias = visitQualifiedName(ctx.qualifiedName());
         TableIdentifier tableIdentifier = visitTableIdentifier(ctx.tableIdentifier());
-        if (!tableIdentifier.hasType()) {
-            throw new ParsingException(source(ctx), "Index type is required");
-        }
         return new UnresolvedRelation(source(ctx), tableIdentifier, alias);
     }
 }

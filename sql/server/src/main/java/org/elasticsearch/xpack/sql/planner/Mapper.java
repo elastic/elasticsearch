@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
-import java.util.Arrays;
-import java.util.List;
-
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.CatalogTable;
@@ -34,6 +31,9 @@ import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.util.ReflectionUtils;
+
+import java.util.Arrays;
+import java.util.List;
 
 class Mapper extends RuleExecutor<PhysicalPlan> {
     
@@ -91,7 +91,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
             if (p instanceof CatalogTable) {
                 CatalogTable c = (CatalogTable) p;
                 List<Attribute> output = c.output();
-                return new EsQueryExec(c.location(), c.type().index(), c.type().name(), output, new QueryContainer());
+                return new EsQueryExec(c.location(), c.index().name(), output, new QueryContainer());
             }
 
             if (p instanceof Limit) {

@@ -37,6 +37,10 @@ public class SqlSpecIT extends SpecBaseIntegrationTestCase {
 
     @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTNG)
     public static List<Object[]> readScriptSpec() throws Exception {
+
+        // example for enabling logging
+        //JdbcTestUtils.sqlLogging();
+
         SqlSpecParser parser = new SqlSpecParser();
         return CollectionUtils.combine(
                 readScriptSpec("/select.sql-spec", parser),
@@ -45,7 +49,7 @@ public class SqlSpecIT extends SpecBaseIntegrationTestCase {
                 readScriptSpec("/math.sql-spec", parser),
                 readScriptSpec("/agg.sql-spec", parser));
     }
-
+    
     private static class SqlSpecParser implements Parser {
         @Override
         public Object parse(String line) {
@@ -70,14 +74,14 @@ public class SqlSpecIT extends SpecBaseIntegrationTestCase {
             } catch (AssertionError ae) {
                 throw reworkException(new AssertionError(errorMessage(ae), ae.getCause()));
             }
-        } catch (Throwable th) {
-            throw reworkException(th);
         }
     }
 
     private ResultSet executeQuery(Connection con) throws SQLException {
         Statement statement = con.createStatement();
-        statement.setFetchSize(randomInt(10));
+        //statement.setFetchSize(randomInt(10));
+        // NOCOMMIT: hook up pagination
+        statement.setFetchSize(1000);
         return statement.executeQuery(query);
     }
 

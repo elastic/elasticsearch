@@ -11,6 +11,7 @@ import org.elasticsearch.client.http.entity.ContentType;
 import org.elasticsearch.client.http.entity.StringEntity;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.jdbc.SqlSpecIT;
@@ -26,8 +27,10 @@ import static java.util.Collections.singletonMap;
 public class DataLoader {
 
     public static void main(String[] args) throws Exception {
-        RestClient client = RestClient.builder(new HttpHost("localhost", 9200)).build();
-        loadDatasetIntoEs(client);
+        try (RestClient client = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
+            loadDatasetIntoEs(client);
+            Loggers.getLogger(DataLoader.class).info("Data loaded");
+        }
     }
 
     protected static void loadDatasetIntoEs(RestClient client) throws Exception {
@@ -70,6 +73,7 @@ public class DataLoader {
             bulk.append("}\n");
         });
         client.performRequest("POST", "/test_emp/emp/_bulk", singletonMap("refresh", "true"), new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+
     }
 
     private static void csvToLines(String name, CheckedBiConsumer<List<String>, List<String>, Exception> consumeLine) throws Exception {

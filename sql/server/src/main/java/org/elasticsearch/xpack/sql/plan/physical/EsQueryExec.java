@@ -19,29 +19,24 @@ import java.util.Objects;
 
 public class EsQueryExec extends LeafExec {
 
-    private final String index, type;
+    private final String index;
     private final List<Attribute> output;
 
     private final QueryContainer queryContainer;
 
-    public EsQueryExec(Location location, String index, String type, List<Attribute> output, QueryContainer queryContainer) {
+    public EsQueryExec(Location location, String index, List<Attribute> output, QueryContainer queryContainer) {
         super(location);
         this.index = index;
-        this.type = type;
         this.output = output;
         this.queryContainer = queryContainer;
     }
 
     public EsQueryExec with(QueryContainer queryContainer) {
-        return new EsQueryExec(location(), index, type, output, queryContainer);
+        return new EsQueryExec(location(), index, output, queryContainer);
     }
 
     public String index() {
         return index;
-    }
-    
-    public String type() {
-        return type;
     }
 
     public QueryContainer queryContainer() {
@@ -56,12 +51,12 @@ public class EsQueryExec extends LeafExec {
     @Override
     public void execute(SqlSession session, ActionListener<RowSetCursor> listener) {
         Scroller scroller = new Scroller(session.client(), session.settings());
-        scroller.scroll(Rows.schema(output), queryContainer, index, type, listener);
+        scroller.scroll(Rows.schema(output), queryContainer, index, listener);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, type, queryContainer, output);
+        return Objects.hash(index, queryContainer, output);
     }
 
     @Override
@@ -76,13 +71,12 @@ public class EsQueryExec extends LeafExec {
 
         EsQueryExec other = (EsQueryExec) obj;
         return Objects.equals(index, other.index)
-                && Objects.equals(type, other.type)
                 && Objects.equals(queryContainer, other.queryContainer)
                 && Objects.equals(output, other.output);
     }
 
     @Override
     public String nodeString() {
-        return nodeName() + "[" + index + "/" + type + "," + queryContainer + "]";
+        return nodeName() + "[" + index + "," + queryContainer + "]";
     }
 }

@@ -9,21 +9,14 @@ import java.util.List;
 
 
 public interface Catalog {
-    // NOCOMMIT make sure we need all of these methods....
-
-    EsIndex getIndex(String index);
 
     boolean indexExists(String index);
+
+    boolean indexIsValid(String index);
+
+    EsIndex getIndex(String index);
 
     List<EsIndex> listIndices();
 
     List<EsIndex> listIndices(String pattern);
-
-    EsType getType(String index, String type);
-
-    boolean typeExists(String index, String type);
-
-    List<EsType> listTypes(String index);
-
-    List<EsType> listTypes(String index, String pattern);
 }

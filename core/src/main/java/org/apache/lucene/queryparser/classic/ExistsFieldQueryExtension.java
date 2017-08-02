@@ -20,6 +20,7 @@
 package org.apache.lucene.queryparser.classic;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -37,6 +38,9 @@ public class ExistsFieldQueryExtension implements FieldQueryExtension {
     public Query query(QueryShardContext context, String queryText) {
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
             (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
+        if (fieldNamesFieldType == null) {
+            return new MatchNoDocsQuery("No mappings yet");
+        }
         if (fieldNamesFieldType.isEnabled() == false) {
             // The field_names_field is disabled so we switch to a wildcard query that matches all terms
             return new WildcardQuery(new Term(queryText, "*"));

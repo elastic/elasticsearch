@@ -46,6 +46,25 @@ setup:
   - match: { datafeeds: [] }
 
 ---
+"Test get datafeed with expression that does not match and allow_no_datafeeds":
+
+  - do:
+      xpack.ml.get_datafeeds:
+        datafeed_id: "missing-*"
+        allow_no_datafeeds: true
+  - match: { count: 0 }
+  - match: { datafeeds: [] }
+
+---
+"Test get datafeed with expression that does not match and not allow_no_datafeeds":
+
+  - do:
+      catch: missing
+      xpack.ml.get_datafeeds:
+        datafeed_id: "missing-*"
+        allow_no_datafeeds: false
+
+---
 "Test put datafeed referring to missing job_id":
   - do:
       catch: /resource_not_found_exception/

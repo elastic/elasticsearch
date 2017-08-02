@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -37,9 +38,11 @@ public class RestGetJobStatsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         if (Strings.isNullOrEmpty(jobId)) {
-            jobId = Job.ALL;
+            jobId = MetaData.ALL;
         }
         GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
+        request.setAllowNoJobs(restRequest.paramAsBoolean(GetJobsStatsAction.Request.ALLOW_NO_JOBS.getPreferredName(),
+                request.allowNoJobs()));
         return channel -> client.execute(GetJobsStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

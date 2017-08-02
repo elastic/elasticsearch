@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -19,6 +20,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,9 +37,9 @@ import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDatafeedsAction.Response,
         GetDatafeedsAction.RequestBuilder> {
@@ -63,7 +65,10 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDa
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
+        public static final ParseField ALLOW_NO_DATAFEEDS = new ParseField("allow_no_datafeeds");
+
         private String datafeedId;
+        private boolean allowNoDatafeeds = true;
 
         public Request(String datafeedId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
@@ -75,6 +80,14 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDa
             return datafeedId;
         }
 
+        public boolean allowNoDatafeeds() {
+            return allowNoDatafeeds;
+        }
+
+        public void setAllowNoDatafeeds(boolean allowNoDatafeeds) {
+            this.allowNoDatafeeds = allowNoDatafeeds;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -84,17 +97,23 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDa
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             datafeedId = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                allowNoDatafeeds = in.readBoolean();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(datafeedId);
+            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+                out.writeBoolean(allowNoDatafeeds);
+            }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId);
+            return Objects.hash(datafeedId, allowNoDatafeeds);
         }
 
         @Override
@@ -106,7 +125,7 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDa
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(datafeedId, other.datafeedId);
+            return Objects.equals(datafeedId, other.datafeedId) && Objects.equals(allowNoDatafeeds, other.allowNoDatafeeds);
         }
     }
 
@@ -197,23 +216,17 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDa
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             logger.debug("Get datafeed '{}'", request.getDatafeedId());
 
-            QueryPage<DatafeedConfig> response;
             MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
             if (mlMetadata == null) {
                 mlMetadata = MlMetadata.EMPTY_METADATA;
             }
-            if (ALL.equals(request.getDatafeedId())) {
-                List<DatafeedConfig> datafeedConfigs = new ArrayList<>(mlMetadata.getDatafeeds().values());
-                response = new QueryPage<>(datafeedConfigs, datafeedConfigs.size(), DatafeedConfig.RESULTS_FIELD);
-            } else {
-                DatafeedConfig datafeed = mlMetadata.getDatafeed(request.getDatafeedId());
-                if (datafeed == null) {
-                    throw ExceptionsHelper.missingDatafeedException(request.getDatafeedId());
-                }
-                response = new QueryPage<>(Collections.singletonList(datafeed), 1, DatafeedConfig.RESULTS_FIELD);
+            Set<String> expandedDatafeedIds = mlMetadata.expandDatafeedIds(request.getDatafeedId(), request.allowNoDatafeeds());
+            List<DatafeedConfig> datafeedConfigs = new ArrayList<>();
+            for (String expandedDatafeedId : expandedDatafeedIds) {
+                datafeedConfigs.add(mlMetadata.getDatafeed(expandedDatafeedId));
             }
 
-            listener.onResponse(new Response(response));
+            listener.onResponse(new Response(new QueryPage<>(datafeedConfigs, datafeedConfigs.size(), DatafeedConfig.RESULTS_FIELD)));
         }
 
         @Override

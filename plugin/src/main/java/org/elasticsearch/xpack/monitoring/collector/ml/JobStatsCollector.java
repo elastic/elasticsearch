@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.ml;
 
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -13,7 +14,6 @@ import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.client.MachineLearningClient;
-import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
@@ -60,7 +60,7 @@ public class JobStatsCollector extends Collector {
     protected List<MonitoringDoc> doCollect() throws Exception {
         // fetch details about all jobs
         final GetJobsStatsAction.Response jobs =
-                client.getJobsStats(new GetJobsStatsAction.Request(Job.ALL))
+                client.getJobsStats(new GetJobsStatsAction.Request(MetaData.ALL))
                       .actionGet(monitoringSettings.jobStatsTimeout());
 
         final long timestamp = System.currentTimeMillis();

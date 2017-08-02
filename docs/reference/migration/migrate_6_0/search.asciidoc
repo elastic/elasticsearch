@@ -76,6 +76,9 @@
   now mandatory. Previously, the index defaulted to the index the query was executed on. Now this index
   must be explicitly set in the request.
 
+* Pure negative queries now get a score of `0` instead of `1`. This is now
+  consistent with queries that are only made of `filter` clauses.
+
 ==== Search shards API
 
 The search shards API no longer accepts the `type` url parameter, which didn't

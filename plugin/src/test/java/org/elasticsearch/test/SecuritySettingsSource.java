@@ -162,8 +162,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     @Override
     public Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(xpackPluginClass(),
-                Netty4Plugin.class, ReindexPlugin.class, CommonAnalysisPlugin.class);
+        return Arrays.asList(xpackPluginClass(), Netty4Plugin.class, ReindexPlugin.class, CommonAnalysisPlugin.class);
     }
 
     @Override

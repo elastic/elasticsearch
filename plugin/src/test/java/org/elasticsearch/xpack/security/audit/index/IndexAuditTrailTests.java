@@ -33,7 +33,6 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
@@ -145,7 +144,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                         .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
                         .put(XPackSettings.SECURITY_ENABLED.getKey(), useSecurity);
                 if (useSecurity == false && builder.get(NetworkModule.TRANSPORT_TYPE_KEY) == null) {
-                    builder.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
+                    builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
                 }
                 return builder.build();
             }
@@ -159,7 +158,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
                             .put(super.transportClientSettings());
                     if (builder.get(NetworkModule.TRANSPORT_TYPE_KEY) == null) {
-                        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
+                        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
                     }
                     return builder.build();
                 }
@@ -176,7 +175,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
         Set<Class<? extends Plugin>> mockPlugins = new HashSet<>(getMockPlugins());
         if (useSecurity == false) {
-            mockPlugins.add(MockTcpTransportPlugin.class);
+            mockPlugins.add(getTestTransportPlugin());
         }
         remoteCluster = new InternalTestCluster(randomLong(), createTempDir(), false, true, numNodes, numNodes, cluster2Name,
                 cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, mockPlugins,
@@ -197,8 +196,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             cluster2SettingsSource.addClientSSLSettings(builder, "xpack.security.audit.index.client.");
         }
         if (useSecurity == false && builder.get(NetworkModule.TRANSPORT_TYPE_KEY) == null) {
-            builder.put("xpack.security.audit.index.client." + NetworkModule.TRANSPORT_TYPE_KEY,
-                    MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
+            builder.put("xpack.security.audit.index.client." + NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
         }
         remoteSettings = builder.build();
     }
@@ -306,7 +304,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
             @Override
             List<Class<? extends Plugin>> remoteTransportClientPlugins() {
-                return Arrays.asList(XPackPlugin.class, MockTcpTransportPlugin.class);
+                return Arrays.asList(XPackPlugin.class, getTestTransportPlugin());
             }
         };
         auditor.start(true);

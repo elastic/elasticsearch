@@ -254,11 +254,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                     .field("enabled", true)
                 .endObject().endObject().bytes());
 
-        CompressedXContent disabledAll = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
-                .startObject("_all")
-                    .field("enabled", false)
-                .endObject().endObject().bytes());
-
         Exception e = expectThrows(MapperParsingException.class,
                 () -> indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, enabledAll,
                         MergeReason.MAPPING_UPDATE, random().nextBoolean()));

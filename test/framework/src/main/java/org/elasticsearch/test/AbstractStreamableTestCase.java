@@ -101,7 +101,7 @@ public abstract class AbstractStreamableTestCase<T extends Streamable> extends E
     /**
      * Round trip {@code instance} through binary serialization, setting the wire compatibility version to {@code version}.
      */
-    protected T copyInstance(T instance, Version version) throws IOException {
+    private T copyInstance(T instance, Version version) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(version);
             instance.writeTo(output);

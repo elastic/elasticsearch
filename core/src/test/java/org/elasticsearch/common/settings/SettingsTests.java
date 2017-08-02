@@ -156,7 +156,8 @@ public class SettingsTests extends ESTestCase {
     @SuppressWarnings("deprecation") //#getAsBooleanLenientForPreEs6Indices is the test subject
     public void testLenientBooleanForPreEs6Index() throws IOException {
         // time to say goodbye?
-        assertTrue(
+        // norelease: do what the assumption tells us
+        assumeTrue(
             "It's time to implement #22298. Please delete this test and Settings#getAsBooleanLenientForPreEs6Indices().",
             Version.CURRENT.minimumCompatibilityVersion().before(Version.V_6_0_0_alpha1));
 

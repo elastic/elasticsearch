@@ -23,13 +23,19 @@ import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+/**
+ * Tests VersionUtils. Note: this test should remain unchanged across major versions
+ * it uses the hardcoded versions on purpose.
+ */
 public class VersionUtilsTests extends ESTestCase {
 
     public void testAllVersionsSorted() {
@@ -174,37 +180,29 @@ public class VersionUtilsTests extends ESTestCase {
     public void testGradleVersionsMatchVersionUtils() {
         // First check the index compatible versions
         VersionsFromProperty indexCompatible = new VersionsFromProperty("tests.gradle_index_compat_versions");
-
         List<Version> released = VersionUtils.allReleasedVersions().stream()
                 /* We skip alphas, betas, and the like in gradle because they don't have
                  * backwards compatibility guarantees even though they are technically
                  * released. */
-                .filter(Version::isRelease)
+                .filter(v -> v.isRelease() && (v.major == Version.CURRENT.major || v.major == Version.CURRENT.major - 1))
                 .collect(toList());
         List<String> releasedIndexCompatible = released.stream()
                 .map(Object::toString)
                 .collect(toList());
         assertEquals(releasedIndexCompatible, indexCompatible.released);
 
-        List<String> unreleasedIndexCompatible = VersionUtils.allUnreleasedVersions().stream()
+        List<String> unreleasedIndexCompatible = new ArrayList<>(VersionUtils.allUnreleasedVersions().stream()
                 /* Gradle skips the current version because being backwards compatible
                  * with yourself is implied. Java lists the version because it is useful. */
                 .filter(v -> v != Version.CURRENT)
-                .map(Object::toString)
-                .collect(toList());
+                .map(v -> v.major + "." + v.minor + "." + v.revision)
+                .collect(toCollection(LinkedHashSet::new)));
         assertEquals(unreleasedIndexCompatible, indexCompatible.unreleased);
 
         // Now the wire compatible versions
         VersionsFromProperty wireCompatible = new VersionsFromProperty("tests.gradle_wire_compat_versions");
 
-        // Big horrible hack:
-        // This *should* be:
-        //         Version minimumCompatibleVersion = Version.CURRENT.minimumCompatibilityVersion();
-        // But instead it is:
-        Version minimumCompatibleVersion = Version.V_5_6_0;
-        // Because things blow up all over the place if the minimum compatible version isn't released.
-        // We'll fix this very, very soon. But for now, this hack.
-        // end big horrible hack
+        Version minimumCompatibleVersion = Version.CURRENT.minimumCompatibilityVersion();
         List<String> releasedWireCompatible = released.stream()
                 .filter(v -> v.onOrAfter(minimumCompatibleVersion))
                 .map(Object::toString)

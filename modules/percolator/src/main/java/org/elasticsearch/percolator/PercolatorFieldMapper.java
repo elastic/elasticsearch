@@ -343,7 +343,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     static void createQueryBuilderField(Version indexVersion, BinaryFieldMapper qbField,
                                         QueryBuilder queryBuilder, ParseContext context) throws IOException {
-        if (indexVersion.onOrAfter(Version.V_6_0_0_beta1)) {
+        if (indexVersion.onOrAfter(Version.V_6_1_0)) {
             try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
                 try (OutputStreamStreamOutput out  = new OutputStreamStreamOutput(stream)) {
                     out.setVersion(indexVersion);

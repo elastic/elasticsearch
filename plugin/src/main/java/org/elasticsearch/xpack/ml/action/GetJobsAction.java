@@ -65,10 +65,13 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
         private boolean allowNoJobs = true;
 
         public Request(String jobId) {
+            this();
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
         }
 
-        Request() {}
+        Request() {
+            local(true);
+        }
 
         public void setAllowNoJobs(boolean allowNoJobs) {
             this.allowNoJobs = allowNoJobs;

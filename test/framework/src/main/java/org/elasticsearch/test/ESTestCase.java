@@ -892,7 +892,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @BeforeClass
     public static void setUseNio() throws Exception {
-        useNio = randomBoolean();
+        useNio = false;
     }
 
     public static String getTestTransportType() {

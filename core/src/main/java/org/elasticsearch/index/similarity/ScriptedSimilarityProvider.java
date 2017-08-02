@@ -45,8 +45,9 @@ public class ScriptedSimilarityProvider extends AbstractSimilarityProvider {
             weightScriptFactory = scriptService.compile(weightScript, SimilarityWeightScript.CONTEXT);
         }
         scriptedSimilarity = new ScriptedSimilarity(
-                weightScript == null ? null : weightScript.toString(), weightScriptFactory == null ? null : weightScriptFactory::newInstance,
-                script.toString(), scriptFactory::newInstance, discountOverlaps);
+                weightScript == null ? null : weightScript.toString(),
+                        weightScriptFactory == null ? null : weightScriptFactory::newInstance,
+                                script.toString(), scriptFactory::newInstance, discountOverlaps);
     }
 
     @Override

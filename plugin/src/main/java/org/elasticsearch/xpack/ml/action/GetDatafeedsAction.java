@@ -71,10 +71,13 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDa
         private boolean allowNoDatafeeds = true;
 
         public Request(String datafeedId) {
+            this();
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
 
-        Request() {}
+        Request() {
+            local(true);
+        }
 
         public String getDatafeedId() {
             return datafeedId;

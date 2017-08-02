@@ -37,6 +37,9 @@ import static java.lang.Math.max;
 import static java.lang.Math.round;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 
+/**
+ * Task behavior for {@link BulkByScrollTask} that does the actual work of querying and indexing
+ */
 public class ChildBulkByScrollWorker implements SuccessfullyProcessed {
 
     private static final Logger logger = Loggers.getLogger(ChildBulkByScrollWorker.class);

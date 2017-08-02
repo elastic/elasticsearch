@@ -86,13 +86,7 @@ public class RethrottleTests extends ReindexTestCase {
          */
 
         createIndex("test");
-        int numSlices;
-        if (request.request().getSlices().isAuto()) {
-            NumShards numShards = getNumShards("test");
-            numSlices = Math.min(numShards.numPrimaries, BulkByScrollParallelizationHelper.AUTO_SLICE_CEILING);
-        } else {
-            numSlices = request.request().getSlices().number();
-        }
+        int numSlices = expectedSlices(request.request().getSlices(), "test");
 
         List<IndexRequestBuilder> docs = new ArrayList<>();
         for (int i = 0; i < numSlices * 10; i++) {

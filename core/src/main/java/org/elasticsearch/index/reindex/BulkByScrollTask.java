@@ -48,10 +48,14 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
  *
  * When the request is sliced, this task can either represent a parent coordinating task (using {@link BulkByScrollTask#setParent(int)}) or
  * a child task that performs search queries (using {@link BulkByScrollTask#setChild(Integer, float)}).
+ *
+ * We don't always know if this task will be a parent or child task when it's created, because if slices is set to "auto" it may
+ * be either depending on the number of shards in the source indices. We figure that out when the request is handled and set it on this
+ * class with {@link #setParent(int)} or {@link #setChild(Integer, float)}.
  */
 public class BulkByScrollTask extends CancellableTask {
 
-    private ParentBulkByScrollWorker parentWorker; // todo give this a better name (maybe task strategy or behavior)
+    private ParentBulkByScrollWorker parentWorker;
     private ChildBulkByScrollWorker childWorker;
 
     public BulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId) {

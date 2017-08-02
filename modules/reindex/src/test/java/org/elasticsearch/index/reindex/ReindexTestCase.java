@@ -66,16 +66,29 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
         return new BulkIndexByScrollResponseMatcher();
     }
 
+    /**
+     * Figures out how many slices the request handling will use
+     */
     protected int expectedSlices(Slices requestSlices, Collection<String> indices) {
-        int slicesConfigured;
         if (requestSlices.isAuto()) {
             int leastNumShards = Collections.min(indices.stream()
                 .map(sourceIndex -> getNumShards(sourceIndex).numPrimaries)
                 .collect(Collectors.toList()));
-            slicesConfigured = Math.min(leastNumShards, BulkByScrollParallelizationHelper.AUTO_SLICE_CEILING);
+            return Math.min(leastNumShards, BulkByScrollParallelizationHelper.AUTO_SLICE_CEILING);
         } else {
-            slicesConfigured = requestSlices.number();
+            return requestSlices.number();
         }
+    }
+
+    protected int expectedSlices(Slices requestSlices, String index) {
+        return expectedSlices(requestSlices, singleton(index));
+    }
+
+    /**
+     * Figures out how many slice statuses to expect in the response
+     */
+    protected int expectedSliceStatuses(Slices requestSlices, Collection<String> indices) {
+        int slicesConfigured = expectedSlices(requestSlices, indices);
 
         if (slicesConfigured > 1) {
             return slicesConfigured;
@@ -84,7 +97,7 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
         }
     }
 
-    protected int expectedSlices(Slices slicesConfigured, String index) {
-        return expectedSlices(slicesConfigured, singleton(index));
+    protected int expectedSliceStatuses(Slices slicesConfigured, String index) {
+        return expectedSliceStatuses(slicesConfigured, singleton(index));
     }
 }

@@ -142,7 +142,7 @@ public class RoundTripTests extends ESTestCase {
 
         Slices slices = randomBoolean()
                         ? Slices.AUTO
-                        : Slices.of(between(0, Integer.MAX_VALUE));
+                        : Slices.of(between(1, Integer.MAX_VALUE));
         request.setSlices(slices);
     }
 

@@ -36,7 +36,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -49,7 +48,17 @@ class BulkByScrollParallelizationHelper {
 
     private BulkByScrollParallelizationHelper() {}
 
-    static <Request extends AbstractBulkByScrollRequest<Request>> void yourNameHere( //todo rename
+    /**
+     * Takes an action created by a {@link BulkByScrollTask} and runs it with regard to whether the request is sliced or not.
+     *
+     * If the request is not sliced (e.g. the number of slices is 1), the action from the given {@link Supplier} will be started on the
+     * local node. If the request is sliced (e.g. the number of slices is more than 1), then a subrequest will be created for each slice
+     * and sent.
+     *
+     * If slices are set as {@code "auto"}, this class will resolve that to a specific number based on characteristics of the source
+     * indices. A request with {@code "auto"} slices may end up being sliced or unsliced.
+     */
+    static <Request extends AbstractBulkByScrollRequest<Request>> void startSlicedAction(
         Request request,
         BulkByScrollTask task,
         Action<Request, BulkByScrollResponse, ?> action,
@@ -58,41 +67,40 @@ class BulkByScrollParallelizationHelper {
         DiscoveryNode node,
         Supplier<AbstractAsyncBulkByScrollAction<Request>> taskSupplier) {
 
-        computeSlicing(client, request, listener, slices -> {
-            if (slices > 1) {
-                task.setParent(slices);
-                sendSubRequests(client, action, node.getId(), task, request, listener);
-            } else {
-                Integer sliceId = request.getSearchRequest().source().slice() == null
-                    ? null
-                    : request.getSearchRequest().source().slice().getId();
-                task.setChild(sliceId, request.getRequestsPerSecond());
-                taskSupplier.get().start();
-            }
-        });
-    }
-
-    /**
-     * Figures out how many slices to use when handling this request. If the {@code request} has slices set as a number, that number
-     * will be used. If set to {@code "auto"}, it will compute it from the source indices' properties. The given consumer is passed the
-     * resulting number of slices in either case.
-     */
-    private static <Request extends AbstractBulkByScrollRequest<Request>> void computeSlicing(
-        Client client,
-        Request request,
-        ActionListener<BulkByScrollResponse> listener,
-        Consumer<Integer> slicedBehavior) {
-
         Slices slices = request.getSlices();
         if (slices.isAuto()) {
             client.admin().cluster().prepareSearchShards(request.getSearchRequest().indices()).execute(ActionListener.wrap(
-                response -> slicedBehavior.accept(countSlicesBasedOnShards(response)),
+                response -> {
+                    int actualNumSlices = countSlicesBasedOnShards(response);
+                    sliceConditionally(request, task, action, listener, client, node, taskSupplier, actualNumSlices);
+                },
                 listener::onFailure
             ));
         } else {
-            slicedBehavior.accept(request.getSlices().number());
+            sliceConditionally(request, task, action, listener, client, node, taskSupplier, slices.number());
         }
+    }
 
+    private static <Request extends AbstractBulkByScrollRequest<Request>> void sliceConditionally(
+        Request request,
+        BulkByScrollTask task,
+        Action<Request, BulkByScrollResponse, ?> action,
+        ActionListener<BulkByScrollResponse> listener,
+        Client client,
+        DiscoveryNode node,
+        Supplier<AbstractAsyncBulkByScrollAction<Request>> taskSupplier,
+        int slices) {
+
+        if (slices > 1) {
+            task.setParent(slices);
+            sendSubRequests(client, action, node.getId(), task, request, listener);
+        } else {
+            Integer sliceId = request.getSearchRequest().source().slice() == null
+                ? null
+                : request.getSearchRequest().source().slice().getId();
+            task.setChild(sliceId, request.getRequestsPerSecond());
+            taskSupplier.get().start();
+        }
     }
 
     private static int countSlicesBasedOnShards(ClusterSearchShardsResponse response) {

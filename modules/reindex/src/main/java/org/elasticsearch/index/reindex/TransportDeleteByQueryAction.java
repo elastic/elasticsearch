@@ -52,7 +52,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     @Override
     public void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
-        BulkByScrollParallelizationHelper.yourNameHere(request, bulkByScrollTask, DeleteByQueryAction.INSTANCE, listener, client,
+        BulkByScrollParallelizationHelper.startSlicedAction(request, bulkByScrollTask, DeleteByQueryAction.INSTANCE, listener, client,
             clusterService.localNode(),
             () -> {
                 ClusterState state = clusterService.state();

@@ -65,7 +65,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     @Override
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
-        BulkByScrollParallelizationHelper.yourNameHere(request, bulkByScrollTask, UpdateByQueryAction.INSTANCE, listener, client,
+        BulkByScrollParallelizationHelper.startSlicedAction(request, bulkByScrollTask, UpdateByQueryAction.INSTANCE, listener, client,
             clusterService.localNode(),
             () -> {
                 ClusterState state = clusterService.state();

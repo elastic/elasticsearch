@@ -116,7 +116,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
 
-        BulkByScrollParallelizationHelper.yourNameHere(request, bulkByScrollTask, ReindexAction.INSTANCE, listener, client,
+        BulkByScrollParallelizationHelper.startSlicedAction(request, bulkByScrollTask, ReindexAction.INSTANCE, listener, client,
             clusterService.localNode(),
             () -> {
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),

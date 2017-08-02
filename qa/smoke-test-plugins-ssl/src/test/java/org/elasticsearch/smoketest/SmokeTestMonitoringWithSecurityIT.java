@@ -71,6 +71,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2077")
     public void testHTTPExporterWithSSL() throws Exception {
         // Checks that the monitoring index templates have been installed
         assertBusy(() -> {

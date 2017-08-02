@@ -43,6 +43,9 @@ subprojects {
     } else {
       bwcBranch = "${major}.${minor}"
     }
+    if (bwcBranch == '5.x') {
+      bwcBranch = '5.6';
+    }
 
     File esCheckoutDir = file("${buildDir}/bwc/checkout-es-${bwcBranch}")
     File xpackCheckoutDir = file("${esCheckoutDir}-extra/x-pack-elasticsearch")

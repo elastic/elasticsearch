@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigTests;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Collections;
 
 public class PutDatafeedActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
@@ -31,9 +30,14 @@ public class PutDatafeedActionRequestTests extends AbstractStreamableXContentTes
     @Override
     protected Request createTestInstance() {
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, randomAlphaOfLength(10));
-        datafeedConfig.setIndices(Arrays.asList(randomAlphaOfLength(10)));
-        datafeedConfig.setTypes(Arrays.asList(randomAlphaOfLength(10)));
+        datafeedConfig.setIndices(Collections.singletonList(randomAlphaOfLength(10)));
+        datafeedConfig.setTypes(Collections.singletonList(randomAlphaOfLength(10)));
         return new Request(datafeedConfig.build());
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 
     @Override

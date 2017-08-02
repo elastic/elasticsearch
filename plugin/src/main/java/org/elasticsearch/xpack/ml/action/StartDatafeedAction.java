@@ -33,7 +33,7 @@ import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -96,7 +96,7 @@ public class StartDatafeedAction
         return new Response();
     }
 
-    public static class Request extends MasterNodeRequest<Request> implements ToXContent {
+    public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
 
         public static Request fromXContent(XContentParser parser) {
             return parseRequest(null, parser);

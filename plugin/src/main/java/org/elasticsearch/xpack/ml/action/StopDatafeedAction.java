@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
@@ -84,7 +85,7 @@ public class StopDatafeedAction
         return new Response();
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContent {
+    public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
 
         public static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 

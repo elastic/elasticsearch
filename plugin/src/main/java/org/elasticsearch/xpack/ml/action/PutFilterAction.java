@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -62,7 +63,7 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
         return new Response();
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> implements ToXContent {
+    public static class Request extends MasterNodeReadRequest<Request> implements ToXContentObject {
 
         public static Request parseRequest(String filterId, XContentParser parser) {
             MlFilter.Builder filter = MlFilter.PARSER.apply(parser, null);

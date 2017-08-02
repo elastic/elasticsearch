@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -61,7 +60,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
         return new Response();
     }
 
-    public static class Request extends ActionRequest implements ToXContent {
+    public static class Request extends ActionRequest implements ToXContentObject {
 
         public static final ParseField START = new ParseField("start");
         public static final ParseField END = new ParseField("end");

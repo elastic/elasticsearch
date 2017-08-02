@@ -12,12 +12,12 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -27,8 +27,8 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignme
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Builder;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.Status;
-import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestParams;
+import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -114,27 +114,13 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         return PersistentTasksCustomMetaData.fromXContent(parser);
     }
 
+/*
     @Override
     protected XContentBuilder toXContent(Custom instance, XContentType contentType) throws IOException {
         return toXContent(instance, contentType, new ToXContent.MapParams(
                 Collections.singletonMap(MetaData.CONTEXT_MODE_PARAM, MetaData.XContentContext.API.toString())));
     }
-
-    protected XContentBuilder toXContent(Custom instance, XContentType contentType, ToXContent.MapParams params) throws IOException {
-        // We need all attribute to be serialized/de-serialized for testing
-        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-        if (randomBoolean()) {
-            builder.prettyPrint();
-        }
-        if (instance.isFragment()) {
-            builder.startObject();
-        }
-        instance.toXContent(builder, params);
-        if (instance.isFragment()) {
-            builder.endObject();
-        }
-        return builder;
-    }
+*/
 
     private String addRandomTask(Builder builder) {
         String taskId = UUIDs.base64UUID();
@@ -166,10 +152,9 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
                 Collections.singletonMap(MetaData.CONTEXT_MODE_PARAM, randomFrom(CONTEXT_MODE_SNAPSHOT, CONTEXT_MODE_GATEWAY)));
 
         XContentType xContentType = randomFrom(XContentType.values());
-        XContentBuilder builder = toXContent(testInstance, xContentType, params);
-        XContentBuilder shuffled = shuffleXContent(builder);
+        BytesReference shuffled = toShuffledXContent(testInstance, xContentType, params, false);
 
-        XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled.bytes());
+        XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled);
         PersistentTasksCustomMetaData newInstance = doParseInstance(parser);
         assertNotSame(newInstance, testInstance);
 

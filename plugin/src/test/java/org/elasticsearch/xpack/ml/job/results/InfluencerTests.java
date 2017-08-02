@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -45,8 +47,8 @@ public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
 
     public void testToXContentIncludesNameValueField() throws IOException {
         Influencer influencer = createTestInstance("foo");
-        XContentBuilder builder = toXContent(influencer, XContentType.JSON);
-        XContentParser parser = createParser(builder);
+        BytesReference bytes = XContentHelper.toXContent(influencer, XContentType.JSON, false);
+        XContentParser parser = createParser(XContentType.JSON.xContent(), bytes);
         String serialisedFieldName = (String) parser.map().get(influencer.getInfluencerFieldName());
         assertNotNull(serialisedFieldName);
         assertEquals(influencer.getInfluencerFieldValue(), serialisedFieldName);
@@ -54,8 +56,8 @@ public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
 
     public void testToXContentDoesNotIncludeNameValueFieldWhenReservedWord() throws IOException {
         Influencer influencer = new Influencer("foo", Influencer.INFLUENCER_SCORE.getPreferredName(), "bar", new Date(), 300L);
-        XContentBuilder builder = toXContent(influencer, XContentType.JSON);
-        XContentParser parser = createParser(builder);
+        BytesReference bytes = XContentHelper.toXContent(influencer, XContentType.JSON, false);
+        XContentParser parser = createParser(XContentType.JSON.xContent(), bytes);
         Object serialisedFieldValue = parser.map().get(Influencer.INFLUENCER_SCORE.getPreferredName());
         assertNotNull(serialisedFieldValue);
         assertNotEquals("bar", serialisedFieldValue);

@@ -33,6 +33,11 @@ public class UpdateDatafeedActionRequestTests extends AbstractStreamableXContent
     }
 
     @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    @Override
     protected Request createBlankInstance() {
         return new Request();
     }

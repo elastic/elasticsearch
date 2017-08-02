@@ -7,11 +7,12 @@ package org.elasticsearch.xpack.ml.job.config;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -405,9 +406,8 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
         // Assert parsing a job without version works as expected
         XContentType xContentType = randomFrom(XContentType.values());
-        XContentBuilder xContentBuilder = toXContent(job, xContentType);
-
-        try(XContentParser parser = createParser(XContentFactory.xContent(xContentType), xContentBuilder.bytes())) {
+        BytesReference bytes = XContentHelper.toXContent(job, xContentType, false);
+        try(XContentParser parser = createParser(xContentType.xContent(), bytes)) {
             Job parsed = parseInstance(parser);
             assertThat(parsed, equalTo(job));
         }

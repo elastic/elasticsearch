@@ -27,6 +27,11 @@ public class GetCategoriesRequestTests extends AbstractStreamableXContentTestCas
     }
 
     @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    @Override
     protected GetCategoriesAction.Request createBlankInstance() {
         return new GetCategoriesAction.Request();
     }

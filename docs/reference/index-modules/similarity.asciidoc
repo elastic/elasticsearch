@@ -73,20 +73,6 @@ This similarity has the following options:
 Type name: `BM25`
 
 [float]
-[[classic-similarity]]
-==== Classic similarity
-
-The classic similarity that is based on the TF/IDF model. This
-similarity has the following option:
-
-`discount_overlaps`::
-    Determines whether overlap tokens (Tokens with
-    0 position increment) are ignored when computing norm. By default this
-    is true, meaning overlap tokens do not count when computing norms.
-
-Type name: `classic`
-
-[float]
 [[drf]]
 ==== DFR similarity
 

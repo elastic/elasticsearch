@@ -86,3 +86,10 @@ they are replaced with `script.allowed_types` and `script.allowed_contexts`.
 The `discovery.type` settings no longer supports the values `gce`, `aws` and `ec2`.
 Integration with these platforms should be done by setting the `discovery.zen.hosts_provider` setting to
 one of those values.
+
+==== Similarity settings
+
+The `classic` similarity has been disallowed on 6.0+ indices. We advise to
+use <<bm25,`bm25`>> instead, which usually produces better scores. In case you
+absolutely need to keep the same scores, you can reimplement the `classic`
+similarity using the new <<scripted_similarity,`scripted`>> similarity.

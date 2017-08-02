@@ -1,0 +1,21 @@
+import org.elasticsearch.gradle.test.RunTask
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
+  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
+  testCompile project(path: ':modules:reindex')
+}
+
+// NOCOMMIT we should try this on multiple nodes
+
+integTestCluster {
+  distribution = 'zip' // NOCOMMIT make double sure we want all the modules
+  numNodes = 2
+  plugin ':x-pack-elasticsearch:plugin'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'xpack.security.enabled', 'false'
+}

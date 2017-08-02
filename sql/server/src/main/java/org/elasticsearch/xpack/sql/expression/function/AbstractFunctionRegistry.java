@@ -155,8 +155,8 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
                 if (timezoneAware) {
                     args.add(settings.timeZone());
                 }
-            } 
-            return (Function) info.ctr.newInstance(args);
+            }
+            return (Function) info.ctr.newInstance(args.toArray());
         } catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
             throw new SqlIllegalArgumentException(ex, "Cannot create instance of function %s", ur.name());
         }

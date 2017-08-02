@@ -9,6 +9,7 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -25,6 +26,7 @@ public class TestXPackTransportClient extends TransportClient {
     }
 
     public TestXPackTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins) {
-        super(settings, Settings.EMPTY, addPlugins(plugins, XPackPlugin.class, MockTcpTransportPlugin.class), null);
+        super(settings, Settings.EMPTY, addPlugins(plugins, XPackPlugin.class, NioTransportPlugin.class, MockTcpTransportPlugin.class),
+                null);
     }
 }

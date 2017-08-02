@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -19,6 +20,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -57,7 +59,10 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
+        public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
+
         private String jobId;
+        private boolean allowNoJobs = true;
 
         public Request(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
@@ -65,8 +70,16 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
 
         Request() {}
 
+        public void setAllowNoJobs(boolean allowNoJobs) {
+            this.allowNoJobs = allowNoJobs;
+        }
+
         public String getJobId() {
             return jobId;
+        }
+
+        public boolean allowNoJobs() {
+            return allowNoJobs;
         }
 
         @Override
@@ -78,17 +91,23 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             jobId = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                allowNoJobs = in.readBoolean();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
+            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+                out.writeBoolean(allowNoJobs);
+            }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId);
+            return Objects.hash(jobId, allowNoJobs);
         }
 
         @Override
@@ -100,7 +119,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId);
+            return Objects.equals(jobId, other.jobId) && Objects.equals(allowNoJobs, other.allowNoJobs);
         }
     }
 
@@ -195,7 +214,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
         @Override
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             logger.debug("Get job '{}'", request.getJobId());
-            QueryPage<Job> jobs = jobManager.getJob(request.getJobId(), state);
+            QueryPage<Job> jobs = jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), state);
             listener.onResponse(new Response(jobs));
         }
 

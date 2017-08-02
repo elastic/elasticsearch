@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -58,7 +59,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -89,6 +89,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField FORCE = new ParseField("force");
+        public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
         public static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
@@ -96,6 +97,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             PARSER.declareString((request, val) ->
                     request.setCloseTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
             PARSER.declareBoolean(Request::setForce, FORCE);
+            PARSER.declareBoolean(Request::setAllowNoJobs, ALLOW_NO_JOBS);
         }
 
         public static Request parseRequest(String jobId, XContentParser parser) {
@@ -108,6 +110,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
         private String jobId;
         private boolean force = false;
+        private boolean allowNoJobs = true;
         // A big state can take a while to persist.  For symmetry with the _open endpoint any
         // changes here should be reflected there too.
         private TimeValue timeout = MachineLearning.STATE_PERSIST_RESTORE_TIMEOUT;
@@ -149,6 +152,14 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             this.force = force;
         }
 
+        public boolean allowNoJobs() {
+            return allowNoJobs;
+        }
+
+        public void setAllowNoJobs(boolean allowNoJobs) {
+            this.allowNoJobs = allowNoJobs;
+        }
+
         public void setLocal(boolean local) {
             this.local = local;
         }
@@ -165,6 +176,9 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             force = in.readBoolean();
             openJobIds = in.readStringArray();
             local = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                allowNoJobs = in.readBoolean();
+            }
         }
 
         @Override
@@ -175,6 +189,9 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             out.writeBoolean(force);
             out.writeStringArray(openJobIds);
             out.writeBoolean(local);
+            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+                out.writeBoolean(allowNoJobs);
+            }
         }
 
         @Override
@@ -194,6 +211,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             builder.field(Job.ID.getPreferredName(), jobId);
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
             builder.field(FORCE.getPreferredName(), force);
+            builder.field(ALLOW_NO_JOBS.getPreferredName(), allowNoJobs);
             builder.endObject();
             return builder;
         }
@@ -201,7 +219,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         @Override
         public int hashCode() {
             // openJobIds are excluded
-            return Objects.hash(jobId, timeout, force);
+            return Objects.hash(jobId, timeout, force, allowNoJobs);
         }
 
         @Override
@@ -216,7 +234,8 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             // openJobIds are excluded
             return Objects.equals(jobId, other.jobId) &&
                     Objects.equals(timeout, other.timeout) &&
-                    Objects.equals(force, other.force);
+                    Objects.equals(force, other.force) &&
+                    Objects.equals(allowNoJobs, other.allowNoJobs);
         }
     }
 
@@ -337,7 +356,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
                 List<String> openJobIds = new ArrayList<>();
                 List<String> closingJobIds = new ArrayList<>();
-                resolveAndValidateJobId(request.getJobId(), state, openJobIds, closingJobIds, request.isForce());
+                resolveAndValidateJobId(request, state, openJobIds, closingJobIds);
                 request.setOpenJobIds(openJobIds.toArray(new String[0]));
                 if (openJobIds.isEmpty() && closingJobIds.isEmpty()) {
                     listener.onResponse(new Response(true));
@@ -552,19 +571,17 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
     }
 
     /**
-     * Expand the {@code jobId} parameter and add the job Id to one of the list arguments
+     * Resolve the requested jobs and add their IDs to one of the list arguments
      * depending on job state.
      *
      * Opened jobs are added to {@code openJobIds} and closing jobs added to {@code closingJobIds}. Failed jobs are added
      * to {@code openJobIds} if allowFailed is set otherwise an exception is thrown.
-     * @param jobId The job Id. If jobId == {@link Job#ALL} then expand the job list.
+     * @param request The close job request
      * @param state Cluster state
      * @param openJobIds Opened or failed jobs are added to this list
      * @param closingJobIds Closing jobs are added to this list
-     * @param allowFailed Whether failed jobs are allowed, if yes, they are added to {@code openJobIds}
      */
-    static void resolveAndValidateJobId(String jobId, ClusterState state, List<String> openJobIds, List<String> closingJobIds,
-            boolean allowFailed) {
+    static void resolveAndValidateJobId(Request request, ClusterState state, List<String> openJobIds, List<String> closingJobIds) {
         PersistentTasksCustomMetaData tasksMetaData = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         MlMetadata maybeNull = state.metaData().custom(MlMetadata.TYPE);
         final MlMetadata mlMetadata = (maybeNull == null) ? MlMetadata.EMPTY_METADATA : maybeNull;
@@ -580,24 +597,14 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             addJobAccordingToState(id, tasksMetaData, openJobIds, closingJobIds, failedJobs);
         };
 
-        if (!Job.ALL.equals(jobId)) {
-            if (mlMetadata.getJobs().containsKey(jobId) == false) {
-                throw ExceptionsHelper.missingJobException(jobId);
+        Set<String> expandedJobIds = mlMetadata.expandJobIds(request.getJobId(), request.allowNoJobs());
+        expandedJobIds.stream().forEach(jobIdProcessor::accept);
+        if (request.isForce() == false && failedJobs.size() > 0) {
+            if (expandedJobIds.size() == 1) {
+                throw ExceptionsHelper.conflictStatusException("cannot close job [{}] because it failed, use force close",
+                        expandedJobIds.iterator().next());
             }
-            jobIdProcessor.accept(jobId);
-
-            if (allowFailed == false && failedJobs.size() > 0) {
-                throw ExceptionsHelper.conflictStatusException("cannot close job [{}] because it failed, use force close", jobId);
-            }
-
-        } else {
-            for (Map.Entry<String, Job> jobEntry : mlMetadata.getJobs().entrySet()) {
-                jobIdProcessor.accept(jobEntry.getKey());
-            }
-
-            if (allowFailed == false && failedJobs.size() > 0) {
-                throw ExceptionsHelper.conflictStatusException("one or more jobs have state failed, use force close");
-            }
+            throw ExceptionsHelper.conflictStatusException("one or more jobs have state failed, use force close");
         }
 
         // allowFailed == true

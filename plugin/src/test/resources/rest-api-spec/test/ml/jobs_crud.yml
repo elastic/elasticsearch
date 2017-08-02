@@ -14,6 +14,25 @@
   - match: { jobs: [] }
 
 ---
+"Test get jobs with expression that does not match and allow_no_jobs":
+
+  - do:
+      xpack.ml.get_jobs:
+        job_id: "missing-*"
+        allow_no_jobs: true
+  - match: { count: 0 }
+  - match: { jobs: [] }
+
+---
+"Test get jobs with expression that does not match and not allow_no_jobs":
+
+  - do:
+      catch: missing
+      xpack.ml.get_jobs:
+        job_id: "missing-*"
+        allow_no_jobs: false
+
+---
 "Test job crud apis":
 
   - do:
@@ -520,6 +539,87 @@
         job_id: _all
   - match: { jobs.0.state: closed }
   - match: { jobs.1.state: closed }
+
+---
+"Test close jobs with expression that matches":
+  - do:
+      xpack.ml.put_job:
+        job_id: jobs-crud-with-expression-that-matches-foo-1
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {}
+          }
+
+  - do:
+      xpack.ml.put_job:
+        job_id: jobs-crud-with-expression-that-matches-foo-2
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {}
+          }
+
+  - do:
+      xpack.ml.put_job:
+        job_id: jobs-crud-with-expression-that-matches-bar-1
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {}
+          }
+
+  - do:
+      xpack.ml.open_job:
+        job_id: jobs-crud-with-expression-that-matches-foo-1
+
+  - do:
+      xpack.ml.open_job:
+        job_id: jobs-crud-with-expression-that-matches-foo-2
+
+  - do:
+      xpack.ml.open_job:
+        job_id: jobs-crud-with-expression-that-matches-bar-1
+
+  - do:
+      xpack.ml.close_job:
+        job_id: "*foo-*"
+  - match: { closed: true }
+
+  - do:
+      xpack.ml.get_job_stats:
+        job_id: "*foo-*"
+  - match: { jobs.0.state: closed }
+  - match: { jobs.1.state: closed }
+
+  - do:
+      xpack.ml.get_job_stats:
+        job_id: "*bar-1"
+  - match: { jobs.0.state: opened }
+
+---
+"Test close jobs with expression that does not match and allow_no_jobs":
+
+  - do:
+      xpack.ml.close_job:
+        job_id: "missing-*"
+        allow_no_jobs: true
+  - match: { closed: true }
+
+---
+"Test close jobs with expression that does not match and not allow_no_jobs":
+
+  - do:
+      catch: missing
+      xpack.ml.close_job:
+        job_id: "missing-*"
+        allow_no_jobs: false
 
 ---
 "Test force close job":

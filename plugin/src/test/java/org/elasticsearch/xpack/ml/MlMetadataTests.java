@@ -37,6 +37,7 @@ import static org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests.createDat
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests.createDatafeedJob;
 import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -361,5 +362,37 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
         tasksBuilder.updateTaskStatus(MlMetadata.jobTaskId("foo"), new JobTaskStatus(JobState.OPENED, tasksBuilder.getLastAllocationId()));
         assertEquals(JobState.OPENED, MlMetadata.getJobState("foo", tasksBuilder.build()));
+    }
+
+    public void testExpandJobIds() {
+        MlMetadata mlMetadata = newMlMetadataWithJobs("bar-1", "foo-1", "foo-2").build();
+
+        assertThat(mlMetadata.expandJobIds("_all", false), contains("bar-1", "foo-1", "foo-2"));
+        assertThat(mlMetadata.expandJobIds("*", false), contains("bar-1", "foo-1", "foo-2"));
+        assertThat(mlMetadata.expandJobIds("foo-*", false), contains("foo-1", "foo-2"));
+        assertThat(mlMetadata.expandJobIds("foo-1,bar-*", false), contains("bar-1", "foo-1"));
+    }
+
+    public void testExpandDatafeedIds() {
+        MlMetadata.Builder mlMetadataBuilder = newMlMetadataWithJobs("bar-1", "foo-1", "foo-2");
+        mlMetadataBuilder.putDatafeed(createDatafeedConfig("bar-1-feed", "bar-1").build());
+        mlMetadataBuilder.putDatafeed(createDatafeedConfig("foo-1-feed", "foo-1").build());
+        mlMetadataBuilder.putDatafeed(createDatafeedConfig("foo-2-feed", "foo-2").build());
+        MlMetadata mlMetadata = mlMetadataBuilder.build();
+
+
+        assertThat(mlMetadata.expandDatafeedIds("_all", false), contains("bar-1-feed", "foo-1-feed", "foo-2-feed"));
+        assertThat(mlMetadata.expandDatafeedIds("*", false), contains("bar-1-feed", "foo-1-feed", "foo-2-feed"));
+        assertThat(mlMetadata.expandDatafeedIds("foo-*", false), contains("foo-1-feed", "foo-2-feed"));
+        assertThat(mlMetadata.expandDatafeedIds("foo-1-feed,bar-1*", false), contains("bar-1-feed", "foo-1-feed"));
+    }
+
+    private static MlMetadata.Builder newMlMetadataWithJobs(String... jobIds) {
+        MlMetadata.Builder builder = new MlMetadata.Builder();
+        for (String jobId : jobIds) {
+            Job job = buildJobBuilder(jobId).build();
+            builder.putJob(job, false);
+        }
+        return builder;
     }
 }

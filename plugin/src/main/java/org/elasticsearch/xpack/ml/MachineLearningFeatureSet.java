@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -224,7 +225,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                         );
 
                 // Step 1. Extract usage from jobs stats and then request stats for all datafeeds
-                GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(Job.ALL);
+                GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(MetaData.ALL);
                 ActionListener<GetJobsStatsAction.Response> jobStatsListener = ActionListener.wrap(
                         response -> {
                             addJobsUsage(response);

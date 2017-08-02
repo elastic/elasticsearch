@@ -5,15 +5,17 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsAction.Request;
-import org.elasticsearch.xpack.ml.job.config.Job;
 
 public class GetDatafeedsActionRequestTests extends AbstractStreamableTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomBoolean() ? Job.ALL : randomAlphaOfLengthBetween(1, 20));
+        Request request = new Request(randomBoolean() ? MetaData.ALL : randomAlphaOfLengthBetween(1, 20));
+        request.setAllowNoDatafeeds(randomBoolean());
+        return request;
     }
 
     @Override

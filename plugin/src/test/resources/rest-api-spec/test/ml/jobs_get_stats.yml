@@ -127,11 +127,21 @@ setup:
   - is_true: jobs.0.open_time
 
 ---
-"Test get all job stats explicitly":
+"Test get all job stats with _all":
 
   - do:
       xpack.ml.get_job_stats:
         job_id: _all
+  - match: { count: 2 }
+  - match: { jobs.0.state: opened }
+  - match: { jobs.1.state: opened }
+
+---
+"Test get all job stats with wildcard":
+
+  - do:
+      xpack.ml.get_job_stats:
+        job_id: "*"
   - match: { count: 2 }
   - match: { jobs.0.state: opened }
   - match: { jobs.1.state: opened }
@@ -150,6 +160,24 @@ setup:
       catch: missing
       xpack.ml.get_job_stats:
         job_id: unknown-job
+
+---
+"Test get job stats given pattern and allow_no_jobs":
+
+  - do:
+      xpack.ml.get_job_stats:
+        job_id: "missing-*"
+        allow_no_jobs: true
+  - match: { count: 0 }
+
+---
+"Test get job stats given pattern and not allow_no_jobs":
+
+  - do:
+      catch: missing
+      xpack.ml.get_job_stats:
+        job_id: "missing-*"
+        allow_no_jobs: false
 
 ---
 "Test reading v54 data counts and model size stats":

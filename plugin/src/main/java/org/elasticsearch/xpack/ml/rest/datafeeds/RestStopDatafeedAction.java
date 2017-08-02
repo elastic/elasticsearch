@@ -40,23 +40,26 @@ public class RestStopDatafeedAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String datafeedId = restRequest.param(DatafeedConfig.ID.getPreferredName());
-        StopDatafeedAction.Request jobDatafeedRequest;
+        StopDatafeedAction.Request request;
         if (restRequest.hasContentOrSourceParam()) {
             XContentParser parser = restRequest.contentOrSourceParamParser();
-            jobDatafeedRequest = StopDatafeedAction.Request.parseRequest(datafeedId, parser);
+            request = StopDatafeedAction.Request.parseRequest(datafeedId, parser);
         } else {
-            jobDatafeedRequest = new StopDatafeedAction.Request(datafeedId);
-            if (restRequest.hasParam(StopDatafeedAction.TIMEOUT.getPreferredName())) {
+            request = new StopDatafeedAction.Request(datafeedId);
+            if (restRequest.hasParam(StopDatafeedAction.Request.TIMEOUT.getPreferredName())) {
                 TimeValue stopTimeout = restRequest.paramAsTime(
-                        StopDatafeedAction.TIMEOUT.getPreferredName(), StopDatafeedAction.DEFAULT_TIMEOUT);
-                jobDatafeedRequest.setStopTimeout(stopTimeout);
+                        StopDatafeedAction.Request.TIMEOUT.getPreferredName(), StopDatafeedAction.DEFAULT_TIMEOUT);
+                request.setStopTimeout(stopTimeout);
             }
-            if (restRequest.hasParam(StopDatafeedAction.FORCE.getPreferredName())) {
-                jobDatafeedRequest.setForce(
-                        restRequest.paramAsBoolean(StopDatafeedAction.FORCE.getPreferredName(), false));
+            if (restRequest.hasParam(StopDatafeedAction.Request.FORCE.getPreferredName())) {
+                request.setForce(restRequest.paramAsBoolean(StopDatafeedAction.Request.FORCE.getPreferredName(), request.isForce()));
+            }
+            if (restRequest.hasParam(StopDatafeedAction.Request.ALLOW_NO_DATAFEEDS.getPreferredName())) {
+                request.setAllowNoDatafeeds(restRequest.paramAsBoolean(StopDatafeedAction.Request.ALLOW_NO_DATAFEEDS.getPreferredName(),
+                        request.allowNoDatafeeds()));
             }
         }
-        return channel -> client.execute(StopDatafeedAction.INSTANCE, jobDatafeedRequest, new RestBuilderListener<Response>(channel) {
+        return channel -> client.execute(StopDatafeedAction.INSTANCE, request, new RestBuilderListener<Response>(channel) {
 
             @Override
             public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {

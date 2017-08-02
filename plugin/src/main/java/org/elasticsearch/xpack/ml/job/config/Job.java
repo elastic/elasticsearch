@@ -77,8 +77,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("jobs");
 
-    public static final String ALL = "_all";
-
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<Builder, Void> METADATA_PARSER = new ObjectParser<>("job_details", true, Builder::new);
     public static final ObjectParser<Builder, Void> CONFIG_PARSER = new ObjectParser<>("job_details", false, Builder::new);

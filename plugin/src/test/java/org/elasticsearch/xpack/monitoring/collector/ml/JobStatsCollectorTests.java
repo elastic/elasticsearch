@@ -151,7 +151,7 @@ public class JobStatsCollectorTests extends ESTestCase {
         final ActionFuture<Response> future = (ActionFuture<Response>)mock(ActionFuture.class);
         final Response response = new Response(new QueryPage<>(jobStats, jobStats.size(), Job.RESULTS_FIELD));
 
-        when(client.getJobsStats(eq(new Request(Job.ALL)))).thenReturn(future);
+        when(client.getJobsStats(eq(new Request(MetaData.ALL)))).thenReturn(future);
         when(future.actionGet(timeout)).thenReturn(response);
 
         final List<MonitoringDoc> monitoringDocs = collector.doCollect();

@@ -167,7 +167,7 @@ if (fixtureSupported) {
 
 boolean secureFixtureSupported = false
 if (fixtureSupported) {
-  secureFixtureSupported = project.rootProject.vagrantSupported
+  secureFixtureSupported = project.rootProject.ext.vagrantSupported
 }
 
 // Create a Integration Test suite just for security based tests

@@ -34,6 +34,7 @@ ifeval::["{release-state}"=="unreleased"]
 :painless-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/painless/lang-painless/{version}-SNAPSHOT
 :parent-join-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/parent-join-client/{version}-SNAPSHOT
 :percolator-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/percolator-client/{version}-SNAPSHOT
+:matrixstats-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/aggs-matrix-stats-client/{version}-SNAPSHOT
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
@@ -45,6 +46,7 @@ ifeval::["{release-state}"!="unreleased"]
 :painless-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/painless/lang-painless/{version}
 :parent-join-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/parent-join-client/{version}
 :percolator-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/percolator-client/{version}
+:matrixstats-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/aggs-matrix-stats-client/{version}-SNAPSHOT
 endif::[]
 
 ///////

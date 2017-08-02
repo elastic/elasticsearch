@@ -22,7 +22,7 @@ import org.elasticsearch.gradle.LoggedExec
 
 /**
  * This is a dummy project which does a local checkout of the previous
- * wire compat version's branch, and builds a snapshot. This allows backcompat
+ * version's branch, and builds a snapshot. This allows backcompat
  * tests to test against the next unreleased version, closest to this version,
  * without relying on snapshots.
  */
@@ -60,6 +60,9 @@ if (enabled) {
     bwcBranch = "${major}.x"
   } else {
     bwcBranch = "${major}.${minor}"
+  }
+  if (bwcBranch == '5.x') {
+    bwcBranch = '5.6';
   }
   File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 

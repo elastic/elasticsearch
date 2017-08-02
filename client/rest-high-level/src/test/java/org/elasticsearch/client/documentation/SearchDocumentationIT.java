@@ -35,8 +35,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.Scroll;
@@ -235,6 +238,33 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(hits.getHits()[0].getSourceAsMap().get("title"));
             assertNotNull(hits.getHits()[0].getSourceAsMap().get("user"));
             assertNotNull(hits.getHits()[0].getSourceAsMap().get("innerObject"));
+        }
+    }
+
+    @SuppressWarnings("unused")
+    public void testBuildingSearchQueries() {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::search-query-builder-ctor
+            MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder("user", "kimchy"); // <1>
+            // end::search-query-builder-ctor
+            // tag::search-query-builder-options
+            matchQueryBuilder.fuzziness(Fuzziness.AUTO); // <1>
+            matchQueryBuilder.prefixLength(3); // <2>
+            matchQueryBuilder.maxExpansions(10); // <3>
+            // end::search-query-builder-options
+        }
+        {
+            // tag::search-query-builders
+            QueryBuilder matchQueryBuilder = QueryBuilders.matchQuery("user", "kimchy")
+                                                            .fuzziness(Fuzziness.AUTO)
+                                                            .prefixLength(3)
+                                                            .maxExpansions(10);
+            // end::search-query-builders
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            // tag::search-query-setter
+            searchSourceBuilder.query(matchQueryBuilder);
+            // end::search-query-setter
         }
     }
 

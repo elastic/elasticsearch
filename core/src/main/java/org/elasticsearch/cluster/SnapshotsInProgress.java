@@ -415,8 +415,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             int shards = in.readVInt();
             for (int j = 0; j < shards; j++) {
                 ShardId shardId = ShardId.readShardId(in);
-                // TODO: Change this to an appropriate version when it's backported
-                if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+                if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
                     builder.put(shardId, new ShardSnapshotStatus(in));
                 } else {
                     String nodeId = in.readOptionalString();
@@ -459,8 +458,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeVInt(entry.shards().size());
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : entry.shards()) {
                 shardEntry.key.writeTo(out);
-                // TODO: Change this to an appropriate version when it's backported
-                if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+                if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
                     shardEntry.value.writeTo(out);
                 } else {
                     out.writeOptionalString(shardEntry.value.nodeId());

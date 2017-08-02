@@ -19,10 +19,8 @@
 
 package org.elasticsearch.index.refresh;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-
-import java.io.IOException;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 
 public class RefreshStatsTests extends AbstractStreamableTestCase<RefreshStats> {
     @Override
@@ -33,5 +31,27 @@ public class RefreshStatsTests extends AbstractStreamableTestCase<RefreshStats> 
     @Override
     protected RefreshStats createBlankInstance() {
         return new RefreshStats();
+    }
+
+    @Override
+    protected MutateFunction<RefreshStats> getMutateFunction() {
+        return instance -> {
+            long total = instance.getTotal();
+            long totalInMillis = instance.getTotalTimeInMillis();
+            int listeners = instance.getListeners();
+            switch (randomInt(2)) {
+            case 0:
+                total += between(1, 2000);
+                break;
+            case 1:
+                totalInMillis += between(1, 2000);
+                break;
+            case 2:
+            default:
+                listeners += between(1, 2000);
+                break;
+            }
+            return new RefreshStats(total, totalInMillis, listeners);
+        };
     }
 }

@@ -81,39 +81,6 @@ cloud:
                 password: theBestPasswordEver2!
 ----
 
-[[repository-s3-usage-region]]
-===== Region
-
-The `cloud.aws.region` can be set to a region and will automatically use the relevant settings for both `ec2` and `s3`.
-You can specifically set it for s3 only using `cloud.aws.s3.region`.
-The available values are:
-
-* `us-east` (`us-east-1`) for US East (N. Virginia)
-* `us-east-2` for US East (Ohio)
-* `us-west` (`us-west-1`) for US West (N. California)
-* `us-west-2` for US West (Oregon)
-* `ap-south` (`ap-south-1`) for Asia Pacific (Mumbai)
-* `ap-southeast` (`ap-southeast-1`) for Asia Pacific (Singapore)
-* `ap-southeast-2` for Asia Pacific (Sydney)
-* `ap-northeast` (`ap-northeast-1`) for Asia Pacific (Tokyo)
-* `ap-northeast-2` (`ap-northeast-2`) for Asia Pacific (Seoul)
-* `eu-west` (`eu-west-1`) for EU (Ireland)
-* `eu-west-2` (`eu-west-2`) for EU (London)
-* `eu-central` (`eu-central-1`) for EU (Frankfurt)
-* `sa-east` (`sa-east-1`) for South America (São Paulo)
-* `cn-north` (`cn-north-1`) for China (Beijing)
-* `ca-central` (`ca-central-1`) for Canada (Central)
-
-[[repository-s3-usage-signer]]
-===== S3 Signer API
-
-If you are using a S3 compatible service, they might be using an older API to sign the requests.
-You can set your compatible signer API using `cloud.aws.signer` (or `cloud.aws.s3.signer`) with the right
-signer to use.
-
-If you are using a compatible S3 service which do not support Version 4 signing process, you may need to
-use `S3SignerType`, which is Signature Version 2.
-
 ===== Read timeout
 
 Read timeout determines the amount of time to wait for data to be transferred over an established,
@@ -136,8 +103,7 @@ PUT _snapshot/my_s3_repository
 {
   "type": "s3",
   "settings": {
-    "bucket": "my_bucket_name",
-    "region": "us-west"
+    "bucket": "my_bucket_name"
   }
 }
 ----
@@ -150,14 +116,10 @@ The following settings are supported:
 
     The name of the bucket to be used for snapshots. (Mandatory)
 
-`region`::
-
-    The region where bucket is located. Defaults to US Standard
-
 `endpoint`::
 
-    The endpoint to the S3 API. Defaults to AWS's default S3 endpoint. Note
-    that setting a region overrides the endpoint setting.
+    The endpoint for the S3 region in which the bucket exists. The default S3 endpoint
+    will automatically find the region of the configured bucket and forward to there.
 
 `protocol`::
 
@@ -365,7 +327,7 @@ specific bucket like this:
 If you are using any S3 api compatible service, you can set a global endpoint by setting `cloud.aws.s3.endpoint`
 to your URL provider. Note that this setting will be used for all S3 repositories.
 
-Different `endpoint`, `region` and `protocol` settings can be set on a per-repository basis
+Different `endpoint` and `protocol` settings can be set on a per-repository basis
 See <<repository-s3-repository>> for details.
 
 [[repository-s3-aws-vpc]]
@@ -375,48 +337,3 @@ See <<repository-s3-repository>> for details.
 AWS instances resolve S3 endpoints to a public IP. If the elasticsearch instances reside in a private subnet in an AWS VPC then all traffic to S3 will go through that VPC's NAT instance. If your VPC's NAT instance is a smaller instance size (e.g. a t1.micro) or is handling a high volume of network traffic your bandwidth to S3 may be limited by that NAT instance's networking bandwidth limitations.
 
 Instances residing in a public subnet in an AWS VPC will connect to S3 via the VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.
-
-[[repository-s3-testing]]
-==== Testing AWS
-
-Integrations tests in this plugin require working AWS configuration and therefore disabled by default. Three buckets
-and two iam users have to be created. The first iam user needs access to two buckets in different regions and the final
-bucket is exclusive for the other iam user. To enable tests prepare a config file elasticsearch.yml with the following
-content:
-
-[source,yaml]
-----
-cloud:
-    aws:
-        access_key: AKVAIQBF2RECL7FJWGJQ
-        secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
-
-repositories:
-    s3:
-        bucket: "bucket_name"
-        region: "us-west-2"
-        private-bucket:
-            bucket: <bucket not accessible by default key>
-            access_key: <access key>
-            secret_key: <secret key>
-        remote-bucket:
-            bucket: <bucket in other region>
-            region: <region>
-	external-bucket:
-	    bucket: <bucket>
-	    access_key: <access key>
-	    secret_key: <secret key>
-	    endpoint: <endpoint>
-	    protocol: <protocol>
-
-----
-
-Replace all occurrences of `access_key`, `secret_key`, `endpoint`, `protocol`, `bucket` and `region` with your settings.
-Please, note that the test will delete all snapshot/restore related files in the specified buckets.
-
-To run test:
-
-[source,sh]
-----
-mvn -Dtests.aws=true -Dtests.config=/path/to/config/file/elasticsearch.yml clean test
-----

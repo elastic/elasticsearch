@@ -46,6 +46,9 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
                           NamedAnalyzer defaultSearchQuoteAnalyzer, Map<String, NamedAnalyzer> analyzers,
                           Map<String, NamedAnalyzer> normalizers) {
         super(indexSettings);
+        if (defaultIndexAnalyzer.name().equals("default") == false) {
+            throw new IllegalStateException("default analyzer must have the name [default] but was: [" + defaultIndexAnalyzer.name() + "]");
+        }
         this.defaultIndexAnalyzer = defaultIndexAnalyzer;
         this.defaultSearchAnalyzer = defaultSearchAnalyzer;
         this.defaultSearchQuoteAnalyzer = defaultSearchQuoteAnalyzer;

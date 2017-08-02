@@ -166,7 +166,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     protected static String[] getCurrentTypes() {
-        return currentTypes == null ? Strings.EMPTY_ARRAY : currentTypes;
+        return currentTypes;
     }
 
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -186,7 +186,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
 
         // Set a single type in the index
-        currentTypes = new String[] { "doc" };
+        switch (random().nextInt(3)) {
+        case 0:
+            currentTypes = new String[0]; // no types
+            break;
+        default:
+            currentTypes = new String[] { "doc" };
+            break;
+        }
         randomTypes = getRandomTypes();
     }
 

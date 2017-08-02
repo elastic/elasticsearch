@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -232,6 +233,11 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
      */
     protected boolean doEquals(Object obj) {
         return this == obj;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
 }

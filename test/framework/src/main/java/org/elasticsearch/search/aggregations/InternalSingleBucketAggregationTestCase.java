@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregatio
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
@@ -81,38 +80,36 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
     }
 
     @Override
-    protected MutateFunction<T> getMutateFunction() {
-        return instance -> {
-            String name = instance.getName();
-            long docCount = instance.getDocCount();
-            InternalAggregations aggregations = instance.getAggregations();
-            List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-            Map<String, Object> metaData = instance.getMetaData();
-            switch (between(0, 3)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                docCount += between(1, 2000);
-                break;
-            case 2:
-                List<InternalAggregation> aggs = new ArrayList<>();
-                aggs.add(new InternalMax("new_max", randomDouble(), randomNumericDocValueFormat(), emptyList(), emptyMap()));
-                aggs.add(new InternalMin("new_min", randomDouble(), randomNumericDocValueFormat(), emptyList(), emptyMap()));
-                aggregations = new InternalAggregations(aggs);
-                break;
-            case 3:
-            default:
-                if (metaData == null) {
-                    metaData = new HashMap<>(1);
-                } else {
-                    metaData = new HashMap<>(instance.getMetaData());
-                }
-                metaData.put(randomAlphaOfLength(15), randomInt());
-                break;
+    protected T mutateInstance(T instance) {
+        String name = instance.getName();
+        long docCount = instance.getDocCount();
+        InternalAggregations aggregations = instance.getAggregations();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 3)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            docCount += between(1, 2000);
+            break;
+        case 2:
+            List<InternalAggregation> aggs = new ArrayList<>();
+            aggs.add(new InternalMax("new_max", randomDouble(), randomNumericDocValueFormat(), emptyList(), emptyMap()));
+            aggs.add(new InternalMin("new_min", randomDouble(), randomNumericDocValueFormat(), emptyList(), emptyMap()));
+            aggregations = new InternalAggregations(aggs);
+            break;
+        case 3:
+        default:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
             }
-            return createTestInstance(name, docCount, aggregations, pipelineAggregators, metaData);
-        };
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        }
+        return createTestInstance(name, docCount, aggregations, pipelineAggregators, metaData);
     }
 
     @Override

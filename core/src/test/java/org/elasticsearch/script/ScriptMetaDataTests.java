@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -150,14 +149,12 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
     }
 
     @Override
-    protected MutateFunction<ScriptMetaData> getMutateFunction() {
-        return instance -> {
-            // ScriptMetaData doesn't allow us to see the scripts inside it so
-            // the best we can do here is create a new random instance and rely
-            // on the fact that the new instance is very unlikely to be equal to
-            // the old one
-            return randomScriptMetaData(randomFrom(XContentType.values()), 1);
-        };
+    protected ScriptMetaData mutateInstance(ScriptMetaData instance) throws IOException {
+        // ScriptMetaData doesn't allow us to see the scripts inside it so
+        // the best we can do here is create a new random instance and rely
+        // on the fact that the new instance is very unlikely to be equal to
+        // the old one
+        return randomScriptMetaData(randomFrom(XContentType.values()), 1);
     }
 
     @Override

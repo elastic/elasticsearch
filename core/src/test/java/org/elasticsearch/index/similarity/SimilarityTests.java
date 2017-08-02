@@ -33,6 +33,8 @@ import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.search.similarities.LambdaTTF;
 import org.apache.lucene.search.similarities.NormalizationH2;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -43,6 +45,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -59,29 +62,16 @@ public class SimilarityTests extends ESSingleNodeTestCase {
 
     public void testResolveDefaultSimilarities() {
         SimilarityService similarityService = createIndex("foo").similarityService();
-        assertThat(similarityService.getSimilarity("classic").get(), instanceOf(ClassicSimilarity.class));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> similarityService.getSimilarity("classic").get());
+        assertThat(e.getMessage(), Matchers.containsString("The [classic] similarity is disallowed"));
         assertThat(similarityService.getSimilarity("BM25").get(), instanceOf(BM25Similarity.class));
         assertThat(similarityService.getSimilarity("boolean").get(), instanceOf(BooleanSimilarity.class));
         assertThat(similarityService.getSimilarity("default"), equalTo(null));
-    }
 
-    public void testResolveSimilaritiesFromMapping_classic() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties")
-            .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
-            .endObject()
-            .endObject().endObject().string();
-
-        Settings indexSettings = Settings.builder()
-            .put("index.similarity.my_similarity.type", "classic")
-            .put("index.similarity.my_similarity.discount_overlaps", false)
-            .build();
-        IndexService indexService = createIndex("foo", indexSettings);
-        DocumentMapper documentMapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity(), instanceOf(ClassicSimilarityProvider.class));
-
-        ClassicSimilarity similarity = (ClassicSimilarity) documentMapper.mappers().getMapper("field1").fieldType().similarity().get();
-        assertThat(similarity.getDiscountOverlaps(), equalTo(false));
+        SimilarityService legacySimilarityService = createIndex("bar", Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_6_0)
+                .build()).similarityService();
+        assertThat(legacySimilarityService.getSimilarity("classic").get(), instanceOf(ClassicSimilarity.class));
     }
 
     public void testResolveSimilaritiesFromMapping_bm25() throws IOException {

@@ -1,0 +1,8 @@
+[[breaking_70_mappings_changes]]
+=== Mapping changes
+
+==== Removal of `include_in_root` and `include_in_parent`
+
+These options allowed field valus to be copied from nested objects to their
+parent or root object at index time. They have been removed in favour of
+<<copy-to,`copy_to`>>.

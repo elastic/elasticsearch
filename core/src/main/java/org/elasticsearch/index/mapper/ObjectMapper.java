@@ -228,7 +228,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
             fieldNode = node.remove("include_in_parent");
             if (fieldNode != null) {
-                if (false/*parserContext.indexVersionCreated().onOrAfter(Version.V_7_0_0)*/) {
+                if (parserContext.indexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
                     throw new MapperParsingException("[include_in_parent] is now forbidden, you should use [copy_to] to copy to a field " +
                             "that belongs to the parent document");
                 } else if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
@@ -239,7 +239,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
             fieldNode = node.remove("include_in_root");
             if (fieldNode != null) {
-                if (false/*parserContext.indexVersionCreated().onOrAfter(Version.V_7_0_0)*/) {
+                if (parserContext.indexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
                     throw new MapperParsingException("[include_in_root] is now forbidden, you should use [copy_to] to copy to a field " +
                             "that belongs to the root document");
                 } else if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {

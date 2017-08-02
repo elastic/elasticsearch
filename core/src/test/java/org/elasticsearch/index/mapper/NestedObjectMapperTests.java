@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -29,6 +30,7 @@ import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -183,7 +185,8 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_0_0_beta1).build())
+                .mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
@@ -238,7 +241,8 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_0_0_beta1).build())
+                .mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
@@ -293,7 +297,8 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_0_0_beta1).build())
+                .mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
@@ -436,5 +441,19 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         // do not check nested fields limit if mapping is not updated
         createIndex("test5", Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 0).build())
             .mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_RECOVERY, false);
+    }
+
+    public void testIncludeInRootOrParentIsIllegal() throws Exception {
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+
+        for (String include : new String[] { "include_in_parent", "include_in_root" }) {
+            String mapping = XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("properties")
+                    .startObject("nested1").field("type", "nested").field(include, true).endObject()
+                    .endObject().endObject().endObject().string();
+
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                    () -> parser.parse("doc", new CompressedXContent(mapping)));
+            assertThat(e.getMessage(), Matchers.containsString("[" + include + "] is now forbidden"));
+        }
     }
 }

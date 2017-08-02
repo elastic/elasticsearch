@@ -28,6 +28,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -37,11 +38,20 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 
 public class NestedHelperTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(InternalSettingsPlugin.class);
+    }
 
     IndexService indexService;
     MapperService mapperService;
@@ -95,7 +105,10 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject().endObject();
-        indexService = createIndex("index", Settings.EMPTY, "type", mapping);
+        Settings indexSettings = Settings.builder()
+                .put("index.version.created", Version.V_6_0_0_beta1) // so that include_in_root/include_in_parent are legal
+                .build();
+        indexService = createIndex("index", indexSettings, "type", mapping);
         mapperService = indexService.mapperService();
     }
 

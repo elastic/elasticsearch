@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.HasAggregations;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
@@ -257,6 +258,9 @@ public class AggregationPath {
         for (int i = 0; i < pathElements.size(); i++) {
             AggregationPath.PathElement token = pathElements.get(i);
             aggregator = aggregator.subAggregator(token.name);
+            if (aggregator instanceof AggregatorFactory.MultiBucketAggregatorWrapper) {
+                aggregator = ((AggregatorFactory.MultiBucketAggregatorWrapper) aggregator).getWrapped();
+            }
             assert (aggregator instanceof SingleBucketAggregator && i <= pathElements.size() - 1)
                     || (aggregator instanceof NumericMetricsAggregator && i == pathElements.size() - 1) :
                     "this should be picked up before aggregation execution - on validate";
@@ -273,6 +277,9 @@ public class AggregationPath {
     public Aggregator resolveTopmostAggregator(Aggregator root) {
         AggregationPath.PathElement token = pathElements.get(0);
         Aggregator aggregator = root.subAggregator(token.name);
+        if (aggregator instanceof AggregatorFactory.MultiBucketAggregatorWrapper) {
+            aggregator = ((AggregatorFactory.MultiBucketAggregatorWrapper) aggregator).getWrapped();
+        }
         assert (aggregator instanceof SingleBucketAggregator )
                 || (aggregator instanceof NumericMetricsAggregator) : "this should be picked up before aggregation execution - on validate";
         return aggregator;
@@ -296,6 +303,9 @@ public class AggregationPath {
 
                 // we're in the middle of the path, so the aggregator can only be a single-bucket aggregator
 
+                if (aggregator instanceof AggregatorFactory.MultiBucketAggregatorWrapper) {
+                    aggregator = ((AggregatorFactory.MultiBucketAggregatorWrapper) aggregator).getWrapped();
+                }
                 if (!(aggregator instanceof SingleBucketAggregator)) {
                     throw new AggregationExecutionException("Invalid aggregation order path [" + this +
                             "]. Buckets can only be sorted on a sub-aggregator path " +

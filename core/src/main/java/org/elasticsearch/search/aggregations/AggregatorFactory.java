@@ -58,6 +58,10 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
             return first.getClass();
         }
 
+        public Aggregator getWrapped() {
+            return first;
+        }
+
         @Override
         public String name() {
             return first.name();

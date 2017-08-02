@@ -24,7 +24,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -61,7 +60,7 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
         return new Response();
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
+    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
         public static Request parseRequest(String jobId, XContentParser parser) {
             Job.Builder jobBuilder = Job.CONFIG_PARSER.apply(parser, null);

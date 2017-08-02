@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -101,8 +103,8 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         Influence influence2 = new Influence("inffn", Arrays.asList("inffv1", "inffv2"));
         record.setInfluencers(Arrays.asList(influence1, influence2));
 
-        XContentBuilder builder = toXContent(record, XContentType.JSON);
-        XContentParser parser = createParser(builder);
+        BytesReference bytes = XContentHelper.toXContent(record, XContentType.JSON, false);
+        XContentParser parser = createParser(XContentType.JSON.xContent(), bytes);
         Map<String, Object> map = parser.map();
         List<String> serialisedByFieldValues = (List<String>) map.get(record.getByFieldName());
         assertEquals(Collections.singletonList(record.getByFieldValue()), serialisedByFieldValues);
@@ -133,8 +135,8 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
 
         // influencer fields with the same name as a by/over/partitiion field
         // come second in the list
-        XContentBuilder builder = toXContent(record, XContentType.JSON);
-        XContentParser parser = createParser(builder);
+        BytesReference bytes = XContentHelper.toXContent(record, XContentType.JSON, false);
+        XContentParser parser = createParser(XContentType.JSON.xContent(), bytes);
         Map<String, Object> map = parser.map();
         List<String> serialisedCarMakeFieldValues = (List<String>) map.get("car-make");
         assertEquals(Arrays.asList("ford", "VW"), serialisedCarMakeFieldValues);
@@ -150,8 +152,8 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         record.setByFieldName(AnomalyRecord.BUCKET_SPAN.getPreferredName());
         record.setByFieldValue("bar");
 
-        XContentBuilder builder = toXContent(record, XContentType.JSON);
-        XContentParser parser = createParser(builder);
+        BytesReference bytes = XContentHelper.toXContent(record, XContentType.JSON, false);
+        XContentParser parser = createParser(XContentType.JSON.xContent(), bytes);
         Object value = parser.map().get(AnomalyRecord.BUCKET_SPAN.getPreferredName());
         assertNotEquals("bar", value);
         assertEquals((Long)record.getBucketSpan(), (Long)value);

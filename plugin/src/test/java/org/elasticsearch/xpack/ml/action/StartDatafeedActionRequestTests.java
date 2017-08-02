@@ -29,6 +29,11 @@ public class StartDatafeedActionRequestTests extends AbstractStreamableXContentT
     }
 
     @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    @Override
     protected Request createBlankInstance() {
         return new Request();
     }

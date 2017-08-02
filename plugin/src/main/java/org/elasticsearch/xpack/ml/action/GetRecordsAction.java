@@ -61,7 +61,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
         return new Response();
     }
 
-    public static class Request extends ActionRequest implements ToXContent {
+    public static class Request extends ActionRequest implements ToXContentObject {
 
         public static final ParseField START = new ParseField("start");
         public static final ParseField END = new ParseField("end");

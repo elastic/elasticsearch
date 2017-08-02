@@ -42,6 +42,11 @@ public class GetModelSnapshotsActionRequestTests extends AbstractStreamableXCont
     }
 
     @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    @Override
     protected Request createBlankInstance() {
         return new Request();
     }

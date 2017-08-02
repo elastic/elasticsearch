@@ -29,34 +29,34 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SmallFloat;
 import org.elasticsearch.script.SimilarityScript;
+import org.elasticsearch.script.SimilarityWeightScript;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 /**
  * A {@link Similarity} implementation that allows scores to be scripted.
  */
 public final class ScriptedSimilarity extends Similarity {
 
-    final String initScriptString;
+    final String weightScriptString;
     final String scriptString;
-    final Supplier<SimilarityScript> initScriptSupplier;
-    final Supplier<SimilarityScript> scriptSupplier;
+    final SimilarityWeightScript.Factory weightScriptFactory;
+    final SimilarityScript.Factory scriptFactory;
     final boolean discountOverlaps;
 
     /** Sole constructor. */
-    public ScriptedSimilarity(String initScriptString, Supplier<SimilarityScript> initScriptSupplier,
-            String scriptString, Supplier<SimilarityScript> scriptSupplier, boolean discountOverlaps) {
-        this.initScriptString = initScriptString;
-        this.initScriptSupplier = initScriptSupplier;
+    public ScriptedSimilarity(String weightScriptString, SimilarityWeightScript.Factory weightScriptFactory,
+            String scriptString, SimilarityScript.Factory scriptFactory, boolean discountOverlaps) {
+        this.weightScriptString = weightScriptString;
+        this.weightScriptFactory = weightScriptFactory;
         this.scriptString = scriptString;
-        this.scriptSupplier = scriptSupplier;
+        this.scriptFactory = scriptFactory;
         this.discountOverlaps = discountOverlaps;
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "(initScript=[" + initScriptString + "], script=[" + scriptString + "])";
+        return getClass().getSimpleName() + "(weightScript=[" + weightScriptString + "], script=[" + scriptString + "])";
     }
 
     @Override
@@ -82,11 +82,11 @@ public final class ScriptedSimilarity extends Similarity {
 
     /** Compute the part of the score that does not depend on the current document using the init_script. */
     private double computeWeight(Query query, Field field, Term term) throws IOException {
-        if (initScriptSupplier == null) {
+        if (weightScriptFactory == null) {
             return 1d;
         }
-        SimilarityScript initScript = initScriptSupplier.get();
-        return initScript.execute(1d, query, field, term, null);
+        SimilarityWeightScript weightScript = weightScriptFactory.newInstance();
+        return weightScript.execute(query, field, term);
     }
 
     @Override
@@ -95,7 +95,7 @@ public final class ScriptedSimilarity extends Similarity {
         SimScorer[] scorers = new SimScorer[weight.terms.length];
         for (int i = 0; i < weight.terms.length; ++i) {
             final Term term = weight.terms[i];
-            final SimilarityScript script = scriptSupplier.get();
+            final SimilarityScript script = scriptFactory.newInstance();
             final NumericDocValues norms = context.reader().getNormValues(weight.fieldName);
             final Doc doc = new Doc(norms);
             final double scoreWeight = computeWeight(weight.query, weight.field, term);
@@ -174,10 +174,10 @@ public final class ScriptedSimilarity extends Similarity {
     }
 
     private static class Weight extends SimWeight {
-        final String fieldName;
-        final Query query;
-        final Field field;
-        final Term[] terms;
+        private final String fieldName;
+        private final Query query;
+        private final Field field;
+        private final Term[] terms;
 
         Weight(String fieldName, Query query, Field field, Term[] terms) {
             this.fieldName = fieldName;
@@ -189,7 +189,7 @@ public final class ScriptedSimilarity extends Similarity {
 
     /** Scoring factors that come from the query. */
     public static class Query {
-        final float boost;
+        private final float boost;
 
         private Query(float boost) {
             this.boost = boost;
@@ -203,9 +203,9 @@ public final class ScriptedSimilarity extends Similarity {
 
     /** Statistics that are specific to a given field. */
     public static class Field {
-        final long docCount;
-        final long sumDocFreq;
-        final long sumTotalTermFreq;
+        private final long docCount;
+        private final long sumDocFreq;
+        private final long sumTotalTermFreq;
 
         private Field(long docCount, long sumDocFreq, long sumTotalTermFreq) {
             this.docCount = docCount;
@@ -233,8 +233,8 @@ public final class ScriptedSimilarity extends Similarity {
 
     /** Statistics that are specific to a given term. */
     public static class Term {
-        final long docFreq;
-        final long totalTermFreq;
+        private final long docFreq;
+        private final long totalTermFreq;
 
         private Term(long docFreq, long totalTermFreq) {
             this.docFreq = docFreq;
@@ -254,9 +254,9 @@ public final class ScriptedSimilarity extends Similarity {
 
     /** Statistics that are specific to a document. */
     public static class Doc {
-        final NumericDocValues norms;
-        int docID;
-        float freq;
+        private final NumericDocValues norms;
+        private int docID;
+        private float freq;
 
         private Doc(NumericDocValues norms) {
             this.norms = norms;

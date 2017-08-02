@@ -102,6 +102,9 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(SimilarityScript.class)) {
             SimilarityScript.Factory factory = mockCompiled::createSimilarityScript;
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(SimilarityWeightScript.class)) {
+            SimilarityScript.Factory factory = mockCompiled::createSimilarityWeightScript;
+            return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }
@@ -151,6 +154,10 @@ public class MockScriptEngine implements ScriptEngine {
         }
 
         public SimilarityScript createSimilarityScript() {
+            return new MockSimilarityScript(script != null ? script : ctx -> 42d);
+        }
+
+        public SimilarityScript createSimilarityWeightScript() {
             return new MockSimilarityScript(script != null ? script : ctx -> 42d);
         }
     }

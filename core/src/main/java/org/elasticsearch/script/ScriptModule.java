@@ -46,6 +46,7 @@ public class ScriptModule {
             ExecutableScript.UPDATE_CONTEXT,
             ExecutableScript.INGEST_CONTEXT,
             SimilarityScript.CONTEXT,
+            SimilarityWeightScript.CONTEXT,
             TemplateScript.CONTEXT
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }

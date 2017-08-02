@@ -41,11 +41,11 @@ import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.script.SimilarityScript;
+import org.elasticsearch.script.SimilarityWeightScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 public class ScriptedSimilarityTests extends ESTestCase {
 
@@ -75,7 +75,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
 
     public void testBasics() throws IOException {
         final AtomicBoolean called = new AtomicBoolean();
-        Supplier<SimilarityScript> scriptSupplier = () -> {
+        SimilarityScript.Factory scriptFactory = () -> {
             return new SimilarityScript() {
 
                 @Override
@@ -101,7 +101,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
 
             };
         };
-        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", null, "foobaz", scriptSupplier, true);
+        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", null, "foobaz", scriptFactory, true);
         Directory dir = new RAMDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
 
@@ -138,15 +138,12 @@ public class ScriptedSimilarityTests extends ESTestCase {
 
     public void testInitScript() throws IOException {
         final AtomicBoolean initCalled = new AtomicBoolean();
-        Supplier<SimilarityScript> initScriptSupplier = () -> {
-            return new SimilarityScript() {
+        SimilarityWeightScript.Factory weightScriptFactory = () -> {
+            return new SimilarityWeightScript() {
 
                 @Override
-                public double execute(double weight, ScriptedSimilarity.Query query,
-                        ScriptedSimilarity.Field field, ScriptedSimilarity.Term term,
-                        ScriptedSimilarity.Doc doc) throws IOException {
-                    assertEquals(1, weight, 0d);
-                    assertNull(doc);
+                public double execute(ScriptedSimilarity.Query query, ScriptedSimilarity.Field field,
+                        ScriptedSimilarity.Term term) throws IOException {
                     assertNotNull(field);
                     assertEquals(3, field.getDocCount());
                     assertEquals(5, field.getSumDocFreq());
@@ -163,7 +160,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
             };
         };
         final AtomicBoolean called = new AtomicBoolean();
-        Supplier<SimilarityScript> scriptSupplier = () -> {
+        SimilarityScript.Factory scriptFactory = () -> {
             return new SimilarityScript() {
 
                 @Override
@@ -189,7 +186,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
 
             };
         };
-        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", initScriptSupplier, "foobaz", scriptSupplier, true);
+        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", weightScriptFactory, "foobaz", scriptFactory, true);
         Directory dir = new RAMDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
 

@@ -39,8 +39,10 @@ import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.index.similarity.ScriptedSimilarity;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SimilarityScript;
+import org.elasticsearch.script.SimilarityWeightScript;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -48,7 +50,7 @@ public class SimilarityScriptTests extends ScriptTestCase {
 
     @Override
     protected Collection<ScriptContext<?>> scriptContexts() {
-        return Collections.singleton(SimilarityScript.CONTEXT);
+        return Arrays.asList(SimilarityScript.CONTEXT, SimilarityWeightScript.CONTEXT);
     }
 
     public void testBasics() throws IOException {
@@ -88,12 +90,12 @@ public class SimilarityScriptTests extends ScriptTestCase {
         dir.close();
     }
 
-    public void testInitScript() throws IOException {
-        SimilarityScript.Factory initFactory = scriptEngine.compile(
-                "foobar", "return query.boost", SimilarityScript.CONTEXT, Collections.emptyMap());
+    public void testWeightScript() throws IOException {
+        SimilarityWeightScript.Factory weightFactory = scriptEngine.compile(
+                "foobar", "return query.boost", SimilarityWeightScript.CONTEXT, Collections.emptyMap());
         SimilarityScript.Factory factory = scriptEngine.compile(
                 "foobar", "return weight * doc.freq / doc.length", SimilarityScript.CONTEXT, Collections.emptyMap());
-        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", initFactory::newInstance, "foobaz", factory::newInstance, true);
+        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", weightFactory::newInstance, "foobaz", factory::newInstance, true);
         Directory dir = new RAMDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
 

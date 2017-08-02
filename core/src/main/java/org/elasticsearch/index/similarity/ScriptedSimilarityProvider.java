@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SimilarityScript;
+import org.elasticsearch.script.SimilarityWeightScript;
 
 /** Provider of scripted similarities. */
 public class ScriptedSimilarityProvider extends AbstractSimilarityProvider {
@@ -36,15 +37,15 @@ public class ScriptedSimilarityProvider extends AbstractSimilarityProvider {
         Settings scriptSettings = settings.getAsSettings("script");
         Script script = Script.parse(scriptSettings);
         SimilarityScript.Factory scriptFactory = scriptService.compile(script, SimilarityScript.CONTEXT);
-        Settings initScriptSettings = settings.getAsSettings("init_script");
-        Script initScript = null;
-        SimilarityScript.Factory initScriptFactory = null;
-        if (initScriptSettings.isEmpty() == false) {
-            initScript = Script.parse(initScriptSettings);
-            initScriptFactory = scriptService.compile(initScript, SimilarityScript.CONTEXT);
+        Settings weightScriptSettings = settings.getAsSettings("weight_script");
+        Script weightScript = null;
+        SimilarityWeightScript.Factory weightScriptFactory = null;
+        if (weightScriptSettings.isEmpty() == false) {
+            weightScript = Script.parse(weightScriptSettings);
+            weightScriptFactory = scriptService.compile(weightScript, SimilarityWeightScript.CONTEXT);
         }
         scriptedSimilarity = new ScriptedSimilarity(
-                initScript == null ? null : initScript.toString(), initScriptFactory == null ? null : initScriptFactory::newInstance,
+                weightScript == null ? null : weightScript.toString(), weightScriptFactory == null ? null : weightScriptFactory::newInstance,
                 script.toString(), scriptFactory::newInstance, discountOverlaps);
     }
 

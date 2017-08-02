@@ -255,7 +255,7 @@ Which yields:
           "details": [
             {
               "value": 1.9508477,
-              "description": "score from ScriptedSimilarity(initScript=[null], script=[Script{type=inline, lang='painless', idOrCode='double tf = Math.sqrt(doc.freq); double idf = Math.log((field.docCount+1.0)/(term.docFreq+1.0)) + 1.0; double norm = 1/Math.sqrt(doc.length); return query.boost * tf * idf * norm;', options={}, params={}}]) computed from:",
+              "description": "score from ScriptedSimilarity(weightScript=[null], script=[Script{type=inline, lang='painless', idOrCode='double tf = Math.sqrt(doc.freq); double idf = Math.log((field.docCount+1.0)/(term.docFreq+1.0)) + 1.0; double norm = 1/Math.sqrt(doc.length); return query.boost * tf * idf * norm;', options={}, params={}}]) computed from:",
               "details": [
                 {
                   "value": 1.0,
@@ -316,12 +316,12 @@ Which yields:
 
 You might have noticed that a significant part of the script depends on
 statistics that are the same for every document. It is possible to make the
-above slightly more efficient by providing an `init_script` which will
+above slightly more efficient by providing an `weight_script` which will
 compute the document-independent part of the score and will be available
-under the `stats.weight` variable. When no `init_script` is provided,
-`stats.weight` is equal to `1`. The `init_script` has access to the same
-variables as the `script` except `doc` since it is supposed to compute
-a document-independent contribution to the score.
+under the `weight` variable. When no `weight_script` is provided, `weight`
+is equal to `1`. The `weight_script` has access to the same variables as
+the `script` except `doc` since it is supposed to compute a
+document-independent contribution to the score.
 
 The below configuration will give the same tf-idf scores but is slightly
 more efficient:
@@ -335,7 +335,7 @@ PUT index
     "similarity": {
       "scripted_tfidf": {
         "type": "scripted",
-        "init_script": {
+        "weight_script": {
           "source": "double idf = Math.log((field.docCount+1.0)/(term.docFreq+1.0)) + 1.0; return query.boost * idf;"
         },
         "script": {
@@ -418,7 +418,7 @@ GET index/_search?explain=true
           "details": [
             {
               "value": 1.9508477,
-              "description": "score from ScriptedSimilarity(initScript=[Script{type=inline, lang='painless', idOrCode='double idf = Math.log((field.docCount+1.0)/(term.docFreq+1.0)) + 1.0; return query.boost * idf;', options={}, params={}}], script=[Script{type=inline, lang='painless', idOrCode='double tf = Math.sqrt(doc.freq); double norm = 1/Math.sqrt(doc.length); return weight * tf * norm;', options={}, params={}}]) computed from:",
+              "description": "score from ScriptedSimilarity(weightScript=[Script{type=inline, lang='painless', idOrCode='double idf = Math.log((field.docCount+1.0)/(term.docFreq+1.0)) + 1.0; return query.boost * idf;', options={}, params={}}], script=[Script{type=inline, lang='painless', idOrCode='double tf = Math.sqrt(doc.freq); double norm = 1/Math.sqrt(doc.length); return weight * tf * norm;', options={}, params={}}]) computed from:",
               "details": [
                 {
                   "value": 2.3892908,

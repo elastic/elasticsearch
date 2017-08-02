@@ -12,90 +12,10 @@ include::install_remove.asciidoc[]
 [[repository-s3-usage]]
 ==== Getting started with AWS
 
-The plugin will default to using
+The plugin provides a repository type named `s3` which may be used when creating a repository.
+The repository defaults to using
 http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[IAM Role]
-credentials for authentication. These can be overridden by, in increasing
-order of precedence, system properties `aws.accessKeyId` and `aws.secretKey`,
-environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_KEY`, or the
-elasticsearch config using `cloud.aws.access_key` and `cloud.aws.secret_key` or
-if you wish to set credentials specifically for s3 `cloud.aws.s3.access_key` and `cloud.aws.s3.secret_key`:
-
-[source,yaml]
-----
-cloud:
-    aws:
-        access_key: AKVAIQBF2RECL7FJWGJQ
-        secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
-----
-
-[[repository-s3-usage-security]]
-===== Transport security
-
-By default this plugin uses HTTPS for all API calls to AWS endpoints. If you wish to configure HTTP you can set
-`cloud.aws.protocol` in the elasticsearch config. You can optionally override this setting per individual service
-via: `cloud.aws.ec2.protocol` or `cloud.aws.s3.protocol`.
-
-[source,yaml]
-----
-cloud:
-    aws:
-        protocol: https
-        s3:
-            protocol: http
-        ec2:
-            protocol: https
-----
-
-In addition, a proxy can be configured with the `proxy.host`, `proxy.port`, `proxy.username` and `proxy.password` settings
-(note that protocol can be `http` or `https`):
-
-[source,yaml]
-----
-cloud:
-    aws:
-        protocol: https
-        proxy:
-            host: proxy1.company.com
-            port: 8083
-            username: myself
-            password: theBestPasswordEver!
-----
-
-You can also set different proxies for `ec2` and `s3`:
-
-[source,yaml]
-----
-cloud:
-    aws:
-        s3:
-            proxy:
-                host: proxy1.company.com
-                port: 8083
-                username: myself1
-                password: theBestPasswordEver1!
-        ec2:
-            proxy:
-                host: proxy2.company.com
-                port: 8083
-                username: myself2
-                password: theBestPasswordEver2!
-----
-
-===== Read timeout
-
-Read timeout determines the amount of time to wait for data to be transferred over an established,
-open connection before the connection is timed out. Defaults to AWS SDK default value (`50s`).
-It can be configured with `cloud.aws.read_timeout` (or `cloud.aws.s3.read_timeout`) setting:
-
-[source, yaml]
-----
-cloud.aws.read_timeout: 30s
-----
-
-[[repository-s3-repository]]
-==== S3 Repository
-
-The S3 repository is using S3 to store snapshots. The S3 repository can be created using the following command:
+credentials for authentication. The only mandatory setting is the bucket name:
 
 [source,js]
 ----
@@ -103,7 +23,101 @@ PUT _snapshot/my_s3_repository
 {
   "type": "s3",
   "settings": {
-    "bucket": "my_bucket_name"
+    "bucket": "my_bucket"
+  }
+}
+----
+// CONSOLE
+// TEST[skip:we don't have gcs setup while testing this]
+
+
+[[repository-s3-client]]
+==== Client Settings
+
+The client used to connect to S3 has a number of settings available. Client settings names are of
+the form `s3.client.CLIENT_NAME.SETTING_NAME` and specified inside `elasticsearch.yml`.  The
+default client name is `default`, but can be customized with the repository setting `client`.
+For example:
+
+[source,js]
+----
+PUT _snapshot/my_s3_repository
+{
+  "type": "s3",
+  "settings": {
+    "bucket": "my_bucket",
+    "client": "my_alternate_client"
+  }
+}
+----
+// CONSOLE
+// TEST[skip:we don't have gcs setup while testing this]
+
+The following settings name be specified for a client.  Some settings are sensitive and must be
+stored in the {ref}/secure-settings.html[elasticsearch keystore], and are marked as `Secure`.
+
+`access_key`::
+
+    An s3 access key. Must be specified with `secret_key`. (Secure)
+
+`secret_key`::
+
+    An s3 secret key. Must be specified with `access_key`. (Secure)
+
+`endpoint`::
+
+    The s3 service endpoint to connect to. This will be automatically
+    figured out by the s3 client based on the bucket location, but
+    can be specified explicitly. See http://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region.
+
+`protocol`::
+
+    The protocl to use to connect to s3. Valid values are either `http`
+    or `https`. Defaults to `https`. 
+
+`proxy.host`::
+
+    The host name of a proxy to connect to s3 through.
+
+`proxy.port`::
+
+    The port of a proxy to connect to s3 through.
+
+`proxy.username`::
+
+    The username to connect to the `proxy.host` with. (Secure)    
+
+`proxy.password`::
+
+    The password to connect to the `proxy.host` with. (Secure)    
+
+`read_timeout`::
+
+    The socket timeout for connecting to s3. The value should specify the unit. For example,
+    a value of `5s` specifies a 5 second timeout. The default value is 50 seconds.
+
+`max_retries`::
+
+    The number of retries to use when an s3 request fails. The default value is 3.
+
+`use_throttle_retries`::
+
+    Whether retries should be throttled (ie use backoff). Must be `true` or `false`. Defaults to `false`.
+
+[[repository-s3-repository]]
+==== Repository Settings
+
+The `s3` repository type supports a number of settings to customize how data is stored in S3.
+These can be specified when creating the repository. For example:
+
+[source,js]
+----
+PUT _snapshot/my_s3_repository
+{
+  "type": "s3",
+  "settings": {
+    "bucket": "my_bucket_name",
+    "another_setting": "setting_value"
   }
 }
 ----
@@ -116,15 +130,9 @@ The following settings are supported:
 
     The name of the bucket to be used for snapshots. (Mandatory)
 
-`endpoint`::
+`client`::
 
-    The endpoint for the S3 region in which the bucket exists. The default S3 endpoint
-    will automatically find the region of the configured bucket and forward to there.
-
-`protocol`::
-
-    The protocol to use (`http` or `https`). Defaults to value of
-    `cloud.aws.protocol` or `cloud.aws.s3.protocol`.
+    The name of the s3 client to use to connect to S3.
 
 `base_path`::
 
@@ -133,16 +141,6 @@ The following settings are supported:
     Previously, the base_path could take a leading `/` (forward slash).
     However, this has been deprecated and setting the base_path now should
     omit the leading `/`.
-
-`access_key`::
-
-    The access key to use for authentication. Defaults to value of
-    `cloud.aws.access_key`.
-
-`secret_key`::
-
-    The secret key to use for authentication. Defaults to value of
-    `cloud.aws.secret_key`.
 
 `chunk_size`::
 
@@ -172,18 +170,6 @@ The following settings are supported:
     Multipart API and may result in upload errors. Defaults to the minimum
     between `100mb` and `5%` of the heap size.
 
-`max_retries`::
-
-    Number of retries in case of S3 errors. Defaults to `3`.
-
-`use_throttle_retries`::
-
-    Set to `true` if you want to throttle retries. Defaults to AWS SDK default value (`false`).
-
-`readonly`::
-
-    Makes repository read-only. Defaults to `false`.
-
 `canned_acl`::
 
     The S3 repository supports all http://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl[S3 canned ACLs]
@@ -199,22 +185,6 @@ The following settings are supported:
     Due to the extra complexity with the Glacier class lifecycle, it is not
     currently supported by the plugin. For more information about the
     different classes, see http://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS Storage Classes Guide]
-
-`path_style_access`::
-
-    Activate path style access for http://docs.aws.amazon.com/AmazonS3/latest/dev/VirtualHosting.html[virtual hosting of buckets].
-    The default behaviour is to detect which access style to use based on the configured endpoint (an IP will result
-    in path-style access) and the bucket being accessed (some buckets are not valid DNS names).
-
-Note that you can define S3 repository settings for all S3 repositories in `elasticsearch.yml` configuration file.
-They are all prefixed with `repositories.s3.`. For example, you can define compression for all S3 repositories
-by setting `repositories.s3.compress: true` in `elasticsearch.yml`.
-
-The S3 repositories use the same credentials as the rest of the AWS services
-provided by this plugin (`discovery`). See <<repository-s3-usage>> for details.
-
-Multiple S3 repositories can be created. If the buckets require different
-credentials, then define them as part of the repository settings.
 
 [[repository-s3-permissions]]
 ===== Recommended S3 Permissions
@@ -320,15 +290,6 @@ specific bucket like this:
 }
 ----
 // NOTCONSOLE
-
-[[repository-s3-endpoint]]
-===== Using other S3 endpoint
-
-If you are using any S3 api compatible service, you can set a global endpoint by setting `cloud.aws.s3.endpoint`
-to your URL provider. Note that this setting will be used for all S3 repositories.
-
-Different `endpoint` and `protocol` settings can be set on a per-repository basis
-See <<repository-s3-repository>> for details.
 
 [[repository-s3-aws-vpc]]
 [float]

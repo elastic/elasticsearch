@@ -244,20 +244,13 @@ public class AllocationService extends AbstractComponent {
      */
     private void resetFailedAllocationCounter(RoutingAllocation allocation) {
         final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = allocation.routingNodes().unassigned().iterator();
-        final MetaData metaData = allocation.metaData();
         while (unassignedIterator.hasNext()) {
             ShardRouting shardRouting = unassignedIterator.next();
             UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-            if (unassignedInfo.isDelayed()) {
-                final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(allocation.getCurrentNanoTime(),
-                    metaData.getIndexSafe(shardRouting.index()).getSettings());
-                if (newComputedLeftDelayNanos == 0) {
-                    unassignedIterator.updateUnassigned(new UnassignedInfo(unassignedInfo.getReason(), unassignedInfo.getMessage(),
-                            unassignedInfo.getFailure(), 0, unassignedInfo.getUnassignedTimeInNanos(),
-                            unassignedInfo.getUnassignedTimeInMillis(), unassignedInfo.isDelayed(),
-                            unassignedInfo.getLastAllocationStatus()), shardRouting.recoverySource(), allocation.changes());
-                }
-            }
+            unassignedIterator.updateUnassigned(new UnassignedInfo(UnassignedInfo.Reason.MANUAL_ALLOCATION, unassignedInfo.getMessage(),
+                unassignedInfo.getFailure(), 0, unassignedInfo.getUnassignedTimeInNanos(),
+                unassignedInfo.getUnassignedTimeInMillis(), unassignedInfo.isDelayed(),
+                unassignedInfo.getLastAllocationStatus()), shardRouting.recoverySource(), allocation.changes());
         }
     }
 

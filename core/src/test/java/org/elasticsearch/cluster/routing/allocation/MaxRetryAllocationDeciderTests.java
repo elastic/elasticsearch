@@ -121,11 +121,12 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
 
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertEquals(routingTable.index("idx").shards().size(), 1);
-        assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), retries);
+        assertEquals(0, routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations());
         assertEquals(INITIALIZING, routingTable.index("idx").shard(0).shards().get(0).state());
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getMessage(), "boom");
 
-        // now we go and check that we are actually stick to unassigned on the next failure ie. no retry
+        // again fail it N-1 times
+        for (int i = 0; i < retries-1; i++) {
         failedShards = Collections.singletonList(
             new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom",
                 new UnsupportedOperationException()));
@@ -135,10 +136,23 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = newState;
         routingTable = newState.routingTable();
         assertEquals(routingTable.index("idx").shards().size(), 1);
-        assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), retries+1);
-        assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), UNASSIGNED);
+        assertEquals(i + 1 , routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations());
+        assertEquals(INITIALIZING, routingTable.index("idx").shard(0).shards().get(0).state());
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getMessage(), "boom");
+        }
 
+        // now we go and check that we are actually stick to unassigned on the next failure
+        failedShards = Collections.singletonList(
+            new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom",
+                new UnsupportedOperationException()));
+        newState = strategy.applyFailedShards(clusterState, failedShards);
+        assertThat(newState, not(equalTo(clusterState)));
+        clusterState = newState;
+        routingTable = newState.routingTable();
+        assertEquals(routingTable.index("idx").shards().size(), 1);
+        assertEquals(retries, routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations());
+        assertEquals(UNASSIGNED, routingTable.index("idx").shard(0).shards().get(0).state());
+        assertEquals("boom", routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getMessage());
     }
 
     public void testFailedAllocation() {

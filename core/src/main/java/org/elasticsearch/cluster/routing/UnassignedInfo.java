@@ -110,6 +110,10 @@ public final class UnassignedInfo implements ToXContent, Writeable {
          */
         PRIMARY_FAILED,
         /**
+         * Forced manually to allocate
+         */
+        MANUAL_ALLOCATION,
+        /**
          * Unassigned after forcing an empty primary
          */
         FORCED_EMPTY_PRIMARY

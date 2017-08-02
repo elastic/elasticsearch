@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -18,9 +19,11 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -88,7 +91,10 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
     public static class Request extends BaseTasksRequest<Request> {
 
+        public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
+
         private String jobId;
+        private boolean allowNoJobs = true;
 
         // used internally to expand _all jobid to encapsulate all jobs in cluster:
         private List<String> expandedJobsIds;
@@ -100,13 +106,21 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
         Request() {}
 
+        public void setAllowNoJobs(boolean allowNoJobs) {
+            this.allowNoJobs = allowNoJobs;
+        }
+
         public String getJobId() {
             return jobId;
         }
 
+        public boolean allowNoJobs() {
+            return allowNoJobs;
+        }
+
         @Override
         public boolean match(Task task) {
-            return jobId.equals(Job.ALL) || OpenJobAction.JobTask.match(task, jobId);
+            return jobId.equals(MetaData.ALL) || OpenJobAction.JobTask.match(task, jobId);
         }
 
         @Override
@@ -119,6 +133,9 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             super.readFrom(in);
             jobId = in.readString();
             expandedJobsIds = in.readList(StreamInput::readString);
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                allowNoJobs = in.readBoolean();
+            }
         }
 
         @Override
@@ -126,11 +143,14 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             super.writeTo(out);
             out.writeString(jobId);
             out.writeStringList(expandedJobsIds);
+            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+                out.writeBoolean(allowNoJobs);
+            }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId);
+            return Objects.hash(jobId, allowNoJobs);
         }
 
         @Override
@@ -142,7 +162,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId);
+            return Objects.equals(jobId, other.jobId) && Objects.equals(allowNoJobs, other.allowNoJobs);
         }
     }
 
@@ -378,15 +398,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             MlMetadata clusterMlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
             MlMetadata mlMetadata = (clusterMlMetadata == null) ? MlMetadata.EMPTY_METADATA : clusterMlMetadata;
-
-            if (Job.ALL.equals(request.getJobId())) {
-                request.expandedJobsIds = new ArrayList<>(mlMetadata.getJobs().keySet());
-            } else {
-                if (mlMetadata.getJobs().containsKey(request.getJobId()) == false) {
-                    throw ExceptionsHelper.missingJobException(request.getJobId());
-                }
-            }
-
+            request.expandedJobsIds = new ArrayList<>(mlMetadata.expandJobIds(request.getJobId(), request.allowNoJobs()));
             ActionListener<Response> finalListener = listener;
             listener = ActionListener.wrap(response -> gatherStatsForClosedJobs(mlMetadata,
                     request, response, finalListener), listener::onFailure);

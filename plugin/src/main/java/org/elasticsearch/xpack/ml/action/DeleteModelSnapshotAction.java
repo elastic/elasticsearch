@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
@@ -170,13 +169,11 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
                         ModelSnapshot deleteCandidate = deleteCandidates.get(0);
 
                         // Verify the snapshot is not being used
-                        QueryPage<Job> job = jobManager.getJob(request.getJobId(), clusterService.state());
-                        if (job.count() > 0) {
-                            String currentModelInUse = job.results().get(0).getModelSnapshotId();
-                            if (currentModelInUse != null && currentModelInUse.equals(request.getSnapshotId())) {
-                                throw new IllegalArgumentException(Messages.getMessage(Messages.REST_CANNOT_DELETE_HIGHEST_PRIORITY,
-                                        request.getSnapshotId(), request.getJobId()));
-                            }
+                        Job job = JobManager.getJobOrThrowIfUnknown(request.getJobId(), clusterService.state());
+                        String currentModelInUse = job.getModelSnapshotId();
+                        if (currentModelInUse != null && currentModelInUse.equals(request.getSnapshotId())) {
+                            throw new IllegalArgumentException(Messages.getMessage(Messages.REST_CANNOT_DELETE_HIGHEST_PRIORITY,
+                                    request.getSnapshotId(), request.getJobId()));
                         }
 
                         // Delete the snapshot and any associated state files

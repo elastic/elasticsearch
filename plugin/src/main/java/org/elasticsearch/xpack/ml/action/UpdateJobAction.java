@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 
 import java.io.IOException;
@@ -158,8 +158,8 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
         @Override
         protected void masterOperation(Request request, ClusterState state,
                                        ActionListener<PutJobAction.Response> listener) throws Exception {
-            if (request.getJobId().equals(Job.ALL)) {
-                throw new IllegalArgumentException("Job Id " + Job.ALL + " cannot be for update");
+            if (request.getJobId().equals(MetaData.ALL)) {
+                throw new IllegalArgumentException("Job Id " + MetaData.ALL + " cannot be for update");
             }
 
             jobManager.updateJob(request.getJobId(), request.getJobUpdate(), request, listener);

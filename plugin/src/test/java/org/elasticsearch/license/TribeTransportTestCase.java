@@ -31,7 +31,6 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.tribe.TribePlugin;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
@@ -62,7 +61,7 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
     protected final Settings nodeSettings(int nodeOrdinal) {
         final Settings.Builder builder = Settings.builder()
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
+                .put("transport.type", getTestTransportType());
         List<String> enabledFeatures = enabledFeatures();
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), enabledFeatures.contains(XPackPlugin.SECURITY));
         builder.put(XPackSettings.MONITORING_ENABLED.getKey(), enabledFeatures.contains(XPackPlugin.MONITORING));
@@ -178,8 +177,8 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
         Settings merged = Settings.builder()
                 .put("tribe.t1.cluster.name", internalCluster().getClusterName())
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
-                .put("tribe.t1.transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
-                .put("tribe.t2.transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
+                .put("tribe.t1.transport.type", getTestTransportType())
+                .put("tribe.t2.transport.type", getTestTransportType())
                 .put("tribe.blocks.write", false)
                 .put(tribe1Defaults.build())
                 .put(tribe2Defaults.build())
@@ -195,11 +194,11 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
                 .put("tribe.t1." + MachineLearning.AUTODETECT_PROCESS.getKey(), false)
                 .put("tribe.t2." + MachineLearning.AUTODETECT_PROCESS.getKey(), false)
                 .put("node.name", "tribe_node") // make sure we can identify threads from this node
-                .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
+                .put("transport.type", getTestTransportType())
                 .build();
 
         final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(MockTribePlugin.class, TribeAwareTestZenDiscoveryPlugin.class,
-                MockTcpTransportPlugin.class, XPackPlugin.class);
+                getTestTransportPlugin(), XPackPlugin.class);
         final Node tribeNode = new MockNode(merged, mockPlugins).start();
         Client tribeClient = tribeNode.client();
 

@@ -52,6 +52,11 @@ public class GetBucketActionRequestTests extends AbstractStreamableXContentTestC
     }
 
     @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    @Override
     protected Request createBlankInstance() {
         return new GetBucketsAction.Request();
     }

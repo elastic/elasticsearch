@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.utils.NameResolver;
 import org.elasticsearch.xpack.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
@@ -42,6 +43,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Supplier;
@@ -74,6 +76,11 @@ public class MlMetadata implements MetaData.Custom {
         return jobs;
     }
 
+    public Set<String> expandJobIds(String expression, boolean allowNoJobs) {
+        return NameResolver.newUnaliased(jobs.keySet(), jobId -> ExceptionsHelper.missingJobException(jobId))
+                .expand(expression, allowNoJobs);
+    }
+
     public boolean isJobDeleted(String jobId) {
         Job job = jobs.get(jobId);
         return job == null || job.isDeleted();
@@ -89,6 +96,11 @@ public class MlMetadata implements MetaData.Custom {
 
     public Optional<DatafeedConfig> getDatafeedByJobId(String jobId) {
         return datafeeds.values().stream().filter(s -> s.getJobId().equals(jobId)).findFirst();
+    }
+
+    public Set<String> expandDatafeedIds(String expression, boolean allowNoDatafeeds) {
+        return NameResolver.newUnaliased(datafeeds.keySet(), datafeedId -> ExceptionsHelper.missingDatafeedException(datafeedId))
+                .expand(expression, allowNoDatafeeds);
     }
 
     @Override

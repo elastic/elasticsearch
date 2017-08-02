@@ -29,13 +29,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
@@ -72,7 +71,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
         return new Response();
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
+    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
         public static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
         public static final ParseField DELETE_INTERVENING = new ParseField("delete_intervening_results");
@@ -285,9 +284,9 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
             logger.debug("Received request to revert to snapshot id '{}' for job '{}', deleting intervening results: {}",
                     request.getSnapshotId(), request.getJobId(), request.getDeleteInterveningResults());
 
-            QueryPage<Job> job = jobManager.getJob(request.getJobId(), clusterService.state());
-            JobState jobState = jobManager.getJobState(request.getJobId());
-            if (job.count() > 0 && jobState.equals(JobState.CLOSED) == false) {
+            Job job = JobManager.getJobOrThrowIfUnknown(request.getJobId(), clusterService.state());
+            JobState jobState = jobManager.getJobState(job.getId());
+            if (jobState.equals(JobState.CLOSED) == false) {
                 throw ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT));
             }
 

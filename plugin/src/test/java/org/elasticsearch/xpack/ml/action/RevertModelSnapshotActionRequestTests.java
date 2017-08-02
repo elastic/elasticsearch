@@ -22,6 +22,11 @@ public class RevertModelSnapshotActionRequestTests extends AbstractStreamableXCo
     }
 
     @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    @Override
     protected Request createBlankInstance() {
         return new RevertModelSnapshotAction.Request();
     }

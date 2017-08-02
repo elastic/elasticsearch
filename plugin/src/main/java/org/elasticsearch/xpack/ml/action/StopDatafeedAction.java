@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
@@ -44,7 +46,6 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
-import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
@@ -66,8 +67,6 @@ public class StopDatafeedAction
 
     public static final StopDatafeedAction INSTANCE = new StopDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeed/stop";
-    public static final ParseField TIMEOUT = new ParseField("timeout");
-    public static final ParseField FORCE = new ParseField("force");
     public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueMinutes(5);
 
     private StopDatafeedAction() {
@@ -84,7 +83,11 @@ public class StopDatafeedAction
         return new Response();
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContent {
+    public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
+
+        public static final ParseField TIMEOUT = new ParseField("timeout");
+        public static final ParseField FORCE = new ParseField("force");
+        public static final ParseField ALLOW_NO_DATAFEEDS = new ParseField("allow_no_datafeeds");
 
         public static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -93,6 +96,7 @@ public class StopDatafeedAction
             PARSER.declareString((request, val) ->
                     request.setStopTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
             PARSER.declareBoolean(Request::setForce, FORCE);
+            PARSER.declareBoolean(Request::setAllowNoDatafeeds, ALLOW_NO_DATAFEEDS);
         }
 
         public static Request fromXContent(XContentParser parser) {
@@ -111,6 +115,7 @@ public class StopDatafeedAction
         private String[] resolvedStartedDatafeedIds;
         private TimeValue stopTimeout = DEFAULT_TIMEOUT;
         private boolean force = false;
+        private boolean allowNoDatafeeds = true;
 
         public Request(String datafeedId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
@@ -148,6 +153,14 @@ public class StopDatafeedAction
             this.force = force;
         }
 
+        public boolean allowNoDatafeeds() {
+            return allowNoDatafeeds;
+        }
+
+        public void setAllowNoDatafeeds(boolean allowNoDatafeeds) {
+            this.allowNoDatafeeds = allowNoDatafeeds;
+        }
+
         @Override
         public boolean match(Task task) {
             for (String id : resolvedStartedDatafeedIds) {
@@ -171,6 +184,9 @@ public class StopDatafeedAction
             resolvedStartedDatafeedIds = in.readStringArray();
             stopTimeout = new TimeValue(in);
             force = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                allowNoDatafeeds = in.readBoolean();
+            }
         }
 
         @Override
@@ -180,11 +196,14 @@ public class StopDatafeedAction
             out.writeStringArray(resolvedStartedDatafeedIds);
             stopTimeout.writeTo(out);
             out.writeBoolean(force);
+            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+                out.writeBoolean(allowNoDatafeeds);
+            }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, stopTimeout, force);
+            return Objects.hash(datafeedId, stopTimeout, force, allowNoDatafeeds);
         }
 
         @Override
@@ -193,6 +212,7 @@ public class StopDatafeedAction
             builder.field(DatafeedConfig.ID.getPreferredName(), datafeedId);
             builder.field(TIMEOUT.getPreferredName(), stopTimeout.getStringRep());
             builder.field(FORCE.getPreferredName(), force);
+            builder.field(ALLOW_NO_DATAFEEDS.getPreferredName(), allowNoDatafeeds);
             builder.endObject();
             return builder;
         }
@@ -208,7 +228,8 @@ public class StopDatafeedAction
             Request other = (Request) obj;
             return Objects.equals(datafeedId, other.datafeedId) &&
                     Objects.equals(stopTimeout, other.stopTimeout) &&
-                    Objects.equals(force, other.force);
+                    Objects.equals(force, other.force) &&
+                    Objects.equals(allowNoDatafeeds, other.allowNoDatafeeds);
         }
     }
 
@@ -286,7 +307,7 @@ public class StopDatafeedAction
 
                 List<String> startedDatafeeds = new ArrayList<>();
                 List<String> stoppingDatafeeds = new ArrayList<>();
-                resolveDataFeedIds(request.getDatafeedId(), mlMetadata, tasks, startedDatafeeds, stoppingDatafeeds);
+                resolveDataFeedIds(request, mlMetadata, tasks, startedDatafeeds, stoppingDatafeeds);
                 if (startedDatafeeds.isEmpty() && stoppingDatafeeds.isEmpty()) {
                     listener.onResponse(new Response(true));
                     return;
@@ -474,32 +495,22 @@ public class StopDatafeedAction
     }
 
     /**
-     * Expand the {@code datafeedId} parameter and add the resolved datafeed Id to
-     * one of the list arguments depending on datafeed state.
+     * Resolve the requested datafeeds and add their IDs to one of the list
+     * arguments depending on datafeed state.
      *
-     * @param datafeedId Datafeed Id. If datafeedId == "_all" then expand the datafeed list
+     * @param request The stop datafeed request
      * @param mlMetadata ML Metadata
      * @param tasks Persistent task meta data
      * @param startedDatafeedIds Started datafeed ids are added to this list
      * @param stoppingDatafeedIds Stopping datafeed ids are added to this list
      */
-    static void resolveDataFeedIds(String datafeedId, MlMetadata mlMetadata,
-                                           PersistentTasksCustomMetaData tasks,
-                                           List<String> startedDatafeedIds,
-                                           List<String> stoppingDatafeedIds) {
+    static void resolveDataFeedIds(Request request, MlMetadata mlMetadata,
+                                   PersistentTasksCustomMetaData tasks,
+                                   List<String> startedDatafeedIds,
+                                   List<String> stoppingDatafeedIds) {
 
-        if (!Job.ALL.equals(datafeedId)) {
-            validateDatafeedTask(datafeedId, mlMetadata);
-            addDatafeedTaskIdAccordingToState(datafeedId, MlMetadata.getDatafeedState(datafeedId, tasks),
-                    startedDatafeedIds, stoppingDatafeedIds);
-            return;
-        }
-
-        if (mlMetadata.getDatafeeds().isEmpty()) {
-            return;
-        }
-
-        for (String expandedDatafeedId : mlMetadata.getDatafeeds().keySet()) {
+        Set<String> expandedDatafeedIds = mlMetadata.expandDatafeedIds(request.getDatafeedId(), request.allowNoDatafeeds());
+        for (String expandedDatafeedId : expandedDatafeedIds) {
             validateDatafeedTask(expandedDatafeedId, mlMetadata);
             addDatafeedTaskIdAccordingToState(expandedDatafeedId, MlMetadata.getDatafeedState(expandedDatafeedId, tasks),
                     startedDatafeedIds, stoppingDatafeedIds);

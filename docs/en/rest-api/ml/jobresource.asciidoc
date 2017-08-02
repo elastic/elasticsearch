@@ -17,10 +17,13 @@ A job resource has the following properties:
   The time between each periodic persistence of the model.
   The default value is a randomized value between 3 to 4 hours, which avoids
   all jobs persisting at exactly the same time. The smallest allowed value is
-  1 hour. +
-
+  1 hour.
++
+--
 TIP: For very large models (several GB), persistence could take 10-20 minutes,
 so do not set the `background_persist_interval` value too low.
+
+--
 
 `create_time`::
   (string) The time the job was created. For example, `1491007356077`.
@@ -104,9 +107,12 @@ An analysis configuration object has the following properties:
   (array) An array of detector configuration objects,
   which describe the anomaly detectors that are used in the job.
   See <<ml-detectorconfig,detector configuration objects>>. +
-
++
+--
 NOTE: If the `detectors` array does not contain at least one detector,
 no analysis can occur and an error is returned.
+
+--
 
 `influencers`::
   (array of strings) A comma separated list of influencer field names.
@@ -121,33 +127,47 @@ no analysis can occur and an error is returned.
   time order. The default value is 0 (no latency). If you specify a non-zero
   value, it must be greater than or equal to one second. For more information
   about time units, see
-  {ref}/common-options.html#time-units[Time Units]. +
-
+  {ref}/common-options.html#time-units[Time Units].
++
+--
 NOTE: Latency is only applicable when you send data by using
 the <<ml-post-data,post data>> API.
 
+--
+
 `multivariate_by_fields`::
-  (boolean) If set to `true`, the analysis will automatically find correlations
-  between metrics for a given `by` field value and report anomalies when those
-  correlations cease to hold. For example, suppose CPU and memory usage on host A
-  is usually highly correlated with the same metrics on host B. Perhaps this
-  correlation occurs because they are running a load-balanced application.
-  If you enable this property, then anomalies will be reported when, for example,
-  CPU usage on host A is high and the value of CPU usage on host B is low.
-  That is to say, you'll see an anomaly when the CPU of host A is unusual given
-  the CPU of host B. +
+  (boolean) This functionality is reserved for internal use. It is not supported
+  for use in customer environments and is not subject to the support SLA of
+  official GA features.
++
+--
+If set to `true`, the analysis will automatically find correlations
+between metrics for a given `by` field value and report anomalies when those
+correlations cease to hold. For example, suppose CPU and memory usage on host A
+is usually highly correlated with the same metrics on host B. Perhaps this
+correlation occurs because they are running a load-balanced application.
+If you enable this property, then anomalies will be reported when, for example,
+CPU usage on host A is high and the value of CPU usage on host B is low.
+That is to say, you'll see an anomaly when the CPU of host A is unusual given
+the CPU of host B.
 
 NOTE: To use the `multivariate_by_fields` property, you must also specify
 `by_field_name` in your detector.
+
+--
 
 `summary_count_field_name`::
   (string) If this property is specified, the data that is fed to the job is
   expected to be pre-summarized. This property value is the name of the field
   that contains the count of raw data points that have been summarized. The same
-  `summary_count_field_name` applies to all detectors in the job. +
+  `summary_count_field_name` applies to all detectors in the job.
++
+--
 
 NOTE: The `summary_count_field_name` property cannot be used with the `metric`
 function.
+
+--
 
 ////
 LEAVE UNDOCUMENTED
@@ -185,8 +205,11 @@ Each detector has the following properties:
 `field_name`::
   (string) The field that the detector uses in the function. If you use an event rate
   function such as `count` or `rare`, do not specify this field. +
-
++
+--
 NOTE: The `field_name` cannot contain double quotes or backslashes.
+
+--
 
 `function`::
   (string) The analysis function that is used.
@@ -208,9 +231,12 @@ NOTE: The `field_name` cannot contain double quotes or backslashes.
 `use_null`::
   (boolean) Defines whether a new series is used as the null series
   when there is no value for the by or partition fields. The default value is `false`. +
-
++
+--
 IMPORTANT: Field names are case sensitive, for example a field named 'Bytes'
 is different from one named 'bytes'.
+
+--
 
 ////
 LEAVE UNDOCUMENTED
@@ -248,13 +274,15 @@ A data description object has the following properties:
   since 1 Jan 1970).
   The value `epoch_ms` indicates that time is measured in milliseconds since the epoch.
   The `epoch` and `epoch_ms` time formats accept either integer or real values. +
-
++
+--
 NOTE: Custom patterns must conform to the Java `DateTimeFormatter` class.
 When you use date-time formatting patterns, it is recommended that you provide
 the full date, time and time zone. For example: `yyyy-MM-dd'T'HH:mm:ssX`.
 If the pattern that you specify is not sufficient to produce a complete timestamp,
 job creation fails.
 
+--
 
 [float]
 [[ml-apilimits]]
@@ -272,12 +300,13 @@ The `analysis_limits` object has the following properties:
   in the results data store. The default value is 4.  If you increase this value,
   more examples are available, however it requires that you have more storage available.
   If you set this value to `0`, no examples are stored. +
-
++
+--
 NOTE: The `categorization_examples_limit` only applies to analysis that uses categorization.
 For more information, see
 {xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
 
-//<<ml-configuring-categories>>.
+--
 
 `model_memory_limit`::
   (long or string) The approximate maximum amount of memory resources that are

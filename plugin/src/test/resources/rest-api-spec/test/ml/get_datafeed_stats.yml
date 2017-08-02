@@ -86,6 +86,25 @@ setup:
         datafeed_id: missing-datafeed
 
 ---
+"Test get datafeed stats with expression that does not match and allow_no_datafeeds":
+
+  - do:
+      xpack.ml.get_datafeed_stats:
+        datafeed_id: "missing-*"
+        allow_no_datafeeds: true
+  - match: { count: 0 }
+  - match: { datafeeds: [] }
+
+---
+"Test get datafeed stats with expression that does not match and not allow_no_datafeeds":
+
+  - do:
+      catch: missing
+      xpack.ml.get_datafeed_stats:
+        datafeed_id: "missing-*"
+        allow_no_datafeeds: false
+
+---
 "Test get single datafeed stats":
 
   - do:

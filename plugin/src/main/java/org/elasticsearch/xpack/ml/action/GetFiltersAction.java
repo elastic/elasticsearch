@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -17,8 +19,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
@@ -64,7 +64,7 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
 
     @Override
     public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
+        return new RequestBuilder(client);
     }
 
     @Override
@@ -72,7 +72,7 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
         return new Response();
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends ActionRequest {
 
         private String filterId;
         private PageParams pageParams;
@@ -146,10 +146,10 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
         }
     }
 
-    public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, GetFiltersAction action) {
-            super(client, action, new Request());
+        public RequestBuilder(ElasticsearchClient client) {
+            super(client, INSTANCE, new Request());
         }
     }
 

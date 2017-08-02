@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -17,8 +19,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -54,7 +55,7 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
 
     @Override
     public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
+        return new RequestBuilder(client);
     }
 
     @Override
@@ -62,7 +63,7 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
         return new Response();
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> implements ToXContent {
+    public static class Request extends ActionRequest implements ToXContentObject {
 
         public static Request parseRequest(String filterId, XContentParser parser) {
             MlFilter.Builder filter = MlFilter.PARSER.apply(parser, null);
@@ -131,10 +132,10 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, PutFilterAction action) {
-            super(client, action, new Request());
+        public RequestBuilder(ElasticsearchClient client) {
+            super(client, INSTANCE, new Request());
         }
     }
 

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,10 +44,10 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Request, GetDatafeedsStatsAction.Response,
@@ -73,7 +75,10 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
+        public static final ParseField ALLOW_NO_DATAFEEDS = new ParseField("allow_no_datafeeds");
+
         private String datafeedId;
+        private boolean allowNoDatafeeds = true;
 
         public Request(String datafeedId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
@@ -85,6 +90,14 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
             return datafeedId;
         }
 
+        public boolean allowNoDatafeeds() {
+            return allowNoDatafeeds;
+        }
+
+        public void setAllowNoDatafeeds(boolean allowNoDatafeeds) {
+            this.allowNoDatafeeds = allowNoDatafeeds;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -94,17 +107,23 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             datafeedId = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                allowNoDatafeeds = in.readBoolean();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(datafeedId);
+            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+                out.writeBoolean(allowNoDatafeeds);
+            }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId);
+            return Objects.hash(datafeedId, allowNoDatafeeds);
         }
 
         @Override
@@ -116,7 +135,7 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(datafeedId, other.datafeedId);
+            return Objects.equals(datafeedId, other.datafeedId) && Objects.equals(allowNoDatafeeds, other.allowNoDatafeeds);
         }
     }
 
@@ -309,18 +328,10 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
                 mlMetadata = MlMetadata.EMPTY_METADATA;
             }
 
-            if (request.getDatafeedId().equals(ALL) == false
-                    && mlMetadata.getDatafeed(request.getDatafeedId()) == null) {
-                throw ExceptionsHelper.missingDatafeedException(request.getDatafeedId());
-            }
-
-            List<String> expandedDatafeedsIds = request.getDatafeedId().equals(ALL) ?
-                    mlMetadata.getDatafeeds().values().stream()
-                            .map(d -> d.getId()).collect(Collectors.toList())
-                    : Collections.singletonList(request.getDatafeedId());
+            Set<String> expandedDatafeedIds = mlMetadata.expandDatafeedIds(request.getDatafeedId(), request.allowNoDatafeeds());
 
             PersistentTasksCustomMetaData tasksInProgress = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            List<DatafeedStats> results = expandedDatafeedsIds.stream()
+            List<DatafeedStats> results = expandedDatafeedIds.stream()
                     .map(datafeedId -> getDatafeedStats(datafeedId, state, tasksInProgress))
                     .collect(Collectors.toList());
             QueryPage<DatafeedStats> statsPage = new QueryPage<>(results, results.size(),

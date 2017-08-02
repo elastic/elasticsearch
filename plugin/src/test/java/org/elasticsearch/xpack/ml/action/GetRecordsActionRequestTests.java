@@ -50,6 +50,11 @@ public class GetRecordsActionRequestTests extends AbstractStreamableXContentTest
     }
 
     @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    @Override
     protected Request createBlankInstance() {
         return new Request();
     }

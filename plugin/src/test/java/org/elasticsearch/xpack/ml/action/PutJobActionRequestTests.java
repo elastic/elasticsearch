@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
@@ -36,6 +35,11 @@ public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    @Override
     protected Request doParseInstance(XContentParser parser) {
         return Request.parseRequest(jobId, parser);
     }
@@ -43,10 +47,8 @@ public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase
     public void testParseRequest_InvalidCreateSetting() throws IOException {
         Job.Builder jobConfiguration = buildJobBuilder(jobId, null);
         jobConfiguration.setLastDataTime(new Date());
-        XContentBuilder xContentBuilder = toXContent(jobConfiguration, XContentType.JSON);
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, xContentBuilder.bytes());
-
+        BytesReference bytes = XContentHelper.toXContent(jobConfiguration, XContentType.JSON, false);
+        XContentParser parser = createParser(XContentType.JSON.xContent(), bytes);
         expectThrows(IllegalArgumentException.class, () -> Request.parseRequest(jobId, parser));
     }
 }

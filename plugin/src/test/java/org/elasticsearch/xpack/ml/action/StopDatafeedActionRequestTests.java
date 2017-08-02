@@ -37,8 +37,18 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
         if (randomBoolean()) {
             request.setStopTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
         }
-        request.setForce(randomBoolean());
+        if (randomBoolean()) {
+            request.setForce(randomBoolean());
+        }
+        if (randomBoolean()) {
+            request.setAllowNoDatafeeds(randomBoolean());
+        }
         return request;
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 
     @Override
@@ -90,13 +100,15 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
 
         List<String> startedDatafeeds = new ArrayList<>();
         List<String> stoppingDatafeeds = new ArrayList<>();
-        StopDatafeedAction.resolveDataFeedIds("datafeed_1", mlMetadata, tasks, startedDatafeeds, stoppingDatafeeds);
+        StopDatafeedAction.resolveDataFeedIds(new StopDatafeedAction.Request("datafeed_1"), mlMetadata, tasks, startedDatafeeds,
+                stoppingDatafeeds);
         assertEquals(Arrays.asList("datafeed_1"), startedDatafeeds);
         assertEquals(Collections.emptyList(), stoppingDatafeeds);
 
         startedDatafeeds.clear();
         stoppingDatafeeds.clear();
-        StopDatafeedAction.resolveDataFeedIds("datafeed_2", mlMetadata, tasks, startedDatafeeds, stoppingDatafeeds);
+        StopDatafeedAction.resolveDataFeedIds(new StopDatafeedAction.Request("datafeed_2"), mlMetadata, tasks, startedDatafeeds,
+                stoppingDatafeeds);
         assertEquals(Collections.emptyList(), startedDatafeeds);
         assertEquals(Collections.emptyList(), stoppingDatafeeds);
     }
@@ -125,13 +137,15 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
 
         List<String> startedDatafeeds = new ArrayList<>();
         List<String> stoppingDatafeeds = new ArrayList<>();
-        StopDatafeedAction.resolveDataFeedIds("_all", mlMetadata, tasks, startedDatafeeds, stoppingDatafeeds);
+        StopDatafeedAction.resolveDataFeedIds(new StopDatafeedAction.Request("_all"), mlMetadata, tasks, startedDatafeeds,
+                stoppingDatafeeds);
         assertEquals(Arrays.asList("datafeed_1"), startedDatafeeds);
         assertEquals(Arrays.asList("datafeed_3"), stoppingDatafeeds);
 
         startedDatafeeds.clear();
         stoppingDatafeeds.clear();
-        StopDatafeedAction.resolveDataFeedIds("datafeed_2", mlMetadata, tasks, startedDatafeeds, stoppingDatafeeds);
+        StopDatafeedAction.resolveDataFeedIds(new StopDatafeedAction.Request("datafeed_2"), mlMetadata, tasks, startedDatafeeds,
+                stoppingDatafeeds);
         assertEquals(Collections.emptyList(), startedDatafeeds);
         assertEquals(Collections.emptyList(), stoppingDatafeeds);
     }

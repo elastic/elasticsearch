@@ -36,16 +36,14 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * Allows interactions with jobs. The managed interactions include:
@@ -78,86 +76,59 @@ public class JobManager extends AbstractComponent {
     }
 
     /**
-     * Get the jobs that match the given {@code jobId}.
-     * Note that when the {@code jocId} is {@link Job#ALL} all jobs are returned.
+     * Gets the job that matches the given {@code jobId}.
      *
-     * @param jobId
-     *            the jobId
-     * @return A {@link QueryPage} containing the matching {@code Job}s
-     */
-    public QueryPage<Job> getJob(String jobId, ClusterState clusterState) {
-        if (jobId.equals(Job.ALL)) {
-            return getJobs(clusterState);
-        }
-        MlMetadata mlMetadata = clusterState.getMetaData().custom(MlMetadata.TYPE);
-        Job job = (mlMetadata == null) ? null : mlMetadata.getJobs().get(jobId);
-        if (job == null) {
-            logger.debug(String.format(Locale.ROOT, "Cannot find job '%s'", jobId));
-            throw ExceptionsHelper.missingJobException(jobId);
-        }
-
-        logger.debug("Returning job [" + jobId + "]");
-        return new QueryPage<>(Collections.singletonList(job), 1, Job.RESULTS_FIELD);
-    }
-
-    /**
-     * Get details of all Jobs.
-     *
-     * @return A query page object with hitCount set to the total number of jobs
-     *         not the only the number returned here as determined by the
-     *         <code>size</code> parameter.
-     */
-    public QueryPage<Job> getJobs(ClusterState clusterState) {
-        MlMetadata mlMetadata = clusterState.getMetaData().custom(MlMetadata.TYPE);
-        if (mlMetadata == null) {
-            mlMetadata = MlMetadata.EMPTY_METADATA;
-        }
-        List<Job> jobs = mlMetadata.getJobs().entrySet().stream()
-                .map(Map.Entry::getValue)
-                .collect(Collectors.toList());
-        return new QueryPage<>(jobs, mlMetadata.getJobs().size(), Job.RESULTS_FIELD);
-    }
-
-    /**
-     * Returns the non-null {@code Job} object for the given
-     * {@code jobId} or throws
-     * {@link org.elasticsearch.ResourceNotFoundException}
-     *
-     * @param jobId
-     *            the jobId
-     * @return the {@code Job} if a job with the given {@code jobId}
-     *         exists
-     * @throws org.elasticsearch.ResourceNotFoundException
-     *             if there is no job with matching the given {@code jobId}
+     * @param jobId the jobId
+     * @return The {@link Job} matching the given {code jobId}
+     * @throws ResourceNotFoundException if no job matches {@code jobId}
      */
     public Job getJobOrThrowIfUnknown(String jobId) {
-        return getJobOrThrowIfUnknown(clusterService.state(), jobId);
-    }
-
-    public JobState getJobState(String jobId) {
-        PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        return MlMetadata.getJobState(jobId, tasks);
+        return getJobOrThrowIfUnknown(jobId, clusterService.state());
     }
 
     /**
-     * Returns the non-null {@code Job} object for the given
-     * {@code jobId} or throws
-     * {@link org.elasticsearch.ResourceNotFoundException}
+     * Gets the job that matches the given {@code jobId}.
      *
-     * @param jobId
-     *            the jobId
-     * @return the {@code Job} if a job with the given {@code jobId}
-     *         exists
-     * @throws org.elasticsearch.ResourceNotFoundException
-     *             if there is no job with matching the given {@code jobId}
+     * @param jobId the jobId
+     * @param clusterState the cluster state
+     * @return The {@link Job} matching the given {code jobId}
+     * @throws ResourceNotFoundException if no job matches {@code jobId}
      */
-    public static Job getJobOrThrowIfUnknown(ClusterState clusterState, String jobId) {
-        MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
+    public static Job getJobOrThrowIfUnknown(String jobId, ClusterState clusterState) {
+        MlMetadata mlMetadata = clusterState.getMetaData().custom(MlMetadata.TYPE);
         Job job = (mlMetadata == null) ? null : mlMetadata.getJobs().get(jobId);
         if (job == null) {
             throw ExceptionsHelper.missingJobException(jobId);
         }
         return job;
+    }
+
+    /**
+     * Get the jobs that match the given {@code expression}.
+     * Note that when the {@code jobId} is {@link MetaData#ALL} all jobs are returned.
+     *
+     * @param expression   the jobId or an expression matching jobIds
+     * @param clusterState the cluster state
+     * @param allowNoJobs  if {@code false}, an error is thrown when no job matches the {@code jobId}
+     * @return A {@link QueryPage} containing the matching {@code Job}s
+     */
+    public QueryPage<Job> expandJobs(String expression, boolean allowNoJobs, ClusterState clusterState) {
+        MlMetadata mlMetadata = clusterState.getMetaData().custom(MlMetadata.TYPE);
+        if (mlMetadata == null) {
+            mlMetadata = MlMetadata.EMPTY_METADATA;
+        }
+        Set<String> expandedJobIds = mlMetadata.expandJobIds(expression, allowNoJobs);
+        List<Job> jobs = new ArrayList<>();
+        for (String expandedJobId : expandedJobIds) {
+            jobs.add(mlMetadata.getJobs().get(expandedJobId));
+        }
+        logger.debug("Returning jobs matching [" + expression + "]");
+        return new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD);
+    }
+
+    public JobState getJobState(String jobId) {
+        PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        return MlMetadata.getJobState(jobId, tasks);
     }
 
     /**
@@ -263,7 +234,7 @@ public class JobManager extends AbstractComponent {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
-                        Job job = getJob(jobId, currentState).results().get(0);
+                        Job job = getJobOrThrowIfUnknown(jobId, currentState);
                         updatedJob = jobUpdate.mergeWithJob(job);
                         return updateClusterState(updatedJob, true, currentState);
                     }
@@ -384,7 +355,7 @@ public class JobManager extends AbstractComponent {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                Job job = getJobOrThrowIfUnknown(currentState, request.getJobId());
+                Job job = getJobOrThrowIfUnknown(request.getJobId(), currentState);
                 Job.Builder builder = new Job.Builder(job);
                 builder.setModelSnapshotId(modelSnapshot.getSnapshotId());
                 return updateClusterState(builder.build(), true, currentState);

@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -67,7 +68,7 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
         return new Response();
     }
 
-    public static class Request extends ActionRequest implements ToXContent {
+    public static class Request extends ActionRequest implements ToXContentObject {
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 

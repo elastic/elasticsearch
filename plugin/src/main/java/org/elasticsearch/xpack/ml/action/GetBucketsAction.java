@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -62,7 +61,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
         return new Response();
     }
 
-    public static class Request extends ActionRequest implements ToXContent {
+    public static class Request extends ActionRequest implements ToXContentObject {
 
         public static final ParseField EXPAND = new ParseField("expand");
         public static final ParseField EXCLUDE_INTERIM = new ParseField("exclude_interim");

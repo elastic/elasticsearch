@@ -294,15 +294,15 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         MlMetadata mlMetadata = metaData.custom(MlMetadata.TYPE);
 
         try {
-            CloseJobAction.Request closeRequest = new CloseJobAction.Request(Job.ALL);
+            CloseJobAction.Request closeRequest = new CloseJobAction.Request(MetaData.ALL);
             closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(20L));
-            logger.info("Closing jobs using [{}]", Job.ALL);
+            logger.info("Closing jobs using [{}]", MetaData.ALL);
             CloseJobAction.Response response = client.execute(CloseJobAction.INSTANCE, closeRequest)
                     .get();
             assertTrue(response.isClosed());
         } catch (Exception e1) {
             try {
-                CloseJobAction.Request closeRequest = new CloseJobAction.Request(Job.ALL);
+                CloseJobAction.Request closeRequest = new CloseJobAction.Request(MetaData.ALL);
                 closeRequest.setForce(true);
                 closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(20L));
                 CloseJobAction.Response response =

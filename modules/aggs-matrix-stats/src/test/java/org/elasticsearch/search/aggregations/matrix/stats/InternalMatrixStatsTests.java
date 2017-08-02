@@ -97,6 +97,8 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
             name += randomAlphaOfLength(5);
             break;
         case 1:
+            String[] fields = Arrays.copyOf(this.fields, this.fields.length + 1);
+            fields[fields.length - 1] = "field_" + (fields.length - 1);
             double[] values = new double[fields.length];
             for (int i = 0; i < fields.length; i++) {
                 values[i] = randomDouble() * 200;

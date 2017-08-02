@@ -109,29 +109,22 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
-        BulkByScrollParallelizationHelper.computeSlicing(client, request, listener, slices -> {
+        checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
+        ClusterState state = clusterService.state();
+        validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(),
+            indexNameExpressionResolver, autoCreateIndex, state);
 
-            BulkByScrollTask bulkTask = (BulkByScrollTask) task;
+        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
 
-            if (slices > 1) {
-                bulkTask.setParent(slices);
-                BulkByScrollParallelizationHelper.startSlices(client, taskManager, ReindexAction.INSTANCE,
-                    clusterService.localNode().getId(), bulkTask, request, listener);
-            } else {
-                checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
-                ClusterState state = clusterService.state();
-                validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(),
-                    indexNameExpressionResolver, autoCreateIndex, state);
-
-                Integer sliceId = request.getSearchRequest().source().slice() == null
-                    ? null
-                    : request.getSearchRequest().source().slice().getId();
-                bulkTask.setChild(sliceId, request.getRequestsPerSecond());
-                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), bulkTask);
-                new AsyncIndexBySearchAction(bulkTask, logger, assigningClient, threadPool, request, scriptService, state,
-                    listener).start();
+        BulkByScrollParallelizationHelper.yourNameHere(request, bulkByScrollTask, ReindexAction.INSTANCE, listener, client,
+            clusterService.localNode(),
+            () -> {
+                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
+                    bulkByScrollTask);
+                return new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, request, scriptService, state,
+                    listener);
             }
-        });
+        );
     }
 
     @Override

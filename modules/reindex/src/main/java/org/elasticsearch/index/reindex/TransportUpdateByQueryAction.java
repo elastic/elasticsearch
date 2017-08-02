@@ -64,24 +64,17 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
     @Override
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
-        BulkByScrollParallelizationHelper.computeSlicing(client, request, listener, slices -> {
-
-            BulkByScrollTask bulkTask = (BulkByScrollTask) task;
-
-            if (slices > 1) {
-                bulkTask.setParent(slices);
-                BulkByScrollParallelizationHelper.startSlices(client, taskManager, UpdateByQueryAction.INSTANCE,
-                    clusterService.localNode().getId(), bulkTask, request, listener);
-            } else {
-                Integer sliceId = request.getSearchRequest().source().slice() == null
-                    ? null
-                    : request.getSearchRequest().source().slice().getId();
-                bulkTask.setChild(sliceId, request.getRequestsPerSecond());
+        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+        BulkByScrollParallelizationHelper.yourNameHere(request, bulkByScrollTask, UpdateByQueryAction.INSTANCE, listener, client,
+            clusterService.localNode(),
+            () -> {
                 ClusterState state = clusterService.state();
-                ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
-                new AsyncIndexBySearchAction(bulkTask, logger, client, threadPool, request, scriptService, state, listener).start();
+                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
+                    bulkByScrollTask);
+                return new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, request, scriptService, state,
+                    listener);
             }
-        });
+        );
     }
 
     @Override

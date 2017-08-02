@@ -51,24 +51,17 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
 
     @Override
     public void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
-        BulkByScrollParallelizationHelper.computeSlicing(client, request, listener, slices -> {
-
-            BulkByScrollTask bulkTask = (BulkByScrollTask) task;
-
-            if (slices > 1) {
-                bulkTask.setParent(slices);
-                BulkByScrollParallelizationHelper.startSlices(client, taskManager, DeleteByQueryAction.INSTANCE,
-                    clusterService.localNode().getId(), bulkTask, request, listener);
-            } else {
-                Integer sliceId = request.getSearchRequest().source().slice() == null
-                    ? null
-                    : request.getSearchRequest().source().slice().getId();
-                bulkTask.setChild(sliceId, request.getRequestsPerSecond());
+        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+        BulkByScrollParallelizationHelper.yourNameHere(request, bulkByScrollTask, DeleteByQueryAction.INSTANCE, listener, client,
+            clusterService.localNode(),
+            () -> {
                 ClusterState state = clusterService.state();
-                ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), bulkTask);
-                new AsyncDeleteByQueryAction(bulkTask, logger, client, threadPool, request, scriptService, state, listener).start();
+                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
+                    bulkByScrollTask);
+                return new AsyncDeleteByQueryAction(bulkByScrollTask, logger, assigningClient, threadPool, request, scriptService, state,
+                    listener);
             }
-        });
+        );
     }
 
     @Override

@@ -103,7 +103,7 @@ public class MockScriptEngine implements ScriptEngine {
             SimilarityScript.Factory factory = mockCompiled::createSimilarityScript;
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(SimilarityWeightScript.class)) {
-            SimilarityScript.Factory factory = mockCompiled::createSimilarityWeightScript;
+            SimilarityWeightScript.Factory factory = mockCompiled::createSimilarityWeightScript;
             return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
@@ -157,8 +157,8 @@ public class MockScriptEngine implements ScriptEngine {
             return new MockSimilarityScript(script != null ? script : ctx -> 42d);
         }
 
-        public SimilarityScript createSimilarityWeightScript() {
-            return new MockSimilarityScript(script != null ? script : ctx -> 42d);
+        public SimilarityWeightScript createSimilarityWeightScript() {
+            return new MockSimilarityWeightScript(script != null ? script : ctx -> 42d);
         }
     }
 
@@ -259,6 +259,24 @@ public class MockScriptEngine implements ScriptEngine {
             map.put("field", field);
             map.put("term", term);
             map.put("doc", doc);
+            return ((Number) script.apply(map)).doubleValue();
+        }
+    }
+
+    public class MockSimilarityWeightScript extends SimilarityWeightScript {
+
+        private final Function<Map<String, Object>, Object> script;
+
+        MockSimilarityWeightScript(Function<Map<String, Object>, Object> script) {
+            this.script = script;
+        }
+
+        @Override
+        public double execute(Query query, Field field, Term term) throws IOException {
+            Map<String, Object> map = new HashMap<>();
+            map.put("query", query);
+            map.put("field", field);
+            map.put("term", term);
             return ((Number) script.apply(map)).doubleValue();
         }
     }

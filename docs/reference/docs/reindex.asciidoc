@@ -397,7 +397,7 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "http://otherhost:9200",
+      "host": "https://otherhost:9200",
       "username": "user",
       "password": "pass"
     },

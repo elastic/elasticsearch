@@ -101,18 +101,18 @@ Specify when shard rebalancing is allowed:
 === Shard Balancing Heuristics
 
 The following settings are used together to determine where to place each
-shard.  The cluster is balanced when no allowed action can bring the weights
-of each node closer together by more than the `balance.threshold`.
+shard.  The cluster is balanced when no allowed rebalancing operation can bring the weight
+of any node closer to the weight of any other node by more than the `balance.threshold`.
 
 `cluster.routing.allocation.balance.shard`::
 
-     Defines the weight factor for shards allocated on a node
+     Defines the weight factor for the total number of shards allocated on a node
      (float). Defaults to `0.45f`.  Raising this raises the tendency to
      equalize the number of shards across all nodes in the cluster.
 
 `cluster.routing.allocation.balance.index`::
 
-     Defines a factor to the number of shards per index allocated
+     Defines the weight factor for the number of shards per index allocated
       on a specific node (float). Defaults to `0.55f`.  Raising this raises the
       tendency to equalize the number of shards per index across all nodes in
       the cluster.

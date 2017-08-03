@@ -101,7 +101,7 @@ public class SqlMultinodeIT extends ESRestTestCase {
         expected.put("size", 1);
 
         Map<String, Object> actual = responseToMap(client.performRequest("POST", "/_sql", emptyMap(),
-                new StringEntity("{\"query\": \"SELECT COUNT(*) FROM test.test\"}", ContentType.APPLICATION_JSON)));
+                new StringEntity("{\"query\": \"SELECT COUNT(*) FROM test\"}", ContentType.APPLICATION_JSON)));
 
         if (false == expected.equals(actual)) {
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();

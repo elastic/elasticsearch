@@ -30,6 +30,8 @@ public final class Messages {
             "The date_histogram (or histogram) aggregation cannot have sibling aggregations";
     public static final String DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO =
             "Aggregation interval must be greater than 0";
+    public static final String DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_DIVISOR_OF_BUCKET_SPAN =
+            "Aggregation interval [{0}] must be a divisor of the bucket_span [{1}]";
     public static final String DATAFEED_AGGREGATIONS_INTERVAL_MUST_LESS_OR_EQUAL_TO_BUCKET_SPAN =
             "Aggregation interval [{0}] must be less than or equal to the bucket_span [{1}]";
     public static final String DATAFEED_DATA_HISTOGRAM_MUST_HAVE_NESTED_MAX_AGGREGATION =
@@ -40,6 +42,8 @@ public final class Messages {
             "Inconsistent {0}; ''{1}'' specified in the body differs from ''{2}'' specified as a URL argument";
     public static final String INVALID_ID = "Invalid {0}; ''{1}'' can contain lowercase alphanumeric (a-z and 0-9), hyphens or " +
             "underscores; must start and end with alphanumeric";
+    public static final String INVALID_GROUP = "Invalid group id ''{0}''; must be non-empty string and may contain lowercase alphanumeric" +
+            " (a-z and 0-9), hyphens or underscores; must start and end with alphanumeric";
 
     public static final String JOB_AUDIR_DATAFEED_DATA_SEEN_AGAIN = "Datafeed has started retrieving data again";
     public static final String JOB_AUDIT_CREATED = "Job created";
@@ -148,6 +152,9 @@ public final class Messages {
             "This job would cause a mapping clash with existing field [{0}] - avoid the clash by assigning a dedicated results index";
     public static final String JOB_CONFIG_TIME_FIELD_NOT_ALLOWED_IN_ANALYSIS_CONFIG =
             "data_description.time_field may not be used in the analysis_config";
+
+    public static final String JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE =
+            "job and group names must be unique but job [{0}] and group [{0}] have the same name";
 
     public static final String JOB_UNKNOWN_ID = "No known job with id ''{0}''";
 

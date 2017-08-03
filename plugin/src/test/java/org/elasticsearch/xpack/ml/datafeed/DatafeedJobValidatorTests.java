@@ -123,6 +123,23 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         assertEquals("Aggregation interval [1800001ms] must be less than or equal to the bucket_span [1800000ms]", e.getMessage());
     }
 
+    public void testVerify_HistogramIntervalIsDivisorOfBucketSpan() throws IOException {
+        Job.Builder builder = buildJobBuilder("foo");
+        AnalysisConfig.Builder ac = createAnalysisConfig();
+        ac.setSummaryCountFieldName("some_count");
+        ac.setBucketSpan(TimeValue.timeValueMinutes(5));
+        builder.setAnalysisConfig(ac);
+        Job job = builder.build(new Date());
+        DatafeedConfig datafeedConfig = createValidDatafeedConfigWithAggs(37 * 1000).build();
+
+        ElasticsearchStatusException e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
+                () -> DatafeedJobValidator.validate(datafeedConfig, job));
+        assertEquals("Aggregation interval [37000ms] must be a divisor of the bucket_span [300000ms]", e.getMessage());
+
+        DatafeedConfig goodDatafeedConfig = createValidDatafeedConfigWithAggs(60 * 1000).build();
+        DatafeedJobValidator.validate(goodDatafeedConfig, job);
+    }
+
     private static Job.Builder buildJobBuilder(String id) {
         Job.Builder builder = new Job.Builder(id);
         AnalysisConfig.Builder ac = createAnalysisConfig();

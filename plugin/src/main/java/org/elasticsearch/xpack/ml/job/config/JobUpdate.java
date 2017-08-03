@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,6 +20,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -31,6 +34,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), Job.ID);
+        PARSER.declareStringArray(Builder::setGroups, Job.GROUPS);
         PARSER.declareStringOrNull(Builder::setDescription, Job.DESCRIPTION);
         PARSER.declareObjectArray(Builder::setDetectorUpdates, DetectorUpdate.PARSER, DETECTORS);
         PARSER.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.CONFIG_PARSER, Job.MODEL_PLOT_CONFIG);
@@ -46,6 +50,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
     }
 
     private final String jobId;
+    private final List<String> groups;
     private final String description;
     private final List<DetectorUpdate> detectorUpdates;
     private final ModelPlotConfig modelPlotConfig;
@@ -58,13 +63,14 @@ public class JobUpdate implements Writeable, ToXContentObject {
     private final Map<String, Object> customSettings;
     private final String modelSnapshotId;
 
-    private JobUpdate(String jobId, @Nullable String description, @Nullable List<DetectorUpdate> detectorUpdates,
-                      @Nullable ModelPlotConfig modelPlotConfig, @Nullable AnalysisLimits analysisLimits,
-                      @Nullable TimeValue backgroundPersistInterval, @Nullable Long renormalizationWindowDays,
-                      @Nullable Long resultsRetentionDays, @Nullable Long modelSnapshotRetentionDays,
-                      @Nullable List<String> categorisationFilters, @Nullable  Map<String, Object> customSettings,
-                      @Nullable String modelSnapshotId) {
+    private JobUpdate(String jobId, @Nullable List<String> groups, @Nullable String description,
+                      @Nullable List<DetectorUpdate> detectorUpdates, @Nullable ModelPlotConfig modelPlotConfig,
+                      @Nullable AnalysisLimits analysisLimits, @Nullable TimeValue backgroundPersistInterval,
+                      @Nullable Long renormalizationWindowDays, @Nullable Long resultsRetentionDays,
+                      @Nullable Long modelSnapshotRetentionDays, @Nullable List<String> categorisationFilters,
+                      @Nullable  Map<String, Object> customSettings, @Nullable String modelSnapshotId) {
         this.jobId = jobId;
+        this.groups = groups;
         this.description = description;
         this.detectorUpdates = detectorUpdates;
         this.modelPlotConfig = modelPlotConfig;
@@ -80,6 +86,12 @@ public class JobUpdate implements Writeable, ToXContentObject {
 
     public JobUpdate(StreamInput in) throws IOException {
         jobId = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            String[] groupsArray = in.readOptionalStringArray();
+            groups = groupsArray == null ? null : Arrays.asList(groupsArray);
+        } else {
+            groups = null;
+        }
         description = in.readOptionalString();
         if (in.readBoolean()) {
             detectorUpdates = in.readList(DetectorUpdate::new);
@@ -100,9 +112,14 @@ public class JobUpdate implements Writeable, ToXContentObject {
         customSettings = in.readMap();
         modelSnapshotId = in.readOptionalString();
     }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            String[] groupsArray = groups == null ? null : groups.toArray(new String[groups.size()]);
+            out.writeOptionalStringArray(groupsArray);
+        }
         out.writeOptionalString(description);
         out.writeBoolean(detectorUpdates != null);
         if (detectorUpdates != null) {
@@ -124,6 +141,10 @@ public class JobUpdate implements Writeable, ToXContentObject {
 
     public String getJobId() {
         return jobId;
+    }
+
+    public List<String> getGroups() {
+        return groups;
     }
 
     public String getDescription() {
@@ -178,6 +199,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
+        if (groups != null) {
+            builder.field(Job.GROUPS.getPreferredName(), groups);
+        }
         if (description != null) {
             builder.field(Job.DESCRIPTION.getPreferredName(), description);
         }
@@ -223,6 +247,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
      */
     public Job mergeWithJob(Job source) {
         Job.Builder builder = new Job.Builder(source);
+        if (groups != null) {
+            builder.setGroups(groups);
+        }
         if (description != null) {
             builder.setDescription(description);
         }
@@ -294,6 +321,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         JobUpdate that = (JobUpdate) other;
 
         return Objects.equals(this.jobId, that.jobId)
+                && Objects.equals(this.groups, that.groups)
                 && Objects.equals(this.description, that.description)
                 && Objects.equals(this.detectorUpdates, that.detectorUpdates)
                 && Objects.equals(this.modelPlotConfig, that.modelPlotConfig)
@@ -309,7 +337,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, description, detectorUpdates, modelPlotConfig, analysisLimits, renormalizationWindowDays,
+        return Objects.hash(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, categorizationFilters, customSettings,
                 modelSnapshotId);
     }
@@ -410,6 +438,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
     public static class Builder {
 
         private String jobId;
+        private List<String> groups;
         private String description;
         private List<DetectorUpdate> detectorUpdates;
         private ModelPlotConfig modelPlotConfig;
@@ -428,6 +457,11 @@ public class JobUpdate implements Writeable, ToXContentObject {
 
         public Builder setJobId(String jobId) {
             this.jobId = jobId;
+            return this;
+        }
+
+        public Builder setGroups(List<String> groups) {
+            this.groups = groups;
             return this;
         }
 
@@ -487,7 +521,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
 
         public JobUpdate build() {
-            return new JobUpdate(jobId, description, detectorUpdates, modelPlotConfig, analysisLimits, backgroundPersistInterval,
+            return new JobUpdate(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, backgroundPersistInterval,
                     renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays, categorizationFilters, customSettings,
                     modelSnapshotId);
         }

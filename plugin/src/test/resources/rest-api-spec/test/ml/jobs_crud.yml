@@ -296,6 +296,7 @@
         job_id: jobs-crud-update-job
         body:  >
           {
+            "groups": ["group-1", "group-2"],
             "description":"Post update description",
             "detectors": [{"detector_index": 0, "rules": {"target_field_name": "airline",
                                       "rule_conditions": [ { "condition_type": "numerical_actual",
@@ -318,6 +319,7 @@
             }
           }
   - match: { job_id: "jobs-crud-update-job" }
+  - match: { groups: ["group-1", "group-2"] }
   - match: { description: "Post update description" }
   - match: { model_plot_config.enabled: false }
   - match: { model_plot_config.terms: "foobar" }

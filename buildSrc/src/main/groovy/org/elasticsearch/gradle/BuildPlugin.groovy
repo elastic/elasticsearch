@@ -410,11 +410,10 @@ class BuildPlugin implements Plugin<Project> {
         project.afterEvaluate {
             project.tasks.withType(JavaCompile) {
                 File gradleJavaHome = Jvm.current().javaHome
-                if (new File(project.javaHome).canonicalPath != gradleJavaHome.canonicalPath) {
-                    options.fork = true
-                    options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
-                    options.forkOptions.memoryMaximumSize = "1g"
-                }
+                // we fork because compiling lots of different classes in a shared jvm can eventually trigger GC overhead limitations
+                options.fork = true
+                options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
+                options.forkOptions.memoryMaximumSize = "1g"
                 if (project.targetCompatibility >= JavaVersion.VERSION_1_8) {
                     // compile with compact 3 profile by default
                     // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE

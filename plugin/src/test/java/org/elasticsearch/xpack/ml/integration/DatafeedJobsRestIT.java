@@ -442,7 +442,10 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                         + "\"aggs\": {\"timestamp\":{\"max\":{\"field\":\"timestamp\"}},"
                             + "\"bytes-delta\":{\"derivative\":{\"buckets_path\":\"avg_bytes_out\"}},"
                             + "\"avg_bytes_out\":{\"avg\":{\"field\":\"network_bytes_out\"}} }}}}}";
-        new DatafeedBuilder(datafeedId, jobId, "network-data", "doc").setAggregations(aggregations).build();
+        new DatafeedBuilder(datafeedId, jobId, "network-data", "doc")
+                .setAggregations(aggregations)
+                .setChunkingTimespan("300s")
+                .build();
 
         openJob(client(), jobId);
 
@@ -696,6 +699,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String scriptedFields;
         String aggregations;
         String authHeader = BASIC_AUTH_VALUE_SUPER_USER;
+        String chunkingTimespan;
 
         DatafeedBuilder(String datafeedId, String jobId, String index, String type) {
             this.datafeedId = datafeedId;
@@ -724,12 +728,19 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             return this;
         }
 
+        DatafeedBuilder setChunkingTimespan(String timespan) {
+                        chunkingTimespan = timespan;
+                        return this;
+                 }
+
         Response build() throws IOException {
             String datafeedConfig = "{"
                     + "\"job_id\": \"" + jobId + "\",\"indexes\":[\"" + index + "\"],\"types\":[\"" + type + "\"]"
                     + (source ? ",\"_source\":true" : "")
                     + (scriptedFields == null ? "" : ",\"script_fields\":" + scriptedFields)
                     + (aggregations == null ? "" : ",\"aggs\":" + aggregations)
+                    + (chunkingTimespan == null ? "" :
+                            ",\"chunking_config\":{\"mode\":\"MANUAL\",\"time_span\":\"" + chunkingTimespan + "\"}")
                     + "}";
             return client().performRequest("put", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId, Collections.emptyMap(),
                     new StringEntity(datafeedConfig, ContentType.APPLICATION_JSON),

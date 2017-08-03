@@ -48,5 +48,13 @@ public final class DatafeedJobValidator {
                     TimeValue.timeValueMillis(histogramIntervalMillis).getStringRep(),
                     TimeValue.timeValueMillis(bucketSpanMillis).getStringRep()));
         }
+
+        if (bucketSpanMillis % histogramIntervalMillis != 0) {
+            throw ExceptionsHelper.badRequestException(Messages.getMessage(
+                    Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_DIVISOR_OF_BUCKET_SPAN,
+                    TimeValue.timeValueMillis(histogramIntervalMillis).getStringRep(),
+                    TimeValue.timeValueMillis(bucketSpanMillis).getStringRep()));
+        }
+
     }
 }

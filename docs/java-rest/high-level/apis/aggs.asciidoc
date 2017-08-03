@@ -4,14 +4,9 @@
 This page lists all the available aggregations with their corresponding `AggregationBuilder` class name and helper method name in the
 `AggregationBuilders` or `PipelineAggregatorBuilders` utility classes.
 
-//:agg-ref:        {elasticsearch-javadoc}/org/elasticsearch/search/aggregations
-//:parentjoin-ref: {parent-join-client-javadoc}/org/elasticsearch/join/aggregations
-//:matrixstats-ref: {matrixstats-client-javadoc}/org/elasticsearch/search/aggregations
-
-:agg-ref:        https://snapshots.elastic.co/javadoc/org/elasticsearch/elasticsearch/5.6.0-SNAPSHOT/org/elasticsearch/search/aggregations
-:parentjoin-ref: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/parent-join-client/5.6.0-SNAPSHOT/org/elasticsearch/join/aggregations
-:matrixstats-ref: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/aggs-matrix-stats-client/5.6.0-SNAPSHOT/org/elasticsearch/search/aggregations
-
+:agg-ref:        {elasticsearch-javadoc}/org/elasticsearch/search/aggregations
+:parentjoin-ref: {parent-join-client-javadoc}/org/elasticsearch/join/aggregations
+:matrixstats-ref: {matrixstats-client-javadoc}/org/elasticsearch/search/aggregations
 
 ==== Metrics Aggregations
 [options="header"]

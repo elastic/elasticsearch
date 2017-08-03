@@ -19,51 +19,34 @@
 
 package org.elasticsearch.common.breaker;
 
-public class DebuggingBreaker implements CircuitBreaker {
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
-    private final CircuitBreaker breaker;
+public abstract class DebuggingBreaker implements CircuitBreaker {
 
-    public DebuggingBreaker(CircuitBreaker breaker) {
-        this.breaker = breaker;
+    private final ConcurrentMap<BreakerKey, Object> keys = new ConcurrentHashMap<>();
+
+    @Override
+    public void addEstimateBytesAndMaybeBreak(BreakerKey key, long bytes) throws CircuitBreakingException {
+        addEstimateBytesAndMaybeBreak(bytes, key.getLabel());
+        key.incBytes(bytes);
+        keys.putIfAbsent(key, bytes);
     }
 
     @Override
-    public void circuitBreak(String fieldName, long bytesNeeded) {
-        breaker.circuitBreak(fieldName, bytesNeeded);
+    public void addWithoutBreaking(BreakerKey key, long bytes) throws CircuitBreakingException {
+        addWithoutBreaking(bytes);
+        key.incBytes(bytes);
+        keys.putIfAbsent(key, bytes);
     }
 
     @Override
-    public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-        return breaker.addEstimateBytesAndMaybeBreak(bytes, label);
-    }
-
-    @Override
-    public long addWithoutBreaking(long bytes) {
-        return breaker.addWithoutBreaking(bytes);
-    }
-
-    @Override
-    public long getUsed() {
-        return breaker.getUsed();
-    }
-
-    @Override
-    public long getLimit() {
-        return breaker.getLimit();
-    }
-
-    @Override
-    public double getOverhead() {
-        return breaker.getOverhead();
-    }
-
-    @Override
-    public long getTrippedCount() {
-        return breaker.getTrippedCount();
-    }
-
-    @Override
-    public String getName() {
-        return breaker.getName();
+    public void release(BreakerKey key) {
+        Object removed = keys.remove(key);
+        if (removed != null) {
+            addWithoutBreaking(-key.getBytes());
+        } else {
+            throw new IllegalStateException();
+        }
     }
 }

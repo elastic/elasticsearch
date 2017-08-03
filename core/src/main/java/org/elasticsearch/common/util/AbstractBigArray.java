@@ -21,6 +21,7 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.Recycler;
 
@@ -162,5 +163,4 @@ abstract class AbstractBigArray extends AbstractArray {
             cache = null;
         }
     }
-
 }

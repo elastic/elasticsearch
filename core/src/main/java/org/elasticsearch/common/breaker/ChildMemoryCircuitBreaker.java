@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Breaker that will check a parent's when incrementing
  */
-public class ChildMemoryCircuitBreaker implements CircuitBreaker {
+public class ChildMemoryCircuitBreaker extends DebuggingBreaker {
 
     private final long memoryBytesLimit;
     private final BreakerSettings settings;

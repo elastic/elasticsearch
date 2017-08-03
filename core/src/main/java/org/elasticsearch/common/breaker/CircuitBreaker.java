@@ -70,10 +70,22 @@ public interface CircuitBreaker {
      */
     double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException;
 
+    void addEstimateBytesAndMaybeBreak(BreakerKey key, long bytes) throws CircuitBreakingException;
+
     /**
      * Adjust the circuit breaker without tripping
      */
     long addWithoutBreaking(long bytes);
+
+    /**
+     * Adjust the circuit breaker without tripping
+     */
+    void addWithoutBreaking(BreakerKey key, long bytes);
+
+    /**
+     * @param key the breaker key to release all resources
+     */
+    void release(BreakerKey key);
 
     /**
      * @return the currently used bytes the breaker is tracking
@@ -99,4 +111,42 @@ public interface CircuitBreaker {
      * @return the name of the breaker
      */
     String getName();
+
+    static BreakerKey getKey(String label) {
+        return new BreakerKey(label);
+    }
+
+    class BreakerKey {
+
+        private final StackTraceElement[] stackTrace;
+        private long bytes = 0;
+        private String label;
+
+        private BreakerKey(String label) {
+            boolean captureStack = false;
+            this.label = label;
+            if (captureStack) {
+                stackTrace = Thread.currentThread().getStackTrace();
+            } else {
+                stackTrace = null;
+            }
+        }
+
+        public StackTraceElement[] getStackTrace() {
+            return stackTrace;
+        }
+
+        public void incBytes(long delta) {
+            bytes += delta;
+        }
+
+        public long getBytes() {
+            return bytes;
+        }
+
+        public String getLabel() {
+            return label;
+        }
+    }
+
 }

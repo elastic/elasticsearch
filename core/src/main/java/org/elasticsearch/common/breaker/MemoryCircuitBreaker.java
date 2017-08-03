@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * MemoryCircuitBreaker is a circuit breaker that breaks once a
  * configurable memory limit has been reached.
  */
-public class MemoryCircuitBreaker implements CircuitBreaker {
+public class MemoryCircuitBreaker extends DebuggingBreaker {
 
     private final long memoryBytesLimit;
     private final double overheadConstant;

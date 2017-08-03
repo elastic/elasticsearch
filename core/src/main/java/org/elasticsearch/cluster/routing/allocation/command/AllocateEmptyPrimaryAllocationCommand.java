@@ -49,9 +49,6 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
     public static final String NAME = "allocate_empty_primary";
     public static final ParseField COMMAND_NAME_FIELD = new ParseField(NAME);
 
-    private static final String MESSAGE = "Allocating an empty primary for [%1$s][%2$s] on node [%3$s]. This action can cause " +
-        "data loss. If the old primary rejoins the cluster, its copy of this shard will be deleted.";
-
     private static final ObjectParser<Builder, Void> EMPTY_PRIMARY_PARSER = BasePrimaryAllocationCommand.createAllocatePrimaryParser(NAME);
 
     /**
@@ -75,6 +72,18 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
     @Override
     public String name() {
         return NAME;
+    }
+
+    @Override
+    public String description() {
+        return String.format(Locale.ROOT, "allocate an empty primary for [%1$s][%2$s] on node [%3$s]", index, shardId, node);
+    }
+
+    @Override
+    public Optional<String> getMessage() {
+        return Optional.of(String.format(Locale.ROOT,
+            "Allocated an empty primary for [%1$s][%2$s] on node [%3$s]. This action can cause data loss. If the old primary rejoins the " +
+            "cluster, its copy of this shard will be deleted.", index, shardId, node));
     }
 
     public static AllocateEmptyPrimaryAllocationCommand fromXContent(XContentParser parser) throws IOException {
@@ -135,10 +144,5 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, unassignedInfoToUpdate, StoreRecoverySource.EMPTY_STORE_INSTANCE);
 
         return new RerouteExplanation(this, allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders"));
-    }
-
-    @Override
-    public Optional<String> getMessage() {
-        return Optional.of(String.format(Locale.ROOT, MESSAGE, index, shardId, node));
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -27,6 +28,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Class used to encapsulate a number of {@link RerouteExplanation}
@@ -79,5 +83,26 @@ public class RoutingExplanations implements ToXContent {
         }
         builder.endArray();
         return builder;
+    }
+
+    public List<String> getCommandSummary() {
+        return explanations().stream().map(explanation -> {
+            if (explanation.decisions().type().equals(Decision.Type.YES)) {
+                return String.format(Locale.ROOT, "Allocation command [%1$s] will be applied: %2$s",
+                    explanation.command().name(), explanation.command().description());
+            } else {
+                return String.format(Locale.ROOT, "Allocation command [%1$s] will not be applied: %2$s",
+                    explanation.command().name(), explanation.command().description());
+            }
+        }).collect(Collectors.toList());
+    }
+
+    public List<String> getAppliedCommandMessages() {
+        return explanations().stream()
+            .filter(explanation -> explanation.decisions().type().equals(Decision.Type.YES))
+            .map(explanation -> explanation.command().getMessage())
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
     }
 }

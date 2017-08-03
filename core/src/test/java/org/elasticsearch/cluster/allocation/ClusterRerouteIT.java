@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -327,7 +328,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
-        final String indexName = "fake_index";
+        final String indexName = "test_index";
         client().admin().indices().prepareCreate(indexName).setWaitForActiveShards(ActiveShardCount.NONE)
             .setSettings(Settings.builder()
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 2)
@@ -336,12 +337,15 @@ public class ClusterRerouteIT extends ESIntegTestCase {
 
         Logger actionLogger = Loggers.getLogger(TransportClusterRerouteAction.class);
 
-
         MockLogAppender dryRunMockLog = new MockLogAppender();
         dryRunMockLog.start();
         dryRunMockLog.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("don't warn about allocation on dry run",
-                TransportClusterRerouteAction.class.getName(), Level.INFO, "Allocating an empty primary*")
+            new MockLogAppender.UnseenEventExpectation("no command summary logged on dry run",
+                TransportClusterRerouteAction.class.getName(), Level.INFO, "Allocation command [allocate_empty_primary] will be applied*")
+        );
+        dryRunMockLog.addExpectation(
+            new MockLogAppender.UnseenEventExpectation("no completed message logged on dry run",
+                TransportClusterRerouteAction.class.getName(), Level.INFO, "Allocated an empty primary*")
         );
         Loggers.addAppender(actionLogger, dryRunMockLog);
 
@@ -353,7 +357,12 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             .execute().actionGet();
 
         // during a dry run, messages exist but are not logged or exposed
-        assertThat(dryRunResponse.getMessages(), hasSize(1));
+        assertThat(dryRunResponse.getExplanations().getAppliedCommandMessages(), hasSize(1));
+        assertThat(dryRunResponse.getExplanations().getAppliedCommandMessages().get(0), containsString("Allocated an empty primary"));
+
+        assertThat(dryRunResponse.getExplanations().getCommandSummary(), hasSize(1));
+        assertThat(dryRunResponse.getExplanations().getCommandSummary().get(0),
+            containsString("Allocation command [allocate_empty_primary] will be applied"));
 
         dryRunMockLog.assertAllExpectationsMatched();
         dryRunMockLog.stop();
@@ -362,28 +371,44 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         MockLogAppender allocateMockLog = new MockLogAppender();
         allocateMockLog.start();
         allocateMockLog.addExpectation(
-            new MockLogAppender.SeenEventExpectation("warning for first allocate empty primary",
-                TransportClusterRerouteAction.class.getName(), Level.INFO, "Allocating an empty primary*")
+            new MockLogAppender.SeenEventExpectation("command summary for first allocate empty primary",
+                TransportClusterRerouteAction.class.getName(), Level.INFO,
+                "Allocation command [allocate_empty_primary] will be applied*" + nodeName1 + "*")
         );
         allocateMockLog.addExpectation(
-            new MockLogAppender.SeenEventExpectation("warning for second allocate empty primary",
-                TransportClusterRerouteAction.class.getName(), Level.INFO, "Allocating an empty primary*")
+            new MockLogAppender.SeenEventExpectation("command summary for second allocate empty primary",
+                TransportClusterRerouteAction.class.getName(), Level.INFO,
+                "Allocation command [allocate_empty_primary] will not be applied*" + nodeName2 + "*")
+        );
+        allocateMockLog.addExpectation(
+            new MockLogAppender.SeenEventExpectation("message for first allocate empty primary",
+                TransportClusterRerouteAction.class.getName(), Level.INFO, "Allocated an empty primary*" + nodeName1 + "*")
+        );
+        allocateMockLog.addExpectation(
+            new MockLogAppender.UnseenEventExpectation("no message for second allocate empty primary",
+                TransportClusterRerouteAction.class.getName(), Level.INFO, "Allocated an empty primary*" + nodeName2 + "*")
         );
         Loggers.addAppender(actionLogger, allocateMockLog);
 
-        AllocationCommand allocateEmptyPrimaryCommand1 = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
-        AllocationCommand allocateEmptyPrimaryCommand2 = new AllocateEmptyPrimaryAllocationCommand(indexName, 1, nodeName2, true);
+        AllocationCommand yesDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
+        AllocationCommand noDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand("noexist", 1, nodeName2, true);
         ClusterRerouteResponse response = client().admin().cluster().prepareReroute()
-            .setExplain(randomBoolean())
-            .add(allocateEmptyPrimaryCommand1)
-            .add(allocateEmptyPrimaryCommand2)
+            .setExplain(true) // so we get a NO decision back rather than an exception
+            .add(yesDecisionAllocation)
+            .add(noDecisionAllocation)
             .execute().actionGet();
 
-        ensureYellow(indexName);
+        assertThat(response.getExplanations().getAppliedCommandMessages(), hasSize(1));
+        assertThat(response.getExplanations().getAppliedCommandMessages().get(0), containsString("Allocated an empty primary"));
+        assertThat(response.getExplanations().getAppliedCommandMessages().get(0), containsString(nodeName1));
 
-        assertThat(response.getMessages(), hasSize(2));
-        assertThat(response.getMessages().get(0), containsString("Allocating an empty primary"));
-        assertThat(response.getMessages().get(1), containsString("Allocating an empty primary"));
+        assertThat(response.getExplanations().getCommandSummary(), hasSize(2));
+        assertThat(response.getExplanations().getCommandSummary().get(0),
+            containsString("Allocation command [allocate_empty_primary] will be applied"));
+        assertThat(response.getExplanations().getCommandSummary().get(0), containsString(nodeName1));
+        assertThat(response.getExplanations().getCommandSummary().get(1),
+            containsString("Allocation command [allocate_empty_primary] will not be applied"));
+        assertThat(response.getExplanations().getCommandSummary().get(1), containsString(nodeName2));
 
         allocateMockLog.assertAllExpectationsMatched();
         allocateMockLog.stop();

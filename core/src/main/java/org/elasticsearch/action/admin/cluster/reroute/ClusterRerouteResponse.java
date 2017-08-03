@@ -22,14 +22,10 @@ package org.elasticsearch.action.admin.cluster.reroute;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * Response returned after a cluster reroute request
@@ -58,15 +54,6 @@ public class ClusterRerouteResponse extends AcknowledgedResponse {
 
     public RoutingExplanations getExplanations() {
         return this.explanations;
-    }
-
-    public List<String> getMessages() {
-        return explanations.explanations().stream()
-            .filter(explanation -> explanation.decisions().type().equals(Decision.Type.YES))
-            .map(explanation -> explanation.command().getMessage())
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .collect(Collectors.toList());
     }
 
     @Override

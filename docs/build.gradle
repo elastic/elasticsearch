@@ -31,7 +31,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/bucket/significantterms-aggregation.asciidoc',
   'reference/aggregations/bucket/terms-aggregation.asciidoc',
   'reference/aggregations/matrix/stats-aggregation.asciidoc',
-  'reference/aggregations/metrics/scripted-metric-aggregation.asciidoc',
   'reference/aggregations/metrics/tophits-aggregation.asciidoc',
   'reference/cluster/allocation-explain.asciidoc',
   'reference/cluster/nodes-info.asciidoc',

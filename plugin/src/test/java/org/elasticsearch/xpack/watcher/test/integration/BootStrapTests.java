@@ -183,7 +183,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/pull/1544")
     public void testMixedTriggeredWatchLoading() throws Exception {
         createIndex("output");
         client().prepareIndex("my-index", "foo", "bar")

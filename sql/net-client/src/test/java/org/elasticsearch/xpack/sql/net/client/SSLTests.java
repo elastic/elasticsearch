@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.net.client;
 
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.net.client.util.Bytes;
@@ -25,6 +26,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2074")
 public class SSLTests extends ESTestCase {
 
     private static URL sslServer;

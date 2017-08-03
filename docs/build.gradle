@@ -24,7 +24,6 @@ apply plugin: 'elasticsearch.docs-test'
  * only remove entries from this list. When it is empty we'll remove it
  * entirely and have a party! There will be cake and everything.... */
 buildRestTests.expectedUnconvertedCandidates = [
-  'reference/aggregations/bucket/iprange-aggregation.asciidoc',
   'reference/aggregations/bucket/nested-aggregation.asciidoc',
   'reference/aggregations/bucket/range-aggregation.asciidoc',
   'reference/aggregations/bucket/reverse-nested-aggregation.asciidoc',
@@ -504,4 +503,43 @@ for (int i = 0; i < 100; i++) {
   buildRestTests.setups['latency'] += """
             {"index":{}}
             {"load_time": "$value"}"""
+}
+
+// Used by iprange agg
+buildRestTests.setups['iprange'] = '''
+  - do:
+        indices.create:
+          index: ip_addresses
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              data:
+                properties:
+                  ip:
+                    type: ip
+  - do:
+        bulk:
+          index: ip_addresses
+          type: data
+          refresh: true
+          body: |'''
+
+
+for (int i = 0; i < 255; i++) {
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "10.0.0.$i"}"""
+}
+for (int i = 0; i < 5; i++) {
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "9.0.0.$i"}"""
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "11.0.0.$i"}"""
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "12.0.0.$i"}"""
 }

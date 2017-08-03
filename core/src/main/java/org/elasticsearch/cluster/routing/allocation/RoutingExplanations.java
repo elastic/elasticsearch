@@ -85,6 +85,9 @@ public class RoutingExplanations implements ToXContent {
         return builder;
     }
 
+    /**
+     * Builds messages for the user that indicate whether commands were applied to the cluster state or not.
+     */
     public List<String> getCommandSummary() {
         return explanations().stream().map(explanation -> {
             if (explanation.decisions().type().equals(Decision.Type.YES)) {
@@ -97,6 +100,10 @@ public class RoutingExplanations implements ToXContent {
         }).collect(Collectors.toList());
     }
 
+    /**
+     * Provides feedback from commands that are to be applied. This information is intended to only be relevant after the cluster state
+     * has changed
+     */
     public List<String> getAppliedCommandMessages() {
         return explanations().stream()
             .filter(explanation -> explanation.decisions().type().equals(Decision.Type.YES))

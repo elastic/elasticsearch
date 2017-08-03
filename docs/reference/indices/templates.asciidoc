@@ -3,8 +3,7 @@
 
 Index templates allow you to define templates that will automatically be
 applied when new indices are created. The templates include both 
-[settings](https://www.elastic.co/guide/en/elasticsearch/reference/5.5/index-modules.html) 
-and [mappings](https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping.html),
+<<index-modules-settings,settings>> and <<mapping,mappings>>
 and a simple pattern template that controls whether the template should be 
 applied to the new index.
 

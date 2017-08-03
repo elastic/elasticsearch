@@ -21,15 +21,18 @@ import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -465,6 +468,20 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertEquals(expected, new HashSet<>(builder.invalidCreateTimeSettings()));
     }
 
+    public void testEmptyGroup() {
+        Job.Builder builder = buildJobBuilder("foo");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> builder.setGroups(Arrays.asList("foo-group", "")));
+        assertThat(e.getMessage(), containsString("Invalid group id ''"));
+    }
+
+    public void testInvalidGroup() {
+        Job.Builder builder = buildJobBuilder("foo");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> builder.setGroups(Arrays.asList("foo-group", "$$$")));
+        assertThat(e.getMessage(), containsString("Invalid group id '$$$'"));
+    }
+
     public static Job.Builder buildJobBuilder(String id, Date date) {
         Job.Builder builder = new Job.Builder(id);
         builder.setCreateTime(date);
@@ -499,6 +516,14 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         }
         if (randomBoolean()) {
             builder.setJobVersion(Version.CURRENT);
+        }
+        if (randomBoolean()) {
+            int groupsNum = randomIntBetween(0, 10);
+            List<String> groups = new ArrayList<>(groupsNum);
+            for (int i = 0; i < groupsNum; i++) {
+                groups.add(randomValidJobId());
+            }
+            builder.setGroups(groups);
         }
         builder.setCreateTime(new Date(randomNonNegativeLong()));
         if (randomBoolean()) {

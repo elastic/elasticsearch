@@ -31,9 +31,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/bucket/significantterms-aggregation.asciidoc',
   'reference/aggregations/bucket/terms-aggregation.asciidoc',
   'reference/aggregations/matrix/stats-aggregation.asciidoc',
-  'reference/aggregations/metrics/extendedstats-aggregation.asciidoc',
-  'reference/aggregations/metrics/percentile-aggregation.asciidoc',
-  'reference/aggregations/metrics/percentile-rank-aggregation.asciidoc',
   'reference/aggregations/metrics/scripted-metric-aggregation.asciidoc',
   'reference/aggregations/metrics/tophits-aggregation.asciidoc',
   'reference/cluster/allocation-explain.asciidoc',
@@ -477,3 +474,35 @@ buildRestTests.setups['analyze_sample'] = '''
                 properties:
                   obj1.field1:
                     type: text'''
+
+// Used by percentile/percentile-rank aggregations
+buildRestTests.setups['latency'] = '''
+  - do:
+        indices.create:
+          index: latency
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              data:
+                properties:
+                  load_time:
+                    type: long
+  - do:
+        bulk:
+          index: latency
+          type: data
+          refresh: true
+          body: |'''
+
+
+for (int i = 0; i < 100; i++) {
+  def value = i
+  if (i % 10) {
+    value = i*10
+  }
+  buildRestTests.setups['latency'] += """
+            {"index":{}}
+            {"load_time": "$value"}"""
+}

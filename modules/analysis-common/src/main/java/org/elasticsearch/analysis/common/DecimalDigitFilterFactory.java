@@ -17,41 +17,32 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.minhash.MinHashFilterFactory;
+import org.apache.lucene.analysis.core.DecimalDigitFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-
-import java.util.HashMap;
-import java.util.Map;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 
 /**
- * TokenFilterFactoryAdapter for {@link MinHashFilterFactory}
- *
+ * Factory for {@link DecimalDigitFilter}
  */
-public class MinHashTokenFilterFactory extends AbstractTokenFilterFactory {
+public final class DecimalDigitFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
-    private final MinHashFilterFactory minHashFilterFactory;
-
-    public MinHashTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    DecimalDigitFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        minHashFilterFactory = new MinHashFilterFactory(convertSettings(settings));
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return minHashFilterFactory.create(tokenStream);
+        return new DecimalDigitFilter(tokenStream);
     }
 
-    private Map<String, String> convertSettings(Settings settings) {
-        Map<String, String> settingMap = new HashMap<>();
-        settingMap.put("hashCount", settings.get("hash_count"));
-        settingMap.put("bucketCount", settings.get("bucket_count"));
-        settingMap.put("hashSetSize", settings.get("hash_set_size"));
-        settingMap.put("withRotation", settings.get("with_rotation"));
-        return settingMap;
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }

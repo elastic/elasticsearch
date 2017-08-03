@@ -16,27 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.core.DecimalDigitFilter;
+import org.apache.lucene.analysis.miscellaneous.ScandinavianFoldingFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 
 /**
- * Factory for {@link DecimalDigitFilter}
+ * Factory for {@link ScandinavianFoldingFilter}
  */
-public final class DecimalDigitFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
+public class ScandinavianFoldingFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
-    public DecimalDigitFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    ScandinavianFoldingFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new DecimalDigitFilter(tokenStream);
+        return new ScandinavianFoldingFilter(tokenStream);
     }
 
     @Override

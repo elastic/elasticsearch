@@ -108,7 +108,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
     }
 
     MetaJoinFieldMapper(String name, MappedFieldType fieldType, Settings indexSettings) {
-        super(name, fieldType, ParentIdFieldMapper.Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), null);
+        super(name, fieldType, ParentIdFieldMapper.Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), CopyTo.empty());
     }
 
     void setFieldMapper(ParentJoinFieldMapper mapper) {

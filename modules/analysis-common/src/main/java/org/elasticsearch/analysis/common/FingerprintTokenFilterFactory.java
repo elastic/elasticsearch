@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.FingerprintFilter;
@@ -25,24 +25,21 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.FingerprintAnalyzerProvider;
 
+import static org.elasticsearch.index.analysis.FingerprintAnalyzerProvider.DEFAULT_MAX_OUTPUT_SIZE;
+import static org.elasticsearch.index.analysis.FingerprintAnalyzerProvider.MAX_OUTPUT_SIZE;
 
 public class FingerprintTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final char separator;
     private final int maxOutputSize;
 
-    public static ParseField SEPARATOR = new ParseField("separator");
-    public static ParseField MAX_OUTPUT_SIZE = new ParseField("max_output_size");
-
-    public static final char DEFAULT_SEPARATOR  = ' ';
-    public static final int DEFAULT_MAX_OUTPUT_SIZE = 255;
-
-    public FingerprintTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    FingerprintTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        this.separator = parseSeparator(settings);
-        this.maxOutputSize = settings.getAsInt(MAX_OUTPUT_SIZE.getPreferredName(),
-            FingerprintTokenFilterFactory.DEFAULT_MAX_OUTPUT_SIZE);
+        this.separator = FingerprintAnalyzerProvider.parseSeparator(settings);
+        this.maxOutputSize = settings.getAsInt(MAX_OUTPUT_SIZE.getPreferredName(), DEFAULT_MAX_OUTPUT_SIZE);
     }
 
     @Override
@@ -52,15 +49,4 @@ public class FingerprintTokenFilterFactory extends AbstractTokenFilterFactory {
         return result;
     }
 
-    public static char parseSeparator(Settings settings) throws IllegalArgumentException {
-        String customSeparator = settings.get(SEPARATOR.getPreferredName());
-        if (customSeparator == null) {
-            return FingerprintTokenFilterFactory.DEFAULT_SEPARATOR;
-        } else if (customSeparator.length() == 1) {
-            return customSeparator.charAt(0);
-        }
-
-        throw new IllegalArgumentException("Setting [separator] must be a single, non-null character. ["
-            + customSeparator + "] was provided.");
-    }
 }

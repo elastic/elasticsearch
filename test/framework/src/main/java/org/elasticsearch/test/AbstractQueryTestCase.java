@@ -148,7 +148,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     protected static final String[] MAPPED_FIELD_NAMES = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME, INT_RANGE_FIELD_NAME,
             DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME, OBJECT_FIELD_NAME, GEO_POINT_FIELD_NAME,
             GEO_SHAPE_FIELD_NAME};
-    protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME, INT_RANGE_FIELD_NAME,
+    private static final String[] MAPPED_LEAF_FIELD_NAMES = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME, INT_RANGE_FIELD_NAME,
             DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME, GEO_POINT_FIELD_NAME, };
     private static final int NUMBER_OF_TESTQUERIES = 20;
 
@@ -166,7 +166,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     protected static String[] getCurrentTypes() {
-        return currentTypes == null ? Strings.EMPTY_ARRAY : currentTypes;
+        return currentTypes;
     }
 
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -186,7 +186,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
 
         // Set a single type in the index
-        currentTypes = new String[] { "doc" };
+        switch (random().nextInt(3)) {
+        case 0:
+            currentTypes = new String[0]; // no types
+            break;
+        default:
+            currentTypes = new String[] { "doc" };
+            break;
+        }
         randomTypes = getRandomTypes();
     }
 
@@ -534,7 +541,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     protected QueryBuilder parseQuery(AbstractQueryBuilder<?> builder) throws IOException {
-        return parseQuery(createParser(JsonXContent.jsonXContent, builder.buildAsBytes(XContentType.JSON)));
+        BytesReference bytes = XContentHelper.toXContent(builder, XContentType.JSON, false);
+        return parseQuery(createParser(JsonXContent.jsonXContent, bytes));
     }
 
     protected QueryBuilder parseQuery(String queryAsString) throws IOException {

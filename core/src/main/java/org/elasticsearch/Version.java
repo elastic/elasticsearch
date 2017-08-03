@@ -99,7 +99,13 @@ public class Version implements Comparable<Version> {
     public static final int V_6_0_0_beta1_ID = 6000026;
     public static final Version V_6_0_0_beta1 =
         new Version(V_6_0_0_beta1_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final Version CURRENT = V_6_0_0_beta1;
+    public static final int V_6_1_0_ID = 6010099;
+    public static final Version V_6_1_0 =
+        new Version(V_6_1_0_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final int V_7_0_0_alpha1_ID = 7000001;
+    public static final Version V_7_0_0_alpha1 =
+        new Version(V_7_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final Version CURRENT = V_7_0_0_alpha1;
 
     // unreleased versions must be added to the above list with the suffix _UNRELEASED (with the exception of CURRENT)
 
@@ -114,6 +120,10 @@ public class Version implements Comparable<Version> {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_7_0_0_alpha1_ID:
+                return V_7_0_0_alpha1;
+            case V_6_1_0_ID:
+                return V_6_1_0;
             case V_6_0_0_beta1_ID:
                 return V_6_0_0_beta1;
             case V_6_0_0_alpha2_ID:
@@ -311,12 +321,12 @@ public class Version implements Comparable<Version> {
     public Version minimumCompatibilityVersion() {
         final int bwcMajor;
         final int bwcMinor;
+        // TODO: remove this entirely, making it static for each version
         if (major == 6) { // we only specialize for current major here
             bwcMajor = Version.V_5_6_0.major;
             bwcMinor = Version.V_5_6_0.minor;
-        } else if (major > 6) { // all the future versions are compatible with first minor...
-            bwcMajor = major -1;
-            bwcMinor = 0;
+        } else if (major == 7) { // we only specialize for current major here
+            return V_6_1_0;
         } else {
             bwcMajor = major;
             bwcMinor = 0;
@@ -333,6 +343,8 @@ public class Version implements Comparable<Version> {
         final int bwcMajor;
         if (major == 5) {
             bwcMajor = 2; // we jumped from 2 to 5
+        } else if (major == 7) {
+            return V_6_0_0_beta1;
         } else {
             bwcMajor = major - 1;
         }
@@ -380,6 +392,10 @@ public class Version implements Comparable<Version> {
             sb.append(build - 50);
         }
         return sb.toString();
+    }
+
+    public static String displayVersion(final Version version, final boolean isSnapshot) {
+        return version + (isSnapshot ? "-SNAPSHOT" : "");
     }
 
     @Override

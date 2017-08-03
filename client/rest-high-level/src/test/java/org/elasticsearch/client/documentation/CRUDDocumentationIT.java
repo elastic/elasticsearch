@@ -19,11 +19,9 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.client.methods.HttpPost;
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.nio.entity.NStringEntity;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -38,6 +36,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -46,6 +45,11 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.client.methods.HttpPost;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.nio.entity.NStringEntity;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;

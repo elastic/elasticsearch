@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
@@ -26,6 +26,10 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.Analysis;
+import org.elasticsearch.index.analysis.StopTokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 /**
  * A {@link TokenFilterFactory} for {@link KeepWordFilter}. This filter only
@@ -54,8 +58,7 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
     // unsupported ancient option
     private static final String ENABLE_POS_INC_KEY = "enable_position_increments";
 
-    public KeepWordFilterFactory(IndexSettings indexSettings,
-                                 Environment env, String name, Settings settings) {
+    KeepWordFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 
         final String[] arrayKeepWords = settings.getAsArray(KEEP_WORDS_KEY, null);

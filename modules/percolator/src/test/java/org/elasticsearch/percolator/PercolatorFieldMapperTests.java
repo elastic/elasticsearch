@@ -35,6 +35,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
@@ -188,6 +189,32 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fields.size(), equalTo(2));
         assertThat(fields.get(0).binaryValue().utf8ToString(), equalTo("field\u0000term1"));
         assertThat(fields.get(1).binaryValue().utf8ToString(), equalTo("field\u0000term2"));
+    }
+
+    public void testExtractRanges() throws Exception {
+        addQueryFieldMappings();
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
+        Query rangeQuery1 = mapperService.documentMapper("doc").mappers().getMapper("number_field1").fieldType()
+            .rangeQuery(10, 20, true, true, null);
+        bq.add(rangeQuery1, Occur.MUST);
+        Query rangeQuery2 = mapperService.documentMapper("doc").mappers().getMapper("number_field1").fieldType()
+            .rangeQuery(15, 20, true, true, null);
+        bq.add(rangeQuery2, Occur.MUST);
+
+        DocumentMapper documentMapper = mapperService.documentMapper("doc");
+        PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
+        ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(Settings.EMPTY,
+            mapperService.documentMapperParser(), documentMapper, null, null);
+        fieldMapper.processQuery(bq.build(), parseContext);
+        ParseContext.Document document = parseContext.doc();
+
+        PercolatorFieldMapper.FieldType fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
+        List<IndexableField> fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.rangeField.name())));
+        fields.sort(Comparator.comparing(IndexableField::binaryValue));
+        assertThat(fields.size(), equalTo(1));
+        assertThat(IntPoint.decodeDimension(fields.get(0).binaryValue().bytes, 12), equalTo(15));
+        assertThat(IntPoint.decodeDimension(fields.get(0).binaryValue().bytes, 28), equalTo(20));
     }
 
     public void testExtractTermsAndRanges_failed() throws Exception {

@@ -140,7 +140,7 @@ public class NameResolverTests extends ESTestCase {
 
         @Override
         protected List<String> lookup(String key) {
-            return lookup.get(key);
+            return lookup.containsKey(key) ? lookup.get(key) : Collections.emptyList();
         }
     }
 }

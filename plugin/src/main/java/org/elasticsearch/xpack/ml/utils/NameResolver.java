@@ -69,7 +69,7 @@ public abstract class NameResolver {
                     result.addAll(expanded);
                 } else {
                     List<String> matchingNames = lookup(token);
-                    if (matchingNames == null) {
+                    if (matchingNames.isEmpty()) {
                         throw notFoundExceptionSupplier.apply(token);
                     }
                     result.addAll(matchingNames);
@@ -97,7 +97,6 @@ public abstract class NameResolver {
      * @param key the key to look up
      * @return a list of the matching names or {@code null} when no matching names exist
      */
-    @Nullable
     protected abstract List<String> lookup(String key);
 
     /**
@@ -120,7 +119,7 @@ public abstract class NameResolver {
 
             @Override
             protected List<String> lookup(String key) {
-                return nameSet.contains(key) ? Collections.singletonList(key) : null;
+                return nameSet.contains(key) ? Collections.singletonList(key) : Collections.emptyList();
             }
         };
     }

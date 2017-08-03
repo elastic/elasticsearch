@@ -25,6 +25,14 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
     protected JobUpdate createTestInstance() {
         JobUpdate.Builder update = new JobUpdate.Builder(randomAlphaOfLength(4));
         if (randomBoolean()) {
+            int groupsNum = randomIntBetween(0, 10);
+            List<String> groups = new ArrayList<>(groupsNum);
+            for (int i = 0; i < groupsNum; i++) {
+                groups.add(JobTests.randomValidJobId());
+            }
+            update.setGroups(groups);
+        }
+        if (randomBoolean()) {
             update.setDescription(randomAlphaOfLength(20));
         }
         if (randomBoolean()) {
@@ -106,6 +114,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         Map<String, Object> customSettings = Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10));
 
         JobUpdate.Builder updateBuilder = new JobUpdate.Builder("foo");
+        updateBuilder.setGroups(Arrays.asList("group-1", "group-2"));
         updateBuilder.setDescription("updated_description");
         updateBuilder.setDetectorUpdates(detectorUpdates);
         updateBuilder.setModelPlotConfig(modelPlotConfig);
@@ -120,6 +129,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         JobUpdate update = updateBuilder.build();
 
         Job.Builder jobBuilder = new Job.Builder("foo");
+        jobBuilder.setGroups(Arrays.asList("group-1"));
         Detector.Builder d1 = new Detector.Builder("info_content", "domain");
         d1.setOverFieldName("mlcategory");
         Detector.Builder d2 = new Detector.Builder("min", "field");
@@ -132,6 +142,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
 
         Job updatedJob = update.mergeWithJob(jobBuilder.build());
 
+        assertEquals(update.getGroups(), updatedJob.getGroups());
         assertEquals(update.getDescription(), updatedJob.getDescription());
         assertEquals(update.getModelPlotConfig(), updatedJob.getModelPlotConfig());
         assertEquals(update.getAnalysisLimits(), updatedJob.getAnalysisLimits());

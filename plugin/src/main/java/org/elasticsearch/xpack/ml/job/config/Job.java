@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -29,6 +28,7 @@ import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -57,6 +57,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public static final ParseField ID = new ParseField("job_id");
     public static final ParseField JOB_TYPE = new ParseField("job_type");
     public static final ParseField JOB_VERSION = new ParseField("job_version");
+    public static final ParseField GROUPS = new ParseField("groups");
     public static final ParseField ANALYSIS_CONFIG = new ParseField("analysis_config");
     public static final ParseField ANALYSIS_LIMITS = new ParseField("analysis_limits");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
@@ -94,6 +95,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             parser.declareString(Builder::setId, ID);
             parser.declareString(Builder::setJobType, JOB_TYPE);
             parser.declareString(Builder::setJobVersion, JOB_VERSION);
+            parser.declareStringArray(Builder::setGroups, GROUPS);
             parser.declareStringOrNull(Builder::setDescription, DESCRIPTION);
             parser.declareField(Builder::setCreateTime, p -> {
                 if (p.currentToken() == Token.VALUE_NUMBER) {
@@ -148,6 +150,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     @Nullable
     private final Version jobVersion;
 
+    private final List<String> groups;
     private final String description;
     // TODO: Use java.time for the Dates here: x-pack-elasticsearch#829
     private final Date createTime;
@@ -166,16 +169,17 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     private final String resultsIndexName;
     private final boolean deleted;
 
-    private Job(String jobId, String jobType, Version jobVersion, String description, Date createTime,
-            Date finishedTime, Date lastDataTime,
-               AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
-               ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
-               Long modelSnapshotRetentionDays, Long resultsRetentionDays, Map<String, Object> customSettings,
-               String modelSnapshotId, String resultsIndexName, boolean deleted) {
+    private Job(String jobId, String jobType, Version jobVersion, List<String> groups, String description, Date createTime,
+                Date finishedTime, Date lastDataTime,
+                AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
+                ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
+                Long modelSnapshotRetentionDays, Long resultsRetentionDays, Map<String, Object> customSettings,
+                String modelSnapshotId, String resultsIndexName, boolean deleted) {
 
         this.jobId = jobId;
         this.jobType = jobType;
         this.jobVersion = jobVersion;
+        this.groups = groups;
         this.description = description;
         this.createTime = createTime;
         this.finishedTime = finishedTime;
@@ -201,6 +205,11 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             jobVersion = in.readBoolean() ? Version.readVersion(in) : null;
         } else {
             jobVersion = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            groups = in.readList(StreamInput::readString);
+        } else {
+            groups = Collections.emptyList();
         }
         description = in.readOptionalString();
         createTime = new Date(in.readVLong());
@@ -235,6 +244,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
     public Version getJobVersion() {
         return jobVersion;
+    }
+
+    public List<String> getGroups() {
+        return groups;
     }
 
     /**
@@ -414,6 +427,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 out.writeBoolean(false);
             }
         }
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeStringList(groups);
+        }
         out.writeOptionalString(description);
         out.writeVLong(createTime.getTime());
         if (finishedTime != null) {
@@ -457,6 +473,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         builder.field(JOB_TYPE.getPreferredName(), jobType);
         if (jobVersion != null) {
             builder.field(JOB_VERSION.getPreferredName(), jobVersion);
+        }
+        if (groups.isEmpty() == false) {
+            builder.field(GROUPS.getPreferredName(), groups);
         }
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
@@ -519,6 +538,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return Objects.equals(this.jobId, that.jobId)
                 && Objects.equals(this.jobType, that.jobType)
                 && Objects.equals(this.jobVersion, that.jobVersion)
+                && Objects.equals(this.groups, that.groups)
                 && Objects.equals(this.description, that.description)
                 && Objects.equals(this.createTime, that.createTime)
                 && Objects.equals(this.finishedTime, that.finishedTime)
@@ -538,7 +558,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, jobType, jobVersion, description, createTime, finishedTime, lastDataTime, analysisConfig,
+        return Objects.hash(jobId, jobType, jobVersion, groups, description, createTime, finishedTime, lastDataTime, analysisConfig,
                 analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
                 modelSnapshotId, resultsIndexName, deleted);
@@ -574,6 +594,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         private String id;
         private String jobType = ANOMALY_DETECTOR_JOB_TYPE;
         private Version jobVersion;
+        private List<String> groups = Collections.emptyList();
         private String description;
         private AnalysisConfig analysisConfig;
         private AnalysisLimits analysisLimits;
@@ -602,6 +623,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             this.id = job.getId();
             this.jobType = job.getJobType();
             this.jobVersion = job.getJobVersion();
+            this.groups = job.getGroups();
             this.description = job.getDescription();
             this.analysisConfig = job.getAnalysisConfig();
             this.analysisLimits = job.getAnalysisLimits();
@@ -625,6 +647,11 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             jobType = in.readString();
             if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
                 jobVersion = in.readBoolean() ? Version.readVersion(in) : null;
+            }
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                groups = in.readList(StreamInput::readString);
+            } else {
+                groups = Collections.emptyList();
             }
             description = in.readOptionalString();
             createTime = in.readBoolean() ? new Date(in.readVLong()) : null;
@@ -663,6 +690,15 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
         private void setJobType(String jobType) {
             this.jobType = jobType;
+        }
+
+        public void setGroups(List<String> groups) {
+            this.groups = groups == null ? Collections.emptyList() : groups;
+            for (String group : this.groups) {
+                if (MlStrings.isValidId(group) == false) {
+                    throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_GROUP, group));
+                }
+            }
         }
 
         public Date getCreateTime() {
@@ -796,6 +832,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 } else {
                     out.writeBoolean(false);
                 }
+            }
+            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+                out.writeStringList(groups);
             }
             out.writeOptionalString(description);
             if (createTime != null) {
@@ -1002,7 +1041,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             }
 
             return new Job(
-                    id, jobType, jobVersion, description, createTime, finishedTime, lastDataTime,
+                    id, jobType, jobVersion, groups, description, createTime, finishedTime, lastDataTime,
                     analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
                     modelSnapshotId, resultsIndexName, deleted);

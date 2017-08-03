@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.ml.job.groups.GroupOrJobLookup;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.NameResolver;
@@ -66,10 +67,12 @@ public class MlMetadata implements MetaData.Custom {
 
     private final SortedMap<String, Job> jobs;
     private final SortedMap<String, DatafeedConfig> datafeeds;
+    private final GroupOrJobLookup groupOrJobLookup;
 
     private MlMetadata(SortedMap<String, Job> jobs, SortedMap<String, DatafeedConfig> datafeeds) {
         this.jobs = Collections.unmodifiableSortedMap(jobs);
         this.datafeeds = Collections.unmodifiableSortedMap(datafeeds);
+        this.groupOrJobLookup = new GroupOrJobLookup(jobs.values());
     }
 
     public Map<String, Job> getJobs() {
@@ -77,8 +80,7 @@ public class MlMetadata implements MetaData.Custom {
     }
 
     public Set<String> expandJobIds(String expression, boolean allowNoJobs) {
-        return NameResolver.newUnaliased(jobs.keySet(), jobId -> ExceptionsHelper.missingJobException(jobId))
-                .expand(expression, allowNoJobs);
+        return groupOrJobLookup.expandJobIds(expression, allowNoJobs);
     }
 
     public boolean isJobDeleted(String jobId) {
@@ -136,6 +138,8 @@ public class MlMetadata implements MetaData.Custom {
             datafeeds.put(in.readString(), new DatafeedConfig(in));
         }
         this.datafeeds = datafeeds;
+
+        this.groupOrJobLookup = new GroupOrJobLookup(jobs.values());
     }
 
     @Override

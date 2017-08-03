@@ -115,13 +115,10 @@ class AggregationDataExtractor implements DataExtractor {
     }
 
     private SearchRequestBuilder buildSearchRequest() {
-        long histogramSearchStartTime = context.start;
-        if (context.aggs.getPipelineAggregatorFactories().isEmpty() == false) {
-            // For derivative aggregations the first bucket will always be null
-            // so query one extra histogram bucket back and hope there is data
-            // in that bucket
-            histogramSearchStartTime = Math.max(0, context.start - getHistogramInterval());
-        }
+        // For derivative aggregations the first bucket will always be null
+        // so query one extra histogram bucket back and hope there is data
+        // in that bucket
+        long histogramSearchStartTime = Math.max(0, context.start - getHistogramInterval());
 
         SearchRequestBuilder searchRequestBuilder = SearchAction.INSTANCE.newRequestBuilder(client)
                 .setIndices(context.indices)

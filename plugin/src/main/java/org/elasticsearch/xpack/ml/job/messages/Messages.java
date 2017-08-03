@@ -30,6 +30,8 @@ public final class Messages {
             "The date_histogram (or histogram) aggregation cannot have sibling aggregations";
     public static final String DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO =
             "Aggregation interval must be greater than 0";
+    public static final String DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_DIVISOR_OF_BUCKET_SPAN =
+            "Aggregation interval [{0}] must be a divisor of the bucket_span [{1}]";
     public static final String DATAFEED_AGGREGATIONS_INTERVAL_MUST_LESS_OR_EQUAL_TO_BUCKET_SPAN =
             "Aggregation interval [{0}] must be less than or equal to the bucket_span [{1}]";
     public static final String DATAFEED_DATA_HISTOGRAM_MUST_HAVE_NESTED_MAX_AGGREGATION =

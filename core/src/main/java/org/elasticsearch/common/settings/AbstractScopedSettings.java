@@ -509,7 +509,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             Set<String> keysToRemove = new HashSet<>();
             Set<String> keySet = builder.internalMap().keySet();
             for (String key : keySet) {
-                if (Regex.simpleMatch(entry, key) && canRemove.test(key)) {
+                if ( (Regex.simpleMatch(entry, key) || Regex.simpleMatch(entry + ".*", key)) && canRemove.test(key)) {
                     // we have to re-check with canRemove here since we might have a wildcard expression foo.* that matches
                     // dynamic as well as static settings if that is the case we might remove static settings since we resolve the
                     // wildcards late

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.queries.BoundingBoxQueryWrapper;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -250,6 +251,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         }
 
         Query query = LatLonPoint.newDistanceQuery(fieldType.name(), center.lat(), center.lon(), this.distance);
+        query = new BoundingBoxQueryWrapper(query, fieldType.name(), center.lat(), center.lon(), this.distance);
         if (fieldType.hasDocValues()) {
             Query dvQuery = LatLonDocValuesField.newSlowDistanceQuery(fieldType.name(), center.lat(), center.lon(), this.distance);
             query = new IndexOrDocValuesQuery(query, dvQuery);

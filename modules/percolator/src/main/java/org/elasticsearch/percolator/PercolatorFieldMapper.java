@@ -20,6 +20,8 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.document.BinaryRange;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -41,6 +43,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.spatial.util.MortonEncoder;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.Version;
@@ -60,8 +63,10 @@ import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -242,9 +247,9 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         Query percolateQuery(String name, PercolateQuery.QueryStore queryStore, List<BytesReference> documents,
-                             IndexSearcher searcher, Version indexVersion) throws IOException {
+                             IndexSearcher searcher, Version indexVersion, DocumentMapper docMapper) throws IOException {
             IndexReader indexReader = searcher.getIndexReader();
-            Tuple<BooleanQuery, Boolean> t = createCandidateQuery(indexReader, indexVersion);
+            Tuple<BooleanQuery, Boolean> t = createCandidateQuery(indexReader, indexVersion, docMapper);
             Query candidateQuery = t.v1();
             boolean canUseMinimumShouldMatchField = t.v2();
 
@@ -262,8 +267,9 @@ public class PercolatorFieldMapper extends FieldMapper {
             return new PercolateQuery(name, queryStore, documents, candidateQuery, searcher, verifiedMatchesQuery);
         }
 
-        Tuple<BooleanQuery, Boolean> createCandidateQuery(IndexReader indexReader, Version indexVersion) throws IOException {
-            Tuple<List<BytesRef>, Map<String, List<byte[]>>> t = extractTermsAndRanges(indexReader);
+        Tuple<BooleanQuery, Boolean> createCandidateQuery(IndexReader indexReader, Version indexVersion,
+                                                          DocumentMapper docMapper) throws IOException {
+            Tuple<List<BytesRef>, Map<String, List<byte[]>>> t = extractTermsAndRanges(indexReader, docMapper);
             List<BytesRef> extractedTerms = t.v1();
             Map<String, List<byte[]>> encodedPointValuesByField = t.v2();
             // `1 + ` is needed to take into account the EXTRACTION_FAILED should clause
@@ -302,7 +308,8 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         // This was extracted the method above, because otherwise it is difficult to test what terms are included in
         // the query in case a CoveringQuery is used (it does not have a getter to retrieve the clauses)
-        Tuple<List<BytesRef>, Map<String, List<byte[]>>> extractTermsAndRanges(IndexReader indexReader) throws IOException {
+        Tuple<List<BytesRef>, Map<String, List<byte[]>>> extractTermsAndRanges(IndexReader indexReader,
+                                                                               DocumentMapper docMapper) throws IOException {
             List<BytesRef> extractedTerms = new ArrayList<>();
             Map<String, List<byte[]>> encodedPointValuesByField = new HashMap<>();
 
@@ -326,6 +333,25 @@ public class PercolatorFieldMapper extends FieldMapper {
                     encodedPointValues.add(values.getMinPackedValue().clone());
                     encodedPointValues.add(values.getMaxPackedValue().clone());
                     encodedPointValuesByField.put(info.name, encodedPointValues);
+                } else if (info.getPointDimensionCount() == 2) {
+                    FieldMapper fieldMapper = docMapper.mappers().getMapper(info.name);
+                    if (fieldMapper instanceof GeoPointFieldMapper) {
+                        List<byte[]> encodedPointValues = new ArrayList<>();
+                        PointValues values = reader.getPointValues(info.name);
+                        encodedPointValuesByField.put(info.name, encodedPointValues);
+
+                        double minLat = GeoEncodingUtils.decodeLatitude(values.getMinPackedValue(), 0);
+                        double minLong = GeoEncodingUtils.decodeLongitude(values.getMinPackedValue(), Integer.BYTES);
+                        byte[] encodedMin = new byte[Long.BYTES];
+                        LongPoint.encodeDimension(MortonEncoder.encode(minLat, minLong), encodedMin, 0);
+                        encodedPointValues.add(encodedMin);
+
+                        double maxLat = GeoEncodingUtils.decodeLatitude(values.getMaxPackedValue(), 0);
+                        double maxLong = GeoEncodingUtils.decodeLongitude(values.getMaxPackedValue(), Integer.BYTES);
+                        byte[] encodedMax = new byte[Long.BYTES];
+                        LongPoint.encodeDimension(MortonEncoder.encode(maxLat, maxLong), encodedMax, 0);
+                        encodedPointValues.add(encodedMax);
+                    }
                 }
             }
             return new Tuple<>(extractedTerms, encodedPointValuesByField);
@@ -410,9 +436,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         XContentParser parser = context.parser();
-        QueryBuilder queryBuilder = parseQueryBuilder(
-                parser, parser.getTokenLocation()
-        );
+        QueryBuilder queryBuilder = parseQueryBuilder(parser, parser.getTokenLocation());
         verifyQuery(queryBuilder);
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();

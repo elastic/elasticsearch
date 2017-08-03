@@ -639,7 +639,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         String name = this.name != null ? this.name : field;
         PercolatorFieldMapper.FieldType pft = (PercolatorFieldMapper.FieldType) fieldType;
         PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext, mapUnmappedFieldsAsString);
-        return pft.percolateQuery(name, queryStore, documents, docSearcher, context.indexVersionCreated());
+        return pft.percolateQuery(name, queryStore, documents, docSearcher, context.indexVersionCreated(), docMapper);
     }
 
     public String getField() {

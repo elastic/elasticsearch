@@ -26,8 +26,10 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.queries.BoundingBoxQueryWrapper;
 import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -51,6 +53,7 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.spatial.util.MortonEncoder;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
@@ -71,6 +74,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.apache.lucene.search.BooleanClause.Occur.MUST;
 import static org.elasticsearch.percolator.QueryAnalyzer.UnsupportedQueryException;
 import static org.elasticsearch.percolator.QueryAnalyzer.analyze;
 import static org.elasticsearch.percolator.QueryAnalyzer.selectBestExtraction;
@@ -204,9 +208,9 @@ public class QueryAnalyzerTests extends ESTestCase {
 
         BooleanQuery.Builder subBuilder = new BooleanQuery.Builder();
         TermQuery termQuery2 = new TermQuery(new Term("_field1", "_term"));
-        subBuilder.add(termQuery2, BooleanClause.Occur.MUST);
+        subBuilder.add(termQuery2, MUST);
         TermQuery termQuery3 = new TermQuery(new Term("_field3", "_long_term"));
-        subBuilder.add(termQuery3, BooleanClause.Occur.MUST);
+        subBuilder.add(termQuery3, MUST);
         builder.add(subBuilder.build(), BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
@@ -361,20 +365,20 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat("msm is at least two so result.minimumShouldMatch should 2 too", result.minimumShouldMatch, equalTo(2));
 
         builder = new BooleanQuery.Builder();
-        builder.add(termQuery1, randomBoolean() ? BooleanClause.Occur.MUST : BooleanClause.Occur.FILTER);
+        builder.add(termQuery1, randomBoolean() ? MUST : BooleanClause.Occur.FILTER);
         result = analyze(builder.build(), Version.CURRENT);
         assertThat("Also required clauses are taken into account whether the result is verified", result.verified, is(true));
         assertThat(result.minimumShouldMatch, equalTo(1));
 
         builder = new BooleanQuery.Builder();
-        builder.add(termQuery1, randomBoolean() ? BooleanClause.Occur.MUST : BooleanClause.Occur.FILTER);
-        builder.add(termQuery2, randomBoolean() ? BooleanClause.Occur.MUST : BooleanClause.Occur.FILTER);
+        builder.add(termQuery1, randomBoolean() ? MUST : BooleanClause.Occur.FILTER);
+        builder.add(termQuery2, randomBoolean() ? MUST : BooleanClause.Occur.FILTER);
         result = analyze(builder.build(), Version.CURRENT);
         assertThat("Also required clauses are taken into account whether the result is verified", result.verified, is(true));
         assertThat(result.minimumShouldMatch, equalTo(2));
 
         builder = new BooleanQuery.Builder();
-        builder.add(termQuery1, randomBoolean() ? BooleanClause.Occur.MUST : BooleanClause.Occur.FILTER);
+        builder.add(termQuery1, randomBoolean() ? MUST : BooleanClause.Occur.FILTER);
         builder.add(termQuery2, BooleanClause.Occur.MUST_NOT);
         result = analyze(builder.build(), Version.CURRENT);
         assertThat("Prohibited clause, so candidate matches are not verified", result.verified, is(false));
@@ -567,8 +571,8 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(result.minimumShouldMatch, equalTo(1));
 
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        bq.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.MUST);
-        bq.add(new MatchNoDocsQuery("sometimes there is no reason at all"), BooleanClause.Occur.MUST);
+        bq.add(new TermQuery(new Term("field", "value")), MUST);
+        bq.add(new MatchNoDocsQuery("sometimes there is no reason at all"), MUST);
         result = analyze(bq.build(), Version.CURRENT);
         assertThat(result.verified, is(true));
         assertEquals(1, result.extractions.size());
@@ -601,8 +605,8 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(result.extractions.size(), equalTo(0));
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.MUST);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        builder.add(new TermQuery(new Term("field", "value")), MUST);
+        builder.add(new MatchAllDocsQuery(), MUST);
         result = analyze(builder.build(), Version.CURRENT);
         assertThat(result.verified, is(true));
         assertThat(result.matchAllDocs, is(false));
@@ -610,9 +614,9 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertTermsEqual(result.extractions, new Term("field", "value"));
 
         builder = new BooleanQuery.Builder();
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        builder.add(new MatchAllDocsQuery(), MUST);
+        builder.add(new MatchAllDocsQuery(), MUST);
+        builder.add(new MatchAllDocsQuery(), MUST);
         BooleanQuery bq1 = builder.build();
         result = analyze(bq1, Version.CURRENT);
         assertThat(result.verified, is(true));
@@ -622,8 +626,8 @@ public class QueryAnalyzerTests extends ESTestCase {
 
         builder = new BooleanQuery.Builder();
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST_NOT);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        builder.add(new MatchAllDocsQuery(), MUST);
+        builder.add(new MatchAllDocsQuery(), MUST);
         BooleanQuery bq2 = builder.build();
         result = analyze(bq2, Version.CURRENT);
         assertThat(result.verified, is(false));
@@ -709,8 +713,8 @@ public class QueryAnalyzerTests extends ESTestCase {
 
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.add(termQuery1, BooleanClause.Occur.MUST);
-        builder.add(unsupportedQuery, BooleanClause.Occur.MUST);
+        builder.add(termQuery1, MUST);
+        builder.add(unsupportedQuery, MUST);
         BooleanQuery bq1 = builder.build();
 
         Result result = analyze(bq1, Version.CURRENT);
@@ -720,9 +724,9 @@ public class QueryAnalyzerTests extends ESTestCase {
 
         TermQuery termQuery2 = new TermQuery(new Term("_field", "_longer_term"));
         builder = new BooleanQuery.Builder();
-        builder.add(termQuery1, BooleanClause.Occur.MUST);
-        builder.add(termQuery2, BooleanClause.Occur.MUST);
-        builder.add(unsupportedQuery, BooleanClause.Occur.MUST);
+        builder.add(termQuery1, MUST);
+        builder.add(termQuery2, MUST);
+        builder.add(unsupportedQuery, MUST);
         bq1 = builder.build();
         result = analyze(bq1, Version.CURRENT);
         assertThat(result.verified, is(false));
@@ -730,8 +734,8 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertTermsEqual(result.extractions, termQuery1.getTerm(), termQuery2.getTerm());
 
         builder = new BooleanQuery.Builder();
-        builder.add(unsupportedQuery, BooleanClause.Occur.MUST);
-        builder.add(unsupportedQuery, BooleanClause.Occur.MUST);
+        builder.add(unsupportedQuery, MUST);
+        builder.add(unsupportedQuery, MUST);
         BooleanQuery bq2 = builder.build();
         UnsupportedQueryException e = expectThrows(UnsupportedQueryException.class, () -> analyze(bq2, Version.CURRENT));
         assertThat(e.getUnsupportedQuery(), sameInstance(unsupportedQuery));
@@ -967,8 +971,7 @@ public class QueryAnalyzerTests extends ESTestCase {
     }
 
     public void testTooManyPointDimensions() {
-        // For now no extraction support for geo queries:
-        Query query1 = LatLonPoint.newBoxQuery("_field", 0, 1, 0, 1);
+        Query query1 = LongPoint.newRangeQuery("_field", new long[]{0, 0}, new long[]{1, 1});
         expectThrows(UnsupportedQueryException.class, () -> analyze(query1, Version.CURRENT));
 
         Query query2 = LongPoint.newRangeQuery("_field", new long[]{0, 0, 0}, new long[]{1, 1, 1});
@@ -1007,6 +1010,58 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertEquals(1, result.extractions.size());
         assertNull(result.extractions.toArray(new QueryExtraction[0])[0].range);
         assertEquals(new Term("field", "value"), result.extractions.toArray(new QueryExtraction[0])[0].term);
+    }
+
+    public void testBoxQuery() {
+        Query query = LatLonPoint.newBoxQuery("_field", 1, 2, 1, 2);
+        Result result = analyze(query, Version.CURRENT);
+        assertFalse(result.verified);
+        List<QueryAnalyzer.QueryExtraction> ranges = new ArrayList<>(result.extractions);
+        assertThat(ranges.size(), equalTo(1));
+        assertNull(ranges.get(0).term);
+        assertEquals("_field", ranges.get(0).range.fieldName);
+
+        long m = LongPoint.decodeDimension(ranges.get(0).range.lowerPoint, 0);
+        assertEquals(1, MortonEncoder.decodeLatitude(m), 0.01);
+        assertEquals(1, MortonEncoder.decodeLongitude(m), 0.01);
+        m = LongPoint.decodeDimension(ranges.get(0).range.upperPoint, 0);
+        assertEquals(2, MortonEncoder.decodeLatitude(m), 0.01);
+        assertEquals(2, MortonEncoder.decodeLongitude(m), 0.01);
+    }
+
+    public void testLatLonPointDistanceQuery() {
+        Query query = new BoundingBoxQueryWrapper(LatLonPoint.newDistanceQuery("_field", 10, 10, 300000), "_field", 10, 10, 300000);
+        Result result = analyze(query, Version.CURRENT);
+        assertFalse(result.verified);
+        List<QueryAnalyzer.QueryExtraction> ranges = new ArrayList<>(result.extractions);
+        assertThat(ranges.size(), equalTo(1));
+        assertNull(ranges.get(0).term);
+        assertEquals("_field", ranges.get(0).range.fieldName);
+
+        long m = LongPoint.decodeDimension(ranges.get(0).range.lowerPoint, 0);
+        assertEquals(7.30, MortonEncoder.decodeLatitude(m), 0.01);
+        assertEquals(7.26, MortonEncoder.decodeLongitude(m), 0.01);
+        m = LongPoint.decodeDimension(ranges.get(0).range.upperPoint, 0);
+        assertEquals(12.69, MortonEncoder.decodeLatitude(m), 0.01);
+        assertEquals(12.73, MortonEncoder.decodeLongitude(m), 0.01);
+    }
+
+    public void testLatLonPointInPolygonQueryQuery() {
+        Polygon polygon = new Polygon(new double[]{1.1, 1.3, 1.1, 1.1}, new double[]{2.4, 2.5, 2.6, 2.4});
+        Query query = new BoundingBoxQueryWrapper(LatLonPoint.newPolygonQuery("_field", polygon), "_field", polygon);
+        Result result = analyze(query, Version.CURRENT);
+        assertFalse(result.verified);
+        List<QueryAnalyzer.QueryExtraction> ranges = new ArrayList<>(result.extractions);
+        assertThat(ranges.size(), equalTo(1));
+        assertNull(ranges.get(0).term);
+        assertEquals("_field", ranges.get(0).range.fieldName);
+
+        long m = LongPoint.decodeDimension(ranges.get(0).range.lowerPoint, 0);
+        assertEquals(1.1, MortonEncoder.decodeLatitude(m), 0.01);
+        assertEquals(2.4, MortonEncoder.decodeLongitude(m), 0.01);
+        m = LongPoint.decodeDimension(ranges.get(0).range.upperPoint, 0);
+        assertEquals(1.3, MortonEncoder.decodeLatitude(m), 0.01);
+        assertEquals(2.6, MortonEncoder.decodeLongitude(m), 0.01);
     }
 
     public void testPointRangeQuerySelectShortestRange() {
@@ -1054,6 +1109,30 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(result.minimumShouldMatch, equalTo(1));
         assertEquals(1, result.extractions.size());
         assertEquals("_field2", new ArrayList<>(result.extractions).get(0).range.fieldName);
+    }
+
+    public void testGeoQueriesSelectSmallestRectangle() {
+        Result result = analyze(new BooleanQuery.Builder()
+            .add(new BoundingBoxQueryWrapper(LatLonPoint.newDistanceQuery("_field3", 10, 10, 1), "_field3", 10, 10, 1), MUST)
+            .add(new BoundingBoxQueryWrapper(LatLonPoint.newDistanceQuery("_field2", 10, 10, 10), "_field2", 10, 10, 10), MUST)
+            .add(new BoundingBoxQueryWrapper(LatLonPoint.newDistanceQuery("_field1", 10, 10, 100), "_field1", 10, 10, 100), MUST)
+            .build(), Version.CURRENT);
+        assertFalse(result.verified);
+        List<QueryAnalyzer.QueryExtraction> ranges = new ArrayList<>(result.extractions);
+        assertThat(ranges.size(), equalTo(1));
+        assertNull(ranges.get(0).term);
+        assertEquals("_field3", ranges.get(0).range.fieldName);
+
+        result = analyze(new BooleanQuery.Builder()
+            .add(LatLonPoint.newBoxQuery("_field1", 52.0, 53.0, 4.0, 5.0), MUST)
+            .add(LatLonPoint.newBoxQuery("_field2", 52.0, 52.1, 4.4, 4.5), MUST)
+            .add(LatLonPoint.newBoxQuery("_field3", 52.0, 62.0, 4.0, 6.0), MUST)
+            .build(), Version.CURRENT);
+        assertFalse(result.verified);
+        ranges = new ArrayList<>(result.extractions);
+        assertThat(ranges.size(), equalTo(1));
+        assertNull(ranges.get(0).term);
+        assertEquals("_field2", ranges.get(0).range.fieldName);
     }
 
     public void testPointRangeQuerySelectRanges() {

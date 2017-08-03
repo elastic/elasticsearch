@@ -25,11 +25,13 @@ import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.queries.BoundingBoxQueryWrapper;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CoveringQuery;
@@ -39,6 +41,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.spatial.util.MortonEncoder;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -154,6 +157,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("number_field5").field("type", "float").endObject()
                 .startObject("number_field6").field("type", "double").endObject()
                 .startObject("number_field7").field("type", "ip").endObject()
+                .startObject("geo_point_field1").field("type", "geo_point").endObject()
+                .startObject("geo_point_field2").field("type", "geo_point").endObject()
                 .startObject("date_field").field("type", "date").endObject()
             .endObject().endObject().endObject().string();
         mapperService.merge("doc", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE, false);
@@ -274,6 +279,40 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fields.get(0).numericValue(), equalTo(2L));
     }
 
+    public void testExtractRectangle() throws Exception {
+        addQueryFieldMappings();
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
+        bq.add(LatLonPoint.newBoxQuery("geo_point_field1", 1, 2, 1, 2), Occur.SHOULD);
+        bq.add(new BoundingBoxQueryWrapper(LatLonPoint.newDistanceQuery("geo_point_field2", 10, 10, 300000),
+            "geo_point_field2", 10, 10, 300000), Occur.SHOULD);
+
+        DocumentMapper documentMapper = mapperService.documentMapper("doc");
+        PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
+        ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(Settings.EMPTY,
+            mapperService.documentMapperParser(), documentMapper, null, null);
+        fieldMapper.processQuery(bq.build(), parseContext);
+        ParseContext.Document document = parseContext.doc();
+
+        PercolatorFieldMapper.FieldType fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
+        List<IndexableField> fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.rangeField.name())));
+        fields.sort(Comparator.comparing(IndexableField::binaryValue));
+        assertThat(fields.size(), equalTo(2));
+
+        long m = LongPoint.decodeDimension(fields.get(0).binaryValue().bytes, 8);
+        assertEquals(7.30, MortonEncoder.decodeLatitude(m), 0.01);
+        assertEquals(7.26, MortonEncoder.decodeLongitude(m), 0.01);
+        m = LongPoint.decodeDimension(fields.get(0).binaryValue().bytes, 24);
+        assertEquals(12.69, MortonEncoder.decodeLatitude(m), 0.01);
+        assertEquals(12.73, MortonEncoder.decodeLongitude(m), 0.01);
+        m = LongPoint.decodeDimension(fields.get(1).binaryValue().bytes, 8);
+        assertEquals(1, MortonEncoder.decodeLatitude(m), 0.01);
+        assertEquals(1, MortonEncoder.decodeLongitude(m), 0.01);
+        m = LongPoint.decodeDimension(fields.get(1).binaryValue().bytes, 24);
+        assertEquals(2, MortonEncoder.decodeLatitude(m), 0.01);
+        assertEquals(2, MortonEncoder.decodeLongitude(m), 0.01);
+    }
+
     public void testExtractTermsAndRanges_failed() throws Exception {
         addQueryFieldMappings();
         TermRangeQuery query = new TermRangeQuery("field1", new BytesRef("a"), new BytesRef("z"), true, true);
@@ -317,7 +356,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
-        Tuple<List<BytesRef>, Map<String, List<byte[]>>> t = fieldType.extractTermsAndRanges(indexReader);
+        DocumentMapper docMapper = mapperService.documentMapper("doc");
+        Tuple<List<BytesRef>, Map<String, List<byte[]>>> t = fieldType.extractTermsAndRanges(indexReader, docMapper);
         assertEquals(1, t.v2().size());
         Map<String, List<byte[]>> rangesMap = t.v2();
         assertEquals(1, rangesMap.size());
@@ -359,7 +399,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         memoryIndex.addField(new LongPoint("field2", 10L), new WhitespaceAnalyzer());
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
-        Tuple<BooleanQuery, Boolean> t = fieldType.createCandidateQuery(indexReader, Version.CURRENT);
+        DocumentMapper docMapper = mapperService.documentMapper("doc");
+        Tuple<BooleanQuery, Boolean> t = fieldType.createCandidateQuery(indexReader, Version.CURRENT, docMapper);
         assertTrue(t.v2());
         assertEquals(2, t.v1().clauses().size());
         assertThat(t.v1().clauses().get(0).getQuery(), instanceOf(CoveringQuery.class));
@@ -368,7 +409,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         // Now push it over the edge, so that it falls back using TermInSetQuery
         memoryIndex.addField("field2", "value", new WhitespaceAnalyzer());
         indexReader = memoryIndex.createSearcher().getIndexReader();
-        t = fieldType.createCandidateQuery(indexReader, Version.CURRENT);
+        t = fieldType.createCandidateQuery(indexReader, Version.CURRENT, docMapper);
         assertFalse(t.v2());
         assertEquals(3, t.v1().clauses().size());
         TermInSetQuery terms = (TermInSetQuery) t.v1().clauses().get(0).getQuery();
@@ -384,13 +425,14 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         memoryIndex.addField("field1", "value1", new WhitespaceAnalyzer());
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
-        Tuple<BooleanQuery, Boolean> t = fieldType.createCandidateQuery(indexReader, Version.CURRENT);
+        DocumentMapper docMapper = mapperService.documentMapper("doc");
+        Tuple<BooleanQuery, Boolean> t = fieldType.createCandidateQuery(indexReader, Version.CURRENT, docMapper);
         assertTrue(t.v2());
         assertEquals(2, t.v1().clauses().size());
         assertThat(t.v1().clauses().get(0).getQuery(), instanceOf(CoveringQuery.class));
         assertThat(t.v1().clauses().get(1).getQuery(), instanceOf(TermQuery.class));
 
-        t = fieldType.createCandidateQuery(indexReader, Version.V_6_0_0);
+        t = fieldType.createCandidateQuery(indexReader, Version.V_6_0_0, docMapper);
         assertTrue(t.v2());
         assertEquals(2, t.v1().clauses().size());
         assertThat(t.v1().clauses().get(0).getQuery(), instanceOf(TermInSetQuery.class));
@@ -413,7 +455,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
-        Tuple<List<BytesRef>, Map<String, List<byte[]>>> t = fieldType.extractTermsAndRanges(indexReader);
+        DocumentMapper docMapper = mapperService.documentMapper("doc");
+        Tuple<List<BytesRef>, Map<String, List<byte[]>>> t = fieldType.extractTermsAndRanges(indexReader, docMapper);
         assertEquals(0, t.v1().size());
         Map<String, List<byte[]>> rangesMap = t.v2();
         assertEquals(7, rangesMap.size());
@@ -452,6 +495,33 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertNotNull(range);
         assertEquals(InetAddresses.forString("192.168.1.12"), InetAddressPoint.decode(range.get(0)));
         assertEquals(InetAddresses.forString("192.168.1.24"), InetAddressPoint.decode(range.get(1)));
+    }
+
+    public void testCreateCandidateQuery_geoFields() throws Exception {
+        addQueryFieldMappings();
+
+        MemoryIndex memoryIndex = new MemoryIndex(false);
+        memoryIndex.addField(new LatLonPoint("geo_point_field1", 52.18, 4.38), new WhitespaceAnalyzer());
+        memoryIndex.addField(new LatLonPoint("geo_point_field1", 52.20, 4.51), new WhitespaceAnalyzer());
+        memoryIndex.addField(new LatLonPoint("geo_point_field2", 50.45, 5.56), new WhitespaceAnalyzer());
+
+        IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
+
+        DocumentMapper docMapper = mapperService.documentMapper("doc");
+        Tuple<BooleanQuery, Boolean> t = fieldType.createCandidateQuery(indexReader, Version.CURRENT, docMapper);
+        assertTrue(t.v2());
+        BooleanQuery candidateQuery = t.v1();
+        assertEquals(3, candidateQuery.clauses().size());
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(0).getOccur());
+        assertEquals(new TermQuery(new Term(fieldType.extractionResultField.name(), EXTRACTION_FAILED)),
+                candidateQuery.clauses().get(0).getQuery());
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(1).getOccur());
+        assertThat(candidateQuery.clauses().get(1).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:[["));
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(2).getOccur());
+        assertThat(candidateQuery.clauses().get(2).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:[["));
     }
 
     public void testPercolatorFieldMapper() throws Exception {

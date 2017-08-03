@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.queries.BoundingBoxQueryWrapper;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -129,7 +130,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     protected void doAssertLuceneQuery(GeoDistanceQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         // TODO: remove the if statement once we always use LatLonPoint
         if (query instanceof IndexOrDocValuesQuery) {
-            Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();
+            Query indexQuery = ((BoundingBoxQueryWrapper) ((IndexOrDocValuesQuery) query).getIndexQuery()).getQuery();
             assertEquals(LatLonPoint.newDistanceQuery(queryBuilder.fieldName(),
                     queryBuilder.point().lat(),
                     queryBuilder.point().lon(),

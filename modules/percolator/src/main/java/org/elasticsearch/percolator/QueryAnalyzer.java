@@ -19,9 +19,14 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.document.BinaryRange;
+import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.queries.BoundingBoxQueryWrapper;
 import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -44,12 +49,15 @@ import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.spatial.util.MortonEncoder;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.common.unit.DistanceUnit;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -66,10 +74,10 @@ import static java.util.stream.Collectors.toSet;
 
 final class QueryAnalyzer {
 
-    private static final Map<Class<? extends Query>, BiFunction<Query, Version, Result>> queryProcessors;
+    private static final Map<Class<?>, BiFunction<Query, Version, Result>> queryProcessors;
 
     static {
-        Map<Class<? extends Query>, BiFunction<Query, Version, Result>> map = new HashMap<>();
+        Map<Class<?>, BiFunction<Query, Version, Result>> map = new HashMap<>();
         map.put(MatchNoDocsQuery.class, matchNoDocsQuery());
         map.put(MatchAllDocsQuery.class, matchAllDocsQuery());
         map.put(ConstantScoreQuery.class, constantScoreQuery());
@@ -92,6 +100,7 @@ final class QueryAnalyzer {
         map.put(PointRangeQuery.class, pointRangeQuery());
         map.put(IndexOrDocValuesQuery.class, indexOrDocValuesQuery());
         map.put(ESToParentBlockJoinQuery.class, toParentBlockJoinQuery());
+        map.put(BoundingBoxQueryWrapper.class, boundingBoxQueryWrapper());
         queryProcessors = Collections.unmodifiableMap(map);
     }
 
@@ -459,10 +468,6 @@ final class QueryAnalyzer {
     private static BiFunction<Query, Version, Result> pointRangeQuery() {
         return (query, version) -> {
             PointRangeQuery pointRangeQuery = (PointRangeQuery) query;
-            if (pointRangeQuery.getNumDims() != 1) {
-                throw new UnsupportedQueryException(query);
-            }
-
             byte[] lowerPoint = pointRangeQuery.getLowerPoint();
             byte[] upperPoint = pointRangeQuery.getUpperPoint();
 
@@ -473,9 +478,24 @@ final class QueryAnalyzer {
             }
 
             byte[] interval = new byte[16];
-            NumericUtils.subtract(16, 0, prepad(upperPoint), prepad(lowerPoint), interval);
+            switch (pointRangeQuery.getNumDims()) {
+                case 1:NumericUtils.subtract(16, 0, prepad(upperPoint), prepad(lowerPoint), interval);
             return new Result(false, Collections.singleton(new QueryExtraction(
-                    new Range(pointRangeQuery.getField(), lowerPoint, upperPoint, interval))), 1);
+                new Range(pointRangeQuery.getField(), lowerPoint, upperPoint, interval))
+            ), 1);case 2:
+                    Class<?> enclosingClass = query.getClass().getEnclosingClass();
+                    if (LatLonPoint.class.equals(enclosingClass)) {
+                        double minLat = GeoEncodingUtils.decodeLatitude(lowerPoint, 0);
+                        double minLng = GeoEncodingUtils.decodeLongitude(lowerPoint, Integer.BYTES);
+                        double maxLat = GeoEncodingUtils.decodeLatitude(upperPoint, 0);
+                        double maxLng = GeoEncodingUtils.decodeLongitude(upperPoint, Integer.BYTES);
+                        return encodeRectangle(pointRangeQuery.getField(), new Rectangle(minLat, maxLat, minLng, maxLng));
+                    } else {
+                        throw new UnsupportedQueryException(query);
+                    }
+                default:
+                    throw new UnsupportedQueryException(query);
+            }
         };
     }
 
@@ -499,6 +519,30 @@ final class QueryAnalyzer {
             Result result = analyze(toParentBlockJoinQuery.getChildQuery(), version);
             return new Result(false, result.extractions, result.minimumShouldMatch);
         };
+    }
+
+    private static BiFunction<Query, Version, Result> boundingBoxQueryWrapper() {
+        return (query, boosts) -> {
+            BoundingBoxQueryWrapper wrapper = (BoundingBoxQueryWrapper) query;
+            return encodeRectangle(wrapper.getField(), wrapper.getBoundingBox());
+        };
+    }
+
+    private static Result encodeRectangle(String field, Rectangle r) {
+        byte[] encodedMin = new byte[Long.BYTES];
+        LongPoint.encodeDimension(MortonEncoder.encode(r.minLat, r.minLon), encodedMin, 0);
+
+        byte[] encodedMax = new byte[Long.BYTES];
+        LongPoint.encodeDimension(MortonEncoder.encode(r.maxLat, r.maxLon), encodedMax, 0);
+
+        // This way the percolator prefers smaller bounding boxes over larger bounding boxes, because smaller bounding
+        // boxes tend to match with less documents than bigger bounding boxes.
+        byte[] interval = new byte[16];
+        long distance = (long) GeoDistance.PLANE.calculate(r.minLat, r.minLon, r.maxLat, r.maxLon, DistanceUnit.METERS);
+        LongPoint.encodeDimension(distance, interval, 8);
+        return new Result(false, Collections.singleton(new QueryExtraction(
+            new Range(field, encodedMin, encodedMax, interval))
+        ), 1);
     }
 
     private static Result handleDisjunction(List<Query> disjunctions, int requiredShouldClauses, boolean otherClauses,

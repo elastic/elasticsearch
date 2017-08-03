@@ -10,6 +10,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -26,14 +27,18 @@ import javax.net.ssl.HttpsURLConnection;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
 import static org.elasticsearch.xpack.security.Security.setting;
@@ -103,12 +108,34 @@ public class CommandLineHttpClient {
         }
     }
 
-    public String getDefaultURL() {
+    String getDefaultURL() {
         final String scheme = XPackSettings.HTTP_SSL_ENABLED.get(settings) ? "https" : "http";
         List<String> httpPublishHost = SETTING_HTTP_PUBLISH_HOST.get(settings);
-        final String host =
-                (httpPublishHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings) : httpPublishHost).get(0);
-        final int port = SETTING_HTTP_PUBLISH_PORT.get(settings);
-        return scheme + "://" + host + ":" + port;
+        if (httpPublishHost.isEmpty()) {
+            httpPublishHost = NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings);
+        }
+
+        // we cannot do custom name resolution here...
+        NetworkService networkService = new NetworkService(Collections.emptyList());
+        try {
+            InetAddress publishAddress = networkService.resolvePublishHostAddresses(httpPublishHost.toArray(Strings.EMPTY_ARRAY));
+            int port = SETTING_HTTP_PUBLISH_PORT.get(settings);
+            if (port <= 0) {
+                int[] ports = SETTING_HTTP_PORT.get(settings).ports();
+                if (ports.length > 0) {
+                    port = ports[0];
+                }
+
+                // this sucks but a port can be specified with a value of 0, we'll never be able to connect to it so just default to
+                // what we know
+                if (port <= 0) {
+                    throw new IllegalStateException("unable to determine http port from settings, please use the -u option to provide the" +
+                            " url");
+                }
+            }
+            return scheme + "://" + InetAddresses.toUriString(publishAddress) + ":" + port;
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to resolve default URL", e);
+        }
     }
 }

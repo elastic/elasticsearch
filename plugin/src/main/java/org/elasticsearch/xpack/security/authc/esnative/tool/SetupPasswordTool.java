@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
+import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
@@ -75,6 +76,11 @@ public class SetupPasswordTool extends MultiCommand {
 
     public static void main(String[] args) throws Exception {
         exit(new SetupPasswordTool().main(args, Terminal.DEFAULT));
+    }
+
+    // Visible for testing
+    OptionParser getParser() {
+        return this.parser;
     }
 
     /**

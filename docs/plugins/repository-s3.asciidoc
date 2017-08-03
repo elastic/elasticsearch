@@ -28,16 +28,16 @@ PUT _snapshot/my_s3_repository
 }
 ----
 // CONSOLE
-// TEST[skip:we don't have gcs setup while testing this]
+// TEST[skip:we don't have s3 setup while testing this]
 
 
 [[repository-s3-client]]
 ==== Client Settings
 
-The client used to connect to S3 has a number of settings available. Client settings names are of
+The client used to connect to S3 has a number of settings available. Client setting names are of
 the form `s3.client.CLIENT_NAME.SETTING_NAME` and specified inside `elasticsearch.yml`.  The
-default client name is `default`, but can be customized with the repository setting `client`.
-For example:
+default client name looked up by an s3 repository is called `default`, but can be customized
+with the repository setting `client`. For example:
 
 [source,js]
 ----
@@ -51,18 +51,27 @@ PUT _snapshot/my_s3_repository
 }
 ----
 // CONSOLE
-// TEST[skip:we don't have gcs setup while testing this]
+// TEST[skip:we don't have s3 setup while testing this]
 
-The following settings name be specified for a client.  Some settings are sensitive and must be
-stored in the {ref}/secure-settings.html[elasticsearch keystore], and are marked as `Secure`.
+Some settings are sensitive and must be stored in the {ref}/secure-settings.html[elasticsearch keystore].
+For example, to use explicit AWS access keys:
+
+[source,sh]
+----
+bin/elasticsearch-keystore add s3.client.default.access_key
+bin/elasticsearch-keystore add s3.client.default.secret_key
+----
+
+The following are the available client settings. Those that must be stored in the keystore
+are marked as `Secure`.
 
 `access_key`::
 
-    An s3 access key. Must be specified with `secret_key`. (Secure)
+    An s3 access key. The `secret_key` setting must also be specified. (Secure)
 
 `secret_key`::
 
-    An s3 secret key. Must be specified with `access_key`. (Secure)
+    An s3 secret key. The `access_key` setting must also be specified. (Secure)
 
 `endpoint`::
 
@@ -72,7 +81,7 @@ stored in the {ref}/secure-settings.html[elasticsearch keystore], and are marked
 
 `protocol`::
 
-    The protocl to use to connect to s3. Valid values are either `http`
+    The protocol to use to connect to s3. Valid values are either `http`
     or `https`. Defaults to `https`. 
 
 `proxy.host`::
@@ -132,7 +141,7 @@ The following settings are supported:
 
 `client`::
 
-    The name of the s3 client to use to connect to S3.
+    The name of the s3 client to use to connect to S3. Defaults to `default`.
 
 `base_path`::
 

@@ -66,6 +66,7 @@ public class BasicSSLServer {
         ks.load(BasicSSLServer.class.getResourceAsStream("/ssl/server.keystore"), pass);
         kmf.init(ks, pass);
 
+        // NOCOMMIT I think we could share a key rather than trust all, right?
         TrustManager[] trustAll = new TrustManager[] {
                 new X509TrustManager() {
                     @Override

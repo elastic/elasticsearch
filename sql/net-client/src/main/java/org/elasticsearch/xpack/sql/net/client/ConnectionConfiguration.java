@@ -87,8 +87,8 @@ public class ConnectionConfiguration {
         user = settings.getProperty(AUTH_USER);
         pass = settings.getProperty(AUTH_PASS);
 
-        sslConfig = new SslConfig(props);
-        proxyConfig = new ProxyConfig(props);
+        sslConfig = new SslConfig(settings);
+        proxyConfig = new ProxyConfig(settings);
     }
 
     protected boolean isSSLEnabled() {

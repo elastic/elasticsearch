@@ -1,0 +1,6 @@
+grant {
+  // Required for the net client to setup ssl rather than use global ssl.
+  permission java.lang.RuntimePermission "setFactory";
+  // Required to connect to the test ssl server.
+  permission java.net.SocketPermission "*", "connect,resolve";
+};

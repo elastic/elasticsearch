@@ -78,26 +78,26 @@ public class SqlSecurityIT extends ESRestTestCase {
         row2.put("c", 6);
         expected.put("rows", Arrays.asList(row1, row2));
         expected.put("size", 2);
-        assertResponse(expected, runSql("SELECT * FROM test.test ORDER BY a", null));
+        assertResponse(expected, runSql("SELECT * FROM test ORDER BY a", null));
     }
 
     public void testSqlWithFullAccess() throws IOException {
         createUser("full_access", "read_test");
 
-        assertResponse(runSql("SELECT * FROM test.test ORDER BY a", null), runSql("SELECT * FROM test.test ORDER BY a", "full_access"));
+        assertResponse(runSql("SELECT * FROM test ORDER BY a", null), runSql("SELECT * FROM test ORDER BY a", "full_access"));
     }
 
     public void testSqlNoAccess() throws IOException {
         createUser("no_access", "read_nothing");
 
-        ResponseException e = expectThrows(ResponseException.class, () -> runSql("SELECT * FROM test.test", "no_access"));
+        ResponseException e = expectThrows(ResponseException.class, () -> runSql("SELECT * FROM test", "no_access"));
         assertThat(e.getMessage(), containsString("403 Forbidden"));
     }
 
     public void testSqlWrongAccess() throws IOException {
         createUser("wrong_access", "read_something_else");
 
-        ResponseException e = expectThrows(ResponseException.class, () -> runSql("SELECT * FROM test.test", "no_access"));
+        ResponseException e = expectThrows(ResponseException.class, () -> runSql("SELECT * FROM test", "no_access"));
         assertThat(e.getMessage(), containsString("403 Forbidden"));
     }
 
@@ -107,7 +107,7 @@ public class SqlSecurityIT extends ESRestTestCase {
 
         /* This doesn't work because sql doesn't see the field level security
          * and still adds the metadata even though the field "doesn't exist" */
-        assertResponse(runSql("SELECT a FROM test.test", null), runSql("SELECT * FROM test.test", "only_a"));
+        assertResponse(runSql("SELECT a FROM test.test", null), runSql("SELECT * FROM test", "only_a"));
         /* This should probably be a 400 level error complaining about field
          * that do not exist because that is what makes sense in SQL. */
         assertResponse(emptyMap(), runSql("SELECT * FROM test.test WHERE c = 3", "only_a"));
@@ -119,16 +119,16 @@ public class SqlSecurityIT extends ESRestTestCase {
 
         /* This doesn't work because sql doesn't see the field level security
          * and still adds the metadata even though the field "doesn't exist" */
-        assertResponse(runSql("SELECT a, b FROM test.test", null), runSql("SELECT * FROM test.test", "not_c"));
+        assertResponse(runSql("SELECT a, b FROM test", null), runSql("SELECT * FROM test", "not_c"));
         /* This should probably be a 400 level error complaining about field
          * that do not exist because that is what makes sense in SQL. */
-        assertResponse(emptyMap(), runSql("SELECT * FROM test.test WHERE c = 3", "not_c"));
+        assertResponse(emptyMap(), runSql("SELECT * FROM test WHERE c = 3", "not_c"));
     }
 
     public void testSqlDocumentExclued() throws IOException {
         createUser("no_3s", "read_test_without_c_3");
 
-        assertResponse(runSql("SELECT * FROM test.test WHERE c != 3", null), runSql("SELECT * FROM test.test", "no_3s"));
+        assertResponse(runSql("SELECT * FROM test WHERE c != 3", null), runSql("SELECT * FROM test", "no_3s"));
     }
 
     private void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {

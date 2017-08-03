@@ -41,7 +41,7 @@ public class RestSqlIT extends ESRestTestCase {
         expected.put("columns", singletonMap("test", singletonMap("type", "text")));
         expected.put("rows", Arrays.asList(singletonMap("test", "test"), singletonMap("test", "test")));
         expected.put("size", 2);
-        assertResponse(expected, runSql("SELECT * FROM test.test"));
+        assertResponse(expected, runSql("SELECT * FROM test"));
     }
 
     @AwaitsFix(bugUrl="https://github.com/elastic/x-pack-elasticsearch/issues/2074")
@@ -72,19 +72,19 @@ public class RestSqlIT extends ESRestTestCase {
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
 
         // NOCOMMIT "unresolved" should probably be changed to something users will understand like "missing"
-        expectBadRequest(() -> runSql("SELECT foo FROM test.test"), containsString("1:8: Unresolved item 'foo'"));
+        expectBadRequest(() -> runSql("SELECT foo FROM test"), containsString("1:8: Unresolved item 'foo'"));
         // NOCOMMIT the ones below one should include (foo) but it looks like the function is missing
-        expectBadRequest(() -> runSql("SELECT DAY_OF_YEAR(foo) FROM test.test"), containsString("1:20: Unresolved item 'DAY_OF_YEAR'"));
-        expectBadRequest(() -> runSql("SELECT foo, * FROM test.test GROUP BY DAY_OF_YEAR(foo)"),
+        expectBadRequest(() -> runSql("SELECT DAY_OF_YEAR(foo) FROM test"), containsString("1:20: Unresolved item 'DAY_OF_YEAR'"));
+        expectBadRequest(() -> runSql("SELECT foo, * FROM test GROUP BY DAY_OF_YEAR(foo)"),
                 both(containsString("1:8: Unresolved item 'foo'"))
-                    .and(containsString("1:51: Unresolved item 'DAY_OF_YEAR'")));
+                    .and(containsString("1:46: Unresolved item 'DAY_OF_YEAR'")));
         // NOCOMMIT broken because we bail on the resolution phase if we can't resolve something in a previous phase
-//        expectBadRequest(() -> runSql("SELECT * FROM test.test WHERE foo = 1"), containsString("500"));
-//        expectBadRequest(() -> runSql("SELECT * FROM test.test WHERE DAY_OF_YEAR(foo) = 1"), containsString("500"));
+//        expectBadRequest(() -> runSql("SELECT * FROM test WHERE foo = 1"), containsString("500"));
+//        expectBadRequest(() -> runSql("SELECT * FROM test WHERE DAY_OF_YEAR(foo) = 1"), containsString("500"));
         // NOCOMMIT this should point to the column, no the (incorrectly capitalized) start or ORDER BY
-        expectBadRequest(() -> runSql("SELECT * FROM test.test ORDER BY foo"), containsString("line 1:34: Unresolved item 'Order'"));
-        expectBadRequest(() -> runSql("SELECT * FROM test.test ORDER BY DAY_OF_YEAR(foo)"),
-                containsString("line 1:46: Unresolved item 'Order'"));
+        expectBadRequest(() -> runSql("SELECT * FROM test ORDER BY foo"), containsString("line 1:29: Unresolved item 'Order'"));
+        expectBadRequest(() -> runSql("SELECT * FROM test ORDER BY DAY_OF_YEAR(foo)"),
+                containsString("line 1:41: Unresolved item 'Order'"));
     }
 
     private void expectBadRequest(ThrowingRunnable code, Matcher<String> errorMessageMatcher) {

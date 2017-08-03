@@ -19,11 +19,14 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.Proxy;
 import java.net.URL;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Base64;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
 import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLSocketFactory;
 
 public class JreHttpUrlConnection implements Closeable {
     public static <R> R http(URL url, ConnectionConfiguration cfg, Function<JreHttpUrlConnection, R> handler) {
@@ -75,7 +78,11 @@ public class JreHttpUrlConnection implements Closeable {
     private void setupSSL(ConnectionConfiguration cfg) {
         if (cfg.sslConfig().isEnabled()) {
             HttpsURLConnection https = (HttpsURLConnection) con;
-            https.setSSLSocketFactory(cfg.sslConfig().sslSocketFactory());
+            SSLSocketFactory factory = cfg.sslConfig().sslSocketFactory();
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                  https.setSSLSocketFactory(factory);
+                  return null;
+            });
         }
     }
 
@@ -118,7 +125,7 @@ public class JreHttpUrlConnection implements Closeable {
             throw new ClientException(ex, "Cannot POST address %s (%s)", url, ex.getMessage());
         }
     }
-    
+
     private static InputStream getStream(HttpURLConnection con, InputStream stream) throws IOException {
         if (GZIP.equals(con.getContentEncoding())) {
             return new GZIPInputStream(stream);

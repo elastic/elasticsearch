@@ -33,10 +33,10 @@ public class ShowTablesIT extends JdbcIntegrationTestCase {
             for (int i = 0; i < indices; i++) {
                 String index = String.format(Locale.ROOT, "test%02d", i);
                 index(index, builder -> builder.field("name", "bob"));
-                h2.createStatement().executeUpdate("INSERT INTO mock VALUES ('" + index + "', 'doc');");
+                h2.createStatement().executeUpdate("INSERT INTO mock VALUES ('" + index + "');");
             }
 
-            ResultSet expected = h2.createStatement().executeQuery("SELECT * FROM mock ORDER BY index, type");
+            ResultSet expected = h2.createStatement().executeQuery("SELECT * FROM mock ORDER BY table");
             assertResultSets(expected, es.createStatement().executeQuery("SHOW TABLES"));
         }
     }

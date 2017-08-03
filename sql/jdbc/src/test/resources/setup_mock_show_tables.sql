@@ -1,4 +1,3 @@
 CREATE TABLE mock (
-  "index" VARCHAR,
-  "type" VARCHAR
+  "table" VARCHAR
 );

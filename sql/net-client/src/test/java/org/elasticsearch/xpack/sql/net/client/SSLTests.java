@@ -18,6 +18,8 @@ import org.junit.rules.ExternalResource;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.net.URL;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Properties;
 import java.util.UUID;
@@ -81,6 +83,7 @@ public class SSLTests extends ESTestCase {
     }
 
     public void testSslSetup() throws Exception {
+        // NOCOMMIT this test doesn't test anything, just logs. Probably should fix that.
         SSLContext context = SSLContext.getDefault();
         SSLSocketFactory factory = context.getSocketFactory();
         SSLSocket socket = (SSLSocket) factory.createSocket();
@@ -100,16 +103,18 @@ public class SSLTests extends ESTestCase {
     }
 
     public void testSslHead() throws Exception {
-        assertTrue(JreHttpUrlConnection.http(sslServer, cfg, JreHttpUrlConnection::head));
+        assertTrue(AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> {
+            return JreHttpUrlConnection.http(sslServer, cfg, JreHttpUrlConnection::head);
+        }));
     }
 
     public void testSslPost() throws Exception {
         String message = UUID.randomUUID().toString();
-        Bytes b = JreHttpUrlConnection.http(sslServer, cfg, c -> {
-            return c.post(o -> {
-                o.writeUTF(message);
-            });
-        });
+        Bytes b = AccessController.doPrivileged((PrivilegedAction<Bytes>) () ->
+            JreHttpUrlConnection.http(sslServer, cfg, c ->
+                c.post(o -> {
+                    o.writeUTF(message);
+                })));
         
         String received = new DataInputStream(new ByteArrayInputStream(b.bytes())).readUTF();
         assertEquals(message, received);

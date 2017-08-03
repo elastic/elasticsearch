@@ -17,10 +17,10 @@ public class ShowIT extends CliIntegrationTestCase {
         index("test1", body -> body.field("test_field", "test_value"));
         index("test2", body -> body.field("test_field", "test_value"));
         command("SHOW TABLES");
-        assertThat(in.readLine(), RegexMatcher.matches("\\s*index\\s*\\|\\s*type\\s*"));
+        assertThat(in.readLine(), RegexMatcher.matches("\\s*table\\s*"));
         assertThat(in.readLine(), containsString("----------"));
-        assertThat(in.readLine(), RegexMatcher.matches("\\s*test[12]\\s*\\|\\s*doc\\s*"));
-        assertThat(in.readLine(), RegexMatcher.matches("\\s*test[12]\\s*\\|\\s*doc\\s*"));
+        assertThat(in.readLine(), RegexMatcher.matches("\\s*test[12]\\s*"));
+        assertThat(in.readLine(), RegexMatcher.matches("\\s*test[12]\\s*"));
         assertEquals("", in.readLine());
     }
 

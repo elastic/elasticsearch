@@ -222,6 +222,9 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
     @Override
     protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+        if (values == null) {
+            throw new IllegalArgumentException("Parameter [" + VALUES_FIELD.getPreferredName() + "] cannot be null.");
+        }
         switch (method) {
         case TDIGEST:
             return new TDigestPercentileRanksAggregatorFactory(name, config, values, compression, keyed, context, parent,

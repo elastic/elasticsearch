@@ -1,5 +1,5 @@
 [[java-rest-high-search-queries]]
-=== Search Queries
+=== Building Search Queries
 
 This page lists all the available search queries with their corresponding `QueryBuilder` class name and helper method name in the
 `QueryBuilders` utility class.

@@ -32,7 +32,9 @@ import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -42,12 +44,16 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.count;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -247,6 +253,35 @@ public class ValueCountIT extends ESIntegTestCase {
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(1L));
+    }
+
+    public void testOrderByEmptyAggregation() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(terms("terms").field("value").order(Terms.Order.compound(Terms.Order.aggregation("filter>count", true)))
+                        .subAggregation(filter("filter", termQuery("value", 100)).subAggregation(count("count").field("value"))))
+                .get();
+
+        assertHitCount(searchResponse, 10);
+
+        Terms terms = searchResponse.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
+        assertThat(buckets, notNullValue());
+        assertThat(buckets.size(), equalTo(10));
+
+        for (int i = 0; i < 10; i++) {
+            Terms.Bucket bucket = buckets.get(i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKeyAsNumber(), equalTo((long) i + 1));
+            assertThat(bucket.getDocCount(), equalTo(1L));
+            Filter filter = bucket.getAggregations().get("filter");
+            assertThat(filter, notNullValue());
+            assertThat(filter.getDocCount(), equalTo(0L));
+            ValueCount count = filter.getAggregations().get("count");
+            assertThat(count, notNullValue());
+            assertThat(count.value(), equalTo(0.0));
+
+        }
     }
 
     /**

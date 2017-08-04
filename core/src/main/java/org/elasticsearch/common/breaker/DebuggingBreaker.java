@@ -30,12 +30,14 @@ public abstract class DebuggingBreaker implements CircuitBreaker {
 
     private final ConcurrentMap<BreakerKey, LinkedList<CircuitNode>> state = new ConcurrentHashMap<>();
     private final boolean stashStacks;
+    private final boolean debug;
 
     public DebuggingBreaker() {
-        this(false);
+        this(false, false);
     }
 
-    public DebuggingBreaker(boolean stashStacks) {
+    public DebuggingBreaker(boolean debug, boolean stashStacks) {
+        this.debug = debug;
         this.stashStacks = stashStacks;
     }
 
@@ -53,11 +55,19 @@ public abstract class DebuggingBreaker implements CircuitBreaker {
 
     @Override
     public void release(BreakerKey key) {
-        Object removed = state.remove(key);
-        if (removed != null) {
-            addWithoutBreaking(-key.getBytes());
+        if (debug) {
+            LinkedList<CircuitNode> removed = state.remove(key);
+            if (removed != null) {
+                long delta = -key.getBytes();
+                addWithoutBreaking(delta);
+                key.incBytes(delta);
+            } else {
+                throw new IllegalStateException("Key does not exist in breaker");
+            }
         } else {
-            throw new IllegalStateException();
+            long delta = -key.getBytes();
+            addWithoutBreaking(delta);
+            key.incBytes(delta);
         }
     }
 
@@ -67,17 +77,20 @@ public abstract class DebuggingBreaker implements CircuitBreaker {
 
     private void modifyKeyAndState(BreakerKey key, long bytes) {
         key.incBytes(bytes);
-        LinkedList<CircuitNode> value = new LinkedList<>();
-        LinkedList<CircuitNode> oldValue = state.putIfAbsent(key, value);
-        if (oldValue != null) {
-            value = oldValue;
-        }
 
-        if (stashStacks) {
-            StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-            value.add(new CircuitNode(bytes, stackTrace));
-        } else {
-            value.add(new CircuitNode(bytes));
+        if (debug) {
+            LinkedList<CircuitNode> value = new LinkedList<>();
+            LinkedList<CircuitNode> oldValue = state.putIfAbsent(key, value);
+            if (oldValue != null) {
+                value = oldValue;
+            }
+
+            if (stashStacks) {
+                StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+                value.add(new CircuitNode(bytes, stackTrace));
+            } else {
+                value.add(new CircuitNode(bytes));
+            }
         }
     }
 
@@ -94,6 +107,14 @@ public abstract class DebuggingBreaker implements CircuitBreaker {
         private CircuitNode(long delta, StackTraceElement[] stackTraceElements) {
             this.delta = delta;
             this.stackTraceElements = stackTraceElements;
+        }
+
+        public long getDelta() {
+            return delta;
+        }
+
+        public StackTraceElement[] getStackTraceElements() {
+            return stackTraceElements;
         }
 
         @Override

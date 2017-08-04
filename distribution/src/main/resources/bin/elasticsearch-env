@@ -39,7 +39,9 @@ ES_CLASSPATH="$ES_HOME/lib/*"
 if [ -x "$JAVA_HOME/bin/java" ]; then
   JAVA="$JAVA_HOME/bin/java"
 else
+  set +e
   JAVA=`which java`
+  set -e
 fi
 
 if [ ! -x "$JAVA" ]; then

@@ -77,7 +77,6 @@ public final class ReservedFieldNames {
             Bucket.ANOMALY_SCORE.getPreferredName(),
             Bucket.BUCKET_INFLUENCERS.getPreferredName(),
             Bucket.BUCKET_SPAN.getPreferredName(),
-            Bucket.RECORD_COUNT.getPreferredName(),
             Bucket.EVENT_COUNT.getPreferredName(),
             Bucket.INITIAL_ANOMALY_SCORE.getPreferredName(),
             Bucket.PROCESSING_TIME_MS.getPreferredName(),

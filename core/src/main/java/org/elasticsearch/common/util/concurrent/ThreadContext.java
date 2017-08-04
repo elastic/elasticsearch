@@ -407,11 +407,10 @@ public final class ThreadContext implements Closeable, Writeable {
             if (headers.isEmpty()) {
                 return this;
             } else {
-                final Map<String, String> newHeaders = new HashMap<>();
+                final Map<String, String> newHeaders = new HashMap<>(this.requestHeaders);
                 for (Map.Entry<String, String> entry : headers.entrySet()) {
                     putSingleHeader(entry.getKey(), entry.getValue(), newHeaders);
                 }
-                newHeaders.putAll(this.requestHeaders);
                 return new ThreadContextStruct(newHeaders, responseHeaders, transientHeaders, isSystemContext);
             }
         }
@@ -481,12 +480,17 @@ public final class ThreadContext implements Closeable, Writeable {
         }
 
         private void writeTo(StreamOutput out, Map<String, String> defaultHeaders) throws IOException {
+            assert defaultHeaders != null;
             final Map<String, String> requestHeaders;
             if (defaultHeaders.isEmpty()) {
                 requestHeaders = this.requestHeaders;
             } else {
-                requestHeaders = new HashMap<>(defaultHeaders);
-                requestHeaders.putAll(this.requestHeaders);
+                requestHeaders = new HashMap<>(this.requestHeaders);
+                for (Map.Entry<String, String> header : defaultHeaders.entrySet()) {
+                    if (requestHeaders.putIfAbsent(header.getKey(), header.getValue()) != null) {
+                        throw new IllegalArgumentException("value for key [" + header.getKey() + "] already present");
+                    }
+                }
             }
 
             out.writeVInt(requestHeaders.size());

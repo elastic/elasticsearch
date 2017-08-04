@@ -2377,10 +2377,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         }
         if (readAllowed) {
+            refreshListeners.addOrNotify(location, listener);
+        } else {
             // we're not yet ready fo ready for reads, just ignore refresh cycles
             listener.accept(false);
-        } else {
-            refreshListeners.addOrNotify(location, listener);
         }
     }
 

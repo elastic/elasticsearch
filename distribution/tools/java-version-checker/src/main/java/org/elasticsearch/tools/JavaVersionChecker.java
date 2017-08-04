@@ -22,6 +22,7 @@ package org.elasticsearch.tools;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Simple program that checks if the runtime Java version is at least 1.8.
@@ -46,6 +47,11 @@ final class JavaVersionChecker {
         final String javaSpecificationVersion = System.getProperty("java.specification.version");
         final List<Integer> current = parse(javaSpecificationVersion);
         if (compare(current, JAVA_8) < 0) {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "the minimum required Java version is 8; your Java version from [%s] does not meet this requirement",
+                    System.getProperty("java.home"));
+            System.err.println(message);
             exit(1);
         }
         exit(0);

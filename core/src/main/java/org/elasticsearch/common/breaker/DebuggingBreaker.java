@@ -19,28 +19,56 @@
 
 package org.elasticsearch.common.breaker;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 public abstract class DebuggingBreaker implements CircuitBreaker {
 
-    private final ConcurrentMap<BreakerKey, LinkedList<CircuitNode>> keys = new ConcurrentHashMap<>();
-    private final boolean stashStacks = false;
+    private final ConcurrentMap<BreakerKey, LinkedList<CircuitNode>> state = new ConcurrentHashMap<>();
+    private final boolean stashStacks;
+
+    public DebuggingBreaker() {
+        this(false);
+    }
+
+    public DebuggingBreaker(boolean stashStacks) {
+        this.stashStacks = stashStacks;
+    }
 
     @Override
     public void addEstimateBytesAndMaybeBreak(BreakerKey key, long bytes) throws CircuitBreakingException {
         addEstimateBytesAndMaybeBreak(bytes, key.getLabel());
-        key.incBytes(bytes);
-        keys.putIfAbsent(key, new LinkedList<>());
+        modifyKeyAndState(key, bytes);
     }
 
     @Override
     public void addWithoutBreaking(BreakerKey key, long bytes) throws CircuitBreakingException {
         addWithoutBreaking(bytes);
+        modifyKeyAndState(key, bytes);
+    }
+
+    @Override
+    public void release(BreakerKey key) {
+        Object removed = state.remove(key);
+        if (removed != null) {
+            addWithoutBreaking(-key.getBytes());
+        } else {
+            throw new IllegalStateException();
+        }
+    }
+
+    public Map<CircuitBreaker.BreakerKey, LinkedList<CircuitNode>> getState() {
+        return Collections.unmodifiableMap(state);
+    }
+
+    private void modifyKeyAndState(BreakerKey key, long bytes) {
         key.incBytes(bytes);
         LinkedList<CircuitNode> value = new LinkedList<>();
-        LinkedList<CircuitNode> oldValue = keys.putIfAbsent(key, value);
+        LinkedList<CircuitNode> oldValue = state.putIfAbsent(key, value);
         if (oldValue != null) {
             value = oldValue;
         }
@@ -53,17 +81,7 @@ public abstract class DebuggingBreaker implements CircuitBreaker {
         }
     }
 
-    @Override
-    public void release(BreakerKey key) {
-        Object removed = keys.remove(key);
-        if (removed != null) {
-            addWithoutBreaking(-key.getBytes());
-        } else {
-            throw new IllegalStateException();
-        }
-    }
-
-    private static class CircuitNode {
+    public static class CircuitNode {
 
         private final long delta;
         private final StackTraceElement[] stackTraceElements;
@@ -76,6 +94,14 @@ public abstract class DebuggingBreaker implements CircuitBreaker {
         private CircuitNode(long delta, StackTraceElement[] stackTraceElements) {
             this.delta = delta;
             this.stackTraceElements = stackTraceElements;
+        }
+
+        @Override
+        public String toString() {
+            return "CircuitNode{" +
+                "delta=" + delta +
+                ", stackTraceElements=" + Arrays.toString(stackTraceElements) +
+                '}';
         }
     }
 }

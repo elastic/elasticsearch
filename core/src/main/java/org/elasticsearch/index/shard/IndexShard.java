@@ -847,7 +847,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public RefreshStats refreshStats() {
-        // Null refreshListeners means this shard doesn't support them so there can't be any.
         int listeners = refreshListeners.pendingCount();
         return new RefreshStats(refreshMetric.count(), TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()), listeners);
     }

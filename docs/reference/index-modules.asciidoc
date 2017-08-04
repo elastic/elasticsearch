@@ -78,29 +78,9 @@ Checking shards may take a lot of time on large indices.
     compression, but this can be set to +best_compression+
     which uses https://en.wikipedia.org/wiki/DEFLATE[DEFLATE] for a higher
     compression ratio, at the expense of slower stored fields performance.
-    To change this setting you need to <<indices-open-close,close>>, update,
-    <<indices-open-close,reopen>> and then issue a <<indices-forcemerge,force merge>>
-    on the index in question for it to be applied.
-    For example:
-
-    [source,js]
-    --------------------------------------------------
-    POST /my_index/_close
-
-    PUT /my_index/_settings
-    {
-        "index":
-            {
-            "codec":"best_compression"
-            }
-    }
-
-    POST /my_index/_open
-
-    POST /my_index/_forcemerge
-    --------------------------------------------------
-    // CONSOLE
-    // TEST[s/^/PUT my_index\n/]
+    If you are updating the compression type, the new one will be applied
+    after segments are merged. Segment merging can be forced using
+    <<indices-forcemerge,force merge>>.
 
 [[routing-partition-size]] `index.routing_partition_size`::
 

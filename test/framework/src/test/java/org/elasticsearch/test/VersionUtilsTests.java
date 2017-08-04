@@ -181,11 +181,15 @@ public class VersionUtilsTests extends ESTestCase {
         // First check the index compatible versions
         VersionsFromProperty indexCompatible = new VersionsFromProperty("tests.gradle_index_compat_versions");
         List<Version> released = VersionUtils.allReleasedVersions().stream()
-                /* We skip alphas, betas, and the like in gradle because they don't have
-                 * backwards compatibility guarantees even though they are technically
-                 * released. */
-                .filter(v -> v.isRelease() && (v.major == Version.CURRENT.major || v.major == Version.CURRENT.major - 1))
+                // Java lists some non-index compatible versions but gradle does not include them.
+                .filter(v -> v.major == Version.CURRENT.major || v.major == Version.CURRENT.major - 1)
+                /* Gradle will never include *released* alphas or betas because it will prefer
+                 * the unreleased branch head. Gradle is willing to use branch heads that are
+                 * alpha or beta so that we have *something* to test against even though we
+                 * do not offer backwards compatibility for alphas, betas, or rcs. */
+                .filter(Version::isRelease)
                 .collect(toList());
+
         List<String> releasedIndexCompatible = released.stream()
                 .map(Object::toString)
                 .collect(toList());
@@ -195,7 +199,12 @@ public class VersionUtilsTests extends ESTestCase {
                 /* Gradle skips the current version because being backwards compatible
                  * with yourself is implied. Java lists the version because it is useful. */
                 .filter(v -> v != Version.CURRENT)
-                .map(v -> v.major + "." + v.minor + "." + v.revision)
+                /* Note that gradle does *not* skip alphas, betas, or rcs here even
+                 * though we don't have backwards compatibility for alphas, betas,
+                 * and rcs. Gradle includes them because they represent the head of
+                 * a branch that will one day be released for which we will offer
+                 * backwards compatibility. */
+                .map(Object::toString)
                 .collect(toCollection(LinkedHashSet::new)));
         assertEquals(unreleasedIndexCompatible, indexCompatible.unreleased);
 

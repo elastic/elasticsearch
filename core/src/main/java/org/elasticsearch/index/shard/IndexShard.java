@@ -1155,6 +1155,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (state == IndexShardState.RELOCATED) {
                 throw new IndexShardRelocatedException(shardId);
             }
+            // we need to refresh again to expose all operations that were index until now. Otherwise
+            // we may not expose operations that were indexed with a refresh listener that was immediately
+            // responded to in addRefreshListener.
+            getEngine().refresh("post_recovery");
             recoveryState.setStage(RecoveryState.Stage.DONE);
             changeState(IndexShardState.POST_RECOVERY, reason);
         }
@@ -2362,11 +2366,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *        false otherwise.
      */
     public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
+        final boolean readAllowed;
         if (isReadAllowed()) {
-            refreshListeners.addOrNotify(location, listener);
+            readAllowed = true;
         } else {
+            // check again under mutex. this is important to create a happens before relationship
+            // between the switch to POST_RECOVERY + associated refresh. Otherwise we may respond
+            // to a listener before a refresh actually happened that contained that operation.
+            synchronized (mutex) {
+                readAllowed = isReadAllowed();
+            }
+        }
+        if (readAllowed) {
             // we're not yet ready fo ready for reads, just ignore refresh cycles
             listener.accept(false);
+        } else {
+            refreshListeners.addOrNotify(location, listener);
         }
     }
 

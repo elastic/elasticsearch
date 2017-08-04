@@ -92,6 +92,52 @@ public final class ConfigurationUtils {
             value.getClass().getName() + "]");
     }
 
+    /**
+     * Returns and removes the specified property from the specified configuration map.
+     *
+     * If the property value isn't of type string or int a {@link ElasticsearchParseException} is thrown.
+     * If the property is missing and no default value has been specified a {@link ElasticsearchParseException} is thrown
+     */
+     public static String readStringOrIntProperty(String processorType, String processorTag,
+            Map<String, Object> configuration, String propertyName, String defaultValue) {
+        Object value = configuration.remove(propertyName);
+        if (value == null && defaultValue != null) {
+            return defaultValue;
+        } else if (value == null) {
+            throw newConfigurationException(processorType, processorTag, propertyName,
+                "required property is missing");
+        }
+        return readStringOrInt(processorType, processorTag, propertyName, value);
+    }
+
+    private static String readStringOrInt(String processorType, String processorTag,
+            String propertyName, Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String) {
+            return (String) value;
+        } else if (value instanceof Integer) {
+            return String.valueOf(value);
+        }
+        throw newConfigurationException(processorType, processorTag, propertyName,
+            "property isn't a string or int, but of type [" + value.getClass().getName() + "]");
+    }
+
+    /**
+     * Returns and removes the specified property from the specified configuration map.
+     *
+     * If the property value isn't of type string or int a {@link ElasticsearchParseException} is thrown.
+     */
+    public static String readOptionalStringOrIntProperty(String processorType, String processorTag,
+            Map<String, Object> configuration, String propertyName) {
+        Object value = configuration.remove(propertyName);
+        if (value == null) {
+            return null;
+        }
+        return readStringOrInt(processorType, processorTag, propertyName, value);
+    }
+
     public static Boolean readBooleanProperty(String processorType, String processorTag, Map<String, Object> configuration,
                                              String propertyName, boolean defaultValue) {
         Object value = configuration.remove(propertyName);

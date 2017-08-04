@@ -71,7 +71,7 @@ public abstract class DebuggingBreaker implements CircuitBreaker {
         }
     }
 
-    public Map<CircuitBreaker.BreakerKey, LinkedList<CircuitNode>> getState() {
+    public Map<CircuitBreaker.BreakerKey, LinkedList<CircuitNode>> getBreakerState() {
         return Collections.unmodifiableMap(state);
     }
 

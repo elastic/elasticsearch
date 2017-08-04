@@ -40,7 +40,7 @@ public class DebuggingBreakerTests extends ESTestCase {
         breaker.addEstimateBytesAndMaybeBreak(key, second);
         breaker.addEstimateBytesAndMaybeBreak(key, third);
 
-        Map<CircuitBreaker.BreakerKey, LinkedList<DebuggingBreaker.CircuitNode>> state = breaker.getState();
+        Map<CircuitBreaker.BreakerKey, LinkedList<DebuggingBreaker.CircuitNode>> state = breaker.getBreakerState();
 
         assertEquals(1, state.size());
 
@@ -68,7 +68,7 @@ public class DebuggingBreakerTests extends ESTestCase {
         breaker.addEstimateBytesAndMaybeBreak(key, 1);
         expectThrows(CircuitBreakingException.class, () -> breaker.addEstimateBytesAndMaybeBreak(key, 21));
 
-        Map<CircuitBreaker.BreakerKey, LinkedList<DebuggingBreaker.CircuitNode>> state = breaker.getState();
+        Map<CircuitBreaker.BreakerKey, LinkedList<DebuggingBreaker.CircuitNode>> state = breaker.getBreakerState();
 
         assertEquals(1, state.size());
 
@@ -87,7 +87,7 @@ public class DebuggingBreakerTests extends ESTestCase {
         breaker.addEstimateBytesAndMaybeBreak(key, second);
         breaker.addEstimateBytesAndMaybeBreak(key, third);
 
-        Map<CircuitBreaker.BreakerKey, LinkedList<DebuggingBreaker.CircuitNode>> state = breaker.getState();
+        Map<CircuitBreaker.BreakerKey, LinkedList<DebuggingBreaker.CircuitNode>> state = breaker.getBreakerState();
 
         assertEquals(1, state.size());
 
@@ -97,7 +97,7 @@ public class DebuggingBreakerTests extends ESTestCase {
 
         breaker.release(key);
 
-        assertFalse(breaker.getState().containsKey(key));
+        assertFalse(breaker.getBreakerState().containsKey(key));
     }
 
     public void testBytesAreProperlyAccountedFor() {

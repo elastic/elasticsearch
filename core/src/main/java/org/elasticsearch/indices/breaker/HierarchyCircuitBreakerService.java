@@ -78,9 +78,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public static final Setting<CircuitBreaker.Type> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING =
         new Setting<>("network.breaker.inflight_requests.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
     public static final Setting<Boolean> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_DEBUG_SETTING =
-        Setting.boolSetting("indices.breaker.request.debug", false, Property.NodeScope);
+        Setting.boolSetting("network.breaker.request.debug", false, Property.NodeScope);
     public static final Setting<Boolean> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_DEBUG_STACKTRACE_SETTING =
-        Setting.boolSetting("indices.breaker.request.debug.stacktrace", false, Property.NodeScope);
+        Setting.boolSetting("network.breaker.request.debug.stacktrace", false, Property.NodeScope);
 
     private volatile BreakerSettings parentSettings;
     private volatile BreakerSettings fielddataSettings;

@@ -31,7 +31,11 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
@@ -89,33 +93,6 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
             )
     };
 
-    private static final RoleMappingEntry[] OLDAP_ROLE_MAPPING = new RoleMappingEntry[] {
-            new RoleMappingEntry(
-                    "SHIELD: [ \"cn=SHIELD,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\" ]",
-                    "{ \"roles\": [\"SHIELD\"], \"enabled\":true, \"rules\":" +
-                            " {\"field\": {\"groups\": \"cn=SHIELD,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\" } } }"
-            ),
-            new RoleMappingEntry(
-                    "Avengers: [ \"cn=Avengers,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\" ]",
-                    "{ \"roles\": [\"Avengers\"], \"enabled\":true, \"rules\":" +
-                            " {\"field\": {\"groups\": \"cn=Avengers,ou=people,*\" } } }"
-            ),
-            new RoleMappingEntry(
-                    "Gods: [ \"cn=Gods,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\" ]",
-                    "{ \"roles\" : [ \"Gods\" ], \"enabled\":true, \"rules\" : { \"any\": [" +
-                            " {\"field\": {\"groups\":    \"cn=Gods,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\" } }," +
-                            " {\"field\": {\"groups\": \"cn=Deities,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\" } } " +
-                            "] } }"
-            ),
-            new RoleMappingEntry(
-                    "Philanthropists: [ \"cn=Philanthropists,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\" ]",
-                    "{ \"roles\" : [ \"Philanthropists\" ], \"enabled\":true, \"rules\" : { \"all\": [" +
-                            " { \"field\": { \"groups\" : \"cn=Philanthropists,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\" } }, " +
-                            " { \"field\": { \"realm.name\" : \"external\" } } " +
-                            "] } }"
-            )
-    };
-
     protected static final String TESTNODE_KEYSTORE = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks";
     protected static RealmConfig realmConfig;
     protected static List<RoleMappingEntry> roleMappings;
@@ -141,7 +118,42 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         Path store = getDataPath(TESTNODE_KEYSTORE);
         Settings.Builder builder = Settings.builder();
         if (useGlobalSSL) {
-            builder.put(super.nodeSettings(nodeOrdinal).filter((s) -> s.startsWith("xpack.ssl.") == false));
+            // don't use filter since it returns a prefixed secure setting instead of mock!
+            Settings settingsToAdd = super.nodeSettings(nodeOrdinal);
+            for (Map.Entry<String, String> settingsEntry : settingsToAdd.getAsMap().entrySet()) {
+                if (settingsEntry.getKey().startsWith("xpack.ssl.") == false) {
+                    builder.put(settingsEntry.getKey(), settingsEntry.getValue());
+                }
+            }
+            MockSecureSettings mockSecureSettings = (MockSecureSettings) Settings.builder().put(settingsToAdd).getSecureSettings();
+            if (mockSecureSettings != null) {
+                MockSecureSettings filteredSecureSettings = new MockSecureSettings();
+                builder.setSecureSettings(filteredSecureSettings);
+                for (String secureSetting : mockSecureSettings.getSettingNames()) {
+                    if (secureSetting.startsWith("xpack.ssl.") == false) {
+                        SecureString secureString = mockSecureSettings.getString(secureSetting);
+                        if (secureString == null) {
+                            final byte[] fileBytes;
+                            try (InputStream in = mockSecureSettings.getFile(secureSetting);
+                                 ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
+                                int numRead;
+                                byte[] bytes = new byte[1024];
+                                while ((numRead = in.read(bytes)) != -1) {
+                                    byteArrayOutputStream.write(bytes, 0, numRead);
+                                }
+                                byteArrayOutputStream.flush();
+                                fileBytes = byteArrayOutputStream.toByteArray();
+                            } catch (IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
+
+                            filteredSecureSettings.setFile(secureSetting, fileBytes);
+                        } else {
+                            filteredSecureSettings.setString(secureSetting, new String(secureString.getChars()));
+                        }
+                    }
+                }
+            }
             addSslSettingsForStore(builder, store, "testnode");
         } else {
             builder.put(super.nodeSettings(nodeOrdinal));
@@ -166,8 +178,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
             return;
         }
         SecurityClient securityClient = securityClient();
-        Map<String, ActionFuture<PutRoleMappingResponse>> futures
-                = new LinkedHashMap<>(content.size());
+        Map<String, ActionFuture<PutRoleMappingResponse>> futures = new LinkedHashMap<>(content.size());
         for (int i = 0; i < content.size(); i++) {
             final String name = "external_" + i;
             final PutRoleMappingRequestBuilder builder = securityClient.preparePutRoleMapping(
@@ -393,17 +404,6 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://ad.test.elasticsearch.com:636")
                         .putArray(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".user_dn_templates",
                                 "cn={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
-                        .build()),
-
-        OLDAP(false, OLDAP_ROLE_MAPPING,
-                Settings.builder()
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", LdapRealm.LDAP_TYPE)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://54.200.235.244:636")
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".group_search.base_dn",
-                                "ou=people, dc=oldap, dc=test, dc=elasticsearch, dc=com")
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? SUB_TREE : ONE_LEVEL)
-                        .putArray(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".user_dn_templates",
-                                "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
                         .build());
 
         final boolean mapGroupsAsRoles;

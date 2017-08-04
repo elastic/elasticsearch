@@ -190,6 +190,9 @@ sub-aggregation on the average age of employees in the company:
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations]
 --------------------------------------------------
 
+The <<java-rest-high-aggregations, Aggregations>> page gives a list of all available aggregations with
+their corresponding `AggregationBuilder` objects and `AggregationBuilders` helper methods.
+
 We will later see how to <<java-rest-high-retrieve-aggs,access aggregations>> in the `SearchResponse`.
 
 ===== Requesting Suggestions

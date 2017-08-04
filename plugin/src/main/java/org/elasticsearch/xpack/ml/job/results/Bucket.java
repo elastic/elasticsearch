@@ -38,13 +38,15 @@ public class Bucket implements ToXContentObject, Writeable {
 
     public static final ParseField ANOMALY_SCORE = new ParseField("anomaly_score");
     public static final ParseField INITIAL_ANOMALY_SCORE = new ParseField("initial_anomaly_score");
-    public static final ParseField RECORD_COUNT = new ParseField("record_count");
     public static final ParseField EVENT_COUNT = new ParseField("event_count");
     public static final ParseField RECORDS = new ParseField("records");
     public static final ParseField BUCKET_INFLUENCERS = new ParseField("bucket_influencers");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
     public static final ParseField PROCESSING_TIME_MS = new ParseField("processing_time_ms");
     public static final ParseField PARTITION_SCORES = new ParseField("partition_scores");
+
+    // Only exists for backwards compatibility; no longer added to mappings
+    private static final ParseField RECORD_COUNT = new ParseField("record_count");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("buckets");

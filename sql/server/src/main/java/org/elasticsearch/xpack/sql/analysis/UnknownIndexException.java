@@ -10,6 +10,6 @@ import org.elasticsearch.xpack.sql.tree.Node;
 public class UnknownIndexException extends AnalysisException {
 
     public UnknownIndexException(String index, Node<?> source) {
-        super(source, "Cannot resolve index %s", index);
+        super(source, "Cannot resolve index [%s]", index);
     }
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -66,16 +67,17 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.support.Exceptions.authorizationError;
 
 public class AuthorizationService extends AbstractComponent {
-
     public static final Setting<Boolean> ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING =
             Setting.boolSetting(setting("authc.anonymous.authz_exception"), true, Property.NodeScope);
     public static final String INDICES_PERMISSIONS_KEY = "_indices_permissions";
+    public static final String INDICES_PERMISSIONS_RESOLVER_KEY = "_indices_permissions_resolver";
     public static final String ORIGINATING_ACTION_KEY = "_originating_action_name";
 
     private static final Predicate<String> MONITOR_INDEX_PREDICATE = IndexPrivilege.MONITOR.predicate();
@@ -196,6 +198,50 @@ public class AuthorizationService extends AbstractComponent {
                 return;
             }
             throw denial(authentication, action, request);
+        } else if (isDelayedIndicesAction(action)) {
+            /* We check now if the user can execute the action without looking at indices.
+             * The action is itself responsible for checking if the user can access the
+             * indices when it runs. */
+            if (permission.indices().check(action)) {
+                grant(authentication, action, request);
+
+                /* Now that we know the user can run the action we need to build a function
+                 * that we can use later to fetch the user's actual permissions for an
+                 * index. */
+                final MetaData metaData = clusterService.state().metaData();
+                final AuthorizedIndices authorizedIndices = new AuthorizedIndices(authentication.getUser(), permission, action, metaData);
+
+                final TransportRequest finalRequest = request;
+                final Role finalPermission = permission;
+                setIndicesAccessControlResolver((indicesOptions, indices) -> {
+                    /* The rest of security assumes that it can extract the indices from a
+                     * request and it is fairly twisty to convince it otherwise so we adapt
+                     * and stick our indices into a funny proxy request. Not ideal, but
+                     * it'll do for now. */
+                    IndicesRequest proxy = new IndicesRequest() {
+                        @Override
+                        public String[] indices() {
+                            return indices;
+                        }
+
+                        @Override
+                        public IndicesOptions indicesOptions() {
+                            return indicesOptions;
+                        }
+                    };
+                    ResolvedIndices resolvedIndices =
+                            resolveIndexNames(authentication, action, proxy, finalRequest, metaData, authorizedIndices);
+
+                    Set<String> localIndices = new HashSet<>(resolvedIndices.getLocal());
+                    IndicesAccessControl indicesAccessControl =
+                            authorizeIndices(action, finalRequest, localIndices, authentication, finalPermission, metaData);
+                    // NOCOMMIT we need to rework auditing so we provide the indices
+                    grant(authentication, action, finalRequest);
+                    return indicesAccessControl;
+                });
+                return;
+            }
+            throw denial(authentication, action, request);
         } else if (isTranslatedToBulkAction(action)) {
             if (request instanceof CompositeIndicesRequest == false) {
                 throw new IllegalStateException("Bulk translated actions must implement " + CompositeIndicesRequest.class.getSimpleName()
@@ -264,7 +310,7 @@ public class AuthorizationService extends AbstractComponent {
 
         final MetaData metaData = clusterService.state().metaData();
         final AuthorizedIndices authorizedIndices = new AuthorizedIndices(authentication.getUser(), permission, action, metaData);
-        final ResolvedIndices resolvedIndices = resolveIndexNames(authentication, action, request, metaData, authorizedIndices);
+        final ResolvedIndices resolvedIndices = resolveIndexNames(authentication, action, request, request, metaData, authorizedIndices);
         assert !resolvedIndices.isEmpty()
                 : "every indices request needs to have its indices set thus the resolved indices must not be empty";
 
@@ -283,22 +329,8 @@ public class AuthorizationService extends AbstractComponent {
         }
 
         final Set<String> localIndices = new HashSet<>(resolvedIndices.getLocal());
-        IndicesAccessControl indicesAccessControl = permission.authorize(action, localIndices, metaData, fieldPermissionsCache);
-        if (!indicesAccessControl.isGranted()) {
-            throw denial(authentication, action, request);
-        } else if (indicesAccessControl.getIndexPermissions(SecurityLifecycleService.SECURITY_INDEX_NAME) != null
-                && indicesAccessControl.getIndexPermissions(SecurityLifecycleService.SECURITY_INDEX_NAME).isGranted()
-                && XPackUser.is(authentication.getUser()) == false
-                && MONITOR_INDEX_PREDICATE.test(action) == false
-                && isSuperuser(authentication.getUser()) == false) {
-            // only the XPackUser is allowed to work with this index, but we should allow indices monitoring actions through for debugging
-            // purposes. These monitor requests also sometimes resolve indices concretely and then requests them
-            logger.debug("user [{}] attempted to directly perform [{}] against the security index [{}]",
-                    authentication.getUser().principal(), action, SecurityLifecycleService.SECURITY_INDEX_NAME);
-            throw denial(authentication, action, request);
-        } else {
-            setIndicesAccessControl(indicesAccessControl);
-        }
+        IndicesAccessControl indicesAccessControl = authorizeIndices(action, request, localIndices, authentication, permission, metaData);
+        setIndicesAccessControl(indicesAccessControl);
 
         //if we are creating an index we need to authorize potential aliases created at the same time
         if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
@@ -321,20 +353,27 @@ public class AuthorizationService extends AbstractComponent {
         grant(authentication, action, originalRequest);
     }
 
-    private ResolvedIndices resolveIndexNames(Authentication authentication, String action, TransportRequest request, MetaData metaData,
-                                              AuthorizedIndices authorizedIndices) {
+    private ResolvedIndices resolveIndexNames(Authentication authentication, String action, Object indicesRequest,
+            TransportRequest mainRequest, MetaData metaData, AuthorizedIndices authorizedIndices) {
         try {
-            return indicesAndAliasesResolver.resolve(request, metaData, authorizedIndices);
+            return indicesAndAliasesResolver.resolve(indicesRequest, metaData, authorizedIndices);
         } catch (Exception e) {
-            auditTrail.accessDenied(authentication.getUser(), action, request);
+            auditTrail.accessDenied(authentication.getUser(), action, mainRequest);
             throw e;
         }
     }
 
     private void setIndicesAccessControl(IndicesAccessControl accessControl) {
-        if (threadContext.getTransient(INDICES_PERMISSIONS_KEY) == null) {
-            threadContext.putTransient(INDICES_PERMISSIONS_KEY, accessControl);
-        }
+        putTransientIfNonExisting(INDICES_PERMISSIONS_KEY, accessControl);
+    }
+
+    /**
+     * Sets a function to resolve {@link IndicesAccessControl} to be used by
+     * {@link #isDelayedIndicesAction(String) actions} that do not know their
+     * indices up front but still need to check permissions.
+     */
+    private void setIndicesAccessControlResolver(BiFunction<IndicesOptions, String[], IndicesAccessControl> accessControlResolver) {
+        putTransientIfNonExisting(INDICES_PERMISSIONS_RESOLVER_KEY, accessControlResolver);
     }
 
     private void putTransientIfNonExisting(String key, Object value) {
@@ -385,8 +424,17 @@ public class AuthorizationService extends AbstractComponent {
                 action.equals("indices:data/read/mpercolate") ||
                 action.equals("indices:data/read/msearch/template") ||
                 action.equals("indices:data/read/search/template") ||
-                action.equals("indices:data/write/reindex") ||
-                action.equals(SqlAction.NAME) ||   // NOCOMMIT verify that SQL requests are properly composite
+                action.equals("indices:data/write/reindex");
+    }
+
+    /**
+     * Delayed actions are authorized at start time but do not know which
+     * indices they target when the start so {@link AuthorizationService}
+     * sets up a function that can be used to authorize indices during
+     * the request.
+     */
+    private static boolean isDelayedIndicesAction(String action) {
+        return action.equals(SqlAction.NAME) ||
                 action.equals(JdbcAction.NAME) ||
                 action.equals(CliAction.NAME);
     }
@@ -408,6 +456,30 @@ public class AuthorizationService extends AbstractComponent {
                 action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME) ||
                 action.equals(ClearScrollAction.NAME) ||
                 action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
+    }
+
+    /**
+     * Authorize some indices, throwing an exception if they are not authorized and returning
+     * the {@link IndicesAccessControl} if they are.
+     */
+    private IndicesAccessControl authorizeIndices(String action, TransportRequest request, Set<String> localIndices,
+            Authentication authentication, Role permission, MetaData metaData) {
+        IndicesAccessControl indicesAccessControl = permission.authorize(action, localIndices, metaData, fieldPermissionsCache);
+        if (!indicesAccessControl.isGranted()) {
+            throw denial(authentication, action, request);
+        }
+        if (indicesAccessControl.getIndexPermissions(SecurityLifecycleService.SECURITY_INDEX_NAME) != null
+                && indicesAccessControl.getIndexPermissions(SecurityLifecycleService.SECURITY_INDEX_NAME).isGranted()
+                && XPackUser.is(authentication.getUser()) == false
+                && MONITOR_INDEX_PREDICATE.test(action) == false
+                && isSuperuser(authentication.getUser()) == false) {
+            // only the superusers are allowed to work with this index, but we should allow indices monitoring actions through for debugging
+            // purposes. These monitor requests also sometimes resolve indices concretely and then requests them
+            logger.debug("user [{}] attempted to directly perform [{}] against the security index [{}]",
+                    authentication.getUser().principal(), action, SecurityLifecycleService.SECURITY_INDEX_NAME);
+            throw denial(authentication, action, request);
+        }
+        return indicesAccessControl;
     }
 
     static boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication) {

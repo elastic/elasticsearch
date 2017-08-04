@@ -27,6 +27,10 @@ import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 
+/**
+ * Integration test for the rest sql action. That one that speaks json directly to a
+ * user rather than to the JDBC driver or CLI.
+ */
 public class RestSqlIT extends ESRestTestCase {
     public void testBasicQuery() throws IOException {
         StringBuilder bulk = new StringBuilder();
@@ -62,6 +66,10 @@ public class RestSqlIT extends ESRestTestCase {
         // Default TimeZone is UTC
         assertResponse(expected, runSql(
                 new StringEntity("{\"query\":\"SELECT DAY_OF_YEAR(test), COUNT(*) FROM test.test\"}", ContentType.APPLICATION_JSON)));
+    }
+
+    public void testMissingIndex() throws IOException {
+        expectBadRequest(() -> runSql("SELECT foo FROM missing"), containsString("1:17: Cannot resolve index [missing]"));
     }
 
     public void testMissingField() throws IOException {

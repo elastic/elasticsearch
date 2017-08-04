@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.analysis.UnknownFunctionException;
 import org.elasticsearch.xpack.sql.analysis.UnknownIndexException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
 import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
+import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
@@ -237,21 +238,19 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     }
 
     private class ResolveTable extends AnalyzeRule<UnresolvedRelation> {
-
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan) {
             TableIdentifier table = plan.table();
-            String index = table.index();
-            if (!catalog.indexExists(index)) {
-                throw new UnknownIndexException(index, plan);
+            if (!catalog.indexIsValid(table.index())) {
+                throw new InvalidIndexException(table.index(), plan);
             }
-            
-            if (!catalog.indexIsValid(index)) {
-                throw new InvalidIndexException(index, plan);
+            EsIndex found = catalog.getIndex(table.index());
+            if (found == null) {
+                throw new UnknownIndexException(table.index(), plan);
             }
 
-            LogicalPlan catalogTable = new CatalogTable(plan.location(), catalog.getIndex(index));
-            SubQueryAlias sa = new SubQueryAlias(plan.location(), catalogTable, index);
+            LogicalPlan catalogTable = new CatalogTable(plan.location(), found);
+            SubQueryAlias sa = new SubQueryAlias(plan.location(), catalogTable, table.index());
 
             if (plan.alias() != null) {
                 sa = new SubQueryAlias(plan.location(), sa, plan.alias());

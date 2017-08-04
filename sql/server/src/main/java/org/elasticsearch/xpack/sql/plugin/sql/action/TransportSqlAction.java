@@ -20,7 +20,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.analysis.catalog.EsCatalog;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
 
@@ -49,9 +48,6 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
         super(settings, SqlAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SqlRequest::new);
 
         this.planExecutor = planExecutor;
-        // lazy init of the resolver
-        ((EsCatalog) planExecutor.catalog()).setIndexNameExpressionResolver(indexNameExpressionResolver);
-
         ephemeralId = () -> transportService.getLocalNode().getEphemeralId();
     }
 

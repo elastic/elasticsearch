@@ -17,7 +17,7 @@ public class ErrorsIT extends JdbcIntegrationTestCase {
     public void testSelectFromMissingTable() throws Exception {
         try (Connection c = esJdbc()) {
             SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT * from test").executeQuery());
-            assertEquals("line 1:15: Cannot resolve index test", e.getMessage());
+            assertEquals("line 1:15: Cannot resolve index [test]", e.getMessage());
         }
     }
 

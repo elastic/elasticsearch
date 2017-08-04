@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.inject.Inject;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -25,7 +26,7 @@ public class EsCatalog implements Catalog {
         this.clusterState = clusterState;
     }
 
-    // initialization hack
+    @Inject  // NOCOMMIT more to ctor and move resolver to createComponents
     public void setIndexNameExpressionResolver(IndexNameExpressionResolver resolver) {
         this.indexNameExpressionResolver = resolver;
     }
@@ -36,27 +37,18 @@ public class EsCatalog implements Catalog {
 
     @Override
     public EsIndex getIndex(String index) {
-        if (!indexExists(index)) {
-            return EsIndex.NOT_FOUND;
+        MetaData metadata = metadata();
+        if (false == metadata.hasIndex(index)) {
+            return null;
         }
-        return EsIndex.build(metadata().index(index));
-    }
-
-    @Override
-    public boolean indexExists(String index) {
-        IndexMetaData idx = metadata().index(index);
-        return idx != null;
+        return EsIndex.build(metadata.index(index));
     }
 
     @Override
     public boolean indexIsValid(String index) {
+        // NOCOMMIT there is a race condition here with indices being deleted. This should be moved into getIndex
         IndexMetaData idx = metadata().index(index);
-        return idx != null && indexHasOnlyOneType(idx);
-    }
-
-    @Override
-    public List<EsIndex> listIndices() {
-        return listIndices(null);
+        return idx == null || indexHasOnlyOneType(idx);
     }
 
     @Override
@@ -92,6 +84,7 @@ public class EsCatalog implements Catalog {
     }
 
     private String[] resolveIndex(String pattern) {
+        // NOCOMMIT we should use the cluster state that we resolve when we fetch the metadata so it is the *same* so we don't have weird errors when indices are deleted
         return indexNameExpressionResolver.concreteIndexNames(clusterState.get(), IndicesOptions.strictExpandOpenAndForbidClosed(), pattern);
     }
 }

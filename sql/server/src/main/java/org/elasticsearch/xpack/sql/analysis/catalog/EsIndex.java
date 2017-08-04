@@ -27,6 +27,7 @@ public class EsIndex {
 
     public static final EsIndex NOT_FOUND = new EsIndex(StringUtils.EMPTY, emptyMap(), emptyList(), Settings.EMPTY);
 
+    // NOCOMMIT Double check that we need these and that we're securing them properly.
     private final String name;
     private final Map<String, DataType> mapping;
     private final List<String> aliases;

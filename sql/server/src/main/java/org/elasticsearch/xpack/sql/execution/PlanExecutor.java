@@ -36,11 +36,11 @@ public class PlanExecutor extends AbstractLifecycleComponent {
     private final Optimizer optimizer;
     private final Planner planner;
 
-    public PlanExecutor(Client client, Supplier<ClusterState> clusterState) {
+    public PlanExecutor(Client client, Catalog catalog) {
         super(client.settings());
 
         this.client = client;
-        this.catalog = new EsCatalog(clusterState);
+        this.catalog = catalog;
 
         this.parser = new SqlParser();
         this.functionRegistry = new DefaultFunctionRegistry();

@@ -99,6 +99,8 @@ import org.elasticsearch.xpack.security.SecurityFeatureSet;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
+import org.elasticsearch.xpack.sql.analysis.catalog.FilteredCatalog;
+import org.elasticsearch.xpack.sql.plugin.SecurityCatalogFilter;
 import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.ssl.SSLService;
@@ -324,11 +326,12 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         components.addAll(upgrade.createComponents(internalClient, clusterService, threadPool, resourceWatcherService,
                 scriptService, xContentRegistry));
 
+        FilteredCatalog.Filter securityCatalogFilter = XPackSettings.SECURITY_ENABLED.get(settings) ?
+                new SecurityCatalogFilter(threadPool.getThreadContext(), licenseState) : null;
         /* Note that we need *client*, not *internalClient* because client preserves the
          * authenticated user while internalClient throws that user away and acts as the
          * x-pack user. */
-        components.addAll(sql.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService, xContentRegistry,
-                environment, nodeEnvironment, namedWriteableRegistry));
+        components.addAll(sql.createComponents(client, clusterService, securityCatalogFilter));
 
         // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService);

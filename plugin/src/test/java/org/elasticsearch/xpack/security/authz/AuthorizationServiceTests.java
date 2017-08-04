@@ -5,14 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -50,8 +42,6 @@ import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetAction;
@@ -81,12 +71,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
@@ -123,7 +115,17 @@ import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
+import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
 import org.junit.Before;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
@@ -890,6 +892,67 @@ public class AuthorizationServiceTests extends ESTestCase {
                 () -> authorize(createAuthentication(userDenied), action, request), action, "userDenied");
     }
 
+    public void testDelayedActionsAddResolver() {
+        String action = SqlAction.NAME;
+        MockIndicesRequest request = new MockIndicesRequest(IndicesOptions.strictExpandOpen(), "index");
+
+        User userAllowed = new User("userAllowed", "roleAllowed");
+        roleMap.put("roleAllowed", new RoleDescriptor("roleAllowed", null,
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index").privileges("all").build() }, null));
+        User userDenied = new User("userDenied", "roleDenied");
+        roleMap.put("roleDenied", new RoleDescriptor("roleDenied", null,
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() }, null));
+        User userSome = new User("userSome", "roleSome");
+        roleMap.put("roleSome", new RoleDescriptor("roleSome", null,
+                new IndicesPrivileges[] {
+                        IndicesPrivileges.builder().indices("a").privileges("all").build(),
+                        IndicesPrivileges.builder().indices("b").privileges("all").build()
+                }, null));
+        mockEmptyMetaData();
+        assertNull(getAccessControlResolver());
+
+        try (StoredContext ctxRestore = threadContext.stashContext()) {
+            authorize(createAuthentication(userAllowed), action, request);
+            // NOCOMMIT we need to test the audit trail but it needs to be improved to allow explicit indices.
+            assertNotNull(getAccessControlResolver());
+            IndicesAccessControl iac = getAccessControlResolver().apply(IndicesOptions.strictExpandOpen(), new String[] {"index"});
+            assertTrue(iac.isGranted());
+            assertTrue(iac.getIndexPermissions("index").isGranted());
+        }
+        assertNull(getAccessControlResolver());
+
+        try (StoredContext ctxRestore = threadContext.stashContext()) {
+            authorize(createAuthentication(userDenied), action, request);
+            assertNotNull(getAccessControlResolver());
+            assertThrowsAuthorizationException(
+                    () -> getAccessControlResolver().apply(IndicesOptions.strictExpandOpen(), new String[] {"index"}),
+                    action, "userDenied");
+        }
+        assertNull(getAccessControlResolver());
+
+        try (StoredContext ctxRestore = threadContext.stashContext()) {
+            authorize(createAuthentication(userSome), action, request);
+            assertNotNull(getAccessControlResolver());
+            IndicesAccessControl iac = getAccessControlResolver().apply(IndicesOptions.strictExpandOpen(), new String[] {"a"});
+            assertTrue(iac.isGranted());
+            assertTrue(iac.getIndexPermissions("a").isGranted());
+
+            iac = getAccessControlResolver().apply(IndicesOptions.strictExpandOpen(), new String[] {"b"});
+            assertTrue(iac.isGranted());
+            assertTrue(iac.getIndexPermissions("b").isGranted());
+
+            iac = getAccessControlResolver().apply(IndicesOptions.strictExpandOpen(), new String[] {"a", "b"});
+            assertTrue(iac.isGranted());
+            assertTrue(iac.getIndexPermissions("a").isGranted());
+            assertTrue(iac.getIndexPermissions("b").isGranted());
+
+            assertThrowsAuthorizationException(
+                    () -> getAccessControlResolver().apply(IndicesOptions.strictExpandOpen(), new String[] {"index", "a", "b"}),
+                    action, "userSome");
+        }
+        assertNull(getAccessControlResolver());
+    }
+
     public void testSameUserPermission() {
         final User user = new User("joe");
         final boolean changePasswordRequest = randomBoolean();
@@ -1154,5 +1217,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
                 () -> authorize(createAuthentication(user), action, transportRequest), action, "test user");
         verify(auditTrail).accessDenied(user, action, clearScrollRequest);
+    }
+
+    private BiFunction<IndicesOptions, String[], IndicesAccessControl> getAccessControlResolver() {
+        return threadContext.getTransient(AuthorizationService.INDICES_PERMISSIONS_RESOLVER_KEY);
     }
 }

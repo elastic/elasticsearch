@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -60,6 +61,7 @@ public class SqlSecurityIT extends ESRestTestCase {
     // NOCOMMIT we're going to need to test jdbc and cli with these too!
     // NOCOMMIT we'll have to test scrolling as well
     // NOCOMMIT tests for describing a table and showing tables
+    // NOCOMMIT tests with audit trail
 
     public void testSqlWorksAsAdmin() throws IOException {
         Map<String, Object> expected = new HashMap<>();
@@ -101,34 +103,30 @@ public class SqlSecurityIT extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("403 Forbidden"));
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/x-pack-elasticsearch/issues/2074")
     public void testSqlSingleFieldGranted() throws IOException {
         createUser("only_a", "read_test_a");
 
-        /* This doesn't work because sql doesn't see the field level security
-         * and still adds the metadata even though the field "doesn't exist" */
-        assertResponse(runSql("SELECT a FROM test.test", null), runSql("SELECT * FROM test", "only_a"));
-        /* This should probably be a 400 level error complaining about field
-         * that do not exist because that is what makes sense in SQL. */
-        assertResponse(emptyMap(), runSql("SELECT * FROM test.test WHERE c = 3", "only_a"));
+        assertResponse(runSql("SELECT a FROM test", null), runSql("SELECT * FROM test", "only_a"));
+        expectBadRequest(() -> runSql("SELECT c FROM test", "only_a"), containsString("line 1:8: Unresolved item 'c'"));
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/x-pack-elasticsearch/issues/2074")
     public void testSqlSingleFieldExcepted() throws IOException {
         createUser("not_c", "read_test_a_and_b");
 
-        /* This doesn't work because sql doesn't see the field level security
-         * and still adds the metadata even though the field "doesn't exist" */
         assertResponse(runSql("SELECT a, b FROM test", null), runSql("SELECT * FROM test", "not_c"));
-        /* This should probably be a 400 level error complaining about field
-         * that do not exist because that is what makes sense in SQL. */
-        assertResponse(emptyMap(), runSql("SELECT * FROM test WHERE c = 3", "not_c"));
+        expectBadRequest(() -> runSql("SELECT c FROM test", "not_c"), containsString("line 1:8: Unresolved item 'c'"));
     }
 
     public void testSqlDocumentExclued() throws IOException {
         createUser("no_3s", "read_test_without_c_3");
 
         assertResponse(runSql("SELECT * FROM test WHERE c != 3", null), runSql("SELECT * FROM test", "no_3s"));
+    }
+
+    private void expectBadRequest(ThrowingRunnable code, Matcher<String> errorMessageMatcher) {
+        ResponseException e = expectThrows(ResponseException.class, code);
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), errorMessageMatcher);
     }
 
     private void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {

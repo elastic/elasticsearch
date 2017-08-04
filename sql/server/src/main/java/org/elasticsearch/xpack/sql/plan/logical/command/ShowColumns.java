@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
+import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
@@ -46,10 +47,11 @@ public class ShowColumns extends Command {
     @Override
     protected RowSetCursor execute(SqlSession session) {
         Catalog catalog = session.catalog();
-        Map<String, DataType> mapping = catalog.getIndex(index).mapping();
-        
         List<List<?>> rows = new ArrayList<>();
-        fillInRows(mapping, null, rows);
+        EsIndex fetched = catalog.getIndex(index);
+        if (fetched != null) {
+            fillInRows(fetched.mapping(), null, rows);
+        }
         return Rows.of(output(), rows);
     }
 

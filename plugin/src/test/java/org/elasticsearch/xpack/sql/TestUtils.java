@@ -14,9 +14,9 @@ import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 public class TestUtils {
     // NOCOMMIT I think these may not be needed if we switch to integration tests for the protos
     public static PlanExecutor planExecutor(Client client) {
-        PlanExecutor executor = new PlanExecutor(client,
-                () -> client.admin().cluster().prepareState().get(TimeValue.timeValueMinutes(1)).getState());
-        ((EsCatalog) executor.catalog()).setIndexNameExpressionResolver(new IndexNameExpressionResolver(client.settings()));
+        EsCatalog catalog = new EsCatalog(() -> client.admin().cluster().prepareState().get(TimeValue.timeValueMinutes(1)).getState());
+        catalog.setIndexNameExpressionResolver(new IndexNameExpressionResolver(client.settings()));
+        PlanExecutor executor = new PlanExecutor(client, catalog);
         return executor;
     }
 }

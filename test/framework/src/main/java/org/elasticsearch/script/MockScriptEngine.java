@@ -247,8 +247,7 @@ public class MockScriptEngine implements ScriptEngine {
         @Override
         public FilterScript newInstance(LeafReaderContext context) throws IOException {
             LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
-            Map<String, Object> ctx = new HashMap<>();
-            ctx.put("doc", leafLookup.doc());
+            Map<String, Object> ctx = new HashMap<>(leafLookup.asMap());
             if (vars != null) {
                 ctx.putAll(vars);
             }

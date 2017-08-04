@@ -79,10 +79,18 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
             name += randomAlphaOfLength(5);
             break;
         case 1:
-            sum += between(1, 100);
+            if (Double.isFinite(sum)) {
+                sum += between(1, 100);
+            } else {
+                sum = between(1, 100);
+            }
             break;
         case 2:
-            count += between(1, 100);
+            if (Double.isFinite(count)) {
+                count += between(1, 100);
+            } else {
+                count = between(1, 100);
+            }
             break;
         case 3:
         default:

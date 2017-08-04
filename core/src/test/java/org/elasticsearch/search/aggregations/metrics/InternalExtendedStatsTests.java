@@ -134,22 +134,46 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
             name += randomAlphaOfLength(5);
             break;
         case 1:
-            count += between(1, 100);
+            if (Double.isFinite(count)) {
+                count += between(1, 100);
+            } else {
+                count = between(1, 100);
+            }
             break;
         case 2:
-            sum += between(1, 100);
+            if (Double.isFinite(sum)) {
+                sum += between(1, 100);
+            } else {
+                sum = between(1, 100);
+            }
             break;
         case 3:
-            min += between(1, 100);
+            if (Double.isFinite(min)) {
+                min += between(1, 100);
+            } else {
+                min = between(1, 100);
+            }
             break;
         case 4:
-            max += between(1, 100);
+            if (Double.isFinite(max)) {
+                max += between(1, 100);
+            } else {
+                max = between(1, 100);
+            }
             break;
         case 5:
-            sumOfSqrs += between(1, 100);
+            if (Double.isFinite(sumOfSqrs)) {
+                sumOfSqrs += between(1, 100);
+            } else {
+                sumOfSqrs = between(1, 100);
+            }
             break;
         case 6:
-            sigma += between(1, 10);
+            if (Double.isFinite(sigma)) {
+                sigma += between(1, 10);
+            } else {
+                sigma = between(1, 10);
+            }
             break;
         case 7:
         default:

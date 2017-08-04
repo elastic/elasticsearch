@@ -69,7 +69,11 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
             name += randomAlphaOfLength(5);
             break;
         case 1:
-            value += between(1, 100);
+            if (Double.isFinite(value)) {
+                value += between(1, 100);
+            } else {
+                value = between(1, 100);
+            }
             break;
         case 2:
         default:

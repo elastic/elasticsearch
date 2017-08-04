@@ -524,8 +524,8 @@ Map<String, String> expansionsForDistribution(distributionType) {
       'def': 'if [ -z "$CONF_DIR" ]; then CONF_DIR="$ES_HOME"/config; done',
     ],
     'source.path.env': [
-       'deb': 'source /etc/default/elasticsearch',
-       'rpm': 'source /etc/sysconfig/elasticsearch',
+       'deb': 'if [ -f /etc/default/elasticsearch ]; then source /etc/default/elasticsearch; fi',
+       'rpm': 'if [ -f /etc/sysconfig/elasticsearch ]; then source /etc/sysconfig/elasticsearch; fi',
        'def': 'if [ -z "$CONF_DIR" ]; then CONF_DIR="$ES_HOME"/config; fi',
     ],
     'path.logs': [

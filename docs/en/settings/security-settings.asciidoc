@@ -13,8 +13,13 @@ and  <<ssl-tls-settings, encrypt communications with SSL>>.
 [[general-security-settings]]
 ==== General Security Settings
 `xpack.security.enabled`::
-Set to `false` to disable {security}.
-Configure in both `elasticsearch.yml` and `kibana.yml`.
+Set to `true` (default) to enable {security}. +
++
+If set to `false` in `elasticsearch.yml`, {security} is disabled. It also
+affects all {kib} instances that connect to this {es} instance; you do not
+need to disable {security} in those `kibana.yml` files. For more information
+about disabling {security} in specific {kib} instances, see
+{kibana-ref}/security-settings-kb.html[{kib} Security Settings].
 
 [float]
 [[password-security-settings]]

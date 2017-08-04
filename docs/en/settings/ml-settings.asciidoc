@@ -12,8 +12,11 @@ Set to `true` (default) to enable {ml}. +
 +
 If set to `false` in `elasticsearch.yml`, the {ml} APIs are disabled.
 You also cannot open jobs, start {dfeeds}, or receive transport (internal)
-communication requests related to {ml} APIs. The {ml} icon is also not visible
-in all {kib} instances that connect to this {es} instance. +
+communication requests related to {ml} APIs. It also affects all {kib} instances
+that connect to this {es} instance; you do not need to disable {ml} in those
+`kibana.yml` files. For more information about disabling {ml} in specific {kib}
+instances, see
+{kibana-ref}/ml-settings-kb.html[{kib} Machine Learning Settings].
 +
 IMPORTANT: If you want to use {ml} features in your cluster, you must have
 `xpack.ml.enabled` set to `true` on all master-eligible nodes. This is the

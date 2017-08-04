@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.test.OpenLdapTests;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.support.NoOpLogger;
 
@@ -21,15 +20,15 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@Network
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1823")
+@SuppressWarnings("unchecked")
 public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
-    public static final String BRUCE_BANNER_DN = "uid=hulk,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+    private static final String BRUCE_BANNER_DN = "uid=hulk,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
 
     public void testResolveSubTree() throws Exception {
         Settings settings = Settings.builder()
                 .put("group_search.base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
+                .put("group_search.user_attribute", "uid")
                 .build();
 
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
@@ -46,6 +45,7 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
         Settings settings = Settings.builder()
                 .put("group_search.base_dn", "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("group_search.scope", LdapSearchScope.ONE_LEVEL)
+                .put("group_search.user_attribute", "uid")
                 .build();
 
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
@@ -62,6 +62,7 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
         Settings settings = Settings.builder()
                 .put("group_search.base_dn", "cn=Avengers,ou=People,dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("group_search.scope", LdapSearchScope.BASE)
+                .put("group_search.user_attribute", "uid")
                 .build();
 
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);

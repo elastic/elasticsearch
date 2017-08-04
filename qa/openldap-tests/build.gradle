@@ -1,0 +1,22 @@
+apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.vagrantsupport'
+
+dependencies {
+    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
+    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
+}
+
+task openLdapFixture {
+    dependsOn "vagrantCheckVersion", "virtualboxCheckVersion", ":x-pack-elasticsearch:test:openldap-fixture:up"
+}
+
+if (project.rootProject.vagrantSupported) {
+  test.dependsOn openLdapFixture
+} else {
+  test.enabled = false
+}
+
+namingConventions {
+    // integ tests use Tests instead of IT
+    skipIntegTestInDisguise = true
+}

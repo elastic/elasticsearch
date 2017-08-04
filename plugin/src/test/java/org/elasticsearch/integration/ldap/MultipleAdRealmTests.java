@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.integration.ldap;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.annotations.Network;
@@ -23,7 +22,6 @@ import java.util.stream.Collectors;
  * just their userid (the AuthenticationService tries them in order)
  */
 @Network
-@AwaitsFix(bugUrl="https://github.com/elastic/x-pack-elasticsearch/issues/1823")
 public class MultipleAdRealmTests extends AbstractAdLdapRealmTestCase {
 
     private static RealmConfig secondaryRealmConfig;

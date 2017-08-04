@@ -32,15 +32,11 @@ import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
 
 import java.nio.file.Path;
-import java.text.MessageFormat;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isEmptyString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -385,7 +381,6 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     }
 
     @Network
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1823")
     public void testUserSearchWithActiveDirectory() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
@@ -397,7 +392,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "ironman@ad.test.elasticsearch.com")
                 .put("bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)
-                .put("user_search.attribute", "cn")
+                .put("user_search.filter", "(cn={0})")
                 .put("user_search.pool.enabled", randomBoolean())
                 .build();
         Settings.Builder builder = Settings.builder()
@@ -432,50 +427,6 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                         containsString("SHIELD"),
                         containsString("Geniuses"),
                         containsString("Philanthropists")));
-            }
-        } finally {
-            sessionFactory.close();
-        }
-    }
-
-    @Network
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1823")
-    public void testUserSearchwithBindUserOpenLDAP() throws Exception {
-        String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        String userSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        RealmConfig config = new RealmConfig("oldap-test", Settings.builder()
-                        .put(LdapTestCase.buildLdapSettings(new String[] { OpenLdapTests.OPEN_LDAP_URL }, Strings.EMPTY_ARRAY, groupSearchBase,
-                                LdapSearchScope.ONE_LEVEL))
-                        .put("user_search.base_dn", userSearchBase)
-                        .put("bind_dn", "uid=blackwidow,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
-                        .put("bind_password", OpenLdapTests.PASSWORD)
-                        .put("user_search.pool.enabled", randomBoolean())
-                        .build(), globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings));
-        Settings.Builder builder = Settings.builder()
-                .put(globalSettings);
-        for (Map.Entry<String, String> entry : config.settings().getAsMap().entrySet()) {
-            builder.put("xpack.security.authc.realms.ldap." + entry.getKey(), entry.getValue());
-        }
-        Settings settings = builder.build();
-        sslService = new SSLService(settings, new Environment(settings));
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService);
-
-        String[] users = new String[] { "cap", "hawkeye", "hulk", "ironman", "thor" };
-        try {
-            for (String user : users) {
-                //auth
-                try (LdapSession ldap = session(sessionFactory, user, new SecureString(OpenLdapTests.PASSWORD))) {
-                    assertThat(ldap.userDn(), is(equalTo(new MessageFormat("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",
-                            Locale.ROOT).format(new Object[]{user}, new StringBuffer(), null).toString())));
-                    assertThat(groups(ldap), hasItem(containsString("Avengers")));
-                }
-
-                //lookup
-                try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
-                    assertThat(ldap.userDn(), is(equalTo(new MessageFormat("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",
-                            Locale.ROOT).format(new Object[]{user}, new StringBuffer(), null).toString())));
-                    assertThat(groups(ldap), hasItem(containsString("Avengers")));
-                }
             }
         } finally {
             sessionFactory.close();

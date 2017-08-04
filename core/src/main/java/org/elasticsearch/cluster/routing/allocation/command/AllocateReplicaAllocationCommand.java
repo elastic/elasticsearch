@@ -36,7 +36,6 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Allocates an unassigned replica shard to a specific node. Checks if allocation deciders allow allocation.
@@ -68,11 +67,6 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
     @Override
     public String name() {
         return NAME;
-    }
-
-    @Override
-    public String description() {
-        return String.format(Locale.ROOT, "allocate replica for [%1$s][%2$s] on [%3$s]", index, shardId, node);
     }
 
     public static AllocateReplicaAllocationCommand fromXContent(XContentParser parser) throws IOException {

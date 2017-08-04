@@ -92,11 +92,6 @@ public class CancelAllocationCommand implements AllocationCommand {
         return NAME;
     }
 
-    @Override
-    public String description() {
-        return String.format(Locale.ROOT, "cancel allocation for [%1$s][%2$s] on [%3$s]", index, shardId, node);
-    }
-
     /**
      * Get the index of the shard which allocation should be canceled
      * @return index of the shard which allocation should be canceled

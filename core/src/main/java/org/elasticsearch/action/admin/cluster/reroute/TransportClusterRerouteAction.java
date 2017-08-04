@@ -71,7 +71,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         ActionListener<ClusterRerouteResponse> logWrapper = ActionListener.wrap(
             response -> {
                 if (request.dryRun() == false) {
-                    response.getExplanations().getAppliedCommandMessages().forEach(logger::info);
+                    response.getExplanations().getYesDecisionMessages().forEach(logger::info);
                 }
                 listener.onResponse(response);
             },
@@ -122,14 +122,10 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                 allocationService.reroute(currentState, request.getCommands(), request.explain(), request.isRetryFailed());
             clusterStateToSend = commandsResult.getClusterState();
             explanations = commandsResult.explanations();
-
             if (request.dryRun()) {
                 return currentState;
-            } else {
-                explanations.getCommandSummary().forEach(logger::info);
-                return commandsResult.getClusterState();
             }
-
+            return commandsResult.getClusterState();
         }
     }
 }

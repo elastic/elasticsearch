@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -50,6 +49,18 @@ public class RoutingExplanations implements ToXContent {
 
     public List<RerouteExplanation> explanations() {
         return this.explanations;
+    }
+
+    /**
+     * Provides feedback from commands with a YES decision that will be displayed to the user after the command has been applied
+     */
+    public List<String> getYesDecisionMessages() {
+        return explanations().stream()
+            .filter(explanation -> explanation.decisions().type().equals(Decision.Type.YES))
+            .map(RerouteExplanation::message)
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
     }
 
     /**
@@ -83,33 +94,5 @@ public class RoutingExplanations implements ToXContent {
         }
         builder.endArray();
         return builder;
-    }
-
-    /**
-     * Builds messages for the user that indicate whether commands were applied to the cluster state or not.
-     */
-    public List<String> getCommandSummary() {
-        return explanations().stream().map(explanation -> {
-            if (explanation.decisions().type().equals(Decision.Type.YES)) {
-                return String.format(Locale.ROOT, "Allocation command [%1$s] will be applied: %2$s",
-                    explanation.command().name(), explanation.command().description());
-            } else {
-                return String.format(Locale.ROOT, "Allocation command [%1$s] will not be applied: %2$s",
-                    explanation.command().name(), explanation.command().description());
-            }
-        }).collect(Collectors.toList());
-    }
-
-    /**
-     * Provides feedback from commands that are to be applied. This information is intended to only be relevant after the cluster state
-     * has changed
-     */
-    public List<String> getAppliedCommandMessages() {
-        return explanations().stream()
-            .filter(explanation -> explanation.decisions().type().equals(Decision.Type.YES))
-            .map(explanation -> explanation.command().getMessage())
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .collect(Collectors.toList());
     }
 }

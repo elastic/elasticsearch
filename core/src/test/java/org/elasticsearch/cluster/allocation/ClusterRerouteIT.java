@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -311,7 +310,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(explanation.decisions().type(), equalTo(Decision.Type.YES));
     }
 
-    public void testMessages() throws Exception{
+    public void testMessageLogging() throws Exception{
         final Settings settings = Settings.builder()
             .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name())
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE.name())
@@ -340,10 +339,6 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         MockLogAppender dryRunMockLog = new MockLogAppender();
         dryRunMockLog.start();
         dryRunMockLog.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("no command summary logged on dry run",
-                TransportClusterRerouteAction.class.getName(), Level.INFO, "Allocation command [allocate_empty_primary] will be applied*")
-        );
-        dryRunMockLog.addExpectation(
             new MockLogAppender.UnseenEventExpectation("no completed message logged on dry run",
                 TransportClusterRerouteAction.class.getName(), Level.INFO, "Allocated an empty primary*")
         );
@@ -357,12 +352,8 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             .execute().actionGet();
 
         // during a dry run, messages exist but are not logged or exposed
-        assertThat(dryRunResponse.getExplanations().getAppliedCommandMessages(), hasSize(1));
-        assertThat(dryRunResponse.getExplanations().getAppliedCommandMessages().get(0), containsString("Allocated an empty primary"));
-
-        assertThat(dryRunResponse.getExplanations().getCommandSummary(), hasSize(1));
-        assertThat(dryRunResponse.getExplanations().getCommandSummary().get(0),
-            containsString("Allocation command [allocate_empty_primary] will be applied"));
+        assertThat(dryRunResponse.getExplanations().getYesDecisionMessages(), hasSize(1));
+        assertThat(dryRunResponse.getExplanations().getYesDecisionMessages().get(0), containsString("Allocated an empty primary"));
 
         dryRunMockLog.assertAllExpectationsMatched();
         dryRunMockLog.stop();
@@ -370,16 +361,6 @@ public class ClusterRerouteIT extends ESIntegTestCase {
 
         MockLogAppender allocateMockLog = new MockLogAppender();
         allocateMockLog.start();
-        allocateMockLog.addExpectation(
-            new MockLogAppender.SeenEventExpectation("command summary for first allocate empty primary",
-                TransportClusterRerouteAction.class.getName(), Level.INFO,
-                "Allocation command [allocate_empty_primary] will be applied*" + nodeName1 + "*")
-        );
-        allocateMockLog.addExpectation(
-            new MockLogAppender.SeenEventExpectation("command summary for second allocate empty primary",
-                TransportClusterRerouteAction.class.getName(), Level.INFO,
-                "Allocation command [allocate_empty_primary] will not be applied*" + nodeName2 + "*")
-        );
         allocateMockLog.addExpectation(
             new MockLogAppender.SeenEventExpectation("message for first allocate empty primary",
                 TransportClusterRerouteAction.class.getName(), Level.INFO, "Allocated an empty primary*" + nodeName1 + "*")
@@ -398,17 +379,9 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             .add(noDecisionAllocation)
             .execute().actionGet();
 
-        assertThat(response.getExplanations().getAppliedCommandMessages(), hasSize(1));
-        assertThat(response.getExplanations().getAppliedCommandMessages().get(0), containsString("Allocated an empty primary"));
-        assertThat(response.getExplanations().getAppliedCommandMessages().get(0), containsString(nodeName1));
-
-        assertThat(response.getExplanations().getCommandSummary(), hasSize(2));
-        assertThat(response.getExplanations().getCommandSummary().get(0),
-            containsString("Allocation command [allocate_empty_primary] will be applied"));
-        assertThat(response.getExplanations().getCommandSummary().get(0), containsString(nodeName1));
-        assertThat(response.getExplanations().getCommandSummary().get(1),
-            containsString("Allocation command [allocate_empty_primary] will not be applied"));
-        assertThat(response.getExplanations().getCommandSummary().get(1), containsString(nodeName2));
+        assertThat(response.getExplanations().getYesDecisionMessages(), hasSize(1));
+        assertThat(response.getExplanations().getYesDecisionMessages().get(0), containsString("Allocated an empty primary"));
+        assertThat(response.getExplanations().getYesDecisionMessages().get(0), containsString(nodeName1));
 
         allocateMockLog.assertAllExpectationsMatched();
         allocateMockLog.stop();

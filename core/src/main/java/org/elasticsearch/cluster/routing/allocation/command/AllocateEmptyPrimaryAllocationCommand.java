@@ -39,7 +39,6 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
 import java.util.Locale;
-import java.util.Optional;
 
 /**
  * Allocates an unassigned empty primary shard to a specific node. Use with extreme care as this will result in data loss.
@@ -72,18 +71,6 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
     @Override
     public String name() {
         return NAME;
-    }
-
-    @Override
-    public String description() {
-        return String.format(Locale.ROOT, "allocate an empty primary for [%1$s][%2$s] on node [%3$s]", index, shardId, node);
-    }
-
-    @Override
-    public Optional<String> getMessage() {
-        return Optional.of(String.format(Locale.ROOT,
-            "Allocated an empty primary for [%1$s][%2$s] on node [%3$s]. This action can cause data loss. If the old primary rejoins the " +
-            "cluster, its copy of this shard will be deleted.", index, shardId, node));
     }
 
     public static AllocateEmptyPrimaryAllocationCommand fromXContent(XContentParser parser) throws IOException {
@@ -143,6 +130,9 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
 
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, unassignedInfoToUpdate, StoreRecoverySource.EMPTY_STORE_INSTANCE);
 
-        return new RerouteExplanation(this, allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders"));
+        Decision decision = allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders");
+        String message = String.format(Locale.ROOT, "Allocated an empty primary for [%1$s][%2$s] on node [%3$s]. This action can cause " +
+            "data loss. If the old primary rejoins the cluster, its copy of this shard will be deleted.", index, shardId, node);
+        return new RerouteExplanation(this, decision, message);
     }
 }

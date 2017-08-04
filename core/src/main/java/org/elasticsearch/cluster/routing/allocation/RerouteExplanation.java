@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * Class encapsulating the explanation for a single {@link AllocationCommand}
@@ -36,10 +38,16 @@ public class RerouteExplanation implements ToXContent {
 
     private AllocationCommand command;
     private Decision decisions;
+    private String message;
 
-    public RerouteExplanation(AllocationCommand command, Decision decisions) {
+    public RerouteExplanation(AllocationCommand command, Decision decisions, String message) {
         this.command = command;
         this.decisions = decisions;
+        this.message = message;
+    }
+
+    public RerouteExplanation(AllocationCommand command, Decision decisions) {
+        this(command, decisions, null);
     }
 
     public AllocationCommand command() {
@@ -50,15 +58,34 @@ public class RerouteExplanation implements ToXContent {
         return this.decisions;
     }
 
+    /**
+     * A message that may be displayed to the user after this explanation's command has been applied
+     */
+    public Optional<String> message() {
+        return Optional.ofNullable(message);
+    }
+
+
     public static RerouteExplanation readFrom(StreamInput in) throws IOException {
         AllocationCommand command = in.readNamedWriteable(AllocationCommand.class);
         Decision decisions = Decision.readFrom(in);
-        return new RerouteExplanation(command, decisions);
+
+        String message;
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            message = in.readOptionalString();
+        } else {
+            message = null;
+        }
+
+        return new RerouteExplanation(command, decisions, message);
     }
 
     public static void writeTo(RerouteExplanation explanation, StreamOutput out) throws IOException {
         out.writeNamedWriteable(explanation.command);
         explanation.decisions.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeOptionalString(explanation.message);
+        }
     }
 
     @Override

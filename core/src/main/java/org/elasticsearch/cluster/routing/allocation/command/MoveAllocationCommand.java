@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -80,11 +79,6 @@ public class MoveAllocationCommand implements AllocationCommand {
     @Override
     public String name() {
         return NAME;
-    }
-
-    @Override
-    public String description() {
-        return String.format(Locale.ROOT, "move [%1$s][%2$s] from [%3$s] to [%4$s]", index, shardId, fromNode, toNode);
     }
 
     public String index() {return index; }

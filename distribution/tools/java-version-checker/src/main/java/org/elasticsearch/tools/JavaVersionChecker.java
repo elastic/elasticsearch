@@ -51,7 +51,7 @@ final class JavaVersionChecker {
                     Locale.ROOT,
                     "the minimum required Java version is 8; your Java version from [%s] does not meet this requirement",
                     System.getProperty("java.home"));
-            System.err.println(message);
+            systemErrPrintln(message);
             exit(1);
         }
         exit(0);
@@ -86,7 +86,12 @@ final class JavaVersionChecker {
         return 0;
     }
 
-    @SuppressForbidden(reason = "exit")
+    @SuppressForbidden(reason = "System#err")
+    private static void systemErrPrintln(String message) {
+        System.err.println(message);
+    }
+
+    @SuppressForbidden(reason = "System#exit")
     private static void exit(final int status) {
         System.exit(status);
     }

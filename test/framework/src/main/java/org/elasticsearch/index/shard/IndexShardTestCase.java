@@ -329,7 +329,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     protected IndexShard newStartedShard(boolean primary) throws IOException {
         IndexShard shard = newShard(primary);
         if (primary) {
-            recoveryShardFromStore(shard);
+            recoverShardFromStore(shard);
         } else {
             recoveryEmptyReplica(shard);
         }
@@ -352,7 +352,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
     }
 
-    protected void recoveryShardFromStore(IndexShard primary) throws IOException {
+    protected void recoverShardFromStore(IndexShard primary) throws IOException {
         primary.markAsRecovering("store", new RecoveryState(primary.routingEntry(),
             getFakeDiscoNode(primary.routingEntry().currentNodeId()),
             null));

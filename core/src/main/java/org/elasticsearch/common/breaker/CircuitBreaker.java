@@ -118,25 +118,14 @@ public interface CircuitBreaker {
 
     class BreakerKey {
 
-        private final StackTraceElement[] stackTrace;
         private long bytes = 0;
         private String label;
 
         private BreakerKey(String label) {
-            boolean captureStack = false;
             this.label = label;
-            if (captureStack) {
-                stackTrace = Thread.currentThread().getStackTrace();
-            } else {
-                stackTrace = null;
-            }
         }
 
-        public StackTraceElement[] getStackTrace() {
-            return stackTrace;
-        }
-
-        public void incBytes(long delta) {
+        void incBytes(long delta) {
             bytes += delta;
         }
 

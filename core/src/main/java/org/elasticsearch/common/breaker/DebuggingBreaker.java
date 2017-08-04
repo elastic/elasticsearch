@@ -19,25 +19,38 @@
 
 package org.elasticsearch.common.breaker;
 
+import java.util.LinkedList;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 public abstract class DebuggingBreaker implements CircuitBreaker {
 
-    private final ConcurrentMap<BreakerKey, Object> keys = new ConcurrentHashMap<>();
+    private final ConcurrentMap<BreakerKey, LinkedList<CircuitNode>> keys = new ConcurrentHashMap<>();
+    private final boolean stashStacks = false;
 
     @Override
     public void addEstimateBytesAndMaybeBreak(BreakerKey key, long bytes) throws CircuitBreakingException {
         addEstimateBytesAndMaybeBreak(bytes, key.getLabel());
         key.incBytes(bytes);
-        keys.putIfAbsent(key, bytes);
+        keys.putIfAbsent(key, new LinkedList<>());
     }
 
     @Override
     public void addWithoutBreaking(BreakerKey key, long bytes) throws CircuitBreakingException {
         addWithoutBreaking(bytes);
         key.incBytes(bytes);
-        keys.putIfAbsent(key, bytes);
+        LinkedList<CircuitNode> value = new LinkedList<>();
+        LinkedList<CircuitNode> oldValue = keys.putIfAbsent(key, value);
+        if (oldValue != null) {
+            value = oldValue;
+        }
+
+        if (stashStacks) {
+            StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+            value.add(new CircuitNode(bytes, stackTrace));
+        } else {
+            value.add(new CircuitNode(bytes));
+        }
     }
 
     @Override
@@ -47,6 +60,22 @@ public abstract class DebuggingBreaker implements CircuitBreaker {
             addWithoutBreaking(-key.getBytes());
         } else {
             throw new IllegalStateException();
+        }
+    }
+
+    private static class CircuitNode {
+
+        private final long delta;
+        private final StackTraceElement[] stackTraceElements;
+
+        private CircuitNode(long delta) {
+            this.delta = delta;
+            this.stackTraceElements = null;
+        }
+
+        private CircuitNode(long delta, StackTraceElement[] stackTraceElements) {
+            this.delta = delta;
+            this.stackTraceElements = stackTraceElements;
         }
     }
 }

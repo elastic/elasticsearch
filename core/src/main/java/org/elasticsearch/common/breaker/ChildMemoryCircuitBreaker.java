@@ -65,7 +65,7 @@ public class ChildMemoryCircuitBreaker extends DebuggingBreaker {
      */
     public ChildMemoryCircuitBreaker(BreakerSettings settings, ChildMemoryCircuitBreaker oldBreaker,
                                      Logger logger, HierarchyCircuitBreakerService parent, String name) {
-        super(settings.isDebug(), false);
+        super(settings.isDebug(), settings.isDebugStack());
         this.name = name;
         this.settings = settings;
         this.memoryBytesLimit = settings.getLimit();

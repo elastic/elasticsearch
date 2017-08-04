@@ -29,11 +29,11 @@ public class NoopCircuitBreaker extends DebuggingBreaker {
     private final String name;
 
     public NoopCircuitBreaker(String name) {
-        this(name, false);
+        this(name, false, false);
     }
 
-    public NoopCircuitBreaker(String name, boolean isDebug) {
-        super(isDebug, false);
+    public NoopCircuitBreaker(String name, boolean isDebug, boolean isDebugStack) {
+        super(isDebug, isDebugStack);
         this.name = name;
     }
 

@@ -78,7 +78,7 @@ public interface Transport extends LifecycleComponent {
     List<String> getLocalAddresses();
 
     default CircuitBreaker getInFlightRequestBreaker() {
-        return new NoopCircuitBreaker("in-flight-noop", false);
+        return new NoopCircuitBreaker("in-flight-noop", false, false);
     }
 
     /**

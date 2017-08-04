@@ -480,12 +480,17 @@ public final class ThreadContext implements Closeable, Writeable {
         }
 
         private void writeTo(StreamOutput out, Map<String, String> defaultHeaders) throws IOException {
+            assert defaultHeaders != null;
             final Map<String, String> requestHeaders;
             if (defaultHeaders.isEmpty()) {
                 requestHeaders = this.requestHeaders;
             } else {
-                requestHeaders = new HashMap<>(defaultHeaders);
-                requestHeaders.putAll(this.requestHeaders);
+                requestHeaders = new HashMap<>(this.requestHeaders);
+                for (Map.Entry<String, String> header : defaultHeaders.entrySet()) {
+                    if (requestHeaders.putIfAbsent(header.getKey(), header.getValue()) != null) {
+                        throw new IllegalArgumentException("value for key [" + header.getKey() + "] already present");
+                    }
+                }
             }
 
             out.writeVInt(requestHeaders.size());

@@ -24,9 +24,10 @@ public final class DomainSplitFunction {
         Map<String, Object> paramsMap = new HashMap<>();
 
         Map<String, String> exact = new HashMap<>(2048);
-        try {
-            InputStream resource =
-                    DomainSplitFunction.class.getClassLoader().getResourceAsStream("org/elasticsearch/xpack/ml/transforms/exact.properties");
+
+        String exactResourceName = "org/elasticsearch/xpack/ml/transforms/exact.properties";
+
+        try (InputStream resource = DomainSplitFunction.class.getClassLoader().getResourceAsStream(exactResourceName)) {
             List<String> lines = Streams.readAllLines(resource);
             for (String line : lines) {
                 String[] split = line.split("=");

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.transport.action.get;
 
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
@@ -56,9 +57,16 @@ public class GetWatchTests extends AbstractWatcherIntegrationTestCase {
 
     public void testGetNotFound() throws Exception {
         // does not matter if the watch does not exist or the index does not exist, we expect the same response
+        // if the watches index is an alias, remove the alias randomly, otherwise the index
         if (randomBoolean()) {
             try {
-                assertAcked(client().admin().indices().prepareDelete(Watch.INDEX));
+                GetIndexResponse indexResponse = client().admin().indices().prepareGetIndex().setIndices(Watch.INDEX).get();
+                boolean isWatchIndexAlias = Watch.INDEX.equals(indexResponse.indices()[0]) == false;
+                if (isWatchIndexAlias) {
+                    assertAcked(client().admin().indices().prepareAliases().removeAlias(indexResponse.indices()[0], Watch.INDEX));
+                } else {
+                    assertAcked(client().admin().indices().prepareDelete(Watch.INDEX));
+                }
             } catch (IndexNotFoundException e) {}
         }
 

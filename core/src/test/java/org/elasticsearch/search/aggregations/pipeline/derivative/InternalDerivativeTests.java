@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -68,5 +69,36 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
             // cannot differentiate between them. Also we cannot recreate the exact String representation
             assertEquals(parsed.value(), Double.NaN, Double.MIN_VALUE);
         }
+    }
+
+    @Override
+    protected InternalDerivative mutateInstance(InternalDerivative instance) {
+        String name = instance.getName();
+        double value = instance.getValue();
+        double normalizationFactor = instance.getNormalizationFactor();
+        DocValueFormat formatter = instance.formatter();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 2)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            value += between(1, 100);
+            break;
+        case 2:
+            normalizationFactor += between(1, 100);
+            break;
+        case 3:
+        default:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        }
+        return new InternalDerivative(name, value, normalizationFactor, formatter, pipelineAggregators, metaData);
     }
 }

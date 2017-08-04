@@ -71,6 +71,13 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
         return value;
     }
 
+    /**
+     * For testing only.
+     */
+    DocValueFormat formatter() {
+        return format;
+    }
+
     @Override
     public InternalSimpleValue doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");

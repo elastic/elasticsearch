@@ -100,6 +100,13 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         return format.format(percentile(percent));
     }
 
+    /**
+     * For testing only.
+     */
+    DocValueFormat formatter() {
+        return format;
+    }
+
     @Override
     public Iterator<Percentile> iterator() {
         return new Iter(percents, percentiles);

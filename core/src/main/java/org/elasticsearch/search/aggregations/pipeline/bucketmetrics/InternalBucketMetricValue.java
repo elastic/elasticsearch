@@ -81,6 +81,13 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
         return keys;
     }
 
+    /**
+     * For testing only
+     */
+    DocValueFormat formatter() {
+        return format;
+    }
+
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");

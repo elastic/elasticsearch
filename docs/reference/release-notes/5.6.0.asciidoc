@@ -1,9 +1,7 @@
 [[release-notes-5.6.0]]
 == 5.6.0 Release Notes
 
-See https://www.elastic.co/blog/multi-data-path-bug-in-elasticsearch-5-3-0[Multi data path bug in Elasticsearch 5.3.0].
-
-Also see <<breaking-changes-5.5>>.
+Also see <<breaking-changes-5.6>>.
 
 [[breaking-java-5.6.0]]
 [float]
@@ -73,6 +71,7 @@ Cluster::
 * Validate a joining node's version with version of existing cluster nodes {pull}25808[#25808]
 
 Core::
+* Add max file size bootstrap check {pull}25974[#25974]
 * Explicitly reject duplicate data paths {pull}25178[#25178]
 
 Highlighting::
@@ -110,6 +109,10 @@ Mapping::
 
 Network::
 * Simplify connection closing and cleanups in TcpTransport {pull}25250[#25250]
+
+Packaging::
+* Remove memlock suggestion from systemd service {pull}25979[#25979]
+* Set address space limit in systemd service file {pull}25975[#25975]
 
 Parent/Child::
 * Remove ParentJoinFieldSubFetchPhase {pull}25550[#25550] (issue: {issue}25363[#25363])
@@ -149,11 +152,21 @@ Stats::
 [float]
 === Bug fixes
 
+Aggregations::
+* Fixes array out of bounds for value count agg {pull}26038[#26038] (issue: {issue}17379[#17379])
+
 Aliases::
 * mget with an alias shouldn't ignore alias routing {pull}25697[#25697] (issue: {issue}25696[#25696])
 
 Analysis::
 * Pre-configured shingle filter should disable graph analysis {pull}25853[#25853] (issue: {issue}25555[#25555])
+
+Core::
+* Release operation permit on thread-pool rejection {pull}25930[#25930] (issue: {issue}25863[#25863])
+* Node should start up despite of a lingering `.es_temp_file` {pull}21210[#21210] (issue: {issue}21007[#21007])
+
+Discovery::
+* MasterNodeChangePredicate should use the node instance to detect master change {pull}25877[#25877] (issue: {issue}25471[#25471])
 
 Engine::
 * Engine - Do not store operations that are not index into lucene in the translog (5.x only) {pull}25592[#25592]
@@ -179,6 +192,9 @@ Internal::
 * Fix race condition in RemoteClusterConnection node supplier {pull}25432[#25432]
 * Initialise empty lists in BaseTaskResponse constructor {pull}25290[#25290]
 
+Logging::
+* Declare XContent deprecation logger as static {pull}25881[#25881] (issue: {issue}25879[#25879])
+
 Mapping::
 * Fix parsing of ip range queries. {pull}25768[#25768] (issue: {issue}25636[#25636])
 * Remove `fielddata:false` from mappings of non-analyzed strings. {pull}25542[#25542]
@@ -201,6 +217,9 @@ Packaging::
 Parent/Child::
 * The default _parent field should not try to load global ordinals {pull}25851[#25851] (issue: {issue}25849[#25849])
 
+Plugin Lang Painless::
+* Painless: allow doubles to be casted to longs. {pull}25936[#25936]
+
 Plugin Repository HDFS::
 * Upgrading HDFS Repository Plugin to use HDFS 2.8.1 Client {pull}25497[#25497] (issue: {issue}25450[#25450])
 
@@ -212,7 +231,9 @@ REST::
 * Fix handling of exceptions thrown on HEAD requests {pull}25172[#25172] (issue: {issue}21125[#21125])
 
 Search::
+* Caching a MinDocQuery can lead to wrong results. {pull}25909[#25909]
 * First increment shard stats before notifying and potentially sending response {pull}25818[#25818]
+* Remove assertion about deviation when casting to a float. {pull}25806[#25806] (issue: {issue}25330[#25330])
 * Prevent skipping shards if a suggest builder is present {pull}25739[#25739] (issue: {issue}25658[#25658])
 * Ensure remote cluster alias is preserved in inner hits aggs {pull}25627[#25627] (issue: {issue}25606[#25606])
 * Do not search locally if remote index pattern resolves to no indices {pull}25436[#25436] (issue: {issue}25426[#25426])
@@ -222,6 +243,7 @@ Settings::
 * Keystore CLI should use the AddFileKeyStoreCommand for files {pull}25298[#25298]
 
 Snapshot/Restore::
+* Snapshot/Restore: Ensure that shard failure reasons are correctly stored in CS {pull}25941[#25941] (issue: {issue}25878[#25878])
 * Output all empty snapshot info fields if in verbose mode {pull}25455[#25455] (issue: {issue}24477[#24477])
 
 Stats::
@@ -241,5 +263,3 @@ Network::
 
 Upgrade API::
 * Improve stability and logging of TemplateUpgradeServiceIT tests {pull}25386[#25386] (issue: {issue}25382[#25382])
-
-

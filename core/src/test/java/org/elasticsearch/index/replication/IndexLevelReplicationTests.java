@@ -326,9 +326,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             long expectedPrimaryTerm,
             String failureMessage) throws IOException {
         for (IndexShard indexShard : replicationGroup) {
-            try(Translog.View view = indexShard.acquireTranslogView()) {
-                assertThat(view.estimateTotalOperations(SequenceNumbersService.NO_OPS_PERFORMED), equalTo(expectedOperation));
-                final Translog.Snapshot snapshot = view.snapshot(SequenceNumbersService.NO_OPS_PERFORMED);
+            try(Translog.Snapshot snapshot = indexShard.getTranslog().newSnapshot()) {
+                assertThat(snapshot.totalOperations(), equalTo(expectedOperation));
                 long expectedSeqNo = 0L;
                 Translog.Operation op = snapshot.next();
                 do {

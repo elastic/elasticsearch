@@ -15,10 +15,9 @@ packages.
 Previous versions of Elasticsearch enabled setting `path.conf` as a
 setting. This was rather convoluted as it meant that you could start
 Elasticsearch with a config file that specified via `path.conf` that
-Elasticsearch should use another config file. Instead, `path.conf` is now a
-command-line flag. To start Elasticsearch with a custom config file, use `-c
-/path/to/config` or `--path.conf /path/to/config`. Here, `/path/to/config` is
-the *directory* containing the config file.
+Elasticsearch should use another config file. Instead, to configure a custom
+config directory, use the <<config-files-location,`CONF_DIR` environment
+variable>>.
 
 ==== Default path settings are removed
 

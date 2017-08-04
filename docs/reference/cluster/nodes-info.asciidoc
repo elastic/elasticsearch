@@ -26,9 +26,6 @@ By default, it just returns all attributes and core settings for a node:
 `host`::
 	The node's host name.
 
-`http_address`::
-	Host and port where primary HTTP connections are accepted.
-
 `ip`::
 	The node's IP address.
 

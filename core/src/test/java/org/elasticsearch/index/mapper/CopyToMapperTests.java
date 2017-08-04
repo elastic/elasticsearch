@@ -29,8 +29,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.List;
@@ -412,6 +414,111 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         assertFieldValue(root, "target", 3L, 5L, 7L);
         assertFieldValue(root, "n1.target");
         assertFieldValue(root, "n1.n2.target");
+    }
+
+    public void testCopyToChildNested() throws Exception {
+        IndexService indexService = createIndex("test");
+        XContentBuilder rootToNestedMapping = jsonBuilder().startObject()
+                .startObject("doc")
+                    .startObject("properties")
+                        .startObject("source")
+                            .field("type", "long")
+                            .field("copy_to", "n1.target")
+                        .endObject()
+                        .startObject("n1")
+                            .field("type", "nested")
+                            .startObject("properties")
+                                .startObject("target")
+                                    .field("type", "long")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> indexService.mapperService().merge("doc", new CompressedXContent(rootToNestedMapping.bytes()),
+                        MergeReason.MAPPING_UPDATE, false));
+        assertThat(e.getMessage(), Matchers.startsWith("Illegal combination of [copy_to] and [nested] mappings"));
+
+        XContentBuilder nestedToNestedMapping = jsonBuilder().startObject()
+                .startObject("doc")
+                    .startObject("properties")
+                        .startObject("n1")
+                            .field("type", "nested")
+                            .startObject("properties")
+                                .startObject("source")
+                                    .field("type", "long")
+                                    .field("copy_to", "n1.n2.target")
+                                .endObject()
+                                .startObject("n2")
+                                    .field("type", "nested")
+                                    .startObject("properties")
+                                        .startObject("target")
+                                            .field("type", "long")
+                                        .endObject()
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        e = expectThrows(IllegalArgumentException.class,
+                () -> indexService.mapperService().merge("doc", new CompressedXContent(nestedToNestedMapping.bytes()),
+                        MergeReason.MAPPING_UPDATE, false));
+    }
+
+    public void testCopyToSiblingNested() throws Exception {
+        IndexService indexService = createIndex("test");
+        XContentBuilder rootToNestedMapping = jsonBuilder().startObject()
+                .startObject("doc")
+                    .startObject("properties")
+                        .startObject("n1")
+                            .field("type", "nested")
+                            .startObject("properties")
+                                .startObject("source")
+                                    .field("type", "long")
+                                    .field("copy_to", "n2.target")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                        .startObject("n2")
+                            .field("type", "nested")
+                            .startObject("properties")
+                                .startObject("target")
+                                    .field("type", "long")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> indexService.mapperService().merge("doc", new CompressedXContent(rootToNestedMapping.bytes()),
+                        MergeReason.MAPPING_UPDATE, false));
+        assertThat(e.getMessage(), Matchers.startsWith("Illegal combination of [copy_to] and [nested] mappings"));
+    }
+
+    public void testCopyToObject() throws Exception {
+        IndexService indexService = createIndex("test");
+        XContentBuilder rootToNestedMapping = jsonBuilder().startObject()
+                .startObject("doc")
+                    .startObject("properties")
+                        .startObject("source")
+                            .field("type", "long")
+                            .field("copy_to", "target")
+                        .endObject()
+                        .startObject("target")
+                            .field("type", "object")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> indexService.mapperService().merge("doc", new CompressedXContent(rootToNestedMapping.bytes()),
+                        MergeReason.MAPPING_UPDATE, false));
+        assertThat(e.getMessage(), Matchers.startsWith("Cannot copy to field [target] since it is mapped as an object"));
     }
 
     public void testCopyToDynamicNestedObjectParsing() throws Exception {

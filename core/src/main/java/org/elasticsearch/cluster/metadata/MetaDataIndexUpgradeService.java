@@ -141,7 +141,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             // been started yet. However, we don't really need real analyzers at this stage - so we can fake it
             IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings);
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
-            final NamedAnalyzer fakeDefault = new NamedAnalyzer("fake_default", AnalyzerScope.INDEX, new Analyzer() {
+            final NamedAnalyzer fakeDefault = new NamedAnalyzer("default", AnalyzerScope.INDEX, new Analyzer() {
                 @Override
                 protected TokenStreamComponents createComponents(String fieldName) {
                     throw new UnsupportedOperationException("shouldn't be here");

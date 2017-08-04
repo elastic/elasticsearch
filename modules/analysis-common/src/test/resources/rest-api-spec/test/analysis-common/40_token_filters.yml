@@ -993,3 +993,268 @@
     - match:  { tokens.8.token: に落 }
     - match:  { tokens.9.token: 落ち }
     - match:  { tokens.10.token: ちた }
+
+---
+"delimited_payload_filter":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_delimited_payload_filter:
+                    type: delimited_payload_filter
+                    delimiter: ^
+                    encoding: identity
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foo^bar
+            tokenizer: keyword
+            filter:    [my_delimited_payload_filter]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: foo }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text:      foo|5
+            tokenizer: keyword
+            filter:    [delimited_payload_filter]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: foo }
+
+---
+"keep_filter":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_keep:
+                    type: keep
+                    keep_words: [foo,bar]
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foo bar baz
+            tokenizer: whitespace
+            filter:    [my_keep]
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: foo }
+    - match:  { tokens.1.token: bar }
+
+---
+"keep_types_filter":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_keep_types:
+                    type: keep_types
+                    types: [<NUM>]
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foo 123 bar
+            tokenizer: standard
+            filter:    [my_keep_types]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: "123" }
+
+---
+"classic":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_classic:
+                    type: classic
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foo's bar
+            tokenizer: classic
+            filter:    [my_classic]
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: foo }
+    - match:  { tokens.1.token: bar }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text:      foo's bar
+            tokenizer: classic
+            filter:    [classic]
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: foo }
+    - match:  { tokens.1.token: bar }
+
+---
+"apostrophe":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_apostrophe:
+                    type: apostrophe
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foo's bar
+            tokenizer: keyword
+            filter:    [my_apostrophe]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: foo }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text:      foo's bar
+            tokenizer: keyword
+            filter:    [apostrophe]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: foo }
+
+---
+"decimal_digit":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_decimal_digit:
+                    type: decimal_digit
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      ١٢٣٤
+            tokenizer: keyword
+            filter:    [my_decimal_digit]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: "1234" }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text:      ١٢٣٤
+            tokenizer: keyword
+            filter:    [decimal_digit]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: "1234" }
+
+---
+"fingerprint":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_fingerprint:
+                    type: fingerprint
+                    separator: _
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text: A1 B2 A1 D4 C3
+            tokenizer: whitespace
+            filter:    [my_fingerprint]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: A1_B2_C3_D4 }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text: A1 B2 A1 D4 C3
+            tokenizer: whitespace
+            filter:    [fingerprint]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: A1 B2 C3 D4 }
+
+---
+"min_hash":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_min_hash:
+                    type: min_hash
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text: the quick brown fox
+            tokenizer: whitespace
+            filter:    [my_min_hash]
+    - length: { tokens: 512 }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text: the quick brown fox
+            tokenizer: whitespace
+            filter:    [min_hash]
+    - length: { tokens: 512 }
+
+---
+"scandinavian_folding":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_scandinavian_folding:
+                    type: scandinavian_folding
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text: räksmörgås
+            tokenizer: keyword
+            filter:    [my_scandinavian_folding]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: raksmorgas }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text: räksmörgås
+            tokenizer: keyword
+            filter:    [scandinavian_folding]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: raksmorgas }

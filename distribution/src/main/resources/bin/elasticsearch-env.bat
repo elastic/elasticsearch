@@ -1,6 +1,6 @@
 set SCRIPT=%0
 
-rem determine Elasticsearch home; to do this, we strip from the path util we
+rem determine Elasticsearch home; to do this, we strip from the path until we
 rem find bin, and then strip bin (there is an assumption here that there is no
 rem nested directory under bin also named bin)
 for %%I in (%SCRIPT%) do set ES_HOME=%%~dpI
@@ -25,7 +25,20 @@ if defined JAVA_HOME (
 
 if not exist %JAVA% (
   echo could not find java; set JAVA_HOME or ensure java is in PATH 1>&2
-  exit /B 1
+  exit /b 1
+)
+
+rem do not let JAVA_TOOL_OPTIONS slip in (as the JVM does by default)
+if not "%JAVA_TOOL_OPTIONS%" == "" (
+  echo "warning: ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
+  set JAVA_TOOL_OPTIONS=
+)
+
+rem JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we
+rem warn them that we are not observing the value of %JAVA_OPTS%
+if not "%JAVA_OPTS%" == "" (
+  echo|set /p="warning: ignoring JAVA_OPTS=%JAVA_OPTS%; "
+  echo pass JVM parameters via ES_JAVA_OPTS
 )
 
 rem check the Java version
@@ -34,14 +47,7 @@ rem check the Java version
 if errorlevel 1 (
   echo|set /p="the minimum required Java version is 8; "
   echo your Java version from %JAVA% does not meet this requirement
-  exit /B 1
-)
-
-rem JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we
-rem warn them that we are not observing the value of %JAVA_OPTS%
-if not "%JAVA_OPTS%" == "" (
-  echo|set /p="warning: ignoring JAVA_OPTS=%JAVA_OPTS%; "
-  echo pass JVM parameters via ES_JAVA_OPTS
+  exit /b 1
 )
 
 if "%CONF_DIR%" == "" (

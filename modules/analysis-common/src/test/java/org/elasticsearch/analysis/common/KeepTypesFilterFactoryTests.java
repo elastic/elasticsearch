@@ -17,12 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.analysis.AnalysisTestsHelper;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
@@ -38,7 +40,7 @@ public class KeepTypesFilterFactoryTests extends ESTokenStreamTestCase {
                 .put("index.analysis.filter.keep_numbers.type", "keep_types")
                 .putArray("index.analysis.filter.keep_numbers.types", new String[] {"<NUM>", "<SOMETHINGELSE>"})
                 .build();
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
+        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("keep_numbers");
         assertThat(tokenFilter, instanceOf(KeepTypesFilterFactory.class));
         String source = "Hello 123 world";

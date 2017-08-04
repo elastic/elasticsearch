@@ -245,11 +245,22 @@ public class MockScriptEngine implements ScriptEngine {
         }
 
         @Override
-        public FilterScript newInstance(LeafReaderContext ctx) throws IOException {
-            return new FilterScript(vars, lookup, ctx) {
+        public FilterScript newInstance(LeafReaderContext context) throws IOException {
+            LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("doc", leafLookup.doc());
+            if (vars != null) {
+                ctx.putAll(vars);
+            }
+            return new FilterScript(ctx, lookup, context) {
                 @Override
                 public boolean execute() {
-                    return (boolean) script.apply(vars);
+                    return (boolean) script.apply(ctx);
+                }
+
+                @Override
+                public void setDocument(int doc) {
+                    leafLookup.setDocument(doc);
                 }
             };
         }

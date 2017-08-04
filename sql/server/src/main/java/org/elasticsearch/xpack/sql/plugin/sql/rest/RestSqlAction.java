@@ -73,7 +73,7 @@ public class RestSqlAction extends BaseRestHandler {
         }
 
         String query;
-        DateTimeZone timeZone;
+        DateTimeZone timeZone = SqlRequest.DEFAULT_TIME_ZONE;
 
         static Payload from(RestRequest request) throws IOException {
             Payload payload = new Payload();

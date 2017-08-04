@@ -20,9 +20,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class SqlRequest extends ActionRequest implements CompositeIndicesRequest {
 
+    public static final DateTimeZone DEFAULT_TIME_ZONE = DateTimeZone.UTC;
     // initialized on the first request
     private String query;
-    private DateTimeZone timeZone;
+    private DateTimeZone timeZone = DEFAULT_TIME_ZONE;
     // initialized after the plan has been translated
     private String sessionId;
 
@@ -39,6 +40,9 @@ public class SqlRequest extends ActionRequest implements CompositeIndicesRequest
         ActionRequestValidationException validationException = null;
         if (!Strings.hasText(query)) {
             validationException = addValidationError("sql query is missing", validationException);
+        }
+        if (timeZone == null) {
+            validationException = addValidationError("timezone is missing", validationException);
         }
         return validationException;
     }
@@ -62,6 +66,11 @@ public class SqlRequest extends ActionRequest implements CompositeIndicesRequest
 
     public SqlRequest sessionId(String sessionId) {
         this.sessionId = sessionId;
+        return this;
+    }
+
+    public SqlRequest timeZone(DateTimeZone timeZone) {
+        this.timeZone = timeZone;
         return this;
     }
 

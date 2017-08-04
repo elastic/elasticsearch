@@ -9,10 +9,12 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.joda.time.DateTimeZone;
 
+import static org.elasticsearch.xpack.sql.plugin.sql.action.SqlRequest.DEFAULT_TIME_ZONE;
+
 public class SqlRequestBuilder extends ActionRequestBuilder<SqlRequest, SqlResponse, SqlRequestBuilder> {
 
     public SqlRequestBuilder(ElasticsearchClient client, SqlAction action) {
-        this(client, action, null, null, null);
+        this(client, action, null, DEFAULT_TIME_ZONE, null);
     }
 
     public SqlRequestBuilder(ElasticsearchClient client, SqlAction action, String query, DateTimeZone timeZone, String sessionId) {
@@ -28,4 +30,10 @@ public class SqlRequestBuilder extends ActionRequestBuilder<SqlRequest, SqlRespo
         request.sessionId(sessionId);
         return this;
     }
+
+    public SqlRequestBuilder timeZone(DateTimeZone timeZone) {
+        request.timeZone(timeZone);
+        return this;
+    }
+
 }

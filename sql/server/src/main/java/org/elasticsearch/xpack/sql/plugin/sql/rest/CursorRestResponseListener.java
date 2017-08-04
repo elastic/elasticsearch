@@ -11,11 +11,10 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse;
-import org.elasticsearch.xpack.sql.session.RowSetCursor;
-import org.elasticsearch.xpack.sql.session.RowView;
-import org.elasticsearch.xpack.sql.type.Schema.Entry;
 import org.elasticsearch.xpack.sql.util.ThrowableBiConsumer;
 import org.elasticsearch.xpack.sql.util.ThrowableConsumer;
+
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 
@@ -27,27 +26,29 @@ class CursorRestResponseListener extends RestBuilderListener<SqlResponse> {
 
     @Override
     public RestResponse buildResponse(SqlResponse response, XContentBuilder builder) throws Exception {
-        return new BytesRestResponse(OK, createResponse(response.rowSetCursor(), builder));
+        return new BytesRestResponse(OK, createResponse(response, builder));
     }
 
-    static XContentBuilder createResponse(RowSetCursor cursor, XContentBuilder builder) throws Exception {
+    private static XContentBuilder createResponse(SqlResponse response, XContentBuilder builder) throws Exception {
         builder.startObject();
         // header
-        builder.field("size", cursor.size());
+        builder.field("size", response.size());
+        // NOCOMMIT: that should be a list since order is important
         builder.startObject("columns");
 
-        ThrowableConsumer<Entry> buildSchema = e -> builder.startObject(e.name()).field("type", e.type().esName()).endObject();
-        cursor.schema().forEach(buildSchema);
+        ThrowableBiConsumer<String, String> buildSchema = (f, t) -> builder.startObject(f).field("type", t).endObject();
+        response.columns().forEach(buildSchema);
 
         builder.endObject();
 
         // payload
         builder.startArray("rows");
         
-        ThrowableBiConsumer<Object, Entry> eachColumn = (v, e) -> builder.field(e.name(), v);
-        ThrowableConsumer<RowView> eachRow = r -> { builder.startObject(); r.forEachColumn(eachColumn); builder.endObject(); };
+        ThrowableBiConsumer<String, Object> eachColumn = builder::field;
+        // NOCOMMIT: that should be a list since order is important
+        ThrowableConsumer<Map<String, Object>> eachRow = r -> { builder.startObject(); r.forEach(eachColumn); builder.endObject(); };
 
-        cursor.forEachRow(eachRow);
+        response.rows().forEach(eachRow);
         
         builder.endArray();
         builder.endObject();

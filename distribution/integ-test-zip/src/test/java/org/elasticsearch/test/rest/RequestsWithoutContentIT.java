@@ -30,63 +30,59 @@ public class RequestsWithoutContentIT extends ESRestTestCase {
     public void testIndexMissingBody() throws IOException {
         ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(
                 randomBoolean() ? "POST" : "PUT", "/idx/type/123"));
-        assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-        assertThat(responseException.getMessage(), containsString("request body is required"));
+        assertResponseException(responseException, "request body is required");
     }
 
     public void testBulkMissingBody() throws IOException {
         ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(
                 randomBoolean() ? "POST" : "PUT", "/_bulk"));
-        assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-        assertThat(responseException.getMessage(), containsString("request body is required"));
+        assertResponseException(responseException, "request body is required");
     }
 
     public void testPutSettingsMissingBody() throws IOException {
         ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(
                 "PUT", "/_settings"));
-        assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-        assertThat(responseException.getMessage(), containsString("request body is required"));
+        assertResponseException(responseException, "request body is required");
     }
 
     public void testPutMappingsMissingBody() throws IOException {
         ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(
                 randomBoolean() ? "POST" : "PUT", "/test_index/test_type/_mapping"));
-        assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-        assertThat(responseException.getMessage(), containsString("request body is required"));
+        assertResponseException(responseException, "request body is required");
     }
 
     public void testPutIndexTemplateMissingBody() throws IOException {
         ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(
                 randomBoolean() ? "PUT" : "POST", "/_template/my_template"));
-        assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-        assertThat(responseException.getMessage(), containsString("request body is required"));
+        assertResponseException(responseException, "request body is required");
     }
 
     public void testMultiSearchMissingBody() throws IOException {
         ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(
                 randomBoolean() ? "POST" : "GET", "/_msearch"));
-        assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-        assertThat(responseException.getMessage(), containsString("request body or source parameter is required"));
+        assertResponseException(responseException, "request body or source parameter is required");
     }
 
     public void testPutPipelineMissingBody() throws IOException {
         ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(
                 "PUT", "/_ingest/pipeline/my_pipeline"));
-        assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-        assertThat(responseException.getMessage(), containsString("request body or source parameter is required"));
+        assertResponseException(responseException, "request body or source parameter is required");
     }
 
     public void testSimulatePipelineMissingBody() throws IOException {
         ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(
                 randomBoolean() ? "POST" : "GET", "/_ingest/pipeline/my_pipeline/_simulate"));
-        assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-        assertThat(responseException.getMessage(), containsString("request body or source parameter is required"));
+        assertResponseException(responseException, "request body or source parameter is required");
     }
 
     public void testPutScriptMissingBody() throws IOException {
         ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(
                 randomBoolean() ? "POST" : "PUT", "/_scripts/lang"));
+        assertResponseException(responseException, "request body is required");
+    }
+
+    private static void assertResponseException(ResponseException responseException, String message) {
         assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-        assertThat(responseException.getMessage(), containsString("request body is required"));
+        assertThat(responseException.getMessage(), containsString(message));
     }
 }

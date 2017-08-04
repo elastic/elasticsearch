@@ -1978,6 +1978,58 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary, replica);
     }
 
+    public void testRefreshListenersDuringPeerRecovery() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetaData metaData = IndexMetaData.builder("test")
+            .putMapping("test", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
+        recoveryShardFromStore(primary);
+
+        indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
+        Consumer<IndexShard> assertListenerCalled = shard -> {
+            AtomicBoolean called = new AtomicBoolean();
+            shard.addRefreshListener(null, b -> {
+                assertFalse(b);
+                called.set(true);
+            });
+            assertTrue(called.get());
+        };
+        IndexShard replica = newShard(primary.shardId(), false, "n2", metaData, null);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
+        assertListenerCalled.accept(replica);
+        recoverReplica(replica, primary, (shard, discoveryNode) ->
+            new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
+            }) {
+            // we're only checking that listeners are called when the engine is open, before there is no point
+                @Override
+                public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
+                    super.prepareForTranslogOperations(totalTranslogOps);
+                    assertListenerCalled.accept(replica);
+                }
+
+                @Override
+                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
+                    final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps);
+                    assertListenerCalled.accept(replica);
+                    return localCheckpoint;
+                }
+
+                @Override
+                public void finalizeRecovery(long globalCheckpoint) {
+                    super.finalizeRecovery(globalCheckpoint);
+                    assertListenerCalled.accept(replica);
+                }
+            }, false);
+
+        closeShards(primary, replica);
+    }
+
     public void testRecoverFromLocalShard() throws IOException {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)

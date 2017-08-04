@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.integration.ldap;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.BeforeClass;
 
@@ -16,7 +15,6 @@ import java.util.ArrayList;
  * This tests the mapping of multiple groups to a role in a file based role-mapping
  */
 @Network
-@AwaitsFix(bugUrl="https://github.com/elastic/x-pack-elasticsearch/issues/1823")
 public class MultiGroupMappingTests extends AbstractAdLdapRealmTestCase {
 
     @BeforeClass

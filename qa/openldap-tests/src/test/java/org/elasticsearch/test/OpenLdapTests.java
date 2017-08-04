@@ -3,77 +3,88 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.authc.ldap;
+package org.elasticsearch.test;
 
+import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPException;
-import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactory;
+import org.elasticsearch.xpack.security.authc.ldap.LdapTestUtils;
+import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetaDataResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.ssl.VerificationMode;
 import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 
-@Network
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1823")
 public class OpenLdapTests extends ESTestCase {
 
-    public static final String OPEN_LDAP_URL = "ldaps://54.200.235.244:636";
+    public static final String OPEN_LDAP_URL = "ldaps://localhost:60636";
     public static final String PASSWORD = "NickFuryHeartsES";
-    public static final SecureString PASSWORD_SECURE_STRING = new SecureString(PASSWORD.toCharArray());
+    private static final String HAWKEYE_DN = "uid=hawkeye,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+    public static final String LDAPTRUST_PATH = "/org/elasticsearch/xpack/security/authc/ldap/support/ldaptrust.jks";
+    private static final SecureString PASSWORD_SECURE_STRING = new SecureString(PASSWORD.toCharArray());
 
     private boolean useGlobalSSL;
     private SSLService sslService;
     private Settings globalSettings;
 
+    @Override
+    public boolean enableWarningsCheck() {
+        return false;
+    }
+
     @Before
     public void initializeSslSocketFactory() throws Exception {
-        Path truststore = getDataPath("../ldap/support/ldaptrust.jks");
+        Path truststore = getDataPath(LDAPTRUST_PATH);
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
         useGlobalSSL = randomBoolean();
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
         Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
         if (useGlobalSSL) {
-            builder.put("xpack.ssl.truststore.path", truststore)
-                    .put("xpack.ssl.truststore.password", "changeit");
+            builder.put("xpack.ssl.truststore.path", truststore);
+            mockSecureSettings.setString("xpack.ssl.truststore.secure_password", "changeit");
 
             // fake realm to load config with certificate verification mode
             builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.password", "changeit");
+            mockSecureSettings.setString("xpack.security.authc.realms.bar.ssl.truststore.secure_password", "changeit");
             builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         } else {
             // fake realms so ssl will get loaded
             builder.put("xpack.security.authc.realms.foo.ssl.truststore.path", truststore);
-            builder.put("xpack.security.authc.realms.foo.ssl.truststore.password", "changeit");
+            mockSecureSettings.setString("xpack.security.authc.realms.foo.ssl.truststore.secure_password", "changeit");
             builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
             builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.password", "changeit");
+            mockSecureSettings.setString("xpack.security.authc.realms.bar.ssl.truststore.secure_password", "changeit");
             builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         }
-        globalSettings = builder.build();
+        globalSettings = builder.setSecureSettings(mockSecureSettings).build();
         Environment environment = new Environment(globalSettings);
         sslService = new SSLService(globalSettings, environment);
     }
@@ -88,6 +99,7 @@ public class OpenLdapTests extends ESTestCase {
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
         for (String user : users) {
+            logger.info("testing connect as user [{}]", user);
             try (LdapSession ldap = session(sessionFactory, user, PASSWORD_SECURE_STRING)) {
                 assertThat(groups(ldap), hasItem(containsString("Avengers")));
             }
@@ -105,9 +117,9 @@ public class OpenLdapTests extends ESTestCase {
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
         for (String user : users) {
-            LdapSession ldap = session(sessionFactory, user, PASSWORD_SECURE_STRING);
-            assertThat(groups(ldap), hasItem(containsString("Avengers")));
-            ldap.close();
+            try (LdapSession ldap = session(sessionFactory, user, PASSWORD_SECURE_STRING)) {
+                assertThat(groups(ldap), hasItem(containsString("Avengers")));
+            }
         }
     }
 
@@ -116,7 +128,7 @@ public class OpenLdapTests extends ESTestCase {
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = Settings.builder()
                 .put(buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
-                .put("group_search.filter", "(&(objectclass=posixGroup)(memberUID={0}))")
+                .put("group_search.filter", "(&(objectclass=posixGroup)(memberUid={0}))")
                 .put("group_search.user_attribute", "uid")
                 .build();
         RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings, new ThreadContext(Settings.EMPTY));
@@ -166,27 +178,67 @@ public class OpenLdapTests extends ESTestCase {
                 anyOf(containsString("Hostname verification failed"), containsString("peer not authenticated")));
     }
 
-    Settings buildLdapSettings(String ldapUrl, String userTemplate, String groupSearchBase, LdapSearchScope scope) {
-        Settings baseSettings = LdapTestCase.buildLdapSettings(ldapUrl, userTemplate, groupSearchBase, scope);
-        if (useGlobalSSL) {
-            return baseSettings;
+    public void testResolveSingleValuedAttributeFromConnection() throws Exception {
+        LdapMetaDataResolver resolver = new LdapMetaDataResolver(Settings.builder().putArray("metadata", "cn", "sn").build(), true);
+        try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
+            final Map<String, Object> map = resolve(ldapConnection, resolver);
+            assertThat(map.size(), equalTo(2));
+            assertThat(map.get("cn"), equalTo("Clint Barton"));
+            assertThat(map.get("sn"), equalTo("Clint Barton"));
         }
-        return Settings.builder()
-                .put(baseSettings)
-                .put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
+    }
+
+    public void testResolveMultiValuedAttributeFromConnection() throws Exception {
+        LdapMetaDataResolver resolver = new LdapMetaDataResolver(Settings.builder().putArray("metadata", "objectClass").build(), true);
+        try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
+            final Map<String, Object> map = resolve(ldapConnection, resolver);
+            assertThat(map.size(), equalTo(1));
+            assertThat(map.get("objectClass"), instanceOf(List.class));
+            assertThat((List<?>) map.get("objectClass"), contains("top", "posixAccount", "inetOrgPerson"));
+        }
+    }
+
+    public void testResolveMissingAttributeFromConnection() throws Exception {
+        LdapMetaDataResolver resolver = new LdapMetaDataResolver(Settings.builder().putArray("metadata", "alias").build(), true);
+        try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
+            final Map<String, Object> map = resolve(ldapConnection, resolver);
+            assertThat(map.size(), equalTo(0));
+        }
+    }
+
+    private Settings buildLdapSettings(String ldapUrl, String userTemplate, String groupSearchBase, LdapSearchScope scope) {
+        Settings.Builder builder = Settings.builder()
+            .put(LdapTestCase.buildLdapSettings(ldapUrl, userTemplate, groupSearchBase, scope));
+        builder.put("group_search.user_attribute", "uid");
+        if (useGlobalSSL) {
+            return builder.build();
+        }
+        return builder
+                .put("ssl.truststore.path", getDataPath(LDAPTRUST_PATH))
                 .put("ssl.truststore.password", "changeit")
                 .build();
     }
 
-    protected LdapSession session(SessionFactory factory, String username, SecureString password) {
+    private LdapSession session(SessionFactory factory, String username, SecureString password) {
         PlainActionFuture<LdapSession> future = new PlainActionFuture<>();
         factory.session(username, password, future);
         return future.actionGet();
     }
 
-    protected List<String> groups(LdapSession ldapSession) {
+    private List<String> groups(LdapSession ldapSession) {
         PlainActionFuture<List<String>> future = new PlainActionFuture<>();
         ldapSession.groups(future);
         return future.actionGet();
+    }
+
+    private LDAPConnection setupOpenLdapConnection() throws Exception {
+        Path truststore = getDataPath(LDAPTRUST_PATH);
+        return LdapTestUtils.openConnection(OpenLdapTests.OPEN_LDAP_URL, HAWKEYE_DN, OpenLdapTests.PASSWORD, truststore);
+    }
+
+    private Map<String, Object> resolve(LDAPConnection connection, LdapMetaDataResolver resolver) throws Exception {
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        resolver.resolve(connection, HAWKEYE_DN, TimeValue.timeValueSeconds(1), logger, null, future);
+        return future.get();
     }
 }

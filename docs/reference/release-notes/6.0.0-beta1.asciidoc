@@ -13,6 +13,9 @@ Aggregations::
 Aliases::
 * Wrong behavior deleting alias {pull}23997[#23997] (issues: {issue}10106[#10106], {issue}23960[#23960])
 
+Highlighting::
+* Remove the postings highlighter and make unified the default highlighter choice {pull}25028[#25028]
+
 Index APIs::
 * Remove (deprecated) support for '+' in index expressions {pull}25274[#25274] (issue: {issue}24515[#24515])
 * Delete index API to work only against concrete indices {pull}25268[#25268] (issues: {issue}2318[#2318], {issue}23997[#23997])
@@ -59,7 +62,7 @@ REST::
 * Improve REST error handling when endpoint does not support HTTP verb, add OPTIONS support {pull}24437[#24437] (issues: {issue}0[#0], {issue}15335[#15335], {issue}17916[#17916])
 
 Scripting::
-* remove lang url parameter from stored script requests {pull}25779[#25779]
+* remove lang url parameter from stored script requests {pull}25779[#25779] (issue: {issue}22887[#22887])
 * Disallow lang to be used with Stored Scripts {pull}25610[#25610]
 * Remove Deprecated Script Settings {pull}24756[#24756] (issue: {issue}24532[#24532])
 * Scripting: Remove native scripts {pull}24726[#24726] (issue: {issue}19966[#19966])
@@ -97,6 +100,7 @@ Java API::
 
 Java High Level REST Client::
 * Unify the result interfaces from get and search in Java client {pull}25361[#25361] (issue: {issue}16440[#16440])
+* Allow RestHighLevelClient to use plugins {pull}25024[#25024]
 
 Java REST Client::
 * Rename client artifacts {pull}25693[#25693] (issue: {issue}20248[#20248])
@@ -243,8 +247,13 @@ Internal::
 * Break out clear scroll logic from TransportClearScrollAction {pull}25125[#25125] (issue: {issue}25094[#25094])
 * Add helper methods to TransportActionProxy to identify proxy actions and requests {pull}25124[#25124]
 * Add remote cluster infrastructure to fetch discovery nodes. {pull}25123[#25123] (issue: {issue}25094[#25094])
+* Add the ability to set eager_global_ordinals in the new parent-join field {pull}25019[#25019]
+* Disallow multiple parent-join fields per mapping {pull}25002[#25002]
 * Remove the need for _UNRELEASED suffix in versions {pull}24798[#24798] (issue: {issue}24768[#24768])
 * Optimize the order of bytes in uuids for better compression. {pull}24615[#24615] (issue: {issue}18209[#18209])
+
+Java API::
+* Always Accumulate Transport Exceptions {pull}25017[#25017] (issue: {issue}23099[#23099])
 
 Java High Level REST Client::
 * [DOCS] restructure java clients docs pages {pull}25517[#25517]
@@ -291,6 +300,7 @@ Plugin Lang Painless::
 * Add Needs Methods to Painless Script Context Factories {pull}25267[#25267]
 * Support Script Context Stateful Factory in Painless {pull}25233[#25233]
 * Generate Painless Factory for Creating Script Instances {pull}25120[#25120]
+* Update Painless to Use New Script Contexts {pull}25015[#25015]
 * Optimize instance creation in LambdaBootstrap {pull}24618[#24618]
 
 Plugin Repository GCS::
@@ -301,6 +311,8 @@ Plugin Repository S3::
 
 Plugins::
 * Move tribe to a module {pull}25778[#25778]
+* Plugins can register pre-configured char filters {pull}25000[#25000] (issue: {issue}23658[#23658])
+* Add purge option to remove plugin CLI {pull}24981[#24981]
 * Allow plugins to register pre-configured tokenizers {pull}24751[#24751] (issues: {issue}24223[#24223], {issue}24572[#24572])
 * Move ReindexAction class to core {pull}24684[#24684] (issue: {issue}24578[#24578])
 * Make PreConfiguredTokenFilter harder to misuse {pull}24572[#24572] (issue: {issue}23658[#23658])
@@ -320,6 +332,7 @@ Recovery::
 
 Scripting::
 * Scripting: Rename SearchScript.needsScores to needs_score {pull}25235[#25235]
+* Scripting: Add optional context parameter to put stored script requests {pull}25014[#25014]
 * Add New Security Script Settings {pull}24637[#24637] (issue: {issue}24532[#24532])
 
 Search::
@@ -337,6 +350,7 @@ Search::
 * Speed up sorted scroll when the index sort matches the search sort {pull}25138[#25138] (issue: {issue}6720[#6720])
 * Leverage scorerSupplier when applicable. {pull}25109[#25109]
 * Add Cross Cluster Search support for scroll searches {pull}25094[#25094]
+* Track EWMA[1] of task execution time in search threadpool executor {pull}24989[#24989] (issue: {issue}24915[#24915])
 * Query range fields by doc values when they are expected to be more efficient than points {pull}24823[#24823] (issue: {issue}24314[#24314])
 * Search: Fairer balancing when routing searches by session ID {pull}24671[#24671] (issue: {issue}24642[#24642])
 
@@ -364,6 +378,9 @@ Snapshot/Restore::
 Stats::
 * Update `IndexShard#refreshMetric` via a `ReferenceManager.RefreshListener` {pull}25083[#25083] (issues: {issue}24806[#24806], {issue}25052[#25052])
 
+Translog::
+* Translog file recovery should not rely on lucene commits {pull}25005[#25005] (issue: {issue}24950[#24950])
+
 
 
 [[bug-6.0.0-beta1]]
@@ -371,6 +388,7 @@ Stats::
 === Bug fixes
 
 Aggregations::
+* Fixes array out of bounds for value count agg {pull}26038[#26038] (issue: {issue}17379[#17379])
 * Aggregations bug: Significant_text fails on arrays of text. {pull}25030[#25030] (issue: {issue}25029[#25029])
 
 Aliases::
@@ -385,6 +403,7 @@ Circuit Breakers::
 
 Core::
 * Release operation permit on thread-pool rejection {pull}25930[#25930] (issue: {issue}25863[#25863])
+* Node should start up despite of a lingering `.es_temp_file` {pull}21210[#21210] (issue: {issue}21007[#21007])
 
 Discovery::
 * MasterNodeChangePredicate should use the node instance to detect master change {pull}25877[#25877] (issue: {issue}25471[#25471])
@@ -414,6 +433,7 @@ Internal::
 * Fix BytesReferenceStreamInput#skip with offset {pull}25634[#25634]
 * Fix race condition in RemoteClusterConnection node supplier {pull}25432[#25432]
 * Initialise empty lists in BaseTaskResponse constructor {pull}25290[#25290]
+* Extract a common base class for scroll executions {pull}24979[#24979] (issue: {issue}16555[#16555])
 * Obey lock order if working with store to get metadata snapshots {pull}24787[#24787] (issue: {issue}24481[#24481])
 * Fix Version based BWC and set correct minCompatVersion {pull}24732[#24732]
 * Fix `_field_caps` serialization in order to support cross cluster search {pull}24722[#24722]
@@ -510,6 +530,7 @@ Sequence IDs::
 * Track local checkpoint on primary immediately {pull}25434[#25434] (issues: {issue}10708[#10708], {issue}25355[#25355], {issue}25415[#25415])
 * Initialize max unsafe auto ID timestamp on shrink {pull}25356[#25356] (issues: {issue}10708[#10708], {issue}25355[#25355])
 * Use correct primary term for replicating NOOPs {pull}25128[#25128]
+* Handle already closed while filling gaps {pull}25021[#25021] (issue: {issue}24925[#24925])
 
 Settings::
 * Fix settings serialization to not serialize secure settings or not take the total size into account {pull}25323[#25323]
@@ -517,10 +538,14 @@ Settings::
 * Allow resetting settings that use an IP validator {pull}24713[#24713] (issue: {issue}24709[#24709])
 
 Snapshot/Restore::
+* Snapshot/Restore: Ensure that shard failure reasons are correctly stored in CS {pull}25941[#25941] (issue: {issue}25878[#25878])
 * Output all empty snapshot info fields if in verbose mode {pull}25455[#25455] (issue: {issue}24477[#24477])
 * Remove redundant and broken MD5 checksum from repository-s3 {pull}25270[#25270] (issue: {issue}25269[#25269])
 * Consolidates the logic for cleaning up snapshots on master election {pull}24894[#24894] (issue: {issue}24605[#24605])
 * Removes completed snapshot from cluster state on master change {pull}24605[#24605] (issue: {issue}24452[#24452])
+
+Stats::
+* _nodes/stats should not fail due to concurrent AlreadyClosedException {pull}25016[#25016] (issue: {issue}23099[#23099])
 
 Suggesters::
 * Context suggester should filter doc values field {pull}25858[#25858] (issue: {issue}25404[#25404])

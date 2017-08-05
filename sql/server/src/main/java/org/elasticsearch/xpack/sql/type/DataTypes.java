@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.type;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+
 import java.sql.JDBCType;
 import java.util.LinkedHashMap;
 import java.util.Map;
-
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 public abstract class DataTypes {
 
@@ -103,6 +103,9 @@ public abstract class DataTypes {
         }
         if (value instanceof Short) {
             return SHORT;
+        }
+        if (value instanceof String) {
+            return KEYWORD;
         }
         throw new SqlIllegalArgumentException("No idea what's the DataType for %s", value.getClass());
     }

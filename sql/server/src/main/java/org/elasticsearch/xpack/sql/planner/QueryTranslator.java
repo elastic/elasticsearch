@@ -20,12 +20,14 @@ import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundAggregate;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
@@ -62,6 +64,8 @@ import org.elasticsearch.xpack.sql.querydsl.agg.MatrixStatsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MaxAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MinAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.OrAggFilter;
+import org.elasticsearch.xpack.sql.querydsl.agg.PercentileRanksAgg;
+import org.elasticsearch.xpack.sql.querydsl.agg.PercentilesAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.StatsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.SumAgg;
 import org.elasticsearch.xpack.sql.querydsl.query.AndQuery;
@@ -93,6 +97,9 @@ import java.util.Map.Entry;
 import static java.lang.String.format;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.sql.expression.Foldables.doubleValuesOf;
+import static org.elasticsearch.xpack.sql.expression.Foldables.stringValueOf;
+import static org.elasticsearch.xpack.sql.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
@@ -117,6 +124,8 @@ abstract class QueryTranslator {
             new StatsAggs(),
             new ExtendedStatsAggs(),
             new MatrixStatsAggs(),
+            new PercentilesAggs(), 
+            new PercentileRanksAggs(),
             new DistinctCounts(),
             new DateTimes()
             );
@@ -203,8 +212,8 @@ abstract class QueryTranslator {
                 if (groupPath != null) {
                     GroupingAgg matchingGroup = null;
                     // group found - finding the dedicated agg
-                    if (f.argument() instanceof NamedExpression) {
-                        matchingGroup = groupMap.get(((NamedExpression) f.argument()).id());
+                    if (f.field() instanceof NamedExpression) {
+                        matchingGroup = groupMap.get(((NamedExpression) f.field()).id());
                     }
                     // return matching group or the tail (last group)
                     return matchingGroup != null ? matchingGroup : tail;
@@ -358,17 +367,15 @@ abstract class QueryTranslator {
         return new NotQuery(query.location(), query);
     }
 
-    @SuppressWarnings("unchecked")
-    static <T> T valueOf(Expression e) {
-        return (T) ((Literal) e).value();
-    }
-
     static String nameOf(Expression e) {
         if (e instanceof DateTimeFunction) {
             return nameOf(((DateTimeFunction) e).argument());
         }
         if (e instanceof NamedExpression) {
             return ((NamedExpression) e).name();
+        }
+        if (e instanceof Literal) {
+            return String.valueOf(e.fold());
         }
         throw new SqlIllegalArgumentException("Cannot determine name for %s", e);
     }
@@ -394,7 +401,7 @@ abstract class QueryTranslator {
     }
 
     static String field(AggregateFunction af) {
-        Expression arg = af.argument();
+        Expression arg = af.field();
         if (arg instanceof RootFieldAttribute) {
             return ((RootFieldAttribute) arg).name();
         }
@@ -420,7 +427,7 @@ abstract class QueryTranslator {
                 target = nameOf(analyzed ? fa : fa.notAnalyzedAttribute());
             }
     
-            String pattern = sqlToEsPatternMatching(valueOf(e.right()));
+            String pattern = sqlToEsPatternMatching(stringValueOf(e.right()));
             if (e instanceof Like) {
                 if (analyzed) {
                     q = new QueryStringQuery(e.location(), pattern, target);
@@ -435,7 +442,7 @@ abstract class QueryTranslator {
                     q = new QueryStringQuery(e.location(), "/" + pattern + "/", target);
                 }
                 else {
-                    q = new RegexQuery(e.location(), nameOf(e.left()), sqlToEsPatternMatching(valueOf(e.right())));
+                    q = new RegexQuery(e.location(), nameOf(e.left()), sqlToEsPatternMatching(stringValueOf(e.right())));
                 }
             }
     
@@ -765,6 +772,22 @@ abstract class QueryTranslator {
         }
     }
     
+    static class PercentilesAggs extends CompoundAggTranslator<Percentiles> {
+
+        @Override
+        protected LeafAgg toAgg(String id, String path, Percentiles p) {
+            return new PercentilesAgg(id, path, field(p), doubleValuesOf(p.percents()));
+        }
+    }
+
+    static class PercentileRanksAggs extends CompoundAggTranslator<PercentileRanks> {
+
+        @Override
+        protected LeafAgg toAgg(String id, String path, PercentileRanks p) {
+            return new PercentileRanksAgg(id, path, field(p), doubleValuesOf(p.values()));
+        }
+    }
+
     static class DateTimes extends SingleValueAggTranslator<Min> {
     
         @Override
@@ -796,7 +819,7 @@ abstract class QueryTranslator {
         protected abstract LeafAgg toAgg(String id, String path, F f);
     }
     
-    abstract static class CompoundAggTranslator<C extends CompoundAggregate> extends AggTranslator<C> {
+    abstract static class CompoundAggTranslator<C extends CompoundNumericAggregate> extends AggTranslator<C> {
     
         @Override
         protected final LeafAgg asAgg(String id, String parent, C function) {

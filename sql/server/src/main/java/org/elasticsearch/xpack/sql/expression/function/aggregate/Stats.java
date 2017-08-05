@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
-public class Stats extends CompoundAggregate {
+public class Stats extends CompoundNumericAggregate {
 
-    public Stats(Location location, Expression argument) {
-        super(location, argument);
+    public Stats(Location location, Expression field) {
+        super(location, field);
     }
 
     public static boolean isTypeCompatible(Expression e) {

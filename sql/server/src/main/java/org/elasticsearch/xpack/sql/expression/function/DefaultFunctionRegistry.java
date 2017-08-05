@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Mean;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Skewness;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevPop;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
@@ -92,8 +94,11 @@ public class DefaultFunctionRegistry extends AbstractFunctionRegistry {
                 VarPop.class,
                 SumOfSquares.class,
                 Skewness.class,
-                Kurtosis.class
-                // TODO: add multi arg functions like Covariance, Correlate, Percentiles and percentiles rank
+                Kurtosis.class,
+                Percentile.class,
+                PercentileRank.class
+                // TODO: add multi arg functions like Covariance, Correlate
+
                 );
     }
     

@@ -41,7 +41,8 @@ public abstract class AggPath {
     }
 
     public static String metricValue(String aggPath, String valueName) {
-        return aggPath + VALUE_DELIMITER + valueName;
+        // handle aggPath inconsistency (for percentiles and percentileRanks) percentile[99.9] (valid) vs percentile.99.9 (invalid)
+        return valueName.startsWith("[") ? aggPath + valueName : aggPath + VALUE_DELIMITER + valueName;
     }
 
     public static String path(String parent, String child) {

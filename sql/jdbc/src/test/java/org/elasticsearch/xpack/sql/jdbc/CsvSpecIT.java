@@ -20,10 +20,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
-import java.util.Locale;
 import java.util.Properties;
 
-import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.jdbc.framework.JdbcAssert.assertResultSets;
 
 /**
@@ -50,7 +48,9 @@ public class CsvSpecIT extends SpecBaseIntegrationTestCase {
         CsvSpecParser parser = new CsvSpecParser();
         return CollectionUtils.combine(
                 readScriptSpec("/command.csv-spec", parser),
-                readScriptSpec("/fulltext.csv-spec", parser));
+                readScriptSpec("/fulltext.csv-spec", parser),
+                readScriptSpec("/agg.csv-spec", parser)
+                );
     }
 
     public CsvSpecIT(String groupName, String testName, Integer lineNumber, Path source, CsvTestCase testCase) {
@@ -62,7 +62,7 @@ public class CsvSpecIT extends SpecBaseIntegrationTestCase {
         try {
             assertMatchesCsv(testCase.query, testName, testCase.expectedResults);            
         } catch (AssertionError ae) {
-            throw reworkException(new AssertionError(errorMessage(ae), ae.getCause()));
+            throw reworkException(ae);
         }
     }
 
@@ -86,22 +86,20 @@ public class CsvSpecIT extends SpecBaseIntegrationTestCase {
                     .executeQuery("SELECT * FROM " + csvTableName);
             // trigger data loading for type inference
             expected.beforeFirst();
-            Statement statement = es.createStatement();
-            //statement.setFetchSize(randomInt(10));
-            // NOCOMMIT: hook up pagination
-            // NOCOMMIT sometimes accept the default fetch size. I believe it is 0 now which breaks things.
-            statement.setFetchSize(1000);
-            ResultSet actual = statement.executeQuery(query);
+            ResultSet actual = executeJdbcQuery(es, query);
             assertResultSets(expected, actual);
         }
     }
 
-    String errorMessage(Throwable th) {
-        return format(Locale.ROOT, "test%s@%s:%d failed\n\"%s\"\n%s", testName, source.getFileName().toString(), lineNumber,
-                testCase.query, th.getMessage());
+    private ResultSet executeJdbcQuery(Connection con, String query) throws SQLException {
+        Statement statement = con.createStatement();
+        //statement.setFetchSize(randomInt(10));
+        // NOCOMMIT: hook up pagination
+        statement.setFetchSize(1000);
+        return statement.executeQuery(query);
     }
 
-    private static class CsvSpecParser implements Parser {
+    protected static class CsvSpecParser implements Parser {
         private final StringBuilder data = new StringBuilder();
         private CsvTestCase testCase;
 
@@ -137,7 +135,7 @@ public class CsvSpecIT extends SpecBaseIntegrationTestCase {
         }
     }
 
-    private static class CsvTestCase {
+    protected static class CsvTestCase {
         String query;
         String expectedResults;
     }

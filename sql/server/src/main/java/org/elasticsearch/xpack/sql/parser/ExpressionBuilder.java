@@ -90,14 +90,6 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         return expression(ctx.expression());
     }
 
-
-    @Override
-    // Star will be resolved by the analyzer - currently just put a placeholder
-    public Expression visitStar(StarContext ctx) {
-        return new UnresolvedStar(source(ctx), ctx.qualifier != null ? visitColumnExpression(ctx.qualifier) : null);
-    }
-    
-
     @Override
     public Expression visitSelectExpression(SelectExpressionContext ctx) {
         Expression exp = expression(ctx.expression());
@@ -106,6 +98,11 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             exp = new Alias(source(ctx), alias, exp);
         }
         return exp;
+    }
+
+    @Override
+    public Expression visitStar(StarContext ctx) {
+        return new UnresolvedStar(source(ctx), ctx.qualifier != null ? visitColumnExpression(ctx.qualifier) : null);
     }
 
     @Override
@@ -286,6 +283,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ctx.setQuantifier() != null) {
             isDistinct = (ctx.setQuantifier().DISTINCT() != null);
         }
+
         return new UnresolvedFunction(source(ctx), name, isDistinct, expressions(ctx.expression()));
     }
 

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
+// Agg 'enclosed' by another agg. Used for agg that return multiple embedded aggs (like MatrixStats)
 public interface EnclosedAgg {
 
     String innerName();

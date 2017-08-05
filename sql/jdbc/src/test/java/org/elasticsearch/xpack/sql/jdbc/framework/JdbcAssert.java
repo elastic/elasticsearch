@@ -10,10 +10,13 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
 
+import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -29,7 +32,22 @@ public class JdbcAssert {
         ResultSetMetaData expectedMeta = expected.getMetaData();
         ResultSetMetaData actualMeta = actual.getMetaData();
 
-        assertEquals("Different number of columns returned", expectedMeta.getColumnCount(), actualMeta.getColumnCount());
+        if (expectedMeta.getColumnCount() != actualMeta.getColumnCount()) {
+            List<String> expectedCols = new ArrayList<>();
+            for (int i = 1; i <= expectedMeta.getColumnCount(); i++) {
+                expectedCols.add(expectedMeta.getColumnName(i));
+
+            }
+
+            List<String> actualCols = new ArrayList<>();
+            for (int i = 1; i <= actualMeta.getColumnCount(); i++) {
+                actualCols.add(actualMeta.getColumnName(i));
+            }
+
+            assertEquals(format(Locale.ROOT, "Different number of columns returned (expected %d but was %d);",
+                    expectedMeta.getColumnCount(), actualMeta.getColumnCount()),
+                    expectedCols.toString(), actualCols.toString());
+        }
         
         for (int column = 1; column <= expectedMeta.getColumnCount(); column++) {
             String expectedName = expectedMeta.getColumnName(column); 

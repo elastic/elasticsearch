@@ -17,7 +17,7 @@ public class Min extends NumericAggregate implements EnclosedAgg {
 
     @Override
     public DataType dataType() {
-        return argument().dataType();
+        return field().dataType();
     }
 
     @Override

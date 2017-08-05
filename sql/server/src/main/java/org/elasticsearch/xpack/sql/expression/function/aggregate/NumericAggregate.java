@@ -11,17 +11,24 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
-abstract class NumericAggregate extends AggregateFunction {
+import java.util.List;
 
-    NumericAggregate(Location location, Expression argument) {
-        super(location, argument);
+class NumericAggregate extends AggregateFunction {
+
+    NumericAggregate(Location location, Expression field, List<Expression> arguments) {
+        super(location, field, arguments);
+    }
+
+    NumericAggregate(Location location, Expression field) {
+        super(location, field);
     }
 
     @Override
     protected TypeResolution resolveType() {
-        return argument().dataType().isNumeric() ? 
-                    TypeResolution.TYPE_RESOLVED :
-                    new TypeResolution("Function '%s' cannot be applied on a non-numeric expression ('%s' of type '%s')", functionName(), Expressions.name(argument()), argument().dataType().esName());
+        return field().dataType().isNumeric() ? TypeResolution.TYPE_RESOLVED : new TypeResolution(
+                "Function '%s' cannot be applied on a non-numeric expression ('%s' of type '%s')", functionName(),
+                Expressions.name(field()), field().dataType().esName());
+
     }
 
     @Override

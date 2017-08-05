@@ -12,12 +12,12 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
-public class Count extends AggregateFunction implements DistinctAware {
+public class Count extends NumericAggregate implements DistinctAware {
 
     private final boolean distinct;
 
-    public Count(Location location, Expression argument, boolean distinct) {
-        super(location, argument);
+    public Count(Location location, Expression field, boolean distinct) {
+        super(location, field);
         this.distinct = distinct;
     }
 
@@ -30,13 +30,12 @@ public class Count extends AggregateFunction implements DistinctAware {
         return DataTypes.LONG;
     }
 
-
     @Override
     public String functionId() {
         String functionId = id().toString();
         // if count works against a given expression, use its id (to identify the group)
-        if (argument() instanceof NamedExpression) {
-            functionId = ((NamedExpression) argument()).id().toString();
+        if (field() instanceof NamedExpression) {
+            functionId = ((NamedExpression) field()).id().toString();
         }
         return functionId;
     }

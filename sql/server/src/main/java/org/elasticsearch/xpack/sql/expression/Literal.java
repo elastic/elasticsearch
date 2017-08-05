@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import java.util.Collections;
-import java.util.Objects;
-
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
-public class Literal extends Expression {
+import java.util.Objects;
+
+public class Literal extends LeafExpression {
 
     private final Object value;
     private final DataType dataType;
@@ -21,7 +20,7 @@ public class Literal extends Expression {
     public static final Literal FALSE = Literal.of(Location.EMPTY, Boolean.FALSE);
 
     public Literal(Location location, Object value, DataType dataType) {
-        super(location, Collections.emptyList());
+        super(location);
         this.value = value;
         this.dataType = dataType;
     }

@@ -823,7 +823,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             if (f instanceof Count) {
                 Count c = (Count) f;
                 if (!c.distinct()) {
-                    if (c.argument() instanceof Literal && c.argument().dataType().isInteger()) {
+                    if (c.field() instanceof Literal && c.field().dataType().isInteger()) {
                         return true;
                     }
                 }

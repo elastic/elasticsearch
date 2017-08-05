@@ -1,0 +1,67 @@
+//
+// Aggs not supported by H2 / traditional SQL stores
+//
+
+singlePercentileWithoutComma
+SELECT gender, PERCENTILE(emp_no, 97) p1 FROM test_emp GROUP BY gender;
+
+gender               | p1        
+M                    | 10095.6112
+F                    | 10099.1936             
+;
+
+singlePercentileWithComma
+SELECT gender, PERCENTILE(emp_no, 97.76) p1 FROM test_emp GROUP BY gender;
+
+gender               | p1        
+M                    | 10095.6112
+F                    | 10099.1936             
+;
+
+multiplePercentilesOneWithCommaOneWithout
+SELECT gender, PERCENTILE(emp_no, 92.45) p1, PERCENTILE(emp_no, 91) p2 FROM test_emp GROUP BY gender;
+
+gender               | p1                   | p2                   
+M                    | 10090.319            | 10087.68               
+F                    | 10095.128            | 10093.52     
+;
+
+multiplePercentilesWithoutComma
+SELECT gender, PERCENTILE(emp_no, 91) p1, PERCENTILE(emp_no, 89) p2 FROM test_emp GROUP BY gender;
+
+gender               | p1                   | p2                
+M                    | 10087.68             | 10085.18            
+F                    | 10093.52             | 10092.08  
+;
+
+multiplePercentilesWithComma
+SELECT gender, PERCENTILE(emp_no, 85.7) p1, PERCENTILE(emp_no, 94.3) p2 FROM test_emp GROUP BY gender;
+
+gender               | p1                   | p2                   
+M                    | 10083.134            | 10091.932               
+F                    | 10088.852            | 10097.792     
+;
+
+percentileRank
+SELECT gender, PERCENTILE_RANK(emp_no, 10025) rank FROM test_emp GROUP BY gender;
+
+gender               | rank
+M                    | 23.41269841269841   
+F                    | 26.351351351351347  
+;
+
+multiplePercentileRanks
+SELECT gender, PERCENTILE_RANK(emp_no, 10030.0) rank1, PERCENTILE_RANK(emp_no, 10025) rank2 FROM test_emp GROUP BY gender;
+
+gender               | rank1                | rank2
+M                    | 29.365079365079367   | 23.41269841269841   
+F                    | 29.93762993762994    | 26.351351351351347  
+;
+
+multiplePercentilesAndPercentileRank
+SELECT gender, PERCENTILE(emp_no, 97.76) p1, PERCENTILE(emp_no, 93.3) p2, PERCENTILE_RANK(emp_no, 10025) rank FROM test_emp GROUP BY gender;
+
+gender               | p1                   | p2                   | rank
+M                    | 10095.6112           | 10090.846            | 23.41269841269841   
+F                    | 10099.1936           | 10096.351999999999   | 26.351351351351347  
+;

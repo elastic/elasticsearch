@@ -74,7 +74,15 @@ public abstract class CollectionUtils {
         return map;
     }
 
-    public static <T> List<T> combine(Collection<? extends T> left, Collection<? extends T> right) {
+    @SuppressWarnings("unchecked")
+    public static <T> List<T> combine(List<? extends T> left, List<? extends T> right) {
+        if (right.isEmpty()) {
+            return (List<T>) left;
+        }
+        if (left.isEmpty()) {
+            return (List<T>) right;
+        }
+
         List<T> list = new ArrayList<>(left.size() + right.size());
         if (!left.isEmpty()) {
             list.addAll(left);

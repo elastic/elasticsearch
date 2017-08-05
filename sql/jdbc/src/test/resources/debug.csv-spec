@@ -3,51 +3,9 @@
 //
 
 debug
-SHOW FUNCTIONS;
+SELECT gender, PERCENTILE(emp_no, 97.76) p1, PERCENTILE(emp_no, 93.3) p2, PERCENTILE_RANK(emp_no, 10025) rank FROM test_emp GROUP BY gender;
 
-     name       |     type      
-AVG             |AGGREGATE      
-COUNT           |AGGREGATE      
-MAX             |AGGREGATE      
-MIN             |AGGREGATE      
-SUM             |AGGREGATE      
-DAY_OF_MONTH    |SCALAR         
-DAY             |SCALAR         
-DOM             |SCALAR         
-DAY_OF_WEEK     |SCALAR         
-DOW             |SCALAR         
-DAY_OF_YEAR     |SCALAR         
-DOY             |SCALAR         
-HOUR_OF_DAY     |SCALAR         
-HOUR            |SCALAR         
-MINUTE_OF_DAY   |SCALAR         
-MINUTE_OF_HOUR  |SCALAR         
-MINUTE          |SCALAR         
-SECOND_OF_MINUTE|SCALAR         
-SECOND          |SCALAR         
-MONTH_OF_YEAR   |SCALAR         
-MONTH           |SCALAR         
-YEAR            |SCALAR         
-ABS             |SCALAR         
-ACOS            |SCALAR         
-ASIN            |SCALAR         
-ATAN            |SCALAR         
-CBRT            |SCALAR         
-CEIL            |SCALAR         
-COS             |SCALAR         
-COSH            |SCALAR         
-DEGREES         |SCALAR         
-E               |SCALAR         
-EXP             |SCALAR         
-EXPM1           |SCALAR         
-FLOOR           |SCALAR         
-LOG             |SCALAR         
-LOG10           |SCALAR         
-PI              |SCALAR         
-RADIANS         |SCALAR         
-ROUND           |SCALAR         
-SIN             |SCALAR         
-SINH            |SCALAR         
-SQRT            |SCALAR         
-TAN             |SCALAR     
+gender               | p1                   | p2                   | rank
+M                    | 10095.6112           | 10090.846            | 23.41269841269841   
+F                    | 10099.1936           | 10096.351999999999   | 26.351351351351347  
 ;

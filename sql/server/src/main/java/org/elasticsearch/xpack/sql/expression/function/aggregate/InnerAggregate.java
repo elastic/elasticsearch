@@ -13,17 +13,17 @@ import org.elasticsearch.xpack.sql.type.DataType;
 public class InnerAggregate extends AggregateFunction {
 
     private final AggregateFunction inner;
-    private final CompoundAggregate outer;
+    private final CompoundNumericAggregate outer;
     private final String innerId;
-    // used when the result needs to be extracted from a map (like in MatrixAggs)
+    // used when the result needs to be extracted from a map (like in MatrixAggs or Percentiles)
     private final Expression innerKey;
 
-    public InnerAggregate(AggregateFunction inner, CompoundAggregate outer) {
+    public InnerAggregate(AggregateFunction inner, CompoundNumericAggregate outer) {
         this(inner, outer, null);
     }
 
-    public InnerAggregate(AggregateFunction inner, CompoundAggregate outer, Expression innerKey) {
-        super(inner.location(), outer.argument());
+    public InnerAggregate(AggregateFunction inner, CompoundNumericAggregate outer, Expression innerKey) {
+        super(inner.location(), outer.field(), outer.arguments());
         this.inner = inner;
         this.outer = outer;
         this.innerId = ((EnclosedAgg) inner).innerName();
@@ -34,7 +34,7 @@ public class InnerAggregate extends AggregateFunction {
         return inner;
     }
 
-    public CompoundAggregate outer() {
+    public CompoundNumericAggregate outer() {
         return outer;
     }
 

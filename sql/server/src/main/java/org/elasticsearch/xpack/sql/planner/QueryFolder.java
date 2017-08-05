@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
+import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.NestedFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Order;
@@ -17,7 +18,7 @@ import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundAggregate;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
@@ -234,7 +235,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                 Map<Attribute, Attribute> aliases = new LinkedHashMap<>();
                 // tracker for compound aggs seen in a group
-                Map<CompoundAggregate, String> compoundAggMap = new LinkedHashMap<>();
+                Map<CompoundNumericAggregate, String> compoundAggMap = new LinkedHashMap<>();
 
                 // followed by actual aggregates
                 for (NamedExpression ne : a.aggregates()) {
@@ -338,7 +339,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             return queryC.addAggRef(aggInfo.propertyPath(), proc);
         }
 
-        private QueryContainer addFunction(GroupingAgg parentAgg, AggregateFunction f, ColumnProcessor proc, Map<CompoundAggregate, String> compoundAggMap, QueryContainer queryC) {
+        private QueryContainer addFunction(GroupingAgg parentAgg, AggregateFunction f, ColumnProcessor proc, Map<CompoundNumericAggregate, String> compoundAggMap, QueryContainer queryC) {
             String functionId = f.functionId();
             // handle count as a special case agg
             if (f instanceof Count) {
@@ -354,7 +355,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
             if (f instanceof InnerAggregate) {
                 InnerAggregate ia = (InnerAggregate) f;
-                CompoundAggregate outer = ia.outer();
+                CompoundNumericAggregate outer = ia.outer();
                 String cAggPath = compoundAggMap.get(outer);
 
                 // the compound agg hasn't been seen before so initialize it
@@ -449,7 +450,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         protected PhysicalPlan rule(LimitExec plan) {
             if (plan.child() instanceof EsQueryExec) {
                 EsQueryExec exec = (EsQueryExec) plan.child();
-                int limit = Integer.valueOf(QueryTranslator.valueOf(plan.limit()));
+                int limit = Foldables.intValueOf(plan.limit());
                 int currentSize = exec.queryContainer().limit();
                 int newSize = currentSize < 0 ? limit : Math.min(currentSize, limit); 
                 return exec.with(exec.queryContainer().withLimit(newSize));

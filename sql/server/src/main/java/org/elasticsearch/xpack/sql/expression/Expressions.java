@@ -40,6 +40,15 @@ public abstract class Expressions {
         return false;
     }
 
+    public static boolean nullable(List<? extends Expression> exps) {
+        for (Expression exp : exps) {
+            if (!exp.nullable()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public static AttributeSet references(List<? extends Expression> exps) {
         if (exps.isEmpty()) {
             return AttributeSet.EMPTY;

@@ -8,20 +8,34 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
+import java.util.List;
+
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
 public abstract class AggregateFunction extends Function {
 
-    private final Expression argument;
+    private final Expression field;
+    private final List<Expression> arguments;
 
-    AggregateFunction(Location location, Expression child) {
-        super(location, singletonList(child));
-        this.argument = child;
+    AggregateFunction(Location location, Expression field) {
+        this(location, field, emptyList());
     }
 
-    public Expression argument() {
-        return argument;
+    AggregateFunction(Location location, Expression field, List<Expression> arguments) {
+        super(location, CollectionUtils.combine(singletonList(field), arguments));
+        this.field = field;
+        this.arguments = arguments;
+    }
+
+    public Expression field() {
+        return field;
+    }
+
+    public List<Expression> arguments() {
+        return arguments;
     }
 
     public String functionId() {

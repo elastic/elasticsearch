@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
-public class ExtendedStats extends CompoundAggregate {
+public class ExtendedStats extends CompoundNumericAggregate {
 
-    public ExtendedStats(Location location, Expression argument) {
-        super(location, argument);
+    public ExtendedStats(Location location, Expression field) {
+        super(location, field);
     }
 }

@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import java.util.List;
-import java.util.Locale;
-
 import org.elasticsearch.xpack.sql.capabilities.Resolvable;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -15,6 +12,9 @@ import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.tree.NodeUtils;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
+
+import java.util.List;
+import java.util.Locale;
 
 import static java.lang.String.format;
 
@@ -78,7 +78,7 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
         return lazyChildrenResolved;
     }
 
-    public TypeResolution typeResolved() {
+    public final TypeResolution typeResolved() {
         if (lazyTypeResolution == null) {
             lazyTypeResolution = resolveType();
         }

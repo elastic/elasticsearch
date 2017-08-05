@@ -7,22 +7,18 @@ package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.aware.DistinctAware;
 import org.elasticsearch.xpack.sql.expression.function.aware.TimeZoneAware;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.session.SqlSettings;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.tree.NodeUtils;
 import org.elasticsearch.xpack.sql.tree.NodeUtils.NodeInfo;
 import org.elasticsearch.xpack.sql.util.Assert;
 import org.elasticsearch.xpack.sql.util.StringUtils;
-import org.joda.time.DateTimeZone;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -98,46 +94,61 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
         return StringUtils.camelCaseToUnderscore(name);
     }
 
+    //
+    // Instantiates a function through reflection.
+    // Picks up the constructor by expecting to be of type (Location,Expression) or (Location,List<Expression>) depending on the size of given children, parameters.
+    // If the function has certain 'aware'-ness (based on the interface implemented), the appropriate types are added to the signature
+
     @SuppressWarnings("rawtypes")
     private static Function createInstance(Class<? extends Function> clazz, UnresolvedFunction ur, SqlSettings settings) {
         NodeInfo info = NodeUtils.info((Class<? extends Node>) clazz);
-        Class<?> exp = ur.children().size() == 1 ? Expression.class : List.class;
-        Object expVal = exp == Expression.class ? ur.children().get(0) : ur.children();
+        Class<?>[] pTypes = info.ctr.getParameterTypes();
 
-        boolean noExpression = false;
         boolean distinctAware = DistinctAware.class.isAssignableFrom(clazz);
         boolean timezoneAware = TimeZoneAware.class.isAssignableFrom(clazz);
+        
+        // constructor types - location - distinct? - timezone?
+        int expectedParamCount = pTypes.length - (1 + (distinctAware ? 1 : 0) + (timezoneAware ? 1 : 0));
 
         // check constructor signature
-        
+        if (ur.children().size() != expectedParamCount) {
+            List<String> expected = new ArrayList<>();
+
+            for (int i = 1; i < expectedParamCount; i++) {
+                expected.add(pTypes[i].getSimpleName());
+            }
+
+            throw new ParsingException(ur.location(), "Invalid number of arguments given to function [%s], expected %d argument(s):%s but received %d:%s",
+                    ur.name(), expected.size(), expected.toString(), ur.children().size(), ur.children());
+        }
         
         // validate distinct ctor
         if (!distinctAware && ur.distinct()) {
             throw new ParsingException(ur.location(), "Function [%s] does not support DISTINCT yet it was specified", ur.name());
         }
-        
-        List<Class> ctorSignature = new ArrayList<>();
-        ctorSignature.add(Location.class);
-        
-        // might be a constant function
-        if (expVal instanceof List && ((List) expVal).isEmpty()) {
-            noExpression = Arrays.equals(new Class[] { Location.class }, info.ctr.getParameterTypes());
-        }
-        else {
-            ctorSignature.add(exp);
-        }
 
-        // aware stuff
-        if (distinctAware) {
-            ctorSignature.add(boolean.class);
-        }
-        if (timezoneAware) {
-            ctorSignature.add(DateTimeZone.class);
-        }
-        
-        // validate
-        Assert.isTrue(Arrays.equals(ctorSignature.toArray(new Class[ctorSignature.size()]), info.ctr.getParameterTypes()),
-                "No constructor with signature %s found for [%s]", ctorSignature, clazz.getTypeName());
+        //        List<Class> ctorSignature = new ArrayList<>();
+        //        ctorSignature.add(Location.class);
+        //        
+        //        // might be a constant function
+        //        if (expVal instanceof List && ((List) expVal).isEmpty()) {
+        //            noExpression = Arrays.equals(new Class[] { Location.class }, info.ctr.getParameterTypes());
+        //        }
+        //        else {
+        //            ctorSignature.add(exp);
+        //        }
+        //
+        //        // aware stuff
+        //        if (distinctAware) {
+        //            ctorSignature.add(boolean.class);
+        //        }
+        //        if (timezoneAware) {
+        //            ctorSignature.add(DateTimeZone.class);
+        //        }
+        //        
+        //        // validate
+        //        Assert.isTrue(Arrays.equals(ctorSignature.toArray(new Class[ctorSignature.size()]), info.ctr.getParameterTypes()),
+        //                "No constructor with signature %s found for [%s], found %s instead", ctorSignature, clazz.getTypeName(), info.ctr);
         
         // now add the actual values
         try {
@@ -147,15 +158,15 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
             args.add(ur.location());
 
             // has multiple arguments
-            if (!noExpression) {
-                args.add(expVal);
-                if (distinctAware) {
-                    args.add(ur.distinct());
-                }
-                if (timezoneAware) {
-                    args.add(settings.timeZone());
-                }
-            } 
+            args.addAll(ur.children());
+
+            if (distinctAware) {
+                args.add(ur.distinct());
+            }
+            if (timezoneAware) {
+                args.add(settings.timeZone());
+            }
+
             return (Function) info.ctr.newInstance(args.toArray());
         } catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
             throw new SqlIllegalArgumentException(ex, "Cannot create instance of function %s", ur.name());

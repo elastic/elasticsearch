@@ -39,7 +39,7 @@ public class SqlSpecIT extends SpecBaseIntegrationTestCase {
         // example for enabling logging
         //JdbcTestUtils.sqlLogging();
 
-        SqlSpecParser parser = new SqlSpecParser();
+        Parser parser = parser();
         return CollectionUtils.combine(
                 readScriptSpec("/select.sql-spec", parser),
                 readScriptSpec("/filter.sql-spec", parser),
@@ -63,6 +63,10 @@ public class SqlSpecIT extends SpecBaseIntegrationTestCase {
         }
     }
 
+    static SqlSpecParser parser() {
+        return new SqlSpecParser();
+    }
+
     public SqlSpecIT(String groupName, String testName, Integer lineNumber, Path source, String query) {
         super(groupName, testName, lineNumber, source);
         this.query = query;
@@ -74,17 +78,17 @@ public class SqlSpecIT extends SpecBaseIntegrationTestCase {
              Connection es = esJdbc()) {
             ResultSet expected, actual;
             try {
-                expected = executeQuery(h2);
-                actual = executeQuery(es);
+                expected = executeJdbcQuery(h2);
+                actual = executeJdbcQuery(es);
 
                 assertResultSets(expected, actual);
             } catch (AssertionError ae) {
-                throw reworkException(new AssertionError(errorMessage(ae), ae.getCause()));
+                throw reworkException(ae);
             }
         }
     }
 
-    private ResultSet executeQuery(Connection con) throws SQLException {
+    private ResultSet executeJdbcQuery(Connection con) throws SQLException {
         Statement statement = con.createStatement();
         //statement.setFetchSize(randomInt(10));
         // NOCOMMIT: hook up pagination

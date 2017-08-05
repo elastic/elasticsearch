@@ -27,6 +27,10 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStatsEn
 import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStatsEnclosed;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.predicate.And;
@@ -50,7 +54,6 @@ import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
-import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -71,6 +74,8 @@ import static org.elasticsearch.xpack.sql.expression.predicate.Predicates.inComm
 import static org.elasticsearch.xpack.sql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.sql.expression.predicate.Predicates.splitOr;
 import static org.elasticsearch.xpack.sql.expression.predicate.Predicates.subtract;
+import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
+
 
 public class Optimizer extends RuleExecutor<LogicalPlan> {
 
@@ -101,7 +106,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new CombineAggsToMatrixStats(),
                 new CombineAggsToExtendedStats(),
                 new CombineAggsToStats(),
-                new PromoteStatsToExtendedStats()
+                new PromoteStatsToExtendedStats(), new CombineAggsToPercentiles(), new CombineAggsToPercentileRanks()
                 );
 
         Batch cleanup = new Batch("Operator Optimization",
@@ -254,7 +259,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (e instanceof MatrixStatsEnclosed) {
                 AggregateFunction f = (AggregateFunction) e;
 
-                Expression argument = f.argument();
+                Expression argument = f.field();
                 MatrixStats matrixStats = seen.get(argument);
 
                 if (matrixStats == null) {
@@ -262,7 +267,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     seen.put(argument, matrixStats);
                 }
 
-                InnerAggregate ia = new InnerAggregate(f, matrixStats, f.argument());
+                InnerAggregate ia = new InnerAggregate(f, matrixStats, f.field());
                 promotedIds.putIfAbsent(f.functionId(), ia.toAttribute());
                 return ia;
             }
@@ -276,7 +281,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan p) {
             Map<String, AggregateFunctionAttribute> promotedFunctionIds = new LinkedHashMap<>();
-
             Map<Expression, ExtendedStats> seen = new LinkedHashMap<>();
             p = p.transformExpressionsUp(e -> rule(e, seen, promotedFunctionIds));
             // update old agg attributes 
@@ -292,7 +296,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (e instanceof ExtendedStatsEnclosed) {
                 AggregateFunction f = (AggregateFunction) e;
 
-                Expression argument = f.argument();
+                Expression argument = f.field();
                 ExtendedStats extendedStats = seen.get(argument);
 
                 if (extendedStats == null) {
@@ -343,7 +347,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (Stats.isTypeCompatible(e)) {
                 AggregateFunction f = (AggregateFunction) e;
 
-                Expression argument = f.argument();
+                Expression argument = f.field();
                 Counter counter = seen.get(argument);
 
                 if (counter == null) {
@@ -365,7 +369,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (Stats.isTypeCompatible(e)) {
                 AggregateFunction f = (AggregateFunction) e;
 
-                Expression argument = f.argument();
+                Expression argument = f.field();
                 Counter counter = seen.get(argument);
 
                 // if the stat has at least two different functions for it, promote it as stat
@@ -412,7 +416,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 InnerAggregate ia = (InnerAggregate) e;
                 if (ia.outer() instanceof ExtendedStats) {
                     ExtendedStats extStats = (ExtendedStats) ia.outer();
-                    seen.putIfAbsent(extStats.argument(), extStats);
+                    seen.putIfAbsent(extStats.field(), extStats);
                 }
             }
         }
@@ -422,8 +426,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 InnerAggregate ia = (InnerAggregate) e;
                 if (ia.outer() instanceof Stats) {
                     Stats stats = (Stats) ia.outer();
-                    ExtendedStats ext = seen.get(stats.argument());
-                    if (ext != null && stats.argument().equals(ext.argument())) {
+                    ExtendedStats ext = seen.get(stats.field());
+                    if (ext != null && stats.field().equals(ext.field())) {
                         return new InnerAggregate(ia.inner(), ext);
                     }
                 }
@@ -433,6 +437,119 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
+    static class CombineAggsToPercentiles extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan p) {
+            // percentile per field/expression
+            Map<Expression, Set<Expression>> percentsPerField = new LinkedHashMap<>();
+
+            // count gather the percents for each field
+            p.forEachExpressionsUp(e -> count(e, percentsPerField));
+
+            Map<Expression, Percentiles> percentilesPerField = new LinkedHashMap<>();
+            // create a Percentile agg for each field (and its associated percents)
+            percentsPerField.forEach((k, v) -> {
+                percentilesPerField.put(k, new Percentiles(v.iterator().next().location(), k, new ArrayList<>(v)));
+            });
+
+            // now replace the agg with pointer to the main ones
+            Map<String, AggregateFunctionAttribute> promotedFunctionIds = new LinkedHashMap<>();
+            p = p.transformExpressionsUp(e -> rule(e, percentilesPerField, promotedFunctionIds));
+            // finally update all the function references as well
+            return p.transformExpressionsDown(e -> CombineAggsToStats.updateFunctionAttrs(e, promotedFunctionIds));
+        }
+
+        private void count(Expression e, Map<Expression, Set<Expression>> percentsPerField) {
+            if (e instanceof Percentile) {
+                Percentile p = (Percentile) e;
+                Expression field = p.field();
+                Set<Expression> percentiles = percentsPerField.get(field);
+
+                if (percentiles == null) {
+                    percentiles = new LinkedHashSet<>();
+                    percentsPerField.put(field, percentiles);
+                }
+
+                percentiles.add(p.percent());
+            }
+        }
+
+        protected Expression rule(Expression e, Map<Expression, Percentiles> percentilesPerField, Map<String, AggregateFunctionAttribute> promotedIds) {
+            if (e instanceof Percentile) {
+                Percentile p = (Percentile) e;
+                Percentiles percentiles = percentilesPerField.get(p.field());
+
+                InnerAggregate ia = new InnerAggregate(p, percentiles);
+                promotedIds.putIfAbsent(p.functionId(), ia.toAttribute());
+                return ia;
+            }
+
+            return e;
+        }
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan e) {
+            return e;
+        }
+    }
+
+    static class CombineAggsToPercentileRanks extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan p) {
+            // percentile per field/expression
+            Map<Expression, Set<Expression>> valuesPerField = new LinkedHashMap<>();
+
+            // count gather the percents for each field
+            p.forEachExpressionsUp(e -> count(e, valuesPerField));
+
+            Map<Expression, PercentileRanks> ranksPerField = new LinkedHashMap<>();
+            // create a PercentileRanks agg for each field (and its associated values)
+            valuesPerField.forEach((k, v) -> {
+                ranksPerField.put(k, new PercentileRanks(v.iterator().next().location(), k, new ArrayList<>(v)));
+            });
+
+            // now replace the agg with pointer to the main ones
+            Map<String, AggregateFunctionAttribute> promotedFunctionIds = new LinkedHashMap<>();
+            p = p.transformExpressionsUp(e -> rule(e, ranksPerField, promotedFunctionIds));
+            // finally update all the function references as well
+            return p.transformExpressionsDown(e -> CombineAggsToStats.updateFunctionAttrs(e, promotedFunctionIds));
+        }
+
+        private void count(Expression e, Map<Expression, Set<Expression>> ranksPerField) {
+            if (e instanceof PercentileRank) {
+                PercentileRank p = (PercentileRank) e;
+                Expression field = p.field();
+                Set<Expression> percentiles = ranksPerField.get(field);
+
+                if (percentiles == null) {
+                    percentiles = new LinkedHashSet<>();
+                    ranksPerField.put(field, percentiles);
+                }
+
+                percentiles.add(p.value());
+            }
+        }
+
+        protected Expression rule(Expression e, Map<Expression, PercentileRanks> ranksPerField, Map<String, AggregateFunctionAttribute> promotedIds) {
+            if (e instanceof PercentileRank) {
+                PercentileRank p = (PercentileRank) e;
+                PercentileRanks ranks = ranksPerField.get(p.field());
+
+                InnerAggregate ia = new InnerAggregate(p, ranks);
+                promotedIds.putIfAbsent(p.functionId(), ia.toAttribute());
+                return ia;
+            }
+
+            return e;
+        }
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan e) {
+            return e;
+        }
+    }
 
     static class PruneFilters extends OptimizerRule<Filter> {
 
@@ -783,7 +900,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // (a || b || c || ... ) && (a || b || d || ... ) => ((c || ...) && (d || ...)) || a || b
                 Expression combineLeft = combineOr(lDiff);
                 Expression combineRight = combineOr(rDiff);
-                return combineOr(CollectionUtils.combine(common, new And(combineLeft.location(), combineLeft, combineRight)));
+                return combineOr(combine(common, new And(combineLeft.location(), combineLeft, combineRight)));
             }
 
             if (bc instanceof Or) {
@@ -821,7 +938,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // (a || b || c || ... ) && (a || b || d || ... ) => ((c || ...) && (d || ...)) || a || b
                 Expression combineLeft = combineAnd(lDiff);
                 Expression combineRight = combineAnd(rDiff);
-                return combineAnd(CollectionUtils.combine(common, new Or(combineLeft.location(), combineLeft, combineRight)));
+                return combineAnd(combine(common, new Or(combineLeft.location(), combineLeft, combineRight)));
             }
 
             // TODO: eliminate conjunction/disjunction 

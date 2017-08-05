@@ -18,9 +18,4 @@ public abstract class LeafExpression extends Expression {
     public AttributeSet references() {
         return AttributeSet.EMPTY;
     }
-
-    @Override
-    public int hashCode() {
-        throw new UnsupportedOperationException();
-    }
 }

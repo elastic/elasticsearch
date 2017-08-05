@@ -69,7 +69,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
             new Setting<>(
                 sizeKey,
                 s -> Integer.toString(size),
-                s -> Setting.parseInt(s, 1, applyHardSizeLimit(settings, name), sizeKey),
+                s -> Setting.parseInt(s, 1, applyHardSizeLimit(size, name), sizeKey),
                 Setting.Property.NodeScope);
         final String queueSizeKey = settingsKey(prefix, "queue_size");
         this.queueSizeSetting =

@@ -21,7 +21,6 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.List;
@@ -47,9 +46,9 @@ public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings
         return String.join(".", prefix, key);
     }
 
-    protected int applyHardSizeLimit(final Settings settings, final String name) {
+    protected int applyHardSizeLimit(final int size, final String name) {
         if (name.equals(ThreadPool.Names.BULK) || name.equals(ThreadPool.Names.INDEX)) {
-            return 1 + EsExecutors.numberOfProcessors(settings);
+            return size + 1;
         } else {
             return Integer.MAX_VALUE;
         }

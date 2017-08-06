@@ -4,6 +4,26 @@
 This section describes how to get started with the high-level REST client from
 getting the artifact to using it in an application.
 
+[[java-rest-high-compatibility]]
+=== Compatibility
+The Java High Level REST Client requires Java 1.8 and depends on the Elasticsearch
+core project. The client version is the same as the Elasticsearch version that the
+client was developed for. It accepts the same request arguments as the `TransportClient`
+and returns the same response objects.
+
+The High Level Client is backwards compatible but can only communicate with Elasticsearch
+version 5.5 and onwards. The High Level Client is forward compatible as well, meaning that
+it supports communicating with a later version of Elasticsearch than the one it was developed
+for. It is recommended to upgrade the High Level Client when upgrading the Elasticsearch
+cluster to a new major version, as REST API breaking changes may cause unexpected results,
+and newly added APIs will only be supported by the newer version of the client. The client
+should be updated last, once all of the nodes in the cluster have been upgraded.
+
+[[java-rest-high-javadoc]]
+=== Javadoc
+
+The javadoc for the REST high level client can be found at {rest-high-level-client-javadoc}/index.html.
+
 [[java-rest-high-usage-maven]]
 === Maven Repository
 

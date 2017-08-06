@@ -24,6 +24,7 @@ import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.CommonTermsQuery;
@@ -32,6 +33,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
@@ -47,6 +49,7 @@ import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.network.InetAddresses;
@@ -534,7 +537,8 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(result.verified, is(true));
         assertTermsEqual(result.extractions, new Term("_field", "_value"));
 
-        functionScoreQuery = new FunctionScoreQuery(termQuery, new RandomScoreFunction(0, 0, null), 1f, null, 10f);
+        functionScoreQuery = new FunctionScoreQuery(termQuery, new RandomScoreFunction(0, 0, null),
+            CombineFunction.MULTIPLY, 1f, 10f);
         result = analyze(functionScoreQuery);
         assertThat(result.verified, is(false));
         assertTermsEqual(result.extractions, new Term("_field", "_value"));
@@ -672,6 +676,19 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertEquals("_field", ranges.get(0).range.fieldName);
         assertArrayEquals(ranges.get(0).range.lowerPoint, InetAddressPoint.encode(InetAddresses.forString("192.168.1.0")));
         assertArrayEquals(ranges.get(0).range.upperPoint, InetAddressPoint.encode(InetAddresses.forString("192.168.1.255")));
+    }
+
+    public void testIndexOrDocValuesQuery() {
+        Query query = new IndexOrDocValuesQuery(IntPoint.newRangeQuery("_field", 10, 20),
+            SortedNumericDocValuesField.newSlowRangeQuery("_field", 10, 20));
+        Result result = analyze(query);
+        assertFalse(result.verified);
+        List<QueryAnalyzer.QueryExtraction> ranges = new ArrayList<>(result.extractions);
+        assertThat(ranges.size(), equalTo(1));
+        assertNull(ranges.get(0).term);
+        assertEquals("_field", ranges.get(0).range.fieldName);
+        assertDimension(ranges.get(0).range.lowerPoint, bytes -> IntPoint.encodeDimension(10, bytes, 0));
+        assertDimension(ranges.get(0).range.upperPoint, bytes -> IntPoint.encodeDimension(20, bytes, 0));
     }
 
     public void testPointRangeQuerySelectShortestRange() {

@@ -283,7 +283,7 @@ public class RangeFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            Query query = rangeQuery(value, value, true, true, context);
+            Query query = rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, context);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }

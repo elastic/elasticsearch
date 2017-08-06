@@ -803,14 +803,6 @@ public class BytesStreamsTests extends ESTestCase {
             Exception e = expectThrows(IllegalStateException.class, () -> output.writeVLong(value));
             assertEquals("Negative longs unsupported, use writeLong or writeZLong for negative numbers [" + value + "]", e.getMessage());
         }
-
-        assertTrue("If we're not compatible with 5.1.1 we can drop the assertion below",
-                Version.CURRENT.minimumIndexCompatibilityVersion().onOrBefore(Version.V_5_1_1));
-        /* Read -1 as serialized by a version of Elasticsearch that supported writing negative numbers with writeVLong. Note that this
-         * should be the same test as the first case (when value is negative) but we've kept some bytes so no matter what we do to
-         * writeVLong in the future we can be sure we can read bytes as written by Elasticsearch before 5.1.2 */
-        StreamInput in = new BytesArray(Base64.getDecoder().decode("////////////AQAAAAAAAA==")).streamInput();
-        assertEquals(-1, in.readVLong());
     }
 
     public enum TestEnum {

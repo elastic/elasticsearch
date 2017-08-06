@@ -120,9 +120,9 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
         assertEquals("1 + 1", result.getStoredScript("_id").getSource());
     }
 
-    private ScriptMetaData randomScriptMetaData(XContentType sourceContentType) throws IOException {
+    private ScriptMetaData randomScriptMetaData(XContentType sourceContentType, int minNumberScripts) throws IOException {
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
-        int numScripts = scaledRandomIntBetween(0, 32);
+        int numScripts = scaledRandomIntBetween(minNumberScripts, 32);
         for (int i = 0; i < numScripts; i++) {
             XContentBuilder sourceBuilder = XContentBuilder.builder(sourceContentType.xContent());
             sourceBuilder.startObject().field("script").startObject()
@@ -137,7 +137,7 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
     @Override
     protected ScriptMetaData createTestInstance() {
         try {
-            return randomScriptMetaData(randomFrom(XContentType.values()));
+            return randomScriptMetaData(randomFrom(XContentType.values()), 0);
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);
         }
@@ -146,6 +146,15 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
     @Override
     protected Writeable.Reader<ScriptMetaData> instanceReader() {
         return ScriptMetaData::new;
+    }
+
+    @Override
+    protected ScriptMetaData mutateInstance(ScriptMetaData instance) throws IOException {
+        // ScriptMetaData doesn't allow us to see the scripts inside it so
+        // the best we can do here is create a new random instance and rely
+        // on the fact that the new instance is very unlikely to be equal to
+        // the old one
+        return randomScriptMetaData(randomFrom(XContentType.values()), 1);
     }
 
     @Override

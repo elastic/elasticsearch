@@ -253,6 +253,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.nodeId = nodeId;
             this.state = state;
             this.reason = reason;
+            // If the state is failed we have to have a reason for this failure
+            assert state.failed() == false || reason != null;
         }
 
         public ShardSnapshotStatus(StreamInput in) throws IOException {
@@ -413,9 +415,16 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             int shards = in.readVInt();
             for (int j = 0; j < shards; j++) {
                 ShardId shardId = ShardId.readShardId(in);
-                String nodeId = in.readOptionalString();
-                State shardState = State.fromValue(in.readByte());
-                builder.put(shardId, new ShardSnapshotStatus(nodeId, shardState));
+                if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+                    builder.put(shardId, new ShardSnapshotStatus(in));
+                } else {
+                    String nodeId = in.readOptionalString();
+                    State shardState = State.fromValue(in.readByte());
+                    // Workaround for https://github.com/elastic/elasticsearch/issues/25878
+                    // Some old snapshot might still have null in shard failure reasons
+                    String reason = shardState.failed() ? "" : null;
+                    builder.put(shardId, new ShardSnapshotStatus(nodeId, shardState, reason));
+                }
             }
             long repositoryStateId = UNDEFINED_REPOSITORY_STATE_ID;
             if (in.getVersion().onOrAfter(REPOSITORY_ID_INTRODUCED_VERSION)) {
@@ -449,8 +458,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeVInt(entry.shards().size());
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : entry.shards()) {
                 shardEntry.key.writeTo(out);
-                out.writeOptionalString(shardEntry.value.nodeId());
-                out.writeByte(shardEntry.value.state().value());
+                if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+                    shardEntry.value.writeTo(out);
+                } else {
+                    out.writeOptionalString(shardEntry.value.nodeId());
+                    out.writeByte(shardEntry.value.state().value());
+                }
             }
             if (out.getVersion().onOrAfter(REPOSITORY_ID_INTRODUCED_VERSION)) {
                 out.writeLong(entry.repositoryStateId);

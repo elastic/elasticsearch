@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.elasticsearch.ingest.attachment.AttachmentProcessor.AUTHOR;
 import static org.elasticsearch.ingest.attachment.AttachmentProcessor.CONTENT;
@@ -289,7 +290,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testRawMetadataFromWordDocument() throws Exception {
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+        processor = new AttachmentProcessor(randomAsciiLettersOfLength(10), "source_field", "target_field",
             Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("*")));
 
         Map<String, Object> attachmentData = parseDocument("issue-104.docx", processor);
@@ -345,7 +346,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testRawMetadataFromPdf() throws Exception {
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+        processor = new AttachmentProcessor(randomAsciiLettersOfLength(10), "source_field", "target_field",
             Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("*")));
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
@@ -381,7 +382,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             fields.add("pdf:PDFVersion");
         }
 
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+        processor = new AttachmentProcessor(randomAsciiLettersOfLength(10), "source_field", "target_field",
             Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(fields));
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
@@ -394,7 +395,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testFilteredRawMetadataFromPdf() throws Exception {
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+        processor = new AttachmentProcessor(randomAsciiLettersOfLength(10), "source_field", "target_field",
             Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("pdf:PDFVersion")));
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
@@ -406,7 +407,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testRawMetadataWith2FiltersFromPdf() throws Exception {
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+        processor = new AttachmentProcessor(randomAsciiLettersOfLength(10), "source_field", "target_field",
             Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("pdf:PDFVersion", "pdf:encrypted")));
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
@@ -423,7 +424,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testFilteredRawMetadataPlusSomeReservedFieldsFromPdf() throws Exception {
         Set<String> selectedProperties = randomReservedProperties();
 
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+        processor = new AttachmentProcessor(randomAsciiLettersOfLength(10), "source_field", "target_field",
             selectedProperties, 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("pdf:*")));
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
@@ -454,7 +455,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testRawMetadataFromRtf() throws Exception {
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+        processor = new AttachmentProcessor(randomAsciiLettersOfLength(10), "source_field", "target_field",
             Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("*")));
         Map<String, Object> attachmentData =
             parseBase64Document("e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=", processor);

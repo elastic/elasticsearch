@@ -56,11 +56,8 @@ public final class RandomDocumentPicks {
      * Returns a random leaf field name.
      */
     public static String randomLeafFieldName(Random random) {
-        String fieldName;
-        do {
-            fieldName = randomString(random);
-        } while (fieldName.contains("."));
-        return fieldName;
+        // Never generates a dot:
+        return RandomStrings.randomAsciiAlphanumOfLengthBetween(random, 1, 10);
     }
 
     /**

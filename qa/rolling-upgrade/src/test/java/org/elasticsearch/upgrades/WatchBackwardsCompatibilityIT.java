@@ -6,13 +6,13 @@
 package org.elasticsearch.upgrades;
 
 import com.google.common.base.Charsets;
+import org.elasticsearch.Version;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.http.HttpHost;
 import org.elasticsearch.client.http.entity.ContentType;
 import org.elasticsearch.client.http.entity.StringEntity;
 import org.elasticsearch.client.http.util.EntityUtils;
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
@@ -52,6 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
+@TestLogging("org.elasticsearch.client:TRACE")
 public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
 
     private Nodes nodes;
@@ -135,22 +137,18 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
     }
 
     public void testWatcherRestart() throws Exception {
-        // TODO we should be able to run this against any node, once the bwc serialization issues are fixed
-        executeAgainstMasterNode(client -> {
-            assertOK(client.performRequest("POST", "/_xpack/watcher/_stop"));
-            assertBusy(() -> {
-                try (InputStream is = client.performRequest("GET", "_xpack/watcher/stats").getEntity().getContent()) {
-                    // TODO once the serialization fix is in here, we can check for concrete fields if the run against a 5.x or a 6.x node
-                    // using a checkedbiconsumer, that provides info against which node the request runs
-                    String responseBody = Streams.copyToString(new InputStreamReader(is, Charsets.UTF_8));
-                    assertThat(responseBody, not(containsString("\"watcher_state\":\"starting\"")));
-                    assertThat(responseBody, not(containsString("\"watcher_state\":\"started\"")));
-                    assertThat(responseBody, not(containsString("\"watcher_state\":\"stopping\"")));
-                }
-            });
-        });
+        executeAgainstRandomNode(client -> assertOK(client.performRequest("POST", "/_xpack/watcher/_stop")));
+        executeAgainstMasterNode(client -> assertBusy(() -> {
+            try (InputStream is = client.performRequest("GET", "_xpack/watcher/stats").getEntity().getContent()) {
+                // TODO once the serialization fix is in here, we can check for concrete fields if the run against a 5.x or a 6.x node
+                // using a checkedbiconsumer, that provides info against which node the request runs
+                String responseBody = Streams.copyToString(new InputStreamReader(is, Charsets.UTF_8));
+                assertThat(responseBody, not(containsString("\"watcher_state\":\"starting\"")));
+                assertThat(responseBody, not(containsString("\"watcher_state\":\"started\"")));
+                assertThat(responseBody, not(containsString("\"watcher_state\":\"stopping\"")));
+            }
+        }));
 
-        // TODO remove this again, as the upgrade API should take care of this
         // currently the triggered watches index is not checked by the upgrade API, resulting in an existing index
         // that has not configured the `index.format: 6`, resulting in watcher not starting
         Map<String, String> params = new HashMap<>();
@@ -160,20 +158,17 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
 
         executeUpgradeIfNeeded();
 
-        // TODO we should be able to run this against any node, once the bwc serialization issues are fixed
-        executeAgainstMasterNode(client -> {
-            assertOK(client.performRequest("POST", "/_xpack/watcher/_start"));
-            assertBusy(() -> {
-                try (InputStream is = client.performRequest("GET", "_xpack/watcher/stats").getEntity().getContent()) {
-                    // TODO once the serialization fix is in here, we can check for concrete fields if the run against a 5.x or a 6.x node
-                    // using a checkedbiconsumer, that provides info against which node the request runs
-                    String responseBody = Streams.copyToString(new InputStreamReader(is, Charsets.UTF_8));
-                    assertThat(responseBody, not(containsString("\"watcher_state\":\"starting\"")));
-                    assertThat(responseBody, not(containsString("\"watcher_state\":\"stopping\"")));
-                    assertThat(responseBody, not(containsString("\"watcher_state\":\"stopped\"")));
-                }
-            });
-        });
+        executeAgainstRandomNode(client -> assertOK(client.performRequest("POST", "/_xpack/watcher/_start")));
+        executeAgainstMasterNode(client -> assertBusy(() -> {
+            try (InputStream is = client.performRequest("GET", "_xpack/watcher/stats").getEntity().getContent()) {
+                // TODO once the serialization fix is in here, we can check for concrete fields if the run against a 5.x or a 6.x node
+                // using a checkedbiconsumer, that provides info against which node the request runs
+                String responseBody = Streams.copyToString(new InputStreamReader(is, Charsets.UTF_8));
+                assertThat(responseBody, not(containsString("\"watcher_state\":\"starting\"")));
+                assertThat(responseBody, not(containsString("\"watcher_state\":\"stopping\"")));
+                assertThat(responseBody, not(containsString("\"watcher_state\":\"stopped\"")));
+            }
+        }));
     }
 
     public void testWatchCrudApis() throws IOException {
@@ -234,7 +229,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
     }
 
     private void executeAgainstMasterNode(CheckedConsumer<RestClient, Exception> consumer) throws Exception {
-        try (RestClient client = buildClient(restClientSettings(), new HttpHost[] { this.nodes.getMaster().publishAddress })) {
+        try (RestClient client = buildClient(restClientSettings(), new HttpHost[]{this.nodes.getMaster().publishAddress})) {
             consumer.accept(client);
         }
     }
@@ -316,14 +311,6 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
                 throw new IllegalStateException("no nodes available");
             }
             return Version.fromId(values().stream().map(node -> node.getVersion().id).min(Integer::compareTo).get());
-        }
-
-        public Node getSafe(String id) {
-            Node node = get(id);
-            if (node == null) {
-                throw new IllegalArgumentException("node with id [" + id + "] not found");
-            }
-            return node;
         }
 
         @Override

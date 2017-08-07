@@ -35,6 +35,8 @@ integTestRunner {
     'ml/jobs_crud/Test cannot create job with existing result document',
     'ml/jobs_crud/Test cannot create job with model snapshot id set',
     'ml/jobs_crud/Test get job API with non existing job id',
+    'ml/jobs_crud/Test put job after closing results index',
+    'ml/jobs_crud/Test put job after closing state index',
     'ml/jobs_crud/Test put job with inconsistent body/param ids',
     'ml/jobs_crud/Test put job with time field in analysis_config',
     'ml/jobs_get/Test get job given missing job_id',

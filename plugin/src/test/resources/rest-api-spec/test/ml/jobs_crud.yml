@@ -866,3 +866,57 @@
             "data_description" : {}
           }
 
+---
+"Test put job after closing results index":
+
+  - do:
+      indices.create:
+        index: ".ml-anomalies-shared"
+
+  - do:
+      indices.close:
+        index: ".ml-anomalies-shared"
+
+  - do:
+      catch: /Cannot create job \[closed-results-job\] as it requires closed index \[\.ml-anomalies-shared\]/
+      xpack.ml.put_job:
+        job_id: closed-results-job
+        body:  >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+
+---
+"Test put job after closing state index":
+
+  - do:
+      indices.create:
+        index: ".ml-state"
+
+  - do:
+      indices.close:
+        index: ".ml-state"
+
+  - do:
+      catch: /Cannot create job \[closed-results-job\] as it requires closed index \[\.ml-state\]/
+      xpack.ml.put_job:
+        job_id: closed-results-job
+        body:  >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+

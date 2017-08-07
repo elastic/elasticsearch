@@ -36,6 +36,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -49,6 +50,7 @@ import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
@@ -125,9 +127,10 @@ public class TransportBulkActionTookTests extends ESTestCase {
                         BulkRequest bulkRequest,
                         long startTimeNanos,
                         ActionListener<BulkResponse> listener,
-                        AtomicArray<BulkItemResponse> responses) {
+                        AtomicArray<BulkItemResponse> responses,
+                        Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
                     expected.set(1000000);
-                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, responses);
+                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, responses, indicesThatCannotBeCreated);
                 }
             };
         } else {
@@ -149,10 +152,11 @@ public class TransportBulkActionTookTests extends ESTestCase {
                         BulkRequest bulkRequest,
                         long startTimeNanos,
                         ActionListener<BulkResponse> listener,
-                        AtomicArray<BulkItemResponse> responses) {
+                        AtomicArray<BulkItemResponse> responses,
+                        Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
                     long elapsed = spinForAtLeastOneMillisecond();
                     expected.set(elapsed);
-                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, responses);
+                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, responses, indicesThatCannotBeCreated);
                 }
             };
         }

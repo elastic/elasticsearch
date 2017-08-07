@@ -24,7 +24,6 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -179,6 +178,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             this.index = copy.index;
             this.type = copy.type;
             this.id = copy.id;
+            this.routing = copy.routing;
             this.doc = copy.doc;
             this.xContentType = copy.xContentType;
             this.fields = copy.fields;
@@ -228,7 +228,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             type = in.readOptionalString();
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();
-                if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+                if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
                     xContentType = XContentType.readFrom(in);
                 } else {
                     xContentType = XContentFactory.xContentType(doc);
@@ -250,7 +250,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             out.writeBoolean(doc != null);
             if (doc != null) {
                 out.writeGenericValue(doc);
-                if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+                if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
                     xContentType.writeTo(out);
                 }
             } else {
@@ -344,7 +344,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         /**
          * Convert this to a {@link TermVectorsRequest} for fetching the terms of the document.
          */
-        public TermVectorsRequest toTermVectorsRequest() {
+        TermVectorsRequest toTermVectorsRequest() {
             TermVectorsRequest termVectorsRequest = new TermVectorsRequest(index, type, id)
                     .selectedFields(fields)
                     .routing(routing)
@@ -809,9 +809,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         builder.endObject();
     }
 
-    public static MoreLikeThisQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static MoreLikeThisQueryBuilder fromXContent(XContentParser parser) throws IOException {
         // document inputs
         List<String> fields = null;
         List<String> likeTexts = new ArrayList<>();
@@ -846,9 +844,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if (Field.LIKE.match(currentFieldName)) {
-                    parseLikeField(parseContext, likeTexts, likeItems);
+                    parseLikeField(parser, likeTexts, likeItems);
                 } else if (Field.UNLIKE.match(currentFieldName)) {
-                    parseLikeField(parseContext, unlikeTexts, unlikeItems);
+                    parseLikeField(parser, unlikeTexts, unlikeItems);
                 } else if (Field.LIKE_TEXT.match(currentFieldName)) {
                     likeTexts.add(parser.text());
                 } else if (Field.MAX_QUERY_TERMS.match(currentFieldName)) {
@@ -888,11 +886,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     }
                 } else if (Field.LIKE.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        parseLikeField(parseContext, likeTexts, likeItems);
+                        parseLikeField(parser, likeTexts, likeItems);
                     }
                 } else if (Field.UNLIKE.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        parseLikeField(parseContext, unlikeTexts, unlikeItems);
+                        parseLikeField(parser, unlikeTexts, unlikeItems);
                     }
                 } else if (Field.IDS.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -918,9 +916,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (Field.LIKE.match(currentFieldName)) {
-                    parseLikeField(parseContext, likeTexts, likeItems);
+                    parseLikeField(parser, likeTexts, likeItems);
                 } else if (Field.UNLIKE.match(currentFieldName)) {
-                    parseLikeField(parseContext, unlikeTexts, unlikeItems);
+                    parseLikeField(parser, unlikeTexts, unlikeItems);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
@@ -962,8 +960,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return moreLikeThisQueryBuilder;
     }
 
-    private static void parseLikeField(QueryParseContext parseContext, List<String> texts, List<Item> items) throws IOException {
-        XContentParser parser = parseContext.parser();
+    private static void parseLikeField(XContentParser parser, List<String> texts, List<Item> items) throws IOException {
         if (parser.currentToken().isValue()) {
             texts.add(parser.text());
         } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
@@ -1086,14 +1083,14 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         // fetching the items with multi-termvectors API
         MultiTermVectorsResponse likeItemsResponse = fetchResponse(context.getClient(), likeItems);
         // getting the Fields for liked items
-        mltQuery.setLikeText(getFieldsFor(likeItemsResponse));
+        mltQuery.setLikeFields(getFieldsFor(likeItemsResponse));
 
         // getting the Fields for unliked items
         if (unlikeItems.length > 0) {
             MultiTermVectorsResponse unlikeItemsResponse = fetchResponse(context.getClient(), unlikeItems);
             org.apache.lucene.index.Fields[] unlikeFields = getFieldsFor(unlikeItemsResponse);
             if (unlikeFields.length > 0) {
-                mltQuery.setUnlikeText(unlikeFields);
+                mltQuery.setUnlikeFields(unlikeFields);
             }
         }
 
@@ -1102,7 +1099,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
         // exclude the items from the search
         if (!include) {
-            handleExclude(boolQuery, likeItems);
+            handleExclude(boolQuery, likeItems, context);
         }
         return boolQuery.build();
     }
@@ -1155,7 +1152,12 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return likeFields.toArray(Fields.EMPTY_ARRAY);
     }
 
-    private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems) {
+    private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems, QueryShardContext context) {
+        MappedFieldType uidField = context.fieldMapper(UidFieldMapper.NAME);
+        if (uidField == null) {
+            // no mappings, nothing to exclude
+            return;
+        }
         // artificial docs get assigned a random id and should be disregarded
         List<BytesRef> uids = new ArrayList<>();
         for (Item item : likeItems) {
@@ -1165,7 +1167,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             uids.add(createUidAsBytes(item.type(), item.id()));
         }
         if (!uids.isEmpty()) {
-            TermInSetQuery query = new TermInSetQuery(UidFieldMapper.NAME, uids.toArray(new BytesRef[uids.size()]));
+            Query query = uidField.termsQuery(uids, context);
             boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
         }
     }
@@ -1200,7 +1202,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
         // TODO this needs heavy cleanups before we can rewrite it
         return this;
     }

@@ -19,18 +19,18 @@
 
 package org.elasticsearch.client;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpEntityEnclosingRequest;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.RequestLine;
-import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.entity.BufferedHttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.commons.logging.Log;
+import org.elasticsearch.client.commons.logging.LogFactory;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.HttpEntityEnclosingRequest;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.HttpResponse;
+import org.elasticsearch.client.http.RequestLine;
+import org.elasticsearch.client.http.client.methods.HttpUriRequest;
+import org.elasticsearch.client.http.entity.BufferedHttpEntity;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.util.EntityUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -139,11 +139,12 @@ final class RequestLogger {
      * Creates curl output for given response
      */
     static String buildTraceResponse(HttpResponse httpResponse) throws IOException {
-        String responseLine = "# " + httpResponse.getStatusLine().toString();
+        StringBuilder responseLine = new StringBuilder();
+        responseLine.append("# ").append(httpResponse.getStatusLine());
         for (Header header : httpResponse.getAllHeaders()) {
-            responseLine += "\n# " + header.getName() + ": " + header.getValue();
+            responseLine.append("\n# ").append(header.getName()).append(": ").append(header.getValue());
         }
-        responseLine += "\n#";
+        responseLine.append("\n#");
         HttpEntity entity = httpResponse.getEntity();
         if (entity != null) {
             if (entity.isRepeatable() == false) {
@@ -158,11 +159,11 @@ final class RequestLogger {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(entity.getContent(), charset))) {
                 String line;
                 while( (line = reader.readLine()) != null) {
-                    responseLine += "\n# " + line;
+                    responseLine.append("\n# ").append(line);
                 }
             }
         }
-        return responseLine;
+        return responseLine.toString();
     }
 
     private static String getUri(RequestLine requestLine) {

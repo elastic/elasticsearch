@@ -19,7 +19,7 @@
 package org.elasticsearch.gradle.vagrant
 
 import com.carrotsearch.gradle.junit4.LoggingOutputStream
-import org.elasticsearch.gradle.ProgressLogger
+import org.gradle.internal.logging.progress.ProgressLogger
 
 /**
  * Adapts an OutputStream being written to by vagrant into a ProcessLogger. It
@@ -53,7 +53,7 @@ public class VagrantLoggerOutputStream extends LoggingOutputStream {
     private String heading = ''
 
     VagrantLoggerOutputStream(Map args) {
-        progressLogger = new ProgressLogger(args.factory.newOperation(VagrantLoggerOutputStream))
+        progressLogger = args.factory.newOperation(VagrantLoggerOutputStream)
         progressLogger.setDescription("Vagrant output for `$args.command`")
         squashedPrefix = args.squashedPrefix
     }

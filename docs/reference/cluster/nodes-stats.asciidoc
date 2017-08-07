@@ -9,9 +9,10 @@ the cluster nodes statistics.
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/_nodes/stats'
-curl -XGET 'http://localhost:9200/_nodes/nodeId1,nodeId2/stats'
+GET /_nodes/stats
+GET /_nodes/nodeId1,nodeId2/stats
 --------------------------------------------------
+// CONSOLE
 
 The first command retrieves stats of all the nodes in the cluster. The
 second command selectively retrieves nodes stats of only `nodeId1` and
@@ -24,41 +25,41 @@ of `indices`, `os`, `process`, `jvm`, `transport`, `http`,
 
 [horizontal]
 `indices`::
-	Indices stats about size, document count, indexing and
-	deletion times, search times, field cache size, merges and flushes
+  Indices stats about size, document count, indexing and
+  deletion times, search times, field cache size, merges and flushes
 
 `fs`::
-	File system information, data path, free disk space, read/write
-	stats (see <<fs-info,FS information>>)
+  File system information, data path, free disk space, read/write
+  stats (see <<fs-info,FS information>>)
 
 `http`::
-	HTTP connection information
+  HTTP connection information
 
 `jvm`::
-	JVM stats, memory pool information, garbage collection, buffer
-	pools, number of loaded/unloaded classes
+  JVM stats, memory pool information, garbage collection, buffer
+  pools, number of loaded/unloaded classes
 
 `os`::
-	Operating system stats, load average, mem, swap
-	(see <<os-stats,OS statistics>>)
+  Operating system stats, load average, mem, swap
+  (see <<os-stats,OS statistics>>)
 
 `process`::
-	Process statistics, memory consumption, cpu usage, open
-	file descriptors (see <<process-stats,Process statistics>>)
+  Process statistics, memory consumption, cpu usage, open
+  file descriptors (see <<process-stats,Process statistics>>)
 
 `thread_pool`::
-	Statistics about each thread pool, including current
-	size, queue and rejected tasks
+  Statistics about each thread pool, including current
+  size, queue and rejected tasks
 
 `transport`::
-	Transport statistics about sent and received bytes in
-	cluster communication
+  Transport statistics about sent and received bytes in
+  cluster communication
 
 `breaker`::
-	Statistics about the field data circuit breaker
+  Statistics about the field data circuit breaker
 
 `discovery`::
-	Statistics about the discovery
+  Statistics about the discovery
 
 `ingest`::
     Statistics about ingest preprocessing
@@ -66,12 +67,15 @@ of `indices`, `os`, `process`, `jvm`, `transport`, `http`,
 [source,js]
 --------------------------------------------------
 # return just indices
-curl -XGET 'http://localhost:9200/_nodes/stats/indices'
+GET /_nodes/stats/indices
+
 # return just os and process
-curl -XGET 'http://localhost:9200/_nodes/stats/os,process'
+GET /_nodes/stats/os,process
+
 # return just process for node with IP address 10.0.0.1
-curl -XGET 'http://localhost:9200/_nodes/10.0.0.1/stats/process'
+GET /_nodes/10.0.0.1/stats/process
 --------------------------------------------------
+// CONSOLE
 
 All stats can be explicitly requested via `/_nodes/stats/_all` or `/_nodes/stats?metric=_all`.
 
@@ -83,42 +87,42 @@ The `fs` flag can be set to retrieve
 information that concern the file system:
 
 `fs.timestamp`::
-	Last time the file stores statistics have been refreshed
+  Last time the file stores statistics have been refreshed
 
 `fs.total.total_in_bytes`::
-	Total size (in bytes) of all file stores
+  Total size (in bytes) of all file stores
 
 `fs.total.free_in_bytes`::
-	Total number of unallocated bytes in all file stores
+  Total number of unallocated bytes in all file stores
 
 `fs.total.available_in_bytes`::
-	Total number of bytes available to this Java virtual machine on all file stores
+  Total number of bytes available to this Java virtual machine on all file stores
 
 `fs.data`::
-	List of all file stores
+  List of all file stores
 
 `fs.data.path`::
-	Path to the file store
+  Path to the file store
 
 `fs.data.mount`::
-	Mount point of the file store (ex: /dev/sda2)
+  Mount point of the file store (ex: /dev/sda2)
 
 `fs.data.type`::
-	Type of the file store (ex: ext4)
+  Type of the file store (ex: ext4)
 
 `fs.data.total_in_bytes`::
-	Total size (in bytes) of the file store
+  Total size (in bytes) of the file store
 
 `fs.data.free_in_bytes`::
-	Total number of unallocated bytes in the file store
+  Total number of unallocated bytes in the file store
 
 `fs.data.available_in_bytes`::
-	Total number of bytes available to this Java virtual machine on this file store
+  Total number of bytes available to this Java virtual machine on this file store
 
 `fs.data.spins` (Linux only)::
-	Indicates if the file store is backed by spinning storage.
-	`null` means we could not determine it, `true` means the device possibly spins
-	 and `false` means it does not (ex: solid-state disks).
+  Indicates if the file store is backed by spinning storage.
+  `null` means we could not determine it, `true` means the device possibly spins
+   and `false` means it does not (ex: solid-state disks).
 
 `fs.io_stats.devices` (Linux only)::
     Array of disk metrics for each device that is backing an
@@ -177,7 +181,7 @@ The `os` flag can be set to retrieve statistics that concern
 the operating system:
 
 `os.timestamp`::
-	Last time the operating system statistics have been refreshed
+  Last time the operating system statistics have been refreshed
 
 `os.cpu.percent`::
     Recent CPU usage for the whole system, or -1 if not supported
@@ -193,28 +197,28 @@ the operating system:
     fifteen-minute load average is not available)
 
 `os.mem.total_in_bytes`::
-	Total amount of physical memory in bytes
+  Total amount of physical memory in bytes
 
 `os.mem.free_in_bytes`::
-	Amount of free physical memory in bytes
+  Amount of free physical memory in bytes
 
 `os.mem.free_percent`::
-	Percentage of free memory
+  Percentage of free memory
 
 `os.mem.used_in_bytes`::
-	Amount of used physical memory in bytes
+  Amount of used physical memory in bytes
 
 `os.mem.used_percent`::
-	Percentage of used memory
+  Percentage of used memory
 
 `os.swap.total_in_bytes`::
-	Total amount of swap space in bytes
+  Total amount of swap space in bytes
 
 `os.swap.free_in_bytes`::
-	Amount of free swap space in bytes
+  Amount of free swap space in bytes
 
 `os.swap.used_in_bytes`::
-	Amount of used swap space in bytes
+  Amount of used swap space in bytes
 
 `os.cgroup.cpuacct.control_group` (Linux only)::
     The `cpuacct` control group to which the Elasticsearch process
@@ -262,41 +266,44 @@ The `process` flag can be set to retrieve statistics that concern
 the current running process:
 
 `process.timestamp`::
-	Last time the process statistics have been refreshed
+  Last time the process statistics have been refreshed
 
 `process.open_file_descriptors`::
-	Number of opened file descriptors associated with the current process, or -1 if not supported
+  Number of opened file descriptors associated with the current process, or -1 if not supported
 
 `process.max_file_descriptors`::
-	Maximum number of file descriptors allowed on the system, or -1 if not supported
+  Maximum number of file descriptors allowed on the system, or -1 if not supported
 
 `process.cpu.percent`::
-	CPU usage in percent, or -1 if not known at the time the stats are computed
+  CPU usage in percent, or -1 if not known at the time the stats are computed
 
 `process.cpu.total_in_millis`::
-	CPU time (in milliseconds) used by the process on which the Java virtual machine is running, or -1 if not supported
+  CPU time (in milliseconds) used by the process on which the Java virtual machine is running, or -1 if not supported
 
 `process.mem.total_virtual_in_bytes`::
-	Size in bytes of virtual memory that is guaranteed to be available to the running process
+  Size in bytes of virtual memory that is guaranteed to be available to the running process
 
 [float]
 [[node-indices-stats]]
 === Indices statistics
 
-You can get information about indices stats on node level or on index level.
+You can get information about indices stats on `node`, `indices`, or `shards` level.
 
 [source,js]
 --------------------------------------------------
-# Node level
-curl -XGET 'http://localhost:9200/_nodes/stats/indices/fielddata?fields=field1,field2&pretty'
+# Fielddata summarised by node
+GET /_nodes/stats/indices/fielddata?fields=field1,field2
 
-# Index level
-curl -XGET 'http://localhost:9200/_stats/fielddata/?fields=field1,field2&pretty'
+# Fielddata summarised by node and index
+GET /_nodes/stats/indices/fielddata?level=indices&fields=field1,field2
+
+# Fielddata summarised by node, index, and shard
+GET /_nodes/stats/indices/fielddata?level=shards&fields=field1,field2
 
 # You can use wildcards for field names
-curl -XGET 'http://localhost:9200/_nodes/stats/indices/fielddata?fields=field*&pretty'
-curl -XGET 'http://localhost:9200/_stats/fielddata/?fields=field*&pretty'
+GET /_nodes/stats/indices/fielddata?fields=field*
 --------------------------------------------------
+// CONSOLE
 
 Supported metrics are:
 
@@ -328,11 +335,12 @@ on this node.
 [source,js]
 --------------------------------------------------
 # All groups with all stats
-curl -XGET 'http://localhost:9200/_nodes/stats?pretty&groups=_all'
+GET /_nodes/stats?groups=_all
 
 # Some groups from just the indices stats
-curl -XGET 'http://localhost:9200/_nodes/stats/indices?pretty&groups=foo,bar'
+GET /_nodes/stats/indices?groups=foo,bar
 --------------------------------------------------
+// CONSOLE
 
 [float]
 [[ingest-stats]]

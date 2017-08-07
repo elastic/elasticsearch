@@ -26,7 +26,6 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -286,9 +285,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         return ignoreUnmapped;
     }
 
-    QueryValidationException checkLatLon(boolean indexCreatedBeforeV2_0) {
-        // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
-        if (GeoValidationMethod.isIgnoreMalformed(validationMethod) || indexCreatedBeforeV2_0) {
+    QueryValidationException checkLatLon() {
+        if (GeoValidationMethod.isIgnoreMalformed(validationMethod)) {
             return null;
         }
 
@@ -327,15 +325,14 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
         }
 
-        QueryValidationException exception = checkLatLon(context.indexVersionCreated().before(Version.V_2_0_0));
+        QueryValidationException exception = checkLatLon();
         if (exception != null) {
             throw new QueryShardException(context, "couldn't validate latitude/ longitude values", exception);
         }
 
         GeoPoint luceneTopLeft = new GeoPoint(topLeft);
         GeoPoint luceneBottomRight = new GeoPoint(bottomRight);
-        final Version indexVersionCreated = context.indexVersionCreated();
-        if (indexVersionCreated.onOrAfter(Version.V_2_2_0) || GeoValidationMethod.isCoerce(validationMethod)) {
+        if (GeoValidationMethod.isCoerce(validationMethod)) {
             // Special case: if the difference between the left and right is 360 and the right is greater than the left, we are asking for
             // the complete longitude range so need to set longitude to the complete longitude range
             double right = luceneBottomRight.getLon();
@@ -353,7 +350,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         Query query = LatLonPoint.newBoxQuery(fieldType.name(), luceneBottomRight.getLat(), luceneTopLeft.getLat(),
             luceneTopLeft.getLon(), luceneBottomRight.getLon());
         if (fieldType.hasDocValues()) {
-            Query dvQuery = LatLonDocValuesField.newBoxQuery(fieldType.name(),
+            Query dvQuery = LatLonDocValuesField.newSlowBoxQuery(fieldType.name(),
                     luceneBottomRight.getLat(), luceneTopLeft.getLat(),
                     luceneTopLeft.getLon(), luceneBottomRight.getLon());
             query = new IndexOrDocValuesQuery(query, dvQuery);
@@ -378,9 +375,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         builder.endObject();
     }
 
-    public static GeoBoundingBoxQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static GeoBoundingBoxQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
 
         double top = Double.NaN;
@@ -409,9 +404,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                         token = parser.nextToken();
-                        if (parseContext.isDeprecatedSetting(currentFieldName)) {
-                            // skip
-                        } else if (FIELD_FIELD.match(currentFieldName)) {
+                        if (FIELD_FIELD.match(currentFieldName)) {
                             fieldName = parser.text();
                         } else if (TOP_FIELD.match(currentFieldName)) {
                             top = parser.doubleValue();

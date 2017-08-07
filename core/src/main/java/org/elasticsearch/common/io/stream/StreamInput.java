@@ -53,6 +53,9 @@ import java.nio.file.FileSystemException;
 import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -202,7 +205,9 @@ public abstract class StreamInput extends InputStream {
             return i;
         }
         b = readByte();
-        assert (b & 0x80) == 0;
+        if ((b & 0x80) != 0) {
+            throw new IOException("Invalid vInt ((" + Integer.toHexString(b) + " & 0x7f) << 28) | " + Integer.toHexString(i));
+        }
         return i | ((b & 0x7F) << 28);
     }
 
@@ -367,7 +372,7 @@ public abstract class StreamInput extends InputStream {
                     buffer[i] = ((char) ((c & 0x0F) << 12 | (readByte() & 0x3F) << 6 | (readByte() & 0x3F) << 0));
                     break;
                 default:
-                    new AssertionError("unexpected character: " + c + " hex: " + Integer.toHexString(c));
+                    throw new IOException("Invalid string; unexpected character: " + c + " hex: " + Integer.toHexString(c));
             }
         }
         return spare.toString();
@@ -540,6 +545,8 @@ public abstract class StreamInput extends InputStream {
                 return readBytesRef();
             case 22:
                 return readGeoPoint();
+            case 23:
+                return readZonedDateTime();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
@@ -558,6 +565,11 @@ public abstract class StreamInput extends InputStream {
     private DateTime readDateTime() throws IOException {
         final String timeZoneId = readString();
         return new DateTime(readLong(), DateTimeZone.forID(timeZoneId));
+    }
+
+    private ZonedDateTime readZonedDateTime() throws IOException {
+        final String timeZoneId = readString();
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(readLong()), ZoneId.of(timeZoneId));
     }
 
     private Object[] readArray() throws IOException {
@@ -808,7 +820,7 @@ public abstract class StreamInput extends InputStream {
                 case 17:
                     return (T) readStackTrace(new IOException(readOptionalString(), readException()), this);
                 default:
-                    assert false : "no such exception for id: " + key;
+                    throw new IOException("no such exception for id: " + key);
             }
         }
         return null;
@@ -899,6 +911,18 @@ public abstract class StreamInput extends InputStream {
         return builder;
     }
 
+    /**
+     * Reads an enum with type E that was serialized based on the value of it's ordinal
+     */
+    public <E extends Enum<E>> E readEnum(Class<E> enumClass) throws IOException {
+        int ordinal = readVInt();
+        E[] values = enumClass.getEnumConstants();
+        if (ordinal < 0 || ordinal >= values.length) {
+            throw new IOException("Unknown " + enumClass.getSimpleName() + " ordinal [" + ordinal + "]");
+        }
+        return values[ordinal];
+    }
+
     public static StreamInput wrap(byte[] bytes) {
         return wrap(bytes, 0, bytes.length);
     }
@@ -931,5 +955,4 @@ public abstract class StreamInput extends InputStream {
      * be a no-op depending on the underlying implementation if the information of the remaining bytes is not present.
      */
     protected abstract void ensureCanReadBytes(int length) throws EOFException;
-
 }

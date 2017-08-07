@@ -3,9 +3,14 @@
 # This file is used to test the elasticsearch Systemd setup.
 
 # WARNING: This testing file must be executed as root and can
-# dramatically change your system. It removes the 'elasticsearch'
-# user/group and also many directories. Do not execute this file
-# unless you know exactly what you are doing.
+# dramatically change your system. It should only be executed
+# in a throw-away VM like those made by the Vagrantfile at
+# the root of the Elasticsearch source code. This should
+# cause the script to fail if it is executed any other way:
+[ -f /etc/is_vagrant_vm ] || {
+  >&2 echo "must be run on a vagrant VM"
+  exit 1
+}
 
 # The test case can be executed with the Bash Automated
 # Testing System tool available at https://github.com/sstephenson/bats
@@ -64,11 +69,6 @@ setup() {
 }
 
 @test "[SYSTEMD] start" {
-    # Install scripts used to test script filters and search templates before
-    # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
-    # them.
-    install_elasticsearch_test_scripts
-
     # Capture the current epoch in millis
     run date +%s
     epoch="$output"
@@ -184,5 +184,55 @@ setup() {
 
     assert_file_exist "/var/run/elasticsearch/elasticsearch.pid"
 
+    systemctl stop elasticsearch.service
+}
+
+@test "[SYSTEMD] start Elasticsearch with custom JVM options" {
+    assert_file_exist $ESENVFILE
+    local temp=`mktemp -d`
+    cp "$ESCONFIG"/elasticsearch.yml "$temp"
+    cp "$ESCONFIG"/log4j2.properties "$temp"
+    touch "$temp/jvm.options"
+    chown -R elasticsearch:elasticsearch "$temp"
+    echo "-Xms512m" >> "$temp/jvm.options"
+    echo "-Xmx512m" >> "$temp/jvm.options"
+    # we have to disable Log4j from using JMX lest it will hit a security
+    # manager exception before we have configured logging; this will fail
+    # startup since we detect usages of logging before it is configured
+    echo "-Dlog4j2.disable.jmx=true" >> "$temp/jvm.options"
+    cp $ESENVFILE "$temp/elasticsearch"
+    echo "CONF_DIR=\"$temp\"" >> $ESENVFILE
+    echo "ES_JAVA_OPTS=\"-XX:-UseCompressedOops\"" >> $ESENVFILE
+    service elasticsearch start
+    wait_for_elasticsearch_status
+    curl -s -XGET localhost:9200/_nodes | fgrep '"heap_init_in_bytes":536870912'
+    curl -s -XGET localhost:9200/_nodes | fgrep '"using_compressed_ordinary_object_pointers":"false"'
+    service elasticsearch stop
+    cp "$temp/elasticsearch" $ESENVFILE
+}
+
+@test "[SYSTEMD] masking systemd-sysctl" {
+    clean_before_test
+
+    systemctl mask systemd-sysctl.service
+    install_package
+
+    systemctl unmask systemd-sysctl.service
+}
+
+@test "[SYSTEMD] service file sets limits" {
+    clean_before_test
+    install_package
+    systemctl start elasticsearch.service
+    wait_for_elasticsearch_status
+    local pid=$(cat /var/run/elasticsearch/elasticsearch.pid)
+    local max_file_size=$(cat /proc/$pid/limits | grep "Max file size" | awk '{ print $4 }')
+    [ "$max_file_size" == "unlimited" ]
+    local max_processes=$(cat /proc/$pid/limits | grep "Max processes" | awk '{ print $3 }')
+    [ "$max_processes" == "4096" ]
+    local max_open_files=$(cat /proc/$pid/limits | grep "Max open files" | awk '{ print $4 }')
+    [ "$max_open_files" == "65536" ]
+    local max_address_space=$(cat /proc/$pid/limits | grep "Max address space" | awk '{ print $4 }')
+    [ "$max_address_space" == "unlimited" ]
     systemctl stop elasticsearch.service
 }

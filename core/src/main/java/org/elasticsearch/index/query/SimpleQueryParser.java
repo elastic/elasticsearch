@@ -19,6 +19,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
@@ -26,14 +27,17 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.List;
@@ -77,19 +81,21 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
 
     @Override
     public Query newDefaultQuery(String text) {
-        BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        bq.setDisableCoord(true);
+        List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             try {
                 Query q = createBooleanQuery(entry.getKey(), text, super.getDefaultOperator());
                 if (q != null) {
-                    bq.add(wrapWithBoost(q, entry.getValue()), BooleanClause.Occur.SHOULD);
+                    disjuncts.add(wrapWithBoost(q, entry.getValue()));
                 }
             } catch (RuntimeException e) {
                 rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq.build());
+        if (disjuncts.size() == 1) {
+            return disjuncts.get(0);
+        }
+        return new DisjunctionMaxQuery(disjuncts, 1.0f);
     }
 
     /**
@@ -98,25 +104,26 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      */
     @Override
     public Query newFuzzyQuery(String text, int fuzziness) {
-        BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        bq.setDisableCoord(true);
+        List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
             try {
                 final BytesRef term = getAnalyzer().normalize(fieldName, text);
                 Query query = new FuzzyQuery(new Term(fieldName, term), fuzziness);
-                bq.add(wrapWithBoost(query, entry.getValue()), BooleanClause.Occur.SHOULD);
+                disjuncts.add(wrapWithBoost(query, entry.getValue()));
             } catch (RuntimeException e) {
                 rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq.build());
+        if (disjuncts.size() == 1) {
+            return disjuncts.get(0);
+        }
+        return new DisjunctionMaxQuery(disjuncts, 1.0f);
     }
 
     @Override
     public Query newPhraseQuery(String text, int slop) {
-        BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        bq.setDisableCoord(true);
+        List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             try {
                 String field = entry.getKey();
@@ -130,13 +137,16 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                 Float boost = entry.getValue();
                 Query q = createPhraseQuery(field, text, slop);
                 if (q != null) {
-                    bq.add(wrapWithBoost(q, boost), BooleanClause.Occur.SHOULD);
+                    disjuncts.add(wrapWithBoost(q, boost));
                 }
             } catch (RuntimeException e) {
                 rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq.build());
+        if (disjuncts.size() == 1) {
+            return disjuncts.get(0);
+        }
+        return new DisjunctionMaxQuery(disjuncts, 1.0f);
     }
 
     /**
@@ -145,26 +155,54 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      */
     @Override
     public Query newPrefixQuery(String text) {
-        BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        bq.setDisableCoord(true);
+        List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
             try {
                 if (settings.analyzeWildcard()) {
                     Query analyzedQuery = newPossiblyAnalyzedQuery(fieldName, text);
                     if (analyzedQuery != null) {
-                        bq.add(wrapWithBoost(analyzedQuery, entry.getValue()), BooleanClause.Occur.SHOULD);
+                        disjuncts.add(wrapWithBoost(analyzedQuery, entry.getValue()));
                     }
                 } else {
                     Term term = new Term(fieldName, getAnalyzer().normalize(fieldName, text));
                     Query query = new PrefixQuery(term);
-                    bq.add(wrapWithBoost(query, entry.getValue()), BooleanClause.Occur.SHOULD);
+                    disjuncts.add(wrapWithBoost(query, entry.getValue()));
                 }
             } catch (RuntimeException e) {
                 return rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq.build());
+        if (disjuncts.size() == 1) {
+            return disjuncts.get(0);
+        }
+        return new DisjunctionMaxQuery(disjuncts, 1.0f);
+    }
+
+    /**
+     * Checks if graph analysis should be enabled for the field depending
+     * on the provided {@link Analyzer}
+     */
+    protected Query createFieldQuery(Analyzer analyzer, BooleanClause.Occur operator, String field,
+                                     String queryText, boolean quoted, int phraseSlop) {
+        assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;
+
+        // Use the analyzer to get all the tokens, and then build an appropriate
+        // query based on the analysis chain.
+        try (TokenStream source = analyzer.tokenStream(field, queryText)) {
+            if (source.hasAttribute(DisableGraphAttribute.class)) {
+                /**
+                 * A {@link TokenFilter} in this {@link TokenStream} disabled the graph analysis to avoid
+                 * paths explosion. See {@link ShingleTokenFilterFactory} for details.
+                 */
+                setEnableGraphQueries(false);
+            }
+            Query query = super.createFieldQuery(source, operator, field, quoted, phraseSlop);
+            setEnableGraphQueries(true);
+            return query;
+        } catch (IOException e) {
+            throw new RuntimeException("Error analyzing query text", e);
+        }
     }
 
     private static Query wrapWithBoost(Query query, float boost) {
@@ -244,7 +282,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                     innerBuilder.add(new BooleanClause(new PrefixQuery(new Term(field, token)),
                         BooleanClause.Occur.SHOULD));
                 }
-                posQuery = innerBuilder.setDisableCoord(true).build();
+                posQuery = innerBuilder.build();
             }
             builder.add(new BooleanClause(posQuery, getDefaultOperator()));
         }

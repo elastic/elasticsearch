@@ -23,9 +23,9 @@ following are some examples:
 
 [source,js]
 --------------------------------------------------
-GET /_mapping/tweet,kimchy
+GET /_mapping/tweet
 
-GET /_all/_mapping/tweet,book
+GET /_all/_mapping/tweet
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]

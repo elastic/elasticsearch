@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
@@ -41,8 +42,11 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -86,14 +90,15 @@ public class Setting<T> extends ToXContentToBytes {
         Filtered,
 
         /**
-         * iff this setting is shared with more than one module ie. can be defined multiple times.
-         */
-        Shared,
-
-        /**
          * iff this setting can be dynamically updateable
          */
         Dynamic,
+
+        /**
+         * mark this setting as final, not updateable even when the context is not dynamic
+         * ie. Setting this property on an index scoped setting will fail update when the index is closed
+         */
+        Final,
 
         /**
          * mark this setting as deprecated
@@ -116,18 +121,20 @@ public class Setting<T> extends ToXContentToBytes {
     @Nullable
     private final Setting<T> fallbackSetting;
     private final Function<String, T> parser;
+    private final Validator<T> validator;
     private final EnumSet<Property> properties;
 
     private static final EnumSet<Property> EMPTY_PROPERTIES = EnumSet.noneOf(Property.class);
 
     private Setting(Key key, @Nullable Setting<T> fallbackSetting, Function<Settings, String> defaultValue, Function<String, T> parser,
-            Property... properties) {
+            Validator<T> validator, Property... properties) {
         assert this instanceof SecureSetting || this.isGroupSetting() || parser.apply(defaultValue.apply(Settings.EMPTY)) != null
                : "parser returned null";
         this.key = key;
         this.fallbackSetting = fallbackSetting;
         this.defaultValue = defaultValue;
         this.parser = parser;
+        this.validator = validator;
         if (properties == null) {
             throw new IllegalArgumentException("properties cannot be null for setting [" + key + "]");
         }
@@ -135,6 +142,9 @@ public class Setting<T> extends ToXContentToBytes {
             this.properties = EMPTY_PROPERTIES;
         } else {
             this.properties = EnumSet.copyOf(Arrays.asList(properties));
+            if (isDynamic() && isFinal()) {
+                throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
+            }
         }
     }
 
@@ -146,7 +156,21 @@ public class Setting<T> extends ToXContentToBytes {
      * @param properties properties for this setting like scope, filtering...
      */
     public Setting(Key key, Function<Settings, String> defaultValue, Function<String, T> parser, Property... properties) {
-        this(key, null, defaultValue, parser, properties);
+        this(key, defaultValue, parser, (v, s) -> {}, properties);
+    }
+
+    /**
+     * Creates a new {@code Setting} instance.
+     *
+     * @param key          the settings key for this setting
+     * @param defaultValue a default value function that results a string representation of the default value
+     * @param parser       a parser that parses a string representation into the concrete type for this setting
+     * @param validator    a {@link Validator} for validating this setting
+     * @param properties   properties for this setting
+     */
+    public Setting(
+            Key key, Function<Settings, String> defaultValue, Function<String, T> parser, Validator<T> validator, Property... properties) {
+        this(key, null, defaultValue, parser, validator, properties);
     }
 
     /**
@@ -158,6 +182,19 @@ public class Setting<T> extends ToXContentToBytes {
      */
     public Setting(String key, String defaultValue, Function<String, T> parser, Property... properties) {
         this(key, s -> defaultValue, parser, properties);
+    }
+
+    /**
+     * Creates a new {@code Setting} instance.
+     *
+     * @param key          the settings key for this setting
+     * @param defaultValue a default value function that results a string representation of the default value
+     * @param parser       a parser that parses a string representation into the concrete type for this setting
+     * @param validator    a {@link Validator} for validating this setting
+     * @param properties   properties for this setting
+     */
+    public Setting(String key, String defaultValue, Function<String, T> parser, Validator<T> validator, Property... properties) {
+        this(new SimpleKey(key), s -> defaultValue, parser, validator, properties);
     }
 
     /**
@@ -179,7 +216,7 @@ public class Setting<T> extends ToXContentToBytes {
      * @param properties properties for this setting like scope, filtering...
      */
     public Setting(Key key, Setting<T> fallbackSetting, Function<String, T> parser, Property... properties) {
-        this(key, fallbackSetting, fallbackSetting::getRaw, parser, properties);
+        this(key, fallbackSetting, fallbackSetting::getRaw, parser, (v, m) -> {}, properties);
     }
 
     /**
@@ -219,6 +256,13 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
+     * Returns <code>true</code> if this setting is final, otherwise <code>false</code>
+     */
+    public final boolean isFinal() {
+        return properties.contains(Property.Final);
+    }
+
+    /**
      * Returns the setting properties
      * @see Property
      */
@@ -252,13 +296,6 @@ public class Setting<T> extends ToXContentToBytes {
      */
     public boolean isDeprecated() {
         return properties.contains(Property.Deprecated);
-    }
-
-    /**
-     * Returns <code>true</code> if this setting is shared with more than one other module or plugin, otherwise <code>false</code>
-     */
-    public boolean isShared() {
-        return properties.contains(Property.Shared);
     }
 
     /**
@@ -302,9 +339,28 @@ public class Setting<T> extends ToXContentToBytes {
      * instead.
      */
     public T get(Settings settings) {
+        return get(settings, true);
+    }
+
+    private T get(Settings settings, boolean validate) {
         String value = getRaw(settings);
         try {
-            return parser.apply(value);
+            T parsed = parser.apply(value);
+            if (validate) {
+                final Iterator<Setting<T>> it = validator.settings();
+                final Map<Setting<T>, T> map;
+                if (it.hasNext()) {
+                    map = new HashMap<>();
+                    while (it.hasNext()) {
+                        final Setting<T> setting = it.next();
+                        map.put(setting, setting.get(settings, false)); // we have to disable validation or we will stack overflow
+                    }
+                } else {
+                    map = Collections.emptyMap();
+                }
+                validator.validate(parsed, map);
+            }
+            return parsed;
         } catch (ElasticsearchParseException ex) {
             throw new IllegalArgumentException(ex.getMessage(), ex);
         } catch (NumberFormatException ex) {
@@ -338,14 +394,27 @@ public class Setting<T> extends ToXContentToBytes {
         return settings.get(getKey(), defaultValue.apply(settings));
     }
 
+    private static SetOnce<DeprecationLogger> deprecationLogger = new SetOnce<>();
+
+    // we have to initialize lazily otherwise a logger would be constructed before logging is initialized
+    private static synchronized DeprecationLogger getDeprecationLogger() {
+        if (deprecationLogger.get() == null) {
+            deprecationLogger.set(new DeprecationLogger(Loggers.getLogger(Settings.class)));
+        }
+        return deprecationLogger.get();
+    }
+
     /** Logs a deprecation warning if the setting is deprecated and used. */
-    protected void checkDeprecation(Settings settings) {
+    void checkDeprecation(Settings settings) {
         // They're using the setting, so we need to tell them to stop
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
-            final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(getClass()));
-            deprecationLogger.deprecated("[{}] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-                "See the breaking changes documentation for the next major version.", getKey());
+            final String key = getKey();
+            getDeprecationLogger().deprecatedAndMaybeLog(
+                    key,
+                    "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                            + "See the breaking changes documentation for the next major version.",
+                    key);
         }
     }
 
@@ -556,6 +625,33 @@ public class Setting<T> extends ToXContentToBytes {
         }
     }
 
+    /**
+     * Represents a validator for a setting. The {@link #validate(Object, Map)} method is invoked with the value of this setting and a map
+     * from the settings specified by {@link #settings()}} to their values. All these values come from the same {@link Settings} instance.
+     *
+     * @param <T> the type of the {@link Setting}
+     */
+    @FunctionalInterface
+    public interface Validator<T> {
+
+        /**
+         * The validation routine for this validator.
+         *
+         * @param value    the value of this setting
+         * @param settings a map from the settings specified by {@link #settings()}} to their values
+         */
+        void validate(T value, Map<Setting<T>, T> settings);
+
+        /**
+         * The settings needed by this validator.
+         *
+         * @return the settings needed to validate; these can be used for cross-settings validation
+         */
+        default Iterator<Setting<T>> settings() {
+            return Collections.emptyIterator();
+        }
+
+    }
 
     private final class Updater implements AbstractScopedSettings.SettingUpdater<T> {
         private final Consumer<T> consumer;
@@ -587,14 +683,14 @@ public class Setting<T> extends ToXContentToBytes {
         public T getValue(Settings current, Settings previous) {
             final String newValue = getRaw(current);
             final String value = getRaw(previous);
-            T inst = get(current);
             try {
+                T inst = get(current);
                 accept.accept(inst);
+                return inst;
             } catch (Exception | AssertionError e) {
                 throw new IllegalArgumentException("illegal value can't update [" + key + "] from [" + value + "] to [" + newValue + "]",
                         e);
             }
-            return inst;
         }
 
         @Override

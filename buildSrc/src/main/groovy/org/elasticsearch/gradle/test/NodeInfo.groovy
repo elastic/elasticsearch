@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle.test
 
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.Version
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
 
@@ -111,10 +112,7 @@ class NodeInfo {
         homeDir = homeDir(baseDir, config.distribution, nodeVersion)
         confDir = confDir(baseDir, config.distribution, nodeVersion)
         if (config.dataDir != null) {
-            if (config.numNodes != 1) {
-                throw new IllegalArgumentException("Cannot set data dir for integ test with more than one node")
-            }
-            dataDir = config.dataDir
+            dataDir = "${config.dataDir(nodeNum)}"
         } else {
             dataDir = new File(homeDir, "data")
         }
@@ -136,7 +134,7 @@ class NodeInfo {
             wrapperScript = new File(cwd, "run.bat")
             esScript = new File(homeDir, 'bin/elasticsearch.bat')
         } else {
-            executable = 'sh'
+            executable = 'bash'
             wrapperScript = new File(cwd, "run")
             esScript = new File(homeDir, 'bin/elasticsearch')
         }
@@ -146,7 +144,7 @@ class NodeInfo {
             args.add("${esScript}")
         }
 
-        env = [ 'JAVA_HOME' : project.javaHome ]
+        env = ['JAVA_HOME': project.javaHome]
         args.addAll("-E", "node.portsfile=true")
         String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
         String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs
@@ -160,8 +158,13 @@ class NodeInfo {
                 args.add("${property.key.substring('tests.es.'.size())}=${property.value}")
             }
         }
-        env.put('ES_JVM_OPTIONS', new File(confDir, 'jvm.options'))
-        args.addAll("-E", "path.conf=${confDir}", "-E", "path.data=${-> dataDir.toString()}")
+        env.put('CONF_DIR', confDir)
+        if (Version.fromString(nodeVersion).major == 5) {
+            args.addAll("-E", "path.conf=${confDir}")
+        }
+        if (!System.properties.containsKey("tests.es.path.data")) {
+            args.addAll("-E", "path.data=${-> dataDir.toString()}")
+        }
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             args.add('"') // end the entire command, quoted
         }

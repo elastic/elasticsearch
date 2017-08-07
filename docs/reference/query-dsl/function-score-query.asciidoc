@@ -27,6 +27,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 <1> See <<score-functions>> for a list of supported functions.
 
@@ -62,6 +63,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 <1> Boost for the whole query.
 <2> See <<score-functions>> for a list of supported functions.
@@ -132,35 +134,57 @@ simple sample:
 
 [source,js]
 --------------------------------------------------
-"script_score" : {
-    "script" : {
-      "lang": "painless",
-      "inline": "_score * doc['my_numeric_field'].value"
+GET /_search
+{
+    "query": {
+        "function_score": {
+            "query": {
+                "match": { "message": "elasticsearch" }
+            },
+            "script_score" : {
+                "script" : {
+                  "source": "Math.log(2 + doc['likes'].value)"
+                }
+            }
+        }
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 On top of the different scripting field values and expression, the
 `_score` script parameter can be used to retrieve the score based on the
 wrapped query.
 
-Scripts are cached for faster execution. If the script has parameters
-that it needs to take into account, it is preferable to reuse the same
-script, and provide parameters to it:
+Scripts compilation is cached for faster execution. If the script has
+parameters that it needs to take into account, it is preferable to reuse the
+same script, and provide parameters to it:
 
 [source,js]
 --------------------------------------------------
-"script_score": {
-    "script": {
-        "lang": "painless",
-        "params": {
-            "param1": value1,
-            "param2": value2
-        },
-        "inline": "_score * doc['my_numeric_field'].value / Math.pow(params.param1, params.param2)"
+GET /_search
+{
+    "query": {
+        "function_score": {
+            "query": {
+                "match": { "message": "elasticsearch" }
+            },
+            "script_score" : {
+                "script" : {
+                    "params": {
+                        "a": 5,
+                        "b": 1.2
+                    },
+                    "source": "params.a / Math.pow(params.b, doc['likes'].value)"
+                }
+            }
+        }
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 Note that unlike the `custom_score` query, the
 score of the query is multiplied with the result of the script scoring. If
@@ -178,23 +202,48 @@ not. The number value is of type float.
 --------------------------------------------------
 "weight" : number
 --------------------------------------------------
+// NOTCONSOLE
+// I couldn't come up with a good example for this one.
 
 [[function-random]]
 ==== Random
 
-The `random_score` generates scores using a hash of the `_uid` field,
-with a `seed` for variation. If `seed` is not specified, the current
-time is used.
+The `random_score` generates scores that are uniformly distributed in [0, 1[.
+By default, it uses the internal Lucene doc ids as a source of randomness,
+which is very efficient but unfortunately not reproducible since documents might
+be renumbered by merges.
 
-NOTE: Using this feature will load field data for `_uid`, which can
-be a memory intensive operation since the values are unique.
+In case you want scores to be reproducible, it is possible to provide a `seed`
+and `field`. The final score will then be computed based on this seed, the
+minimum value of `field` for the considered document and a salt that is computed
+based on the index name and shard id so that documents that have the same
+value but are stored in different indexes get different scores. Note that
+documents that are within the same shard and have the same value for `field`
+will however get the same score, so it is usually desirable to use a field that
+has unique values for all documents. A good default choice might be to use the
+`_seq_no` field, whose only drawback is that scores will change if the document
+is updated since update operations also update the value of the `_seq_no` field.
+
+NOTE: It was possible to set a seed without setting a field, but this has been
+deprecated as this requires loading fielddata on the `_id` field which consumes
+a lot of memory.
 
 [source,js]
 --------------------------------------------------
-"random_score": {
-    "seed" : number
+GET /_search
+{
+    "query": {
+        "function_score": {
+            "random_score": {
+                "seed": 10,
+                "field": "_seq_no"
+            }
+        }
+    }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 [[function-field-value-factor]]
 ==== Field Value factor
@@ -210,17 +259,26 @@ doing so would look like:
 
 [source,js]
 --------------------------------------------------
-"field_value_factor": {
-  "field": "popularity",
-  "factor": 1.2,
-  "modifier": "sqrt",
-  "missing": 1
+GET /_search
+{
+    "query": {
+        "function_score": {
+            "field_value_factor": {
+                "field": "likes",
+                "factor": 1.2,
+                "modifier": "sqrt",
+                "missing": 1
+            }
+        }
+    }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 Which will translate into the following formula for scoring:
 
-`sqrt(1.2 * doc['popularity'].value)`
+`sqrt(1.2 * doc['likes'].value)`
 
 There are a number of options for the `field_value_factor` function:
 
@@ -291,23 +349,36 @@ decay function is specified as
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The `DECAY_FUNCTION` should be one of `linear`, `exp`, or `gauss`.
 <2> The specified field must be a numeric, date, or geo-point field.
 
-In the above example, the field is a <<geo-point,`geo_point`>> and origin can be provided in geo format. `scale` and `offset` must be given with a unit in this case. If your field is a date field, you can set `scale` and `offset` as days, weeks, and so on. Example:
+In the above example, the field is a <<geo-point,`geo_point`>> and origin can
+be provided in geo format. `scale` and `offset` must be given with a unit in
+this case. If your field is a date field, you can set `scale` and `offset` as
+days, weeks, and so on. Example:
 
 
 [source,js]
 --------------------------------------------------
-    "gauss": {
-        "date": {
-              "origin": "2013-09-17", <1>
-              "scale": "10d",
-              "offset": "5d", <2>
-              "decay" : 0.5 <2>
+GET /_search
+{
+    "query": {
+        "function_score": {
+            "gauss": {
+                "date": {
+                      "origin": "2013-09-17", <1>
+                      "scale": "10d",
+                      "offset": "5d", <2>
+                      "decay" : 0.5 <2>
+                }
+            }
         }
     }
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 <1> The date format of the origin depends on the <<mapping-date-format,`format`>> defined in
     your mapping. If you do not define the origin, the current time is used.
 <2> The `offset` and `decay` parameters are optional.
@@ -428,6 +499,7 @@ Example:
         "multi_value_mode": "avg"
     }
 --------------------------------------------------
+// NOTCONSOLE
 
 
 ==== Detailed example
@@ -464,6 +536,7 @@ The function for `price` in this case would be
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> This decay function could also be `linear` or `exp`.
 
 and for `location`:
@@ -478,6 +551,7 @@ and for `location`:
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> This decay function could also be `linear` or `exp`.
 
 Suppose you want to multiply these two functions on the original score,

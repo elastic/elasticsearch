@@ -76,14 +76,6 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
             Setting.intSetting(queueSizeKey, queueSize, Setting.Property.NodeScope);
     }
 
-    private int applyHardSizeLimit(final Settings settings, final String name) {
-        if (name.equals(ThreadPool.Names.BULK) || name.equals(ThreadPool.Names.INDEX)) {
-            return 1 + EsExecutors.numberOfProcessors(settings);
-        } else {
-            return Integer.MAX_VALUE;
-        }
-    }
-
     @Override
     public List<Setting<?>> getRegisteredSettings() {
         return Arrays.asList(sizeSetting, queueSizeSetting);

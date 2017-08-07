@@ -21,6 +21,8 @@ package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.LocationMode;
+import com.microsoft.azure.storage.RetryExponentialRetry;
+import com.microsoft.azure.storage.RetryPolicy;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobProperties;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
@@ -147,6 +149,11 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
                     "]. It can not be longer than 2,147,483,647ms.");
             }
         }
+
+        // We define a default exponential retry policy
+        client.getDefaultRequestOptions().setRetryPolicyFactory(
+            new RetryExponentialRetry(RetryPolicy.DEFAULT_CLIENT_BACKOFF, azureStorageSettings.getMaxRetries()));
+
         return client;
     }
 
@@ -227,7 +234,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         // Container name must be lower case.
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        if (blobContainer.exists()) {
+        if (SocketAccess.doPrivilegedException(blobContainer::exists)) {
             CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
             return SocketAccess.doPrivilegedException(azureBlob::exists);
         }
@@ -242,7 +249,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         // Container name must be lower case.
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        if (blobContainer.exists()) {
+        if (SocketAccess.doPrivilegedException(blobContainer::exists)) {
             logger.trace("container [{}]: blob [{}] found. removing.", container, blob);
             CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
             SocketAccess.doPrivilegedVoidException(azureBlob::delete);
@@ -310,7 +317,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
         CloudBlockBlob blobSource = blobContainer.getBlockBlobReference(sourceBlob);
-        if (blobSource.exists()) {
+        if (SocketAccess.doPrivilegedException(blobSource::exists)) {
             CloudBlockBlob blobTarget = blobContainer.getBlockBlobReference(targetBlob);
             SocketAccess.doPrivilegedVoidException(() -> {
                 blobTarget.startCopy(blobSource);

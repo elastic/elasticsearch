@@ -44,14 +44,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class NestedAggregator extends SingleBucketAggregator {
+class NestedAggregator extends SingleBucketAggregator {
 
     static final ParseField PATH_FIELD = new ParseField("path");
 
     private final BitSetProducer parentFilter;
     private final Query childFilter;
 
-    public NestedAggregator(String name, AggregatorFactories factories, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
+    NestedAggregator(String name, AggregatorFactories factories, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
             SearchContext context, Aggregator parentAggregator,
                             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parentAggregator, pipelineAggregators, metaData);

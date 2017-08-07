@@ -41,7 +41,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -300,10 +299,16 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                 if (token == null) {
                     continue;
                 }
-                assert token == XContentParser.Token.START_OBJECT;
+                if (token != XContentParser.Token.START_OBJECT) {
+                    throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected "
+                        + XContentParser.Token.START_OBJECT + " but found [" + token + "]");
+                }
                 // Move to FIELD_NAME, that's the action
                 token = parser.nextToken();
-                assert token == XContentParser.Token.FIELD_NAME;
+                if (token != XContentParser.Token.FIELD_NAME) {
+                    throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected "
+                        + XContentParser.Token.FIELD_NAME + " but found [" + token + "]");
+                }
                 String action = parser.currentName();
 
                 String index = defaultIndex;

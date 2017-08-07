@@ -20,15 +20,15 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.SecureSM;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.TcpTransport;
 
 import java.io.FilePermission;
 import java.io.IOException;
@@ -45,11 +45,12 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Permissions;
 import java.security.Policy;
 import java.security.URIParameter;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Initializes SecurityManager with necessary permissions.
@@ -127,19 +128,23 @@ final class Security {
     @SuppressForbidden(reason = "proper use of URL")
     static Map<String,Policy> getPluginPermissions(Environment environment) throws IOException, NoSuchAlgorithmException {
         Map<String,Policy> map = new HashMap<>();
-        // collect up lists of plugins and modules
-        List<Path> pluginsAndModules = new ArrayList<>();
+        // collect up set of plugins and modules by listing directories.
+        Set<Path> pluginsAndModules = new LinkedHashSet<>(); // order is already lost, but some filesystems have it
         if (Files.exists(environment.pluginsFile())) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
                 for (Path plugin : stream) {
-                    pluginsAndModules.add(plugin);
+                    if (pluginsAndModules.add(plugin) == false) {
+                        throw new IllegalStateException("duplicate plugin: " + plugin);
+                    }
                 }
             }
         }
         if (Files.exists(environment.modulesFile())) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.modulesFile())) {
-                for (Path plugin : stream) {
-                    pluginsAndModules.add(plugin);
+                for (Path module : stream) {
+                    if (pluginsAndModules.add(module) == false) {
+                        throw new IllegalStateException("duplicate module: " + module);
+                    }
                 }
             }
         }
@@ -149,15 +154,18 @@ final class Security {
             if (Files.exists(policyFile)) {
                 // first get a list of URLs for the plugins' jars:
                 // we resolve symlinks so map is keyed on the normalize codebase name
-                List<URL> codebases = new ArrayList<>();
+                Set<URL> codebases = new LinkedHashSet<>(); // order is already lost, but some filesystems have it
                 try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
                     for (Path jar : jarStream) {
-                        codebases.add(jar.toRealPath().toUri().toURL());
+                        URL url = jar.toRealPath().toUri().toURL();
+                        if (codebases.add(url) == false) {
+                            throw new IllegalStateException("duplicate module/plugin: " + url);
+                        }
                     }
                 }
 
                 // parse the plugin's policy file into a set of permissions
-                Policy policy = readPolicy(policyFile.toUri().toURL(), codebases.toArray(new URL[codebases.size()]));
+                Policy policy = readPolicy(policyFile.toUri().toURL(), codebases);
 
                 // consult this policy for each of the plugin's jars:
                 for (URL url : codebases) {
@@ -175,24 +183,33 @@ final class Security {
     /**
      * Reads and returns the specified {@code policyFile}.
      * <p>
-     * Resources (e.g. jar files and directories) listed in {@code codebases} location
-     * will be provided to the policy file via a system property of the short name:
-     * e.g. <code>${codebase.joda-convert-1.2.jar}</code> would map to full URL.
+     * Jar files listed in {@code codebases} location will be provided to the policy file via
+     * a system property of the short name: e.g. <code>${codebase.joda-convert-1.2.jar}</code>
+     * would map to full URL.
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
-    static Policy readPolicy(URL policyFile, URL codebases[]) {
+    static Policy readPolicy(URL policyFile, Set<URL> codebases) {
         try {
             try {
                 // set codebase properties
                 for (URL url : codebases) {
                     String shortName = PathUtils.get(url.toURI()).getFileName().toString();
-                    System.setProperty("codebase." + shortName, url.toString());
+                    if (shortName.endsWith(".jar") == false) {
+                        continue; // tests :(
+                    }
+                    String previous = System.setProperty("codebase." + shortName, url.toString());
+                    if (previous != null) {
+                        throw new IllegalStateException("codebase property already set: " + shortName + "->" + previous);
+                    }
                 }
                 return Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
             } finally {
                 // clear codebase properties
                 for (URL url : codebases) {
                     String shortName = PathUtils.get(url.toURI()).getFileName().toString();
+                    if (shortName.endsWith(".jar") == false) {
+                        continue; // tests :(
+                    }
                     System.clearProperty("codebase." + shortName);
                 }
             }
@@ -240,16 +257,29 @@ final class Security {
         addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink");
         addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink");
         addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink");
-        addPath(policy, Environment.PATH_CONF_SETTING.getKey(), environment.configFile(), "read,readlink");
-        addPath(policy, Environment.PATH_SCRIPTS_SETTING.getKey(), environment.scriptsFile(), "read,readlink");
+        addPath(policy, "path.conf'", environment.configFile(), "read,readlink");
         // read-write dirs
         addPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete");
         addPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete");
         if (environment.sharedDataFile() != null) {
             addPath(policy, Environment.PATH_SHARED_DATA_SETTING.getKey(), environment.sharedDataFile(), "read,readlink,write,delete");
         }
+        final Set<Path> dataFilesPaths = new HashSet<>();
         for (Path path : environment.dataFiles()) {
             addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
+            /*
+             * We have to do this after adding the path because a side effect of that is that the directory is created; the Path#toRealPath
+             * invocation will fail if the directory does not already exist. We use Path#toRealPath to follow symlinks and handle issues
+             * like unicode normalization or case-insensitivity on some filesystems (e.g., the case-insensitive variant of HFS+ on macOS).
+             */
+            try {
+                final Path realPath = path.toRealPath();
+                if (!dataFilesPaths.add(realPath)) {
+                    throw new IllegalStateException("path [" + realPath + "] is duplicated by [" + path + "]");
+                }
+            } catch (final IOException e) {
+                throw new IllegalStateException("unable to access [" + path + "]", e);
+            }
         }
         for (Path path : environment.repoFiles()) {
             addPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete");
@@ -291,30 +321,15 @@ final class Security {
      * @param policy          the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to
      * @param settings        the {@link Settings} instance to read the transport settings from
      */
-    private static void addSocketPermissionForTransportProfiles(
-        final Permissions policy,
-        final Settings settings) {
+    private static void addSocketPermissionForTransportProfiles(final Permissions policy, final Settings settings) {
         // transport is way over-engineered
-        final Map<String, Settings> profiles = new HashMap<>(TransportSettings.TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups());
-        profiles.putIfAbsent(TransportSettings.DEFAULT_PROFILE, Settings.EMPTY);
-
-        // loop through all profiles and add permissions for each one, if it's valid; otherwise Netty transports are lenient and ignores it
-        for (final Map.Entry<String, Settings> entry : profiles.entrySet()) {
-            final Settings profileSettings = entry.getValue();
-            final String name = entry.getKey();
-
-            // a profile is only valid if it's the default profile, or if it has an actual name and specifies a port
-            // TODO: can this leniency be removed?
-            final boolean valid =
-                TransportSettings.DEFAULT_PROFILE.equals(name) ||
-                    (name != null && name.length() > 0 && profileSettings.get("port") != null);
-            if (valid) {
-                final String transportRange = profileSettings.get("port");
-                if (transportRange != null) {
-                    addSocketPermissionForPortRange(policy, transportRange);
-                } else {
-                    addSocketPermissionForTransport(policy, settings);
-                }
+        Set<TcpTransport.ProfileSettings> profiles = TcpTransport.getProfileSettings(settings);
+        Set<String> uniquePortRanges = new HashSet<>();
+        // loop through all profiles and add permissions for each one
+        for (final TcpTransport.ProfileSettings profile : profiles) {
+            if (uniquePortRanges.add(profile.portOrRange)) {
+                // profiles fall back to the transport.port if it's not explicit but we want to only add one permission per range
+                addSocketPermissionForPortRange(policy, profile.portOrRange);
             }
         }
     }
@@ -326,7 +341,7 @@ final class Security {
      * @param settings        the {@link Settings} instance to read the transport settings from
      */
     private static void addSocketPermissionForTransport(final Permissions policy, final Settings settings) {
-        final String transportRange = TransportSettings.PORT.get(settings);
+        final String transportRange = TcpTransport.PORT.get(settings);
         addSocketPermissionForPortRange(policy, transportRange);
     }
 
@@ -353,11 +368,12 @@ final class Security {
     }
 
     /**
-     * Add access to path (and all files underneath it)
-     * @param policy current policy to add permissions to
+     * Add access to path (and all files underneath it); this also creates the directory if it does not exist.
+     *
+     * @param policy            current policy to add permissions to
      * @param configurationName the configuration name associated with the path (for error messages only)
-     * @param path the path itself
-     * @param permissions set of file permissions to grant to the path
+     * @param path              the path itself
+     * @param permissions       set of file permissions to grant to the path
      */
     static void addPath(Permissions policy, String configurationName, Path path, String permissions) {
         // paths may not exist yet, this also checks accessibility
@@ -371,27 +387,6 @@ final class Security {
         policy.add(new FilePermission(path.toString(), permissions));
         policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
     }
-
-    /**
-     * Add access to a directory iff it exists already
-     * @param policy current policy to add permissions to
-     * @param configurationName the configuration name associated with the path (for error messages only)
-     * @param path the path itself
-     * @param permissions set of file permissions to grant to the path
-     */
-    static void addPathIfExists(Permissions policy, String configurationName, Path path, String permissions) {
-        if (Files.isDirectory(path)) {
-            // add each path twice: once for itself, again for files underneath it
-            policy.add(new FilePermission(path.toString(), permissions));
-            policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
-            try {
-                path.getFileSystem().provider().checkAccess(path.toRealPath(), AccessMode.READ);
-            } catch (IOException e) {
-                throw new IllegalStateException("Unable to access '" + configurationName + "' (" + path + ")", e);
-            }
-        }
-    }
-
 
     /**
      * Ensures configured directory {@code path} exists.

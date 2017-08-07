@@ -102,41 +102,42 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
                     negRights.fill(from, negRights.size(), Double.NEGATIVE_INFINITY);
                 }
 
-                values.setDocument(doc);
-                final int valuesCount = values.count();
+                if (values.advanceExact(doc)) {
+                    final int valuesCount = values.docValueCount();
 
-                for (int i = 0; i < valuesCount; ++i) {
-                    GeoPoint value = values.valueAt(i);
-                    double top = tops.get(bucket);
-                    if (value.lat() > top) {
-                        top = value.lat();
+                    for (int i = 0; i < valuesCount; ++i) {
+                        GeoPoint value = values.nextValue();
+                        double top = tops.get(bucket);
+                        if (value.lat() > top) {
+                            top = value.lat();
+                        }
+                        double bottom = bottoms.get(bucket);
+                        if (value.lat() < bottom) {
+                            bottom = value.lat();
+                        }
+                        double posLeft = posLefts.get(bucket);
+                        if (value.lon() >= 0 && value.lon() < posLeft) {
+                            posLeft = value.lon();
+                        }
+                        double posRight = posRights.get(bucket);
+                        if (value.lon() >= 0 && value.lon() > posRight) {
+                            posRight = value.lon();
+                        }
+                        double negLeft = negLefts.get(bucket);
+                        if (value.lon() < 0 && value.lon() < negLeft) {
+                            negLeft = value.lon();
+                        }
+                        double negRight = negRights.get(bucket);
+                        if (value.lon() < 0 && value.lon() > negRight) {
+                            negRight = value.lon();
+                        }
+                        tops.set(bucket, top);
+                        bottoms.set(bucket, bottom);
+                        posLefts.set(bucket, posLeft);
+                        posRights.set(bucket, posRight);
+                        negLefts.set(bucket, negLeft);
+                        negRights.set(bucket, negRight);
                     }
-                    double bottom = bottoms.get(bucket);
-                    if (value.lat() < bottom) {
-                        bottom = value.lat();
-                    }
-                    double posLeft = posLefts.get(bucket);
-                    if (value.lon() >= 0 && value.lon() < posLeft) {
-                        posLeft = value.lon();
-                    }
-                    double posRight = posRights.get(bucket);
-                    if (value.lon() >= 0 && value.lon() > posRight) {
-                        posRight = value.lon();
-                    }
-                    double negLeft = negLefts.get(bucket);
-                    if (value.lon() < 0 && value.lon() < negLeft) {
-                        negLeft = value.lon();
-                    }
-                    double negRight = negRights.get(bucket);
-                    if (value.lon() < 0 && value.lon() > negRight) {
-                        negRight = value.lon();
-                    }
-                    tops.set(bucket, top);
-                    bottoms.set(bucket, bottom);
-                    posLefts.set(bucket, posLeft);
-                    posRights.set(bucket, posRight);
-                    negLefts.set(bucket, negLeft);
-                    negRights.set(bucket, negRight);
                 }
             }
         };

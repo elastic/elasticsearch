@@ -18,8 +18,8 @@ scrolled searches and reindexing of documents from one index to another:
 
 Perl::
 
-    See https://metacpan.org/pod/Search::Elasticsearch::Bulk[Search::Elasticsearch::Bulk]
-    and https://metacpan.org/pod/Search::Elasticsearch::Scroll[Search::Elasticsearch::Scroll]
+    See https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Bulk[Search::Elasticsearch::Client::5_0::Bulk]
+    and https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Scroll[Search::Elasticsearch::Client::5_0::Scroll]
 
 Python::
 
@@ -144,7 +144,7 @@ cleared as soon as the scroll is not being used anymore using the
 ---------------------------------------
 DELETE /_search/scroll
 {
-    "scroll_id" : ["DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ=="]
+    "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ=="
 }
 ---------------------------------------
 // CONSOLE

@@ -19,9 +19,37 @@ The specified field must be of type `geo_point` (which can only be set explicitl
 
 [source,js]
 --------------------------------------------------
+PUT /museums
+{
+    "mappings": {
+        "doc": {
+            "properties": {
+                "location": {
+                    "type": "geo_point"
+                }
+            }
+        }
+    }
+}
+
+POST /museums/doc/_bulk?refresh
+{"index":{"_id":1}}
+{"location": "52.374081,4.912350", "name": "NEMO Science Museum"}
+{"index":{"_id":2}}
+{"location": "52.369219,4.901618", "name": "Museum Het Rembrandthuis"}
+{"index":{"_id":3}}
+{"location": "52.371667,4.914722", "name": "Nederlands Scheepvaartmuseum"}
+{"index":{"_id":4}}
+{"location": "51.222900,4.405200", "name": "Letterenhuis"}
+{"index":{"_id":5}}
+{"location": "48.861111,2.336389", "name": "Musée du Louvre"}
+{"index":{"_id":6}}
+{"location": "48.860000,2.327000", "name": "Musée d'Orsay"}
+
+POST /museums/_search?size=0
 {
     "aggregations" : {
-        "myLarge-GrainGeoHashGrid" : {
+        "large-grid" : {
             "geohash_grid" : {
                 "field" : "location",
                 "precision" : 3
@@ -30,30 +58,35 @@ The specified field must be of type `geo_point` (which can only be set explicitl
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 Response:
 
 [source,js]
 --------------------------------------------------
 {
+    ...
     "aggregations": {
-        "myLarge-GrainGeoHashGrid": {
+        "large-grid": {
             "buckets": [
                 {
-                    "key": "svz",
-                    "doc_count": 10964
+                    "key": "u17",
+                    "doc_count": 3
                 },
                 {
-                    "key": "sv8",
-                    "doc_count": 3198
+                    "key": "u09",
+                    "doc_count": 2
+                },
+                {
+                    "key": "u15",
+                    "doc_count": 1
                 }
             ]
         }
     }
 }
 --------------------------------------------------
-
-
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 ==== High-precision requests
 
@@ -61,29 +94,32 @@ When requesting detailed buckets (typically for displaying a "zoomed in" map) a 
 
 [source,js]
 --------------------------------------------------
+POST /museums/_search?size=0
 {
     "aggregations" : {
-        "zoomedInView" : {
+        "zoomed-in" : {
             "filter" : {
                 "geo_bounding_box" : {
                     "location" : {
-                        "top_left" : "51.73, 0.9",
-                        "bottom_right" : "51.55, 1.1"
+                        "top_left" : "52.4, 4.9",
+                        "bottom_right" : "52.3, 5.0"
                     }
                 }
             },
             "aggregations":{
                 "zoom1":{
                     "geohash_grid" : {
-                        "field":"location",
-                        "precision":8
+                        "field": "location",
+                        "precision": 8
                     }
                 }
             }
         }
     }
- }
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 ==== Cell dimensions at the equator
 The table below shows the metric dimensions for cells covered by various string lengths of geohash.

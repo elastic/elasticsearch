@@ -37,6 +37,7 @@ the statistics. The above request returns the following response:
     ...
     "aggregations": {
         "matrixstats": {
+            "doc_count": 50,
             "fields": [{
                 "name": "income",
                 "count": 50,
@@ -72,6 +73,8 @@ the statistics. The above request returns the following response:
     }
 }
 --------------------------------------------------
+
+The `doc_count` field indicates the number of documents involved in the computation of the statistics.
 
 ==== Multi Value Fields
 

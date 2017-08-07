@@ -31,7 +31,7 @@ public class NodeIndicesStatsTests extends ESTestCase {
 
     public void testInvalidLevel() {
         final NodeIndicesStats stats = new NodeIndicesStats();
-        final String level = randomAsciiOfLength(16);
+        final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> stats.toXContent(null, params));
         assertThat(

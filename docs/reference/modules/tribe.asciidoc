@@ -1,6 +1,8 @@
 [[modules-tribe]]
 == Tribe node
 
+deprecated[5.4.0,The `tribe` node is deprecated in favour of <<modules-cross-cluster-search>> and will be removed in Elasticsearch 7.0.]
+
 The _tribes_ feature allows a _tribe node_ to act as a federated client across
 multiple clusters.
 
@@ -86,9 +88,7 @@ configuration options are passed down from the tribe node to each node client:
 * `transport.bind_host`
 * `transport.publish_host`
 * `path.home`
-* `path.conf`
 * `path.logs`
-* `path.scripts`
 * `shield.*`
 
 Almost any setting (except for `path.*`) may be configured at the node client
@@ -107,16 +107,14 @@ include:
 
 [source,yaml]
 ------------------------
-path.scripts:   some/path/to/config <1>
-network.host:   192.168.1.5 <2>
+network.host:   192.168.1.5 <1>
 
 tribe:
   t1:
     cluster.name:   cluster_one
   t2:
     cluster.name:   cluster_two
-    network.host:   10.1.2.3 <3>
+    network.host:   10.1.2.3 <2>
 ------------------------
-<1> The `path.scripts` setting is inherited by both `t1` and `t2`.
-<2> The `network.host` setting is inherited by `t1`.
-<3> The `t3` node client overrides the inherited from the tribe node.
+<1> The `network.host` setting is inherited by `t1`.
+<2> The `t3` node client overrides the inherited from the tribe node.

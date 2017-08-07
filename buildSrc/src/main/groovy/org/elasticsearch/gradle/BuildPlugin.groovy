@@ -20,6 +20,7 @@ package org.elasticsearch.gradle
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import nebula.plugin.extraconfigurations.ProvidedBasePlugin
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -29,6 +30,7 @@ import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.XmlProvider
 import org.gradle.api.artifacts.Configuration
+import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
@@ -119,9 +121,10 @@ class BuildPlugin implements Plugin<Project> {
                 println "  JDK Version           : ${gradleJavaVersionDetails}"
                 println "  JAVA_HOME             : ${gradleJavaHome}"
             }
+            println "  Random Testing Seed   : ${project.testSeed}"
 
             // enforce gradle version
-            GradleVersion minGradle = GradleVersion.version('2.13')
+            GradleVersion minGradle = GradleVersion.version('3.3')
             if (GradleVersion.current() < minGradle) {
                 throw new GradleException("${minGradle} or above is required to build elasticsearch")
             }
@@ -202,14 +205,28 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Runs the given javascript using jjs from the jdk, and returns the output */
     private static String runJavascript(Project project, String javaHome, String script) {
-        ByteArrayOutputStream output = new ByteArrayOutputStream()
-        project.exec {
-            executable = new File(javaHome, 'bin/jrunscript')
-            args '-e', script
-            standardOutput = output
-            errorOutput = new ByteArrayOutputStream()
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream()
+        ByteArrayOutputStream stderr = new ByteArrayOutputStream()
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            // gradle/groovy does not properly escape the double quote for windows
+            script = script.replace('"', '\\"')
         }
-        return output.toString('UTF-8').trim()
+        File jrunscriptPath = new File(javaHome, 'bin/jrunscript')
+        ExecResult result = project.exec {
+            executable = jrunscriptPath
+            args '-e', script
+            standardOutput = stdout
+            errorOutput = stderr
+            ignoreExitValue = true
+        }
+        if (result.exitValue != 0) {
+            project.logger.error("STDOUT:")
+            stdout.toString('UTF-8').eachLine { line -> project.logger.error(line) }
+            project.logger.error("STDERR:")
+            stderr.toString('UTF-8').eachLine { line -> project.logger.error(line) }
+            result.rethrowFailure()
+        }
+        return stdout.toString('UTF-8').trim()
     }
 
     /** Return the configuration name used for finding transitive deps of the given dependency. */
@@ -253,8 +270,8 @@ class BuildPlugin implements Plugin<Project> {
         })
 
         // force all dependencies added directly to compile/testCompile to be non-transitive, except for ES itself
-        Closure disableTransitiveDeps = { ModuleDependency dep ->
-            if (!(dep instanceof ProjectDependency) && dep.group.startsWith('org.elasticsearch') == false) {
+        Closure disableTransitiveDeps = { Dependency dep ->
+            if (dep instanceof ModuleDependency && !(dep instanceof ProjectDependency) && dep.group.startsWith('org.elasticsearch') == false) {
                 dep.transitive = false
 
                 // also create a configuration just for this dependency version, so that later
@@ -305,7 +322,6 @@ class BuildPlugin implements Plugin<Project> {
      * </ul>
      */
     private static Closure fixupDependencies(Project project) {
-        // TODO: revisit this when upgrading to Gradle 2.14+, see Javadoc comment above
         return { XmlProvider xml ->
             // first find if we have dependencies at all, and grab the node
             NodeList depsNodes = xml.asNode().get('dependencies')
@@ -326,6 +342,13 @@ class BuildPlugin implements Plugin<Project> {
                 }
                 if (depNode.scope.text() == 'runtime' && isCompileDep) {
                     depNode.scope*.value = 'compile'
+                }
+
+                // remove any exclusions added by gradle, they contain wildcards and systems like ivy have bugs with wildcards
+                // see https://github.com/elastic/elasticsearch/issues/24490
+                NodeList exclusionsNode = depNode.get('exclusions')
+                if (exclusionsNode.size() > 0) {
+                    depNode.remove(exclusionsNode.get(0))
                 }
 
                 // collect the transitive deps now that we know what this dependency is
@@ -372,8 +395,11 @@ class BuildPlugin implements Plugin<Project> {
             project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom t ->
                 // place the pom next to the jar it is for
                 t.destination = new File(project.buildDir, "distributions/${project.archivesBaseName}-${project.version}.pom")
-                // build poms with assemble
-                project.assemble.dependsOn(t)
+                // build poms with assemble (if the assemble task exists)
+                Task assemble = project.tasks.findByName('assemble')
+                if (assemble) {
+                    assemble.dependsOn(t)
+                }
             }
         }
     }
@@ -382,8 +408,9 @@ class BuildPlugin implements Plugin<Project> {
     static void configureCompile(Project project) {
         project.ext.compactProfile = 'compact3'
         project.afterEvaluate {
-            // fail on all javac warnings
             project.tasks.withType(JavaCompile) {
+                File gradleJavaHome = Jvm.current().javaHome
+                // we fork because compiling lots of different classes in a shared jvm can eventually trigger GC overhead limitations
                 options.fork = true
                 options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
                 options.forkOptions.memoryMaximumSize = "1g"
@@ -400,6 +427,7 @@ class BuildPlugin implements Plugin<Project> {
                  * -serial because we don't use java serialization.
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
+                // fail on all javac warnings
                 options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation' << '-Xdoclint:all' << '-Xdoclint:-missing'
 
                 // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly defined
@@ -414,9 +442,12 @@ class BuildPlugin implements Plugin<Project> {
                     // hack until gradle supports java 9's new "--release" arg
                     assert minimumJava == JavaVersion.VERSION_1_8
                     options.compilerArgs << '--release' << '8'
-                    doFirst{
-                        sourceCompatibility = null
-                        targetCompatibility = null
+                    if (GradleVersion.current().getBaseVersion() < GradleVersion.version("4.1")) {
+                        // this hack is not needed anymore since Gradle 4.1, see https://github.com/gradle/gradle/pull/2474
+                        doFirst {
+                            sourceCompatibility = null
+                            targetCompatibility = null
+                        }
                     }
                 }
             }
@@ -464,7 +495,7 @@ class BuildPlugin implements Plugin<Project> {
                         'Build-Java-Version': project.javaVersion)
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {
                     logger.warn('Building without git revision id.')
-                    jarTask.manifest.attributes('Change': 'N/A')
+                    jarTask.manifest.attributes('Change': 'Unknown')
                 }
             }
         }
@@ -476,16 +507,12 @@ class BuildPlugin implements Plugin<Project> {
             jvm "${project.javaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', 'auto')
             ifNoTests 'fail'
+            onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
 
             // TODO: why are we not passing maxmemory to junit4?
             jvmArg '-Xmx' + System.getProperty('tests.heap.size', '512m')
             jvmArg '-Xms' + System.getProperty('tests.heap.size', '512m')
-            if (JavaVersion.current().isJava7()) {
-                // some tests need a large permgen, but that only exists on java 7
-                jvmArg '-XX:MaxPermSize=128m'
-            }
-            jvmArg '-XX:MaxDirectMemorySize=512m'
             jvmArg '-XX:+HeapDumpOnOutOfMemoryError'
             File heapdumpDir = new File(project.buildDir, 'heapdump')
             heapdumpDir.mkdirs()
@@ -508,7 +535,12 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {
                 if (property.getKey().startsWith('tests.') ||
-                    property.getKey().startsWith('es.')) {
+                        property.getKey().startsWith('es.')) {
+                    if (property.getKey().equals('tests.seed')) {
+                        /* The seed is already set on the project so we
+                         * shouldn't attempt to override it. */
+                        continue;
+                    }
                     systemProperty property.getKey(), property.getValue()
                 }
             }

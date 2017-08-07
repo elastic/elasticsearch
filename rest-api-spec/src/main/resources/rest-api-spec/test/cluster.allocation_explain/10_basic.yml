@@ -1,0 +1,67 @@
+"bad cluster shard allocation explanation request":
+  - skip:
+      version: " - 5.5.99"
+      reason: response status on bad request was changed starting in 5.6.0
+
+  - do:
+      # there aren't any unassigned shards to explain
+      catch: /illegal_argument_exception/
+      cluster.allocation_explain: {}
+
+---
+"cluster shard allocation explanation test":
+  - skip:
+      version: " - 5.1.99"
+      reason: explain API response output was changed starting in 5.2.0
+
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.state:
+        metric: [ master_node ]
+
+  - do:
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 0, "primary": true }
+
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "test" }
+  - match: { shard: 0 }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
+
+---
+"cluster shard allocation explanation test with empty request":
+  - skip:
+      version: " - 5.1.99"
+      reason: explain API response output was changed starting in 5.2.0
+
+  - do:
+      indices.create:
+        index: test
+        body: { "index.number_of_shards": 1, "index.number_of_replicas": 9 }
+
+  - do:
+      cluster.state:
+        metric: [ master_node ]
+
+  - do:
+      cluster.allocation_explain:
+        include_disk_info: true
+
+  - match: { current_state: "unassigned" }
+  - match: { unassigned_info.reason: "INDEX_CREATED" }
+  - is_true: unassigned_info.at
+  - match: { index: "test" }
+  - match: { shard: 0 }
+  - match: { primary: false }
+  - is_true: cluster_info
+  - is_true: can_allocate

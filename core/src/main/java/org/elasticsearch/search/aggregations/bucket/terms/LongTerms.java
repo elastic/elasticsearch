@@ -25,6 +25,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,8 +77,8 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
         }
 
         @Override
-        int compareTerm(Terms.Bucket other) {
-            return Long.compare(term, ((Number) other.getKey()).longValue());
+        public int compareKey(Bucket other) {
+            return Long.compare(term, other.term);
         }
 
         @Override
@@ -86,18 +87,11 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(CommonFields.KEY, term);
+        protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
+            builder.field(CommonFields.KEY.getPreferredName(), term);
             if (format != DocValueFormat.RAW) {
-                builder.field(CommonFields.KEY_AS_STRING, format.format(term));
+                builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), format.format(term));
             }
-            builder.field(CommonFields.DOC_COUNT, getDocCount());
-            if (showDocCountError) {
-                builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, getDocCountError());
-            }
-            aggregations.toXContentInternal(builder, params);
-            builder.endObject();
             return builder;
         }
 
@@ -112,7 +106,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
         }
     }
 
-    public LongTerms(String name, Terms.Order order, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
+    public LongTerms(String name, BucketOrder order, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
             List<Bucket> buckets, long docCountError) {
         super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData, format, shardSize, showTermDocCountError,
@@ -150,18 +144,6 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
     }
 
     @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, docCountError);
-        builder.field(SUM_OF_OTHER_DOC_COUNTS, otherDocCount);
-        builder.startArray(CommonFields.BUCKETS);
-        for (Bucket bucket : buckets) {
-            bucket.toXContent(builder, params);
-        }
-        builder.endArray();
-        return builder;
-    }
-
-    @Override
     protected Bucket[] createBucketsArray(int size) {
         return new Bucket[size];
     }
@@ -180,7 +162,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
      * Converts a {@link LongTerms} into a {@link DoubleTerms}, returning the value of the specified long terms as doubles.
      */
     static DoubleTerms convertLongTermsToDouble(LongTerms longTerms, DocValueFormat decimalFormat) {
-        List<Terms.Bucket> buckets = longTerms.getBuckets();
+        List<LongTerms.Bucket> buckets = longTerms.getBuckets();
         List<DoubleTerms.Bucket> newBuckets = new ArrayList<>();
         for (Terms.Bucket bucket : buckets) {
             newBuckets.add(new DoubleTerms.Bucket(bucket.getKeyAsNumber().doubleValue(),

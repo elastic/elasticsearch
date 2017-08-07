@@ -36,8 +36,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
@@ -68,15 +70,20 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
         Map<String, Integer> expectedCountPerGeoHash = new HashMap<>();
         testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, iw -> {
             List<LatLonDocValuesField> points = new ArrayList<>();
+            Set<String> distinctHashesPerDoc = new HashSet<>();
             for (int pointId = 0; pointId < numPoints; pointId++) {
                 double lat = (180d * randomDouble()) - 90d;
                 double lng = (360d * randomDouble()) - 180d;
                 points.add(new LatLonDocValuesField(FIELD_NAME, lat, lng));
                 String hash = stringEncode(lng, lat, precision);
-                expectedCountPerGeoHash.put(hash, expectedCountPerGeoHash.getOrDefault(hash, 0) + 1);
+                if (distinctHashesPerDoc.contains(hash) == false) {
+                    expectedCountPerGeoHash.put(hash, expectedCountPerGeoHash.getOrDefault(hash, 0) + 1);
+                }
+                distinctHashesPerDoc.add(hash);
                 if (usually()) {
                     iw.addDocument(points);
                     points.clear();
+                    distinctHashesPerDoc.clear();
                 }
             }
             if (points.size() != 0) {
@@ -105,12 +112,13 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
         fieldType.setHasDocValues(true);
         fieldType.setName(FIELD_NAME);
-        try (Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
-            aggregator.preCollection();
-            indexSearcher.search(query, aggregator);
-            aggregator.postCollection();
-            verify.accept((InternalGeoHashGrid) aggregator.buildAggregation(0L));
-        }
+
+        Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(query, aggregator);
+        aggregator.postCollection();
+        verify.accept((InternalGeoHashGrid) aggregator.buildAggregation(0L));
+
         indexReader.close();
         directory.close();
     }

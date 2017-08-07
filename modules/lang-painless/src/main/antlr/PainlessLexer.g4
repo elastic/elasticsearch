@@ -120,7 +120,7 @@ INTEGER: ( '0' | [1-9] [0-9]* ) [lLfFdD]?;
 DECIMAL: ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? ( [eE] [+\-]? [0-9]+ )? [fFdD]?;
 
 STRING: ( '"' ( '\\"' | '\\\\' | ~[\\"] )*? '"' ) | ( '\'' ( '\\\'' | '\\\\' | ~[\\'] )*? '\'' );
-REGEX: '/' ( ~('/' | '\n') | '\\' ~'\n' )+ '/' [cilmsUux]* { slashIsRegex() }?;
+REGEX: '/' ( '\\' ~'\n' | ~('/' | '\n') )+? '/' [cilmsUux]* { slashIsRegex() }?;
 
 TRUE:  'true';
 FALSE: 'false';

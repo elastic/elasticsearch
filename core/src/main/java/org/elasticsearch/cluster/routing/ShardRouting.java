@@ -82,6 +82,7 @@ public final class ShardRouting implements Writeable, ToXContent {
         assert !(state == ShardRoutingState.UNASSIGNED && unassignedInfo == null) : "unassigned shard must be created with meta";
         assert (state == ShardRoutingState.UNASSIGNED || state == ShardRoutingState.INITIALIZING) == (recoverySource != null) : "recovery source only available on unassigned or initializing shard but was " + state;
         assert recoverySource == null || recoverySource == PeerRecoverySource.INSTANCE || primary : "replica shards always recover from primary";
+        assert (currentNodeId == null) == (state == ShardRoutingState.UNASSIGNED)  : "unassigned shard must not be assigned to a node " + this;
     }
 
     @Nullable
@@ -391,6 +392,17 @@ public final class ShardRouting implements Writeable, ToXContent {
         return new ShardRouting(shardId, currentNodeId, null, primary, ShardRoutingState.INITIALIZING,
             StoreRecoverySource.EXISTING_STORE_INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
             allocationId, UNAVAILABLE_EXPECTED_SHARD_SIZE);
+    }
+
+    /**
+     * Reinitializes a replica shard, giving it a fresh allocation id
+     */
+    public ShardRouting reinitializeReplicaShard() {
+        assert state == ShardRoutingState.INITIALIZING : this;
+        assert primary == false : this;
+        assert isRelocationTarget() == false : this;
+        return new ShardRouting(shardId, currentNodeId, null, primary, ShardRoutingState.INITIALIZING,
+            recoverySource, unassignedInfo, AllocationId.newInitializing(), expectedShardSize);
     }
 
     /**

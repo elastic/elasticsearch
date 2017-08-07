@@ -42,7 +42,7 @@ public class PreBuiltCacheFactory {
 
     private PreBuiltCacheFactory() {}
 
-    static <T> PreBuiltCache<T> getCache(CachingStrategy cachingStrategy) {
+    public static <T> PreBuiltCache<T> getCache(CachingStrategy cachingStrategy) {
         switch (cachingStrategy) {
             case ONE:
                 return new PreBuiltCacheStrategyOne<>();

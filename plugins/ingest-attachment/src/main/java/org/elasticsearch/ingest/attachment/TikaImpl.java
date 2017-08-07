@@ -47,7 +47,9 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.security.ProtectionDomain;
 import java.security.SecurityPermission;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.PropertyPermission;
 import java.util.Set;
 
@@ -128,7 +130,12 @@ final class TikaImpl {
         addReadPermissions(perms, JarHell.parseClassPath());
         // plugin jars
         if (TikaImpl.class.getClassLoader() instanceof URLClassLoader) {
-            addReadPermissions(perms, ((URLClassLoader)TikaImpl.class.getClassLoader()).getURLs());
+            URL[] urls = ((URLClassLoader)TikaImpl.class.getClassLoader()).getURLs();
+            Set<URL> set = new LinkedHashSet<>(Arrays.asList(urls));
+            if (set.size() != urls.length) {
+                throw new AssertionError("duplicate jars: " + Arrays.toString(urls));
+            }
+            addReadPermissions(perms, set);
         }
         // jvm's java.io.tmpdir (needs read/write)
         perms.add(new FilePermission(System.getProperty("java.io.tmpdir") + System.getProperty("file.separator") + "-",
@@ -145,7 +152,7 @@ final class TikaImpl {
 
     // add resources to (what is typically) a jar, but might not be (e.g. in tests/IDE)
     @SuppressForbidden(reason = "adds access to jar resources")
-    static void addReadPermissions(Permissions perms, URL resources[]) {
+    static void addReadPermissions(Permissions perms, Set<URL> resources) {
         try {
             for (URL url : resources) {
                 Path path = PathUtils.get(url.toURI());

@@ -55,6 +55,11 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/_stats/{metric}", this);
     }
 
+    @Override
+    public String getName() {
+        return "indices_stats_action";
+    }
+
     static final Map<String, Consumer<IndicesStatsRequest>> METRICS;
 
     static {

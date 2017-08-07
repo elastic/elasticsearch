@@ -379,8 +379,10 @@ public class DefMath {
     }
     
     private static Object add(Object left, Object right) {
-        if (left instanceof String || right instanceof String) {
-            return "" + left + right;
+        if (left instanceof String) {
+            return (String) left + right;
+        } else if (right instanceof String) {
+            return left + (String) right;
         } else if (left instanceof Number) {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {

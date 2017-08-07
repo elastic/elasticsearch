@@ -37,9 +37,9 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
-import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.TestRuleMarkFailure;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
@@ -48,6 +48,7 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -72,6 +73,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
@@ -90,13 +92,20 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -117,14 +126,15 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -133,11 +143,12 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -170,7 +181,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     static {
         System.setProperty("log4j.shutdownHookEnabled", "false");
         System.setProperty("log4j2.disable.jmx", "true");
-        System.setProperty("log4j.skipJansi", "true"); // jython has this crazy shaded Jansi version that log4j2 tries to load
 
         // shutdown hook so that when the test JVM exits, logging is shutdown too
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -286,7 +296,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         // initialized
         if (threadContext != null) {
             ensureNoWarnings();
-            threadContext = null;
+            assert threadContext == null;
         }
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();
@@ -300,7 +310,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
             assertNull("unexpected warning headers", warnings);
         } finally {
-            resetDeprecationLogger();
+            resetDeprecationLogger(false);
         }
     }
 
@@ -328,20 +338,27 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         try {
             final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
+            assertNotNull(actualWarnings);
             final Set<String> actualWarningValues =
                     actualWarnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toSet());
             for (String msg : expectedWarnings) {
-                assertTrue(actualWarningValues.contains(DeprecationLogger.escape(msg)));
+                assertThat(actualWarningValues, hasItem(DeprecationLogger.escape(msg)));
             }
             assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
                     + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
                 expectedWarnings.length, actualWarnings.size());
         } finally {
-            resetDeprecationLogger();
+            resetDeprecationLogger(true);
         }
     }
 
-    private void resetDeprecationLogger() {
+    /**
+     * Reset the deprecation logger by removing the current thread context, and setting a new thread context if {@code setNewThreadContext}
+     * is set to {@code true} and otherwise clearing the current thread context.
+     *
+     * @param setNewThreadContext whether or not to attach a new thread context to the deprecation logger
+     */
+    private void resetDeprecationLogger(final boolean setNewThreadContext) {
         // "clear" current warning headers by setting a new ThreadContext
         DeprecationLogger.removeThreadContext(this.threadContext);
         try {
@@ -351,8 +368,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         } catch (IOException ex) {
             throw new AssertionError("IOException thrown while closing deprecation logger's thread context", ex);
         }
-        this.threadContext = new ThreadContext(Settings.EMPTY);
-        DeprecationLogger.setThreadContext(this.threadContext);
+        if (setNewThreadContext) {
+            this.threadContext = new ThreadContext(Settings.EMPTY);
+            DeprecationLogger.setThreadContext(this.threadContext);
+        } else {
+            this.threadContext = null;
+        }
     }
 
     private static final List<StatusData> statusData = new ArrayList<>();
@@ -377,9 +398,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     protected static void checkStaticState() throws Exception {
         MockPageCacheRecycler.ensureAllPagesAreReleased();
         MockBigArrays.ensureAllArraysAreReleased();
-        // field cache should NEVER get loaded.
-        String[] entries = UninvertingReader.getUninvertedStats();
-        assertEquals("fieldcache must never be used, got=" + Arrays.toString(entries), 0, entries.length);
 
         // ensure no one changed the status logger level on us
         assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
@@ -562,11 +580,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         return RandomPicks.randomFrom(random, collection);
     }
 
-    public static String randomAsciiOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
+    public static String randomAlphaOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
         return RandomizedTest.randomAsciiOfLengthBetween(minCodeUnits, maxCodeUnits);
     }
 
-    public static String randomAsciiOfLength(int codeUnits) {
+    public static String randomAlphaOfLength(int codeUnits) {
         return RandomizedTest.randomAsciiOfLength(codeUnits);
     }
 
@@ -618,10 +636,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         return generateRandomStringArray(maxArraySize, maxStringSize, allowNull, true);
     }
 
-    private static String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m"};
+    private static final String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m", "micros", "nanos"};
 
-    private static String randomTimeValue(int lower, int upper) {
-        return randomIntBetween(lower, upper) + randomFrom(TIME_SUFFIXES);
+    public static String randomTimeValue(int lower, int upper, String... suffixes) {
+        return randomIntBetween(lower, upper) + randomFrom(suffixes);
+    }
+
+    public static String randomTimeValue(int lower, int upper) {
+        return randomTimeValue(lower, upper, TIME_SUFFIXES);
     }
 
     public static String randomTimeValue() {
@@ -675,14 +697,14 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Runs the code block for 10 seconds waiting for no assertion to trip.
      */
-    public static void assertBusy(Runnable codeBlock) throws Exception {
+    public static void assertBusy(CheckedRunnable<Exception> codeBlock) throws Exception {
         assertBusy(codeBlock, 10, TimeUnit.SECONDS);
     }
 
     /**
      * Runs the code block for the provided interval, waiting for no assertions to trip.
      */
-    public static void assertBusy(Runnable codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
+    public static void assertBusy(CheckedRunnable<Exception> codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
         long iterations = Math.max(Math.round(Math.log10(maxTimeInMillis) / Math.log10(2)), 1);
         long timeInMillis = 1;
@@ -866,6 +888,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
     }
 
+    private static boolean useNio;
+
+    @BeforeClass
+    public static void setUseNio() throws Exception {
+        useNio = randomBoolean();
+    }
+
+    public static String getTestTransportType() {
+        return useNio ? NioTransportPlugin.NIO_TRANSPORT_NAME : MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
+    }
+
+    public static Class<? extends Plugin> getTestTransportPlugin() {
+        return useNio ? NioTransportPlugin.class : MockTcpTransportPlugin.class;
+    }
+
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
 
     public static class GeohashGenerator extends CodepointSetGenerator {
@@ -877,12 +914,27 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
+     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+     * by the {@link ToXContent#isFragment()} method returns. Shuffles the keys to make sure that parsing never relies on keys ordering.
+     */
+    protected final BytesReference toShuffledXContent(ToXContent toXContent, XContentType xContentType, ToXContent.Params params,
+                                                      boolean humanReadable, String... exceptFieldNames) throws IOException{
+        BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType, params, humanReadable);
+        try (XContentParser parser = createParser(xContentType.xContent(), bytes)) {
+            try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
+                return builder.bytes();
+            }
+        }
+    }
+
+    /**
      * Randomly shuffles the fields inside objects in the {@link XContentBuilder} passed in.
      * Recursively goes through inner objects and also shuffles them. Exceptions for this
      * recursive shuffling behavior can be made by passing in the names of fields which
      * internally should stay untouched.
      */
-    public XContentBuilder shuffleXContent(XContentBuilder builder, String... exceptFieldNames) throws IOException {
+    protected final XContentBuilder shuffleXContent(XContentBuilder builder, String... exceptFieldNames) throws IOException {
         try (XContentParser parser = createParser(builder)) {
             return shuffleXContent(parser, builder.isPrettyPrint(), exceptFieldNames);
         }
@@ -895,26 +947,50 @@ public abstract class ESTestCase extends LuceneTestCase {
      * internally should stay untouched.
      */
     public XContentBuilder shuffleXContent(XContentParser parser, boolean prettyPrint, String... exceptFieldNames) throws IOException {
-        // use ordered maps for reproducibility
-        Map<String, Object> shuffledMap = shuffleMap(parser.mapOrdered(), new HashSet<>(Arrays.asList(exceptFieldNames)));
         XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType());
         if (prettyPrint) {
             xContentBuilder.prettyPrint();
         }
+        Token token = parser.currentToken() == null ? parser.nextToken() : parser.currentToken();
+        if (token == Token.START_ARRAY) {
+            List<Object> shuffledList = shuffleList(parser.listOrderedMap(), new HashSet<>(Arrays.asList(exceptFieldNames)));
+            return xContentBuilder.value(shuffledList);
+        }
+        //we need a sorted map for reproducibility, as we are going to shuffle its keys and write XContent back
+        Map<String, Object> shuffledMap = shuffleMap((LinkedHashMap<String, Object>)parser.mapOrdered(),
+            new HashSet<>(Arrays.asList(exceptFieldNames)));
         return xContentBuilder.map(shuffledMap);
     }
 
-    private static Map<String, Object> shuffleMap(Map<String, Object> map, Set<String> exceptFields) {
-        List<String> keys = new ArrayList<>(map.keySet());
+    // shuffle fields of objects in the list, but not the list itself
+    private static List<Object> shuffleList(List<Object> list, Set<String> exceptFields) {
+        List<Object> targetList = new ArrayList<>();
+        for(Object value : list) {
+            if (value instanceof Map) {
+                @SuppressWarnings("unchecked")
+                LinkedHashMap<String, Object> valueMap = (LinkedHashMap<String, Object>) value;
+                targetList.add(shuffleMap(valueMap, exceptFields));
+            } else if(value instanceof List) {
+                targetList.add(shuffleList((List) value, exceptFields));
+            }  else {
+                targetList.add(value);
+            }
+        }
+        return targetList;
+    }
 
-        // even though we shuffle later, we need this to make tests reproduce on different jvms
-        Collections.sort(keys);
-        Map<String, Object> targetMap = new TreeMap<>();
+    public static LinkedHashMap<String, Object> shuffleMap(LinkedHashMap<String, Object> map, Set<String> exceptFields) {
+        List<String> keys = new ArrayList<>(map.keySet());
+        LinkedHashMap<String, Object> targetMap = new LinkedHashMap<>();
         Collections.shuffle(keys, random());
         for (String key : keys) {
             Object value = map.get(key);
             if (value instanceof Map && exceptFields.contains(key) == false) {
-                targetMap.put(key, shuffleMap((Map) value, exceptFields));
+                @SuppressWarnings("unchecked")
+                LinkedHashMap<String, Object> valueMap = (LinkedHashMap<String, Object>) value;
+                targetMap.put(key, shuffleMap(valueMap, exceptFields));
+            } else if(value instanceof List && exceptFields.contains(key) == false) {
+                targetMap.put(key, shuffleList((List) value, exceptFields));
             } else {
                 targetMap.put(key, value);
             }
@@ -936,15 +1012,6 @@ public abstract class ESTestCase extends LuceneTestCase {
                 return reader.read(in);
             }
         }
-    }
-
-    /**
-     * Returns true iff assertions for elasticsearch packages are enabled
-     */
-    public static boolean assertionsEnabled() {
-        boolean enabled = false;
-        assert (enabled = true);
-        return enabled;
     }
 
     public void assertAllIndicesRemovedAndDeletionCompleted(Iterable<IndicesService> indicesServices) throws Exception {
@@ -1060,6 +1127,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         return new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
     }
 
+    /**
+     * The {@link NamedWriteableRegistry} to use for this test. Subclasses should override and use liberally.
+     */
+    protected NamedWriteableRegistry writableRegistry() {
+        return new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+    }
+
+    /**
+     * Create a "mock" script for use either with {@link MockScriptEngine} or anywhere where you need a script but don't really care about
+     * its contents.
+     */
+    public static final Script mockScript(String id) {
+        return new Script(ScriptType.INLINE, MockScriptEngine.NAME, id, emptyMap());
+    }
+
     /** Returns the suite failure marker: internal use only! */
     public static TestRuleMarkFailure getSuiteFailureMarker() {
         return suiteFailureMarker;
@@ -1083,9 +1165,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     protected static long spinForAtLeastOneMillisecond() {
-        long nanosecondsInMillisecond = TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
-        // force at least one millisecond to elapse, but ensure the
-        // clock has enough resolution to observe the passage of time
+        return spinForAtLeastNMilliseconds(1);
+    }
+
+    protected static long spinForAtLeastNMilliseconds(final long ms) {
+        long nanosecondsInMillisecond = TimeUnit.NANOSECONDS.convert(ms, TimeUnit.MILLISECONDS);
+        /*
+         * Force at least ms milliseconds to elapse, but ensure the clock has enough resolution to
+         * observe the passage of time.
+         */
         long start = System.nanoTime();
         long elapsed;
         while ((elapsed = (System.nanoTime() - start)) < nanosecondsInMillisecond) {
@@ -1129,14 +1217,12 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static ScriptModule newTestScriptModule() {
-        Settings settings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                // no file watching, so we don't need a ResourceWatcherService
-                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
-                .build();
-        Environment environment = new Environment(settings);
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
-        return new ScriptModule(settings, environment, null, singletonList(scriptEngine), emptyList());
+        return new ScriptModule(Settings.EMPTY, singletonList(new ScriptPlugin() {
+            @Override
+            public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+                return new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
+            }
+        }));
     }
 
     /** Creates an IndicesModule for testing with the given mappers and metadata mappers. */

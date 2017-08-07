@@ -48,10 +48,9 @@ public class ShardStateIT extends ESIntegTestCase {
         indicesService.indexService(resolveIndex("test")).getShard(shard).failShard("simulated test failure", null);
 
         logger.info("--> waiting for a yellow index");
-        // JDK 9 type inference gets confused, so we have to help the
-        // type inference
-        assertBusy(((Runnable) () -> assertThat(client().admin().cluster().prepareHealth().get().getStatus(),
-                equalTo(ClusterHealthStatus.YELLOW))));
+        // we can't use ensureYellow since that one is just as happy with a GREEN status.
+        assertBusy(() ->
+            assertThat(client().admin().cluster().prepareHealth("test").get().getStatus(), equalTo(ClusterHealthStatus.YELLOW)));
 
         final long term0 = shard == 0 ? 2 : 1;
         final long term1 = shard == 1 ? 2 : 1;
@@ -63,13 +62,13 @@ public class ShardStateIT extends ESIntegTestCase {
         assertPrimaryTerms(term0, term1);
     }
 
-    protected void assertPrimaryTerms(long term0, long term1) {
+    protected void assertPrimaryTerms(long shard0Term, long shard1Term) {
         for (String node : internalCluster().getNodeNames()) {
             logger.debug("--> asserting primary terms terms on [{}]", node);
             ClusterState state = client(node).admin().cluster().prepareState().setLocal(true).get().getState();
             IndexMetaData metaData = state.metaData().index("test");
-            assertThat(metaData.primaryTerm(0), equalTo(term0));
-            assertThat(metaData.primaryTerm(1), equalTo(term1));
+            assertThat(metaData.primaryTerm(0), equalTo(shard0Term));
+            assertThat(metaData.primaryTerm(1), equalTo(shard1Term));
             IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
             IndexService indexService = indicesService.indexService(metaData.getIndex());
             if (indexService != null) {

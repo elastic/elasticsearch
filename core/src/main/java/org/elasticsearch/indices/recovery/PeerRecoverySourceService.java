@@ -20,13 +20,10 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -45,7 +42,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  * The source recovery accepts recovery requests from other peer shards and start the recovery process from this
@@ -61,17 +57,14 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
     private final IndicesService indicesService;
     private final RecoverySettings recoverySettings;
 
-    private final ClusterService clusterService;
-
-    private final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
+    final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
 
     @Inject
     public PeerRecoverySourceService(Settings settings, TransportService transportService, IndicesService indicesService,
-                                     RecoverySettings recoverySettings, ClusterService clusterService) {
+                                     RecoverySettings recoverySettings) {
         super(settings);
         this.transportService = transportService;
         this.indicesService = indicesService;
-        this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
         transportService.registerRequestHandler(Actions.START_RECOVERY, StartRecoveryRequest::new, ThreadPool.Names.GENERIC, new StartRecoveryTransportRequestHandler());
     }
@@ -88,32 +81,18 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
 
-        // starting recovery from that our (the source) shard state is marking the shard to be in recovery mode as well, otherwise
-        // the index operations will not be routed to it properly
-        RoutingNode node = clusterService.state().getRoutingNodes().node(request.targetNode().getId());
-        if (node == null) {
-            logger.debug("delaying recovery of {} as source node {} is unknown", request.shardId(), request.targetNode());
-            throw new DelayRecoveryException("source node does not have the node [" + request.targetNode() + "] in its state yet..");
+        final ShardRouting routingEntry = shard.routingEntry();
+
+        if (routingEntry.primary() == false || routingEntry.active() == false) {
+            throw new DelayRecoveryException("source shard [" + routingEntry + "] is not an active primary");
         }
 
-        ShardRouting routingEntry = shard.routingEntry();
         if (request.isPrimaryRelocation() && (routingEntry.relocating() == false || routingEntry.relocatingNodeId().equals(request.targetNode().getId()) == false)) {
             logger.debug("delaying recovery of {} as source shard is not marked yet as relocating to {}", request.shardId(), request.targetNode());
             throw new DelayRecoveryException("source shard is not marked yet as relocating to [" + request.targetNode() + "]");
         }
 
-        ShardRouting targetShardRouting = node.getByShardId(request.shardId());
-        if (targetShardRouting == null) {
-            logger.debug("delaying recovery of {} as it is not listed as assigned to target node {}", request.shardId(), request.targetNode());
-            throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
-        }
-        if (!targetShardRouting.initializing()) {
-            logger.debug("delaying recovery of {} as it is not listed as initializing on the target node {}. known shards state is [{}]",
-                request.shardId(), request.targetNode(), targetShardRouting.state());
-            throw new DelayRecoveryException("source node has the state of the target shard to be [" + targetShardRouting.state() + "], expecting to be [initializing]");
-        }
-
-        RecoverySourceHandler handler = ongoingRecoveries.addNewRecovery(request, targetShardRouting.allocationId().getId(), shard);
+        RecoverySourceHandler handler = ongoingRecoveries.addNewRecovery(request, shard);
         logger.trace("[{}][{}] starting recovery to {}", request.shardId().getIndex().getName(), request.shardId().id(), request.targetNode());
         try {
             return handler.recoverToTarget();
@@ -130,12 +109,12 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
         }
     }
 
-    private final class OngoingRecoveries {
+    final class OngoingRecoveries {
         private final Map<IndexShard, ShardRecoveryContext> ongoingRecoveries = new HashMap<>();
 
-        synchronized RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, String targetAllocationId, IndexShard shard) {
+        synchronized RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, IndexShard shard) {
             final ShardRecoveryContext shardContext = ongoingRecoveries.computeIfAbsent(shard, s -> new ShardRecoveryContext());
-            RecoverySourceHandler handler = shardContext.addNewRecovery(request, targetAllocationId, shard);
+            RecoverySourceHandler handler = shardContext.addNewRecovery(request, shard);
             shard.recoveryStats().incCurrentAsSource();
             return handler;
         }
@@ -150,7 +129,6 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
             }
             if (shardRecoveryContext.recoveryHandlers.isEmpty()) {
                 ongoingRecoveries.remove(shard);
-                assert shardRecoveryContext.onNewRecoveryException == null;
             }
         }
 
@@ -174,55 +152,28 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
         private final class ShardRecoveryContext {
             final Set<RecoverySourceHandler> recoveryHandlers = new HashSet<>();
 
-            @Nullable
-            private DelayRecoveryException onNewRecoveryException;
-
             /**
-             * Adds recovery source handler if recoveries are not delayed from starting (see also {@link #delayNewRecoveries}.
-             * Throws {@link DelayRecoveryException} if new recoveries are delayed from starting.
+             * Adds recovery source handler.
              */
-            synchronized RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, String targetAllocationId, IndexShard shard) {
-                if (onNewRecoveryException != null) {
-                    throw onNewRecoveryException;
+            synchronized RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, IndexShard shard) {
+                for (RecoverySourceHandler existingHandler : recoveryHandlers) {
+                    if (existingHandler.getRequest().targetAllocationId().equals(request.targetAllocationId())) {
+                        throw new DelayRecoveryException("recovery with same target already registered, waiting for " +
+                            "previous recovery attempt to be cancelled or completed");
+                    }
                 }
-                RecoverySourceHandler handler = createRecoverySourceHandler(request, targetAllocationId, shard);
+                RecoverySourceHandler handler = createRecoverySourceHandler(request, shard);
                 recoveryHandlers.add(handler);
                 return handler;
             }
 
-            private RecoverySourceHandler createRecoverySourceHandler(StartRecoveryRequest request, String targetAllocationId,
-                                                                      IndexShard shard) {
+            private RecoverySourceHandler createRecoverySourceHandler(StartRecoveryRequest request, IndexShard shard) {
                 RecoverySourceHandler handler;
                 final RemoteRecoveryTargetHandler recoveryTarget =
-                    new RemoteRecoveryTargetHandler(request.recoveryId(), request.shardId(), targetAllocationId, transportService,
+                    new RemoteRecoveryTargetHandler(request.recoveryId(), request.shardId(), transportService,
                         request.targetNode(), recoverySettings, throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime));
-                Supplier<Long> currentClusterStateVersionSupplier = () -> clusterService.state().getVersion();
-                if (shard.indexSettings().isOnSharedFilesystem()) {
-                    handler = new SharedFSRecoverySourceHandler(shard, recoveryTarget, request, currentClusterStateVersionSupplier,
-                        this::delayNewRecoveries, settings);
-                } else {
-                    handler = new RecoverySourceHandler(shard, recoveryTarget, request, currentClusterStateVersionSupplier,
-                        this::delayNewRecoveries, recoverySettings.getChunkSize().bytesAsInt(), settings);
-                }
+                handler = new RecoverySourceHandler(shard, recoveryTarget, request, recoverySettings.getChunkSize().bytesAsInt(), settings);
                 return handler;
-            }
-
-            /**
-             * Makes new recoveries throw a {@link DelayRecoveryException} with the provided message.
-             *
-             * Throws {@link IllegalStateException} if new recoveries are already being delayed.
-             */
-            synchronized Releasable delayNewRecoveries(String exceptionMessage) throws IllegalStateException {
-                if (onNewRecoveryException != null) {
-                    throw new IllegalStateException("already delaying recoveries");
-                }
-                onNewRecoveryException = new DelayRecoveryException(exceptionMessage);
-                return this::unblockNewRecoveries;
-            }
-
-
-            private synchronized void unblockNewRecoveries() {
-                onNewRecoveryException = null;
             }
         }
     }

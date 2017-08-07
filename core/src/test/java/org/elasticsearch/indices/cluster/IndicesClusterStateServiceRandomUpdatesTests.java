@@ -32,6 +32,8 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -44,7 +46,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -89,15 +93,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     public void tearDown() throws Exception {
         super.tearDown();
         terminate(threadPool);
-    }
-
-    /**
-     * needed due to random usage of {@link IndexMetaData#INDEX_SHADOW_REPLICAS_SETTING}. removed once
-     * shadow replicas are removed.
-     */
-    @Override
-    protected boolean enableWarningsCheck() {
-        return false;
     }
 
     public void testRandomClusterStateUpdates() {
@@ -159,7 +154,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
      */
     public void testJoiningNewClusterOnlyRemovesInMemoryIndexStructures() {
         // a cluster state derived from the initial state that includes a created index
-        String name = "index_" + randomAsciiOfLength(8).toLowerCase(Locale.ROOT);
+        String name = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         ShardRoutingState[] replicaStates = new ShardRoutingState[randomIntBetween(0, 3)];
         Arrays.fill(replicaStates, ShardRoutingState.INITIALIZING);
         ClusterState stateWithIndex = ClusterStateCreationUtils.state(name, randomBoolean(), ShardRoutingState.INITIALIZING, replicaStates);
@@ -240,19 +235,32 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     public ClusterState randomlyUpdateClusterState(ClusterState state,
                                                    Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap,
                                                    Supplier<MockIndicesService> indicesServiceSupplier) {
+        // randomly remove no_master blocks
+        if (randomBoolean() && state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)) {
+            state = ClusterState.builder(state).blocks(
+                ClusterBlocks.builder().blocks(state.blocks()).removeGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)).build();
+        }
+
+        // randomly add no_master blocks
+        if (rarely() && state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID) == false) {
+            ClusterBlock block = randomBoolean() ? DiscoverySettings.NO_MASTER_BLOCK_ALL : DiscoverySettings.NO_MASTER_BLOCK_WRITES;
+            state = ClusterState.builder(state).blocks(ClusterBlocks.builder().blocks(state.blocks()).addGlobalBlock(block)).build();
+        }
+
+        // if no_master block is in place, make no other cluster state changes
+        if (state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)) {
+            return state;
+        }
+
         // randomly create new indices (until we have 200 max)
         for (int i = 0; i < randomInt(5); i++) {
             if (state.metaData().indices().size() > 200) {
                 break;
             }
-            String name = "index_" + randomAsciiOfLength(15).toLowerCase(Locale.ROOT);
+            String name = "index_" + randomAlphaOfLength(15).toLowerCase(Locale.ROOT);
             Settings.Builder settingsBuilder = Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
                 .put(SETTING_NUMBER_OF_REPLICAS, randomInt(2));
-            if (randomBoolean()) {
-                settingsBuilder.put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
-                    .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true);
-            }
             CreateIndexRequest request = new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metaData().hasIndex(name));
@@ -400,6 +408,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(settings, threadPool,
             transportService, null, clusterService);
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
+        final PrimaryReplicaSyncer primaryReplicaSyncer = mock(PrimaryReplicaSyncer.class);
         return new IndicesClusterStateService(
             settings,
             indicesService,
@@ -413,7 +422,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             null,
             null,
             null,
-            shardId -> {});
+            null,
+            primaryReplicaSyncer);
     }
 
     private class RecordingIndicesService extends MockIndicesService {

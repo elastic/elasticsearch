@@ -71,13 +71,14 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 sums = bigArrays.grow(sums, bucket + 1);
-                values.setDocument(doc);
-                final int valuesCount = values.count();
-                double sum = 0;
-                for (int i = 0; i < valuesCount; i++) {
-                    sum += values.valueAt(i);
+                if (values.advanceExact(doc)) {
+                    final int valuesCount = values.docValueCount();
+                    double sum = 0;
+                    for (int i = 0; i < valuesCount; i++) {
+                        sum += values.nextValue();
+                    }
+                    sums.increment(bucket, sum);
                 }
-                sums.increment(bucket, sum);
             }
         };
     }

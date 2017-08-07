@@ -90,6 +90,7 @@ public class SnippetsTask extends DefaultTask {
                      * tests cleaner.
                      */
                     subst = subst.replace('$body', '\\$body')
+                    subst = subst.replace('$_path', '\\$_path')
                     // \n is a new line....
                     subst = subst.replace('\\n', '\n')
                     snippet.contents = snippet.contents.replaceAll(

@@ -382,7 +382,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
         // The tasks can be re-ordered, so we need to check out-of-order
         Set<String> controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"));
-        List<PendingClusterTask> pendingClusterTasks = clusterService.pendingTasks();
+        List<PendingClusterTask> pendingClusterTasks = clusterService.getMasterService().pendingTasks();
         assertThat(pendingClusterTasks.size(), greaterThanOrEqualTo(10));
         assertThat(pendingClusterTasks.get(0).getSource().string(), equalTo("1"));
         assertThat(pendingClusterTasks.get(0).isExecuting(), equalTo(true));
@@ -404,7 +404,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         invoked2.await();
 
         // whenever we test for no tasks, we need to awaitBusy since this is a live node
-        assertTrue(awaitBusy(() -> clusterService.pendingTasks().isEmpty()));
+        assertTrue(awaitBusy(() -> clusterService.getMasterService().pendingTasks().isEmpty()));
         waitNoPendingTasksOnAll();
 
         final CountDownLatch block2 = new CountDownLatch(1);
@@ -444,7 +444,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         }
         Thread.sleep(100);
 
-        pendingClusterTasks = clusterService.pendingTasks();
+        pendingClusterTasks = clusterService.getMasterService().pendingTasks();
         assertThat(pendingClusterTasks.size(), greaterThanOrEqualTo(5));
         controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5"));
         for (PendingClusterTask task : pendingClusterTasks) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.node;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -82,7 +83,7 @@ public class NodeService extends AbstractComponent implements Closeable {
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
                 boolean transport, boolean http, boolean plugin, boolean ingest, boolean indices) {
-        return new NodeInfo(Version.CURRENT, Build.CURRENT, discovery.localNode(),
+        return new NodeInfo(Version.CURRENT, Build.CURRENT, transportService.getLocalNode(),
                 settings ? settingsFilter.filter(this.settings) : null,
                 os ? monitorService.osService().info() : null,
                 process ? monitorService.processService().info() : null,
@@ -101,7 +102,7 @@ public class NodeService extends AbstractComponent implements Closeable {
                            boolean script, boolean discoveryStats, boolean ingest) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
-        return new NodeStats(discovery.localNode(), System.currentTimeMillis(),
+        return new NodeStats(transportService.getLocalNode(), System.currentTimeMillis(),
                 indices.anySet() ? indicesService.stats(true, indices) : null,
                 os ? monitorService.osService().stats() : null,
                 process ? monitorService.processService().stats() : null,
@@ -121,9 +122,13 @@ public class NodeService extends AbstractComponent implements Closeable {
         return ingestService;
     }
 
+    public MonitorService getMonitorService() {
+        return monitorService;
+    }
+
     @Override
     public void close() throws IOException {
-        indicesService.close();
+        IOUtils.close(indicesService);
     }
 
 }

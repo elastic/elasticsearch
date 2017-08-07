@@ -157,13 +157,24 @@ public final class RandomObjects {
 
     /**
      * Returns a random source in a given XContentType containing a random number of fields, objects and array, with maximum depth 5.
+     * The minimum number of fields per object is 1.
      *
      * @param random Random generator
      */
     public static BytesReference randomSource(Random random, XContentType xContentType) {
+        return randomSource(random, xContentType, 1);
+    }
+
+    /**
+     * Returns a random source in a given XContentType containing a random number of fields, objects and array, with maximum depth 5.
+     * The minimum number of fields per object is provided as an argument.
+     *
+     * @param random Random generator
+     */
+    public static BytesReference randomSource(Random random, XContentType xContentType, int minNumFields) {
         try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
             builder.startObject();
-            addFields(random, builder, 0);
+            addFields(random, builder, minNumFields, 0);
             builder.endObject();
             return builder.bytes();
         } catch(IOException e) {
@@ -174,16 +185,16 @@ public final class RandomObjects {
     /**
      * Randomly adds fields, objects, or arrays to the provided builder. The maximum depth is 5.
      */
-    private static void addFields(Random random, XContentBuilder builder, int currentDepth) throws IOException {
-        int numFields = randomIntBetween(random, 1, 5);
+    private static void addFields(Random random, XContentBuilder builder, int minNumFields, int currentDepth) throws IOException {
+        int numFields = randomIntBetween(random, minNumFields, 10);
         for (int i = 0; i < numFields; i++) {
             if (currentDepth < 5 && random.nextBoolean()) {
                 if (random.nextBoolean()) {
-                    builder.startObject(RandomStrings.randomAsciiOfLengthBetween(random, 4, 10));
-                    addFields(random, builder, currentDepth + 1);
+                    builder.startObject(RandomStrings.randomAsciiOfLengthBetween(random, 6, 10));
+                    addFields(random, builder, minNumFields, currentDepth + 1);
                     builder.endObject();
                 } else {
-                    builder.startArray(RandomStrings.randomAsciiOfLengthBetween(random, 4, 10));
+                    builder.startArray(RandomStrings.randomAsciiOfLengthBetween(random, 6, 10));
                     int numElements = randomIntBetween(random, 1, 5);
                     boolean object = random.nextBoolean();
                     int dataType = -1;
@@ -193,7 +204,7 @@ public final class RandomObjects {
                     for (int j = 0; j < numElements; j++) {
                         if (object) {
                             builder.startObject();
-                            addFields(random, builder, 5);
+                            addFields(random, builder, minNumFields, 5);
                             builder.endObject();
                         } else {
                             builder.value(randomFieldValue(random, dataType));
@@ -202,7 +213,7 @@ public final class RandomObjects {
                     builder.endArray();
                 }
             } else {
-                builder.field(RandomStrings.randomAsciiOfLengthBetween(random, 4, 10),
+                builder.field(RandomStrings.randomAsciiOfLengthBetween(random, 6, 10),
                         randomFieldValue(random, randomDataType(random)));
             }
         }

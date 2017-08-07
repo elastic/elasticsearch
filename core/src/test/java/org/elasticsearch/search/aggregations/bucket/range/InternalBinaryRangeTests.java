@@ -22,10 +22,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,42 +33,68 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class InternalBinaryRangeTests extends InternalAggregationTestCase<InternalBinaryRange> {
-    private Tuple<BytesRef, BytesRef>[] RANGES;
+public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBinaryRange> {
 
-    @Before
-    public void randomSortedRanges() {
-        int numRanges = randomIntBetween(1, 10);
-        Tuple<BytesRef, BytesRef>[] ranges = new Tuple[numRanges];
-        for (int i = 0; i < numRanges; i++) {
-            BytesRef[] values = new BytesRef[2];
-            values[0] = new BytesRef(randomAsciiOfLength(15));
-            values[1] = new BytesRef(randomAsciiOfLength(15));
-            Arrays.sort(values);
-            ranges[i] = new Tuple(values[0], values[1]);
-        }
-        Arrays.sort(ranges, (t1, t2) -> t1.v1().compareTo(t2.v1()));
-        RANGES = ranges;
-    }
-
+    private List<Tuple<BytesRef, BytesRef>> ranges;
 
     @Override
-    protected InternalBinaryRange createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                                     Map<String, Object> metaData) {
-        boolean keyed = randomBoolean();
+    protected int minNumberOfBuckets() {
+        return 1;
+    }
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+
+        List<Tuple<BytesRef, BytesRef>> listOfRanges = new ArrayList<>();
+        if (randomBoolean()) {
+            listOfRanges.add(Tuple.tuple(null, new BytesRef(randomAlphaOfLength(15))));
+        }
+        if (randomBoolean()) {
+            listOfRanges.add(Tuple.tuple(new BytesRef(randomAlphaOfLength(15)), null));
+        }
+        if (randomBoolean()) {
+            listOfRanges.add(Tuple.tuple(null, null));
+        }
+
+        final int numRanges = Math.max(0, randomNumberOfBuckets() - listOfRanges.size());
+        for (int i = 0; i < numRanges; i++) {
+            BytesRef[] values = new BytesRef[2];
+            values[0] = new BytesRef(randomAlphaOfLength(15));
+            values[1] = new BytesRef(randomAlphaOfLength(15));
+            Arrays.sort(values);
+            listOfRanges.add(Tuple.tuple(values[0], values[1]));
+        }
+        Collections.shuffle(listOfRanges, random());
+        ranges = Collections.unmodifiableList(listOfRanges);
+    }
+
+    @Override
+    protected InternalBinaryRange createTestInstance(String name,
+                                                     List<PipelineAggregator> pipelineAggregators,
+                                                     Map<String, Object> metaData,
+                                                     InternalAggregations aggregations,
+                                                     boolean keyed) {
         DocValueFormat format = DocValueFormat.RAW;
         List<InternalBinaryRange.Bucket> buckets = new ArrayList<>();
-        for (int i = 0; i < RANGES.length; ++i) {
+
+        int nullKey = randomBoolean() ? randomIntBetween(0, ranges.size() -1) : -1;
+        for (int i = 0; i < ranges.size(); ++i) {
             final int docCount = randomIntBetween(1, 100);
-            buckets.add(new InternalBinaryRange.Bucket(format, keyed, randomAsciiOfLength(10),
-                RANGES[i].v1(), RANGES[i].v2(), docCount, InternalAggregations.EMPTY));
+            final String key = (i == nullKey) ? null: randomAlphaOfLength(10);
+            buckets.add(new InternalBinaryRange.Bucket(format, keyed, key, ranges.get(i).v1(), ranges.get(i).v2(), docCount, aggregations));
         }
-        return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators, Collections.emptyMap());
+        return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators, metaData);
     }
 
     @Override
     protected Writeable.Reader<InternalBinaryRange> instanceReader() {
         return InternalBinaryRange::new;
+    }
+
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+        return ParsedBinaryRange.class;
     }
 
     @Override
@@ -85,5 +111,15 @@ public class InternalBinaryRangeTests extends InternalAggregationTestCase<Intern
             assertEquals(expectedCount, bucket.getDocCount());
             pos ++;
         }
+    }
+
+    @Override
+    protected Class<? extends InternalMultiBucketAggregation.InternalBucket> internalRangeBucketClass() {
+        return InternalBinaryRange.Bucket.class;
+    }
+
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation.ParsedBucket> parsedRangeBucketClass() {
+        return ParsedBinaryRange.ParsedBucket.class;
     }
 }

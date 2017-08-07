@@ -1,7 +1,7 @@
 [[deb]]
 === Install Elasticsearch with Debian Package
 
-The Debian package for Elasticsearch can be <<install-rpm,downloaded from our website>>
+The Debian package for Elasticsearch can be <<install-deb,downloaded from our website>>
 or from our  <<deb-repo,APT repository>>. It can be used to install
 Elasticsearch on any Debian-based system such as Debian and Ubuntu.
 
@@ -47,7 +47,7 @@ ifeval::["{release-state}"=="released"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/{major-version}-prerelease/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+echo "deb https://artifacts.elastic.co/packages/{major-version}/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
 --------------------------------------------------
 
 endif::[]
@@ -56,7 +56,7 @@ ifeval::["{release-state}"=="prerelease"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/{major-version}/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+echo "deb https://artifacts.elastic.co/packages/{major-version}-prerelease/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
 --------------------------------------------------
 
 endif::[]
@@ -114,7 +114,7 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-The Debian package for Elastisearch v{version} can be downloaded from the website and installed as follows:
+The Debian package for Elasticsearch v{version} can be downloaded from the website and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
@@ -197,7 +197,7 @@ locations for a Debian-based system:
 | conf
   | Configuration files including `elasticsearch.yml`
   | /etc/elasticsearch
-  | path.conf
+  | <<config-files-location,CONF_DIR>>
 
 | conf
   | Environment variables including heap size, file descriptors.
@@ -224,11 +224,6 @@ locations for a Debian-based system:
   | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here.
  d| Not configured
   | path.repo
-
-| script
-  | Location of script files.
-  | /etc/elasticsearch/scripts
-  | path.scripts
 
 |=======================================================================
 

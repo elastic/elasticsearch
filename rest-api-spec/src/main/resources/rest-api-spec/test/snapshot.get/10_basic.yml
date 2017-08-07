@@ -1,0 +1,98 @@
+---
+setup:
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_get_1
+        body:
+          type: fs
+          settings:
+            location: "test_repo_get_1_loc"
+
+---
+"Get snapshot info":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      snapshot.create:
+        repository: test_repo_get_1
+        snapshot: test_snapshot
+        wait_for_completion: true
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot
+
+  - is_true: snapshots
+  - is_true: snapshots.0.failures
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_get_1
+        snapshot: test_snapshot
+
+---
+"Get missing snapshot info throws an exception":
+
+  - do:
+      catch: /snapshot_missing_exception.+ is missing/
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_nonexistent_snapshot
+
+---
+"Get missing snapshot info succeeds when ignoreUnavailable is true":
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_nonexistent_snapshot
+        ignore_unavailable: true
+
+  - is_true: snapshots
+
+---
+"Get snapshot info when verbose is false":
+  - skip:
+      version: " - 5.99.99"
+      reason: verbose mode was introduced in 6.0
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      snapshot.create:
+        repository: test_repo_get_1
+        snapshot: test_snapshot
+        wait_for_completion: true
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot
+        verbose: false
+
+  - is_true: snapshots
+  - match: { snapshots.0.snapshot: test_snapshot }
+  - match: { snapshots.0.state: SUCCESS }
+  - is_false: snapshots.0.failures
+  - is_false: snapshots.0.shards
+  - is_false: snapshots.0.version
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_get_1
+        snapshot: test_snapshot

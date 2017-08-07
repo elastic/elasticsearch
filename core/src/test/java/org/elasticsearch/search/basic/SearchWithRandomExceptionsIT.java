@@ -243,6 +243,11 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
             return new RandomExceptionDirectoryReaderWrapper(in, settings);
         }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
+        }
     }
 
 

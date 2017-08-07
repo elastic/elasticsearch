@@ -62,13 +62,14 @@ public class MinAggregatorTests extends AggregatorTestCase {
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("_name").field("number");
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         fieldType.setName("number");
-        try (MinAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
-            aggregator.preCollection();
-            indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-            aggregator.postCollection();
-            InternalMin result = (InternalMin) aggregator.buildAggregation(0L);
-            assertEquals(-1.0, result.getValue(), 0);
-        }
+
+        MinAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
+        InternalMin result = (InternalMin) aggregator.buildAggregation(0L);
+        assertEquals(-1.0, result.getValue(), 0);
+
         indexReader.close();
         directory.close();
     }
@@ -96,13 +97,14 @@ public class MinAggregatorTests extends AggregatorTestCase {
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("_name").field("number");
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         fieldType.setName("number");
-        try (MinAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
-            aggregator.preCollection();
-            indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-            aggregator.postCollection();
-            InternalMin result = (InternalMin) aggregator.buildAggregation(0L);
-            assertEquals(-1.0, result.getValue(), 0);
-        }
+
+        MinAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
+        InternalMin result = (InternalMin) aggregator.buildAggregation(0L);
+        assertEquals(-1.0, result.getValue(), 0);
+
         indexReader.close();
         directory.close();
     }
@@ -127,13 +129,14 @@ public class MinAggregatorTests extends AggregatorTestCase {
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("_name").field("number2");
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         fieldType.setName("number2");
-        try (MinAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
-            aggregator.preCollection();
-            indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-            aggregator.postCollection();
-            InternalMin result = (InternalMin) aggregator.buildAggregation(0L);
-            assertEquals(Double.POSITIVE_INFINITY, result.getValue(), 0);
-        }
+
+        MinAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
+        InternalMin result = (InternalMin) aggregator.buildAggregation(0L);
+        assertEquals(Double.POSITIVE_INFINITY, result.getValue(), 0);
+
         indexReader.close();
         directory.close();
     }
@@ -149,13 +152,14 @@ public class MinAggregatorTests extends AggregatorTestCase {
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("_name").field("number");
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         fieldType.setName("number");
-        try (MinAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
-            aggregator.preCollection();
-            indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-            aggregator.postCollection();
-            InternalMin result = (InternalMin) aggregator.buildAggregation(0L);
-            assertEquals(Double.POSITIVE_INFINITY, result.getValue(), 0);
-        }
+
+        MinAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
+        InternalMin result = (InternalMin) aggregator.buildAggregation(0L);
+        assertEquals(Double.POSITIVE_INFINITY, result.getValue(), 0);
+
         indexReader.close();
         directory.close();
     }

@@ -22,6 +22,7 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
@@ -30,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 /**
  * Superclass for {@link ObjectParser} and {@link ConstructingObjectParser}. Defines most of the "declare" methods so they can be shared.
@@ -43,6 +45,94 @@ public abstract class AbstractObjectParser<Value, Context>
      */
     public abstract <T> void declareField(BiConsumer<Value, T> consumer, ContextParser<Context, T> parser, ParseField parseField,
             ValueType type);
+
+    /**
+     * Declares named objects in the style of aggregations. These are named
+     * inside and object like this:
+     * 
+     * <pre>
+     * <code>
+     * {
+     *   "aggregations": {
+     *     "name_1": { "aggregation_type": {} },
+     *     "name_2": { "aggregation_type": {} },
+     *     "name_3": { "aggregation_type": {} }
+     *     }
+     *   }
+     * }
+     * </code>
+     * </pre>
+     * 
+     * Unlike the other version of this method, "ordered" mode (arrays of
+     * objects) is not supported.
+     *
+     * See NamedObjectHolder in ObjectParserTests for examples of how to invoke
+     * this.
+     *
+     * @param consumer
+     *            sets the values once they have been parsed
+     * @param namedObjectParser
+     *            parses each named object
+     * @param parseField
+     *            the field to parse
+     */
+    public abstract <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
+            ParseField parseField);
+
+    /**
+     * Declares named objects in the style of highlighting's field element.
+     * These are usually named inside and object like this:
+     * 
+     * <pre>
+     * <code>
+     * {
+     *   "highlight": {
+     *     "fields": {        &lt;------ this one
+     *       "title": {},
+     *       "body": {},
+     *       "category": {}
+     *     }
+     *   }
+     * }
+     * </code>
+     * </pre>
+     * 
+     * but, when order is important, some may be written this way:
+     * 
+     * <pre>
+     * <code>
+     * {
+     *   "highlight": {
+     *     "fields": [        &lt;------ this one
+     *       {"title": {}},
+     *       {"body": {}},
+     *       {"category": {}}
+     *     ]
+     *   }
+     * }
+     * </code>
+     * </pre>
+     * 
+     * This is because json doesn't enforce ordering. Elasticsearch reads it in
+     * the order sent but tools that generate json are free to put object
+     * members in an unordered Map, jumbling them. Thus, if you care about order
+     * you can send the object in the second way.
+     *
+     * See NamedObjectHolder in ObjectParserTests for examples of how to invoke
+     * this.
+     *
+     * @param consumer
+     *            sets the values once they have been parsed
+     * @param namedObjectParser
+     *            parses each named object
+     * @param orderedModeCallback
+     *            called when the named object is parsed using the "ordered"
+     *            mode (the array of objects)
+     * @param parseField
+     *            the field to parse
+     */
+    public abstract <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
+            Consumer<Value> orderedModeCallback, ParseField parseField);
 
     public <T> void declareField(BiConsumer<Value, T> consumer, CheckedFunction<XContentParser, T, IOException> parser,
             ParseField parseField, ValueType type) {

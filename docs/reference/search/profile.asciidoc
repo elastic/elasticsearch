@@ -1,7 +1,7 @@
 [[search-profile]]
 == Profile API
 
-experimental[]
+WARNING:  The Profile API is a debugging tool and adds signficant overhead to search execution.
 
 The Profile API provides detailed timing information about the execution of individual components
 in a search request.  It gives the user insight into how search requests are executed at a low level so that
@@ -41,6 +41,7 @@ This will yield the following result:
    "_shards": {
       "total": 1,
       "successful": 1,
+      "skipped" : 0,
       "failed": 0
    },
    "hits": {
@@ -51,7 +52,7 @@ This will yield the following result:
    "profile": {
      "shards": [
         {
-           "id": "[2aE02wS1R8q_QFnYu6vDVQ][twitter][1]",
+           "id": "[2aE02wS1R8q_QFnYu6vDVQ][twitter][0]",
            "searches": [
               {
                  "query": [
@@ -139,27 +140,9 @@ This will yield the following result:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 25/"took": $body.took/]
-// TESTRESPONSE[s/"hits": \[...\]/"hits": $body.hits.hits/]
-// TESTRESPONSE[s/"id": "\[2aE02wS1R8q_QFnYu6vDVQ\]\[twitter\]\[1\]"/"id": $body.profile.shards.0.id/]
-// TESTRESPONSE[s/"rewrite_time": 51443/"rewrite_time": $body.profile.shards.0.searches.0.rewrite_time/]
-// TESTRESPONSE[s/"score": 51306/"score": $body.profile.shards.0.searches.0.query.0.breakdown.score/]
-// TESTRESPONSE[s/"time_in_nanos": "1873811"/"time_in_nanos": $body.profile.shards.0.searches.0.query.0.time_in_nanos/]
-// TESTRESPONSE[s/"build_scorer": 2935582/"build_scorer": $body.profile.shards.0.searches.0.query.0.breakdown.build_scorer/]
-// TESTRESPONSE[s/"create_weight": 919297/"create_weight": $body.profile.shards.0.searches.0.query.0.breakdown.create_weight/]
-// TESTRESPONSE[s/"next_doc": 53876/"next_doc": $body.profile.shards.0.searches.0.query.0.breakdown.next_doc/]
-// TESTRESPONSE[s/"time_in_nanos": "391943"/"time_in_nanos": $body.profile.shards.0.searches.0.query.0.children.0.time_in_nanos/]
-// TESTRESPONSE[s/"score": 28776/"score": $body.profile.shards.0.searches.0.query.0.children.0.breakdown.score/]
-// TESTRESPONSE[s/"build_scorer": 784451/"build_scorer": $body.profile.shards.0.searches.0.query.0.children.0.breakdown.build_scorer/]
-// TESTRESPONSE[s/"create_weight": 1669564/"create_weight": $body.profile.shards.0.searches.0.query.0.children.0.breakdown.create_weight/]
-// TESTRESPONSE[s/"next_doc": 10111/"next_doc": $body.profile.shards.0.searches.0.query.0.children.0.breakdown.next_doc/]
-// TESTRESPONSE[s/"time_in_nanos": "210682"/"time_in_nanos": $body.profile.shards.0.searches.0.query.0.children.1.time_in_nanos/]
-// TESTRESPONSE[s/"score": 4552/"score": $body.profile.shards.0.searches.0.query.0.children.1.breakdown.score/]
-// TESTRESPONSE[s/"build_scorer": 42602/"build_scorer": $body.profile.shards.0.searches.0.query.0.children.1.breakdown.build_scorer/]
-// TESTRESPONSE[s/"create_weight": 89323/"create_weight": $body.profile.shards.0.searches.0.query.0.children.1.breakdown.create_weight/]
-// TESTRESPONSE[s/"next_doc": 2852/"next_doc": $body.profile.shards.0.searches.0.query.0.children.1.breakdown.next_doc/]
-// TESTRESPONSE[s/"time_in_nanos": "304311"/"time_in_nanos": $body.profile.shards.0.searches.0.collector.0.time_in_nanos/]
-// TESTRESPONSE[s/"time_in_nanos": "32273"/"time_in_nanos": $body.profile.shards.0.searches.0.collector.0.children.0.time_in_nanos/]
-// Sorry for this mess....
+// TESTRESPONSE[s/"hits": \[...\]/"hits": $body.$_path/]
+// TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
+// TESTRESPONSE[s/\[2aE02wS1R8q_QFnYu6vDVQ\]\[twitter\]\[0\]/$body.$_path/]
 
 <1> Search results are returned, but were omitted here for brevity
 
@@ -174,7 +157,7 @@ First, the overall structure of the profile response is as follows:
    "profile": {
         "shards": [
            {
-              "id": "[2aE02wS1R8q_QFnYu6vDVQ][twitter][1]",  <1>
+              "id": "[2aE02wS1R8q_QFnYu6vDVQ][twitter][0]",  <1>
               "searches": [
                  {
                     "query": [...],             <2>
@@ -189,10 +172,10 @@ First, the overall structure of the profile response is as follows:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"profile": /"took": $body.took, "timed_out": $body.timed_out, "_shards": $body._shards, "hits": $body.hits, "profile": /]
-// TESTRESPONSE[s/"id": "\[2aE02wS1R8q_QFnYu6vDVQ\]\[twitter\]\[1\]"/"id": $body.profile.shards.0.id/]
-// TESTRESPONSE[s/"query": \[...\]/"query": $body.profile.shards.0.searches.0.query/]
-// TESTRESPONSE[s/"rewrite_time": 51443/"rewrite_time": $body.profile.shards.0.searches.0.rewrite_time/]
-// TESTRESPONSE[s/"collector": \[...\]/"collector": $body.profile.shards.0.searches.0.collector/]
+// TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
+// TESTRESPONSE[s/\[2aE02wS1R8q_QFnYu6vDVQ\]\[twitter\]\[0\]/$body.$_path/]
+// TESTRESPONSE[s/"query": \[...\]/"query": $body.$_path/]
+// TESTRESPONSE[s/"collector": \[...\]/"collector": $body.$_path/]
 // TESTRESPONSE[s/"aggregations": \[...\]/"aggregations": []/]
 <1> A profile is returned for each shard that participated in the response, and is identified
 by a unique ID
@@ -267,11 +250,10 @@ The overall structure of this query tree will resemble your original Elasticsear
     }
 ]
 --------------------------------------------------
-// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"searches": [{\n/]
-// TESTRESPONSE[s/]$/],"rewrite_time": $body.profile.shards.0.searches.0.rewrite_time, "collector": $body.profile.shards.0.searches.0.collector}], "aggregations": []}]}}/]
-// TESTRESPONSE[s/"time_in_nanos": "1873811",\n.+"breakdown": \{...\}/"time_in_nanos": $body.profile.shards.0.searches.0.query.0.time_in_nanos, "breakdown": $body.profile.shards.0.searches.0.query.0.breakdown/]
-// TESTRESPONSE[s/"time_in_nanos": "391943",\n.+"breakdown": \{...\}/"time_in_nanos": $body.profile.shards.0.searches.0.query.0.children.0.time_in_nanos, "breakdown": $body.profile.shards.0.searches.0.query.0.children.0.breakdown/]
-// TESTRESPONSE[s/"time_in_nanos": "210682",\n.+"breakdown": \{...\}/"time_in_nanos": $body.profile.shards.0.searches.0.query.0.children.1.time_in_nanos, "breakdown": $body.profile.shards.0.searches.0.query.0.children.1.breakdown/]
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n/]
+// TESTRESPONSE[s/]$/],"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": []}]}}/]
+// TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
+// TESTRESPONSE[s/"breakdown": \{...\}/"breakdown": $body.$_path/]
 <1> The breakdown timings are omitted for simplicity
 
 Based on the profile structure, we can see that our `match` query was rewritten by Lucene into a BooleanQuery with two
@@ -309,13 +291,9 @@ The `breakdown` component lists detailed timing statistics about low-level Lucen
    "advance_count": 0
 }
 --------------------------------------------------
-// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:message message:number",\n"time_in_nanos": $body.profile.shards.0.searches.0.query.0.time_in_nanos,/]
-// TESTRESPONSE[s/}$/},\n"children": $body.profile.shards.0.searches.0.query.0.children}],\n"rewrite_time": $body.profile.shards.0.searches.0.rewrite_time, "collector": $body.profile.shards.0.searches.0.collector}], "aggregations": []}]}}/]
-// TESTRESPONSE[s/"score": 51306/"score": $body.profile.shards.0.searches.0.query.0.breakdown.score/]
-// TESTRESPONSE[s/"time_in_nanos": "1873811"/"time_in_nanos": $body.profile.shards.0.searches.0.query.0.time_in_nanos/]
-// TESTRESPONSE[s/"build_scorer": 2935582/"build_scorer": $body.profile.shards.0.searches.0.query.0.breakdown.build_scorer/]
-// TESTRESPONSE[s/"create_weight": 919297/"create_weight": $body.profile.shards.0.searches.0.query.0.breakdown.create_weight/]
-// TESTRESPONSE[s/"next_doc": 53876/"next_doc": $body.profile.shards.0.searches.0.query.0.breakdown.next_doc/]
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:message message:number",\n"time_in_nanos": $body.$_path,/]
+// TESTRESPONSE[s/}$/},\n"children": $body.$_path}],\n"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": []}]}}/]
+// TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 
 Timings are listed in wall-clock nanoseconds and are not normalized at all.  All caveats about the overall
 `time_in_nanos` apply here.  The intention of the breakdown is to give you a feel for A) what machinery in Lucene is
@@ -416,10 +394,9 @@ Looking at the previous example:
    }
 ]
 --------------------------------------------------
-// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"searches": [{\n"query": $body.profile.shards.0.searches.0.query,\n"rewrite_time": $body.profile.shards.0.searches.0.rewrite_time,/]
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": $body.$_path,\n"rewrite_time": $body.$_path,/]
 // TESTRESPONSE[s/]$/]}], "aggregations": []}]}}/]
-// TESTRESPONSE[s/"time_in_nanos": "304311"/"time_in_nanos": $body.profile.shards.0.searches.0.collector.0.time_in_nanos/]
-// TESTRESPONSE[s/"time_in_nanos": "32273"/"time_in_nanos": $body.profile.shards.0.searches.0.collector.0.children.0.time_in_nanos/]
+// TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 
 We see a single collector named `SimpleTopScoreDocCollector` wrapped into `CancellableCollector`. `SimpleTopScoreDocCollector` is the default "scoring and sorting"
 `Collector` used by Elasticsearch.  The `reason` field attempts to give a plain english description of the class name.  The

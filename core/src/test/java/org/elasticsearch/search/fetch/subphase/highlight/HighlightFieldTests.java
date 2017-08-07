@@ -38,14 +38,14 @@ import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashC
 public class HighlightFieldTests extends ESTestCase {
 
     public static HighlightField createTestItem() {
-        String name = frequently() ? randomAsciiOfLengthBetween(5, 20) : randomRealisticUnicodeOfCodepointLengthBetween(5, 20);
+        String name = frequently() ? randomAlphaOfLengthBetween(5, 20) : randomRealisticUnicodeOfCodepointLengthBetween(5, 20);
         Text[] fragments = null;
         if (frequently()) {
             int size = randomIntBetween(0, 5);
             fragments = new Text[size];
             for (int i = 0; i < size; i++) {
                 fragments[i] = new Text(
-                        frequently() ? randomAsciiOfLengthBetween(10, 30) : randomRealisticUnicodeOfCodepointLengthBetween(10, 30));
+                        frequently() ? randomAlphaOfLengthBetween(10, 30) : randomRealisticUnicodeOfCodepointLengthBetween(10, 30));
             }
         }
         return new HighlightField(name, fragments);

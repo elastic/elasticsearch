@@ -23,9 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollTask;
-import org.elasticsearch.action.bulk.byscroll.ParentBulkByScrollTask;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
@@ -68,12 +65,12 @@ public class TransportRethrottleActionTests extends ESTestCase {
     private void rethrottleTestCase(int runningSlices, Consumer<ActionListener<ListTasksResponse>> simulator,
             Consumer<ActionListener<TaskInfo>> verifier) {
         Client client = mock(Client.class);
-        String localNodeId = randomAsciiOfLength(5);
+        String localNodeId = randomAlphaOfLength(5);
         float newRequestsPerSecond = randomValueOtherThanMany(f -> f <= 0, () -> randomFloat());
         @SuppressWarnings("unchecked")
         ActionListener<TaskInfo> listener = mock(ActionListener.class);
 
-        TransportRethrottleAction.rethrottle(localNodeId, client, task, newRequestsPerSecond, listener);
+        TransportRethrottleAction.rethrottle(logger, localNodeId, client, task, newRequestsPerSecond, listener);
 
         // Capture the sub request and the listener so we can verify they are sane
         ArgumentCaptor<RethrottleRequest> subRequest = ArgumentCaptor.forClass(RethrottleRequest.class);

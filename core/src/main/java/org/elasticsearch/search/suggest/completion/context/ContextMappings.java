@@ -81,7 +81,9 @@ public class ContextMappings implements ToXContent {
     public ContextMapping get(String name) {
         ContextMapping contextMapping = contextNameMap.get(name);
         if (contextMapping == null) {
-            throw new IllegalArgumentException("Unknown context name[" + name + "], must be one of " + contextNameMap.size());
+            List<String> keys = new ArrayList<>(contextNameMap.keySet());
+            Collections.sort(keys);
+            throw new IllegalArgumentException("Unknown context name [" + name + "], must be one of " + keys.toString());
         }
         return contextMapping;
     }

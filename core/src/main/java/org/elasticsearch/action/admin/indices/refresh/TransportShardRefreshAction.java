@@ -66,9 +66,4 @@ public class TransportShardRefreshAction
         logger.trace("{} refresh request executed on replica", replica.shardId());
         return new ReplicaResult();
     }
-
-    @Override
-    protected boolean shouldExecuteReplication(IndexMetaData indexMetaData) {
-        return true;
-    }
 }

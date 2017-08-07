@@ -19,24 +19,29 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.ContentTooLongException;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.ProtocolVersion;
-import org.apache.http.StatusLine;
-import org.apache.http.entity.BasicHttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHttpResponse;
-import org.apache.http.message.BasicStatusLine;
-import org.apache.http.nio.ContentDecoder;
-import org.apache.http.nio.IOControl;
-import org.apache.http.protocol.HttpContext;
+import org.elasticsearch.client.http.ContentTooLongException;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.HttpResponse;
+import org.elasticsearch.client.http.ProtocolVersion;
+import org.elasticsearch.client.http.StatusLine;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
+import org.elasticsearch.client.http.message.BasicHttpResponse;
+import org.elasticsearch.client.http.message.BasicStatusLine;
+import org.elasticsearch.client.http.nio.ContentDecoder;
+import org.elasticsearch.client.http.nio.IOControl;
+import org.elasticsearch.client.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.elasticsearch.client.http.protocol.HttpContext;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -95,6 +100,26 @@ public class HeapBufferedAsyncResponseConsumerTests extends RestClientTestCase {
         int bufferLimit = randomIntBetween(1, MAX_TEST_BUFFER_SIZE - 100);
         HeapBufferedAsyncResponseConsumer consumer = new HeapBufferedAsyncResponseConsumer(bufferLimit);
         bufferLimitTest(consumer, bufferLimit);
+    }
+
+    public void testCanConfigureHeapBufferLimitFromOutsidePackage() throws ClassNotFoundException, NoSuchMethodException,
+            IllegalAccessException, InvocationTargetException, InstantiationException {
+        int bufferLimit = randomIntBetween(1, Integer.MAX_VALUE);
+        //we use reflection to make sure that the class can be instantiated from the outside, and the constructor is public
+        Constructor<?> constructor = HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory.class.getConstructor(Integer.TYPE);
+        assertEquals(Modifier.PUBLIC, constructor.getModifiers() & Modifier.PUBLIC);
+        Object object = constructor.newInstance(bufferLimit);
+        assertThat(object, instanceOf(HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory.class));
+        HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory consumerFactory =
+                (HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory) object;
+        HttpAsyncResponseConsumer<HttpResponse> consumer = consumerFactory.createHttpAsyncResponseConsumer();
+        assertThat(consumer, instanceOf(HeapBufferedAsyncResponseConsumer.class));
+        HeapBufferedAsyncResponseConsumer bufferedAsyncResponseConsumer = (HeapBufferedAsyncResponseConsumer) consumer;
+        assertEquals(bufferLimit, bufferedAsyncResponseConsumer.getBufferLimit());
+    }
+
+    public void testHttpAsyncResponseConsumerFactoryVisibility() throws ClassNotFoundException {
+        assertEquals(Modifier.PUBLIC, HttpAsyncResponseConsumerFactory.class.getModifiers() & Modifier.PUBLIC);
     }
 
     private static void bufferLimitTest(HeapBufferedAsyncResponseConsumer consumer, int bufferLimit) throws Exception {

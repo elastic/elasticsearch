@@ -1,7 +1,7 @@
 [[analysis-word-delimiter-graph-tokenfilter]]
 === Word Delimiter Graph Token Filter
 
-experimental[]
+experimental[This functionality is marked as experimental in Lucene]
 
 Named `word_delimiter_graph`, it splits words into subwords and performs
 optional transformations on subword groups. Words are split into
@@ -75,7 +75,7 @@ Advance settings include:
     A custom type mapping table, for example (when configured
     using `type_table_path`):
 
-[source,js]
+[source,type_table]
 --------------------------------------------------
     # Map the $, %, '.', and ',' characters to DIGIT
     # This might be useful for financial data.
@@ -94,4 +94,3 @@ NOTE: Using a tokenizer like the `standard` tokenizer may interfere with
 the `catenate_*` and `preserve_original` parameters, as the original
 string may already have lost punctuation during tokenization.  Instead,
 you may want to use the `whitespace` tokenizer.
-

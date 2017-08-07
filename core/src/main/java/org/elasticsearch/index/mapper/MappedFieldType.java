@@ -20,20 +20,20 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.PrefixCodedTerms;
+import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.action.fieldstats.FieldStats;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
@@ -313,14 +313,14 @@ public abstract class MappedFieldType extends FieldType {
     /** Returns true if the field is searchable.
      *
      */
-    protected boolean isSearchable() {
+    public boolean isSearchable() {
         return indexOptions() != IndexOptions.NONE;
     }
 
     /** Returns true if the field is aggregatable.
      *
      */
-    protected boolean isAggregatable() {
+    public boolean isAggregatable() {
         try {
             fielddataBuilder();
             return true;
@@ -367,26 +367,6 @@ public abstract class MappedFieldType extends FieldType {
             return null;
         }
         return new ConstantScoreQuery(termQuery(nullValue, null));
-    }
-
-    /**
-     * @return a {@link FieldStats} instance that maps to the type of this
-     * field or {@code null} if the provided index has no stats about the
-     * current field
-     */
-    public FieldStats stats(IndexReader reader) throws IOException {
-        int maxDoc = reader.maxDoc();
-        FieldInfo fi = MultiFields.getMergedFieldInfos(reader).fieldInfo(name());
-        if (fi == null) {
-            return null;
-        }
-        Terms terms = MultiFields.getTerms(reader, name());
-        if (terms == null) {
-            return new FieldStats.Text(maxDoc, 0, -1, -1, isSearchable(), isAggregatable());
-        }
-        FieldStats stats = new FieldStats.Text(maxDoc, terms.getDocCount(),
-            terms.getSumDocFreq(), terms.getSumTotalTermFreq(), isSearchable(), isAggregatable(), terms.getMin(), terms.getMax());
-        return stats;
     }
 
     /**
@@ -472,6 +452,15 @@ public abstract class MappedFieldType extends FieldType {
         } else if (termQuery instanceof TypeFieldMapper.TypesQuery) {
             assert ((TypeFieldMapper.TypesQuery) termQuery).getTerms().length == 1;
             return new Term(TypeFieldMapper.NAME, ((TypeFieldMapper.TypesQuery) termQuery).getTerms()[0]);
+        }
+        if (termQuery instanceof TermInSetQuery) {
+            TermInSetQuery tisQuery = (TermInSetQuery) termQuery;
+            PrefixCodedTerms terms = tisQuery.getTermData();
+            if (terms.size() == 1) {
+                TermIterator it = terms.iterator();
+                BytesRef term = it.next();
+                return new Term(it.field(), term);
+            }
         }
         if (termQuery instanceof TermQuery == false) {
             throw new IllegalArgumentException("Cannot extract a term from a query of type "

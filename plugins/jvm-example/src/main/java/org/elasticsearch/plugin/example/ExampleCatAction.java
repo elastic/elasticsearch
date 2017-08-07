@@ -42,6 +42,11 @@ public class ExampleCatAction extends AbstractCatAction {
     }
 
     @Override
+    public String getName() {
+        return "example_cat_action";
+    }
+
+    @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         Table table = getTableWithHeader(request);
         table.startRow();

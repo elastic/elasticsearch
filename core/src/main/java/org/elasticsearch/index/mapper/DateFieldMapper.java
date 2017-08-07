@@ -19,19 +19,17 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.StoredField;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.PointValues;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.joda.DateMathParser;
@@ -54,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 /** A {@link FieldMapper} for ip addresses. */
@@ -211,16 +210,12 @@ public class DateFieldMapper extends FieldMapper {
         @Override
         public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
             super.checkCompatibility(fieldType, conflicts, strict);
-            if (strict) {
-                DateFieldType other = (DateFieldType)fieldType;
-                if (Objects.equals(dateTimeFormatter().format(), other.dateTimeFormatter().format()) == false) {
-                    conflicts.add("mapper [" + name()
-                        + "] is used by multiple types. Set update_all_types to true to update [format] across all types.");
-                }
-                if (Objects.equals(dateTimeFormatter().locale(), other.dateTimeFormatter().locale()) == false) {
-                    conflicts.add("mapper [" + name()
-                        + "] is used by multiple types. Set update_all_types to true to update [locale] across all types.");
-                }
+            DateFieldType other = (DateFieldType) fieldType;
+            if (Objects.equals(dateTimeFormatter().format(), other.dateTimeFormatter().format()) == false) {
+                conflicts.add("mapper [" + name() + "] has different [format] values");
+            }
+            if (Objects.equals(dateTimeFormatter().locale(), other.dateTimeFormatter().locale()) == false) {
+                conflicts.add("mapper [" + name() + "] has different [locale] values");
             }
         }
 
@@ -288,7 +283,7 @@ public class DateFieldMapper extends FieldMapper {
             }
             Query query = LongPoint.newRangeQuery(name(), l, u);
             if (hasDocValues()) {
-                Query dvQuery = SortedNumericDocValuesField.newRangeQuery(name(), l, u);
+                Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                 query = new IndexOrDocValuesQuery(query, dvQuery);
             }
             return query;
@@ -308,25 +303,6 @@ public class DateFieldMapper extends FieldMapper {
                 strValue = value.toString();
             }
             return dateParser.parse(strValue, context::nowInMillis, roundUp, zone);
-        }
-
-        @Override
-        public FieldStats.Date stats(IndexReader reader) throws IOException {
-            String field = name();
-            FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(name());
-            if (fi == null) {
-                return null;
-            }
-            long size = PointValues.size(reader, field);
-            if (size == 0) {
-                return new FieldStats.Date(reader.maxDoc(), 0, -1, -1, isSearchable(), isAggregatable());
-            }
-            int docCount = PointValues.getDocCount(reader, field);
-            byte[] min = PointValues.getMinPackedValue(reader, field);
-            byte[] max = PointValues.getMaxPackedValue(reader, field);
-            return new FieldStats.Date(reader.maxDoc(),docCount, -1L, size,
-                isSearchable(), isAggregatable(),
-                dateTimeFormatter(), LongPoint.decodeDimension(min, 0), LongPoint.decodeDimension(max, 0));
         }
 
         @Override
@@ -490,8 +466,8 @@ public class DateFieldMapper extends FieldMapper {
 
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        final DateFieldMapper other = (DateFieldMapper) mergeWith;
         super.doMerge(mergeWith, updateAllTypes);
-        DateFieldMapper other = (DateFieldMapper) mergeWith;
         this.includeInAll = other.includeInAll;
         if (other.ignoreMalformed.explicit()) {
             this.ignoreMalformed = other.ignoreMalformed;

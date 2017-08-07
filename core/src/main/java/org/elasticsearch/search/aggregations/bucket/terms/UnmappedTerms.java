@@ -25,8 +25,10 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -49,7 +51,7 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
         }
     }
 
-    public UnmappedTerms(String name, Terms.Order order, int requiredSize, long minDocCount,
+    public UnmappedTerms(String name, BucketOrder order, int requiredSize, long minDocCount,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData);
     }
@@ -72,7 +74,7 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
-    protected String getType() {
+    public String getType() {
         return StringTerms.NAME;
     }
 
@@ -102,11 +104,8 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, 0);
-        builder.field(SUM_OF_OTHER_DOC_COUNTS, 0);
-        builder.startArray(CommonFields.BUCKETS).endArray();
-        return builder;
+    public final XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        return doXContentCommon(builder, params, 0, 0, Collections.emptyList());
     }
 
     @Override
@@ -129,7 +128,7 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
-    protected List<Bucket> getBucketsInternal() {
+    public List<Bucket> getBuckets() {
         return emptyList();
     }
 

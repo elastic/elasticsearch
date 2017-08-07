@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SimpleQueryParser.Settings;
+import org.elasticsearch.index.search.QueryStringQueryParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -157,19 +158,19 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         flags = in.readInt();
         analyzer = in.readOptionalString();
         defaultOperator = Operator.readFromStream(in);
-        if (in.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_1_1)) {
             in.readBoolean(); // lowercase_expanded_terms
         }
         settings.lenient(in.readBoolean());
-        if (in.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
             this.lenientSet = in.readBoolean();
         }
         settings.analyzeWildcard(in.readBoolean());
-        if (in.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_1_1)) {
             in.readString(); // locale
         }
         minimumShouldMatch = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
             settings.quoteFieldSuffix(in.readOptionalString());
             useAllFields = in.readOptionalBoolean();
         }
@@ -186,19 +187,19 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeInt(flags);
         out.writeOptionalString(analyzer);
         defaultOperator.writeTo(out);
-        if (out.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_1_1)) {
             out.writeBoolean(true); // lowercase_expanded_terms
         }
         out.writeBoolean(settings.lenient());
-        if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
             out.writeBoolean(lenientSet);
         }
         out.writeBoolean(settings.analyzeWildcard());
-        if (out.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_1_1)) {
             out.writeString(Locale.ROOT.toLanguageTag()); // locale
         }
         out.writeOptionalString(minimumShouldMatch);
-        if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
             out.writeOptionalString(settings.quoteFieldSuffix());
             out.writeOptionalBoolean(useAllFields);
         }
@@ -376,7 +377,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                 (context.getMapperService().allEnabled() == false &&
                         "_all".equals(context.defaultField()) &&
                         this.fieldsAndWeights.isEmpty())) {
-            resolvedFieldsAndWeights = QueryStringQueryBuilder.allQueryableDefaultFields(context);
+            resolvedFieldsAndWeights = QueryStringQueryParser.resolveMappingField(context, "*", 1.0f,
+                false, false);
             // Need to use lenient mode when using "all-mode" so exceptions aren't thrown due to mismatched types
             newSettings.lenient(lenientSet ? settings.lenient() : true);
         } else {
@@ -462,9 +464,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         builder.endObject();
     }
 
-    public static SimpleQueryStringBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static SimpleQueryStringBuilder fromXContent(XContentParser parser) throws IOException {
         String currentFieldName = null;
         String queryBody = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;

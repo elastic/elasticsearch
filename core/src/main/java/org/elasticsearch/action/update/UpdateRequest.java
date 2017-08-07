@@ -98,6 +98,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
+        if (version != Versions.MATCH_ANY && upsertRequest != null) {
+            validationException = addValidationError("can't provide both upsert request and a version", validationException);
+        }
+        if(upsertRequest != null && upsertRequest.version() != Versions.MATCH_ANY) {
+            validationException = addValidationError("can't provide version in upsert request", validationException);
+        }
         if (type == null) {
             validationException = addValidationError("type is missing", validationException);
         }

@@ -19,7 +19,7 @@
 
 esplugin {
   description 'The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.'
-  classname 'org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin'
+  classname 'org.elasticsearch.discovery.ec2.Ec2DiscoveryPlugin'
 }
 
 versions << [
@@ -61,3 +61,7 @@ thirdPartyAudit.excludes = [
   'org.apache.log.Hierarchy', 
   'org.apache.log.Logger',
 ]
+
+if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+  thirdPartyAudit.excludes += ['javax.xml.bind.DatatypeConverter']
+}

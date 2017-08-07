@@ -70,7 +70,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             int terms = randomIntBetween(0, 3);
             StringBuilder builder = new StringBuilder();
             for (int i = 0; i < terms; i++) {
-                builder.append(randomAsciiOfLengthBetween(1, 10)).append(" ");
+                builder.append(randomAlphaOfLengthBetween(1, 10)).append(" ");
             }
             value = builder.toString().trim();
         } else {
@@ -80,13 +80,8 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         MatchQueryBuilder matchQuery = new MatchQueryBuilder(fieldName, value);
         matchQuery.operator(randomFrom(Operator.values()));
 
-        if (randomBoolean()) {
-            if (fieldName.equals(DATE_FIELD_NAME)) {
-                // tokenized dates would trigger parse errors
-                matchQuery.analyzer(randomFrom("keyword", "whitespace"));
-            } else {
-                matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
-            }
+        if (randomBoolean() && fieldName.equals(STRING_FIELD_NAME)) {
+            matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
         }
 
         if (fieldName.equals(STRING_FIELD_NAME) && randomBoolean()) {
@@ -130,7 +125,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     @Override
     protected Map<String, MatchQueryBuilder> getAlternateVersions() {
         Map<String, MatchQueryBuilder> alternateVersions = new HashMap<>();
-        MatchQueryBuilder matchQuery = new MatchQueryBuilder(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+        MatchQueryBuilder matchQuery = new MatchQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
         String contentString = "{\n" +
                 "    \"match\" : {\n" +
                 "        \"" + matchQuery.fieldName() + "\" : \"" + matchQuery.value() + "\"\n" +
@@ -424,9 +419,18 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         expectThrows(IllegalStateException.class, () -> parseQuery(json2));
     }
 
+    public void testExceptionUsingAnalyzerOnNumericField() {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext shardContext = createShardContext();
+        MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(DOUBLE_FIELD_NAME, 6.075210893508043E-4);
+        matchQueryBuilder.analyzer("simple");
+        NumberFormatException e = expectThrows(NumberFormatException.class, () -> matchQueryBuilder.toQuery(shardContext));
+        assertEquals("For input string: \"e\"", e.getMessage());
+    }
+
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge("t_boost", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("t_boost",
+        mapperService.merge("doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("doc",
             "string_boost", "type=text,boost=4").string()), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 

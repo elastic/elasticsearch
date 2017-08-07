@@ -19,9 +19,9 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.entity.ContentType;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.entity.ByteArrayEntity;
+import org.elasticsearch.client.http.entity.ContentType;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -56,7 +56,7 @@ public class ClientYamlTestExecutionContext {
 
     private final boolean randomizeContentType;
 
-    public ClientYamlTestExecutionContext(ClientYamlTestClient clientYamlTestClient, boolean randomizeContentType) {
+    ClientYamlTestExecutionContext(ClientYamlTestClient clientYamlTestClient, boolean randomizeContentType) {
         this.clientYamlTestClient = clientYamlTestClient;
         this.randomizeContentType = randomizeContentType;
     }
@@ -68,7 +68,7 @@ public class ClientYamlTestExecutionContext {
     public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
                                     Map<String, String> headers) throws IOException {
         //makes a copy of the parameters before modifying them for this specific request
-        HashMap<String, String> requestParams = new HashMap<>(params);
+        Map<String, String> requestParams = new HashMap<>(params);
         requestParams.putIfAbsent("error_trace", "true"); // By default ask for error traces, this my be overridden by params
         for (Map.Entry<String, String> entry : requestParams.entrySet()) {
             if (stash.containsStashedValue(entry.getValue())) {
@@ -76,9 +76,17 @@ public class ClientYamlTestExecutionContext {
             }
         }
 
-        HttpEntity entity = createEntity(bodies, headers);
+        //make a copy of the headers before modifying them for this specific request
+        Map<String, String> requestHeaders = new HashMap<>(headers);
+        for (Map.Entry<String, String> entry : requestHeaders.entrySet()) {
+            if (stash.containsStashedValue(entry.getValue())) {
+                entry.setValue(stash.getValue(entry.getValue()).toString());
+            }
+        }
+
+        HttpEntity entity = createEntity(bodies, requestHeaders);
         try {
-            response = callApiInternal(apiName, requestParams, entity, headers);
+            response = callApiInternal(apiName, requestParams, entity, requestHeaders);
             return response;
         } catch(ClientYamlTestResponseException e) {
             response = e.getRestTestResponse();
@@ -102,7 +110,7 @@ public class ClientYamlTestExecutionContext {
                     ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8));
         } else {
             XContentType xContentType = getContentType(headers, STREAMING_CONTENT_TYPES);
-            List<BytesRef> bytesRefList = new ArrayList<>();
+            List<BytesRef> bytesRefList = new ArrayList<>(bodies.size());
             int totalBytesLength = 0;
             for (Map<String, Object> body : bodies) {
                 BytesRef bytesRef = bodyAsBytesRef(body, xContentType);
@@ -143,7 +151,8 @@ public class ClientYamlTestExecutionContext {
         }
     }
 
-    private ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
+    // pkg-private for testing
+    ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
                                                    HttpEntity entity, Map<String, String> headers) throws IOException  {
         return clientYamlTestClient.callApi(apiName, params, entity, headers);
     }

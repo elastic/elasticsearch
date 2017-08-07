@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.apache.http.Header;
-import org.apache.http.HttpHost;
-import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.UsernamePasswordCredentials;
-import org.apache.http.client.CredentialsProvider;
-import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.http.impl.nio.reactor.IOReactorConfig;
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.auth.AuthScope;
+import org.elasticsearch.client.http.auth.UsernamePasswordCredentials;
+import org.elasticsearch.client.http.client.CredentialsProvider;
+import org.elasticsearch.client.http.impl.client.BasicCredentialsProvider;
+import org.elasticsearch.client.http.impl.nio.reactor.IOReactorConfig;
+import org.elasticsearch.client.http.message.BasicHeader;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
@@ -37,13 +37,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollAction;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollParallelizationHelper;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
-import org.elasticsearch.action.bulk.byscroll.ParentBulkByScrollTask;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.SearchFailure;
-import org.elasticsearch.action.bulk.byscroll.WorkingBulkByScrollTask;
+import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -68,7 +62,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.index.reindex.remote.RemoteScrollableHitSource;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -252,9 +245,15 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         private List<Thread> createdThreads = emptyList();
 
         AsyncIndexBySearchAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+                                 ThreadPool threadPool, ReindexRequest request, ScriptService scriptService, ClusterState clusterState,
+                                 ActionListener<BulkByScrollResponse> listener) {
+            this(task, logger, client, threadPool, request, scriptService, clusterState, listener, client.settings());
+        }
+
+        AsyncIndexBySearchAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                 ThreadPool threadPool, ReindexRequest request, ScriptService scriptService, ClusterState clusterState,
-                ActionListener<BulkByScrollResponse> listener) {
-            super(task, logger, client, threadPool, request, scriptService, clusterState, listener);
+                ActionListener<BulkByScrollResponse> listener, Settings settings) {
+            super(task, logger, client, threadPool, request, scriptService, clusterState, listener, settings);
         }
 
         @Override

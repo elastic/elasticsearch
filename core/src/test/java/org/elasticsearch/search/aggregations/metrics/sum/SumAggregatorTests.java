@@ -27,7 +27,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.FieldValueQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -84,7 +84,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSortedNumericDocValues() throws IOException {
-        testCase(new FieldValueQuery(FIELD_NAME), iw -> {
+        testCase(new DocValuesFieldExistsQuery(FIELD_NAME), iw -> {
             iw.addDocument(Arrays.asList(new SortedNumericDocValuesField(FIELD_NAME, 3),
                 new SortedNumericDocValuesField(FIELD_NAME, 4)));
             iw.addDocument(Arrays.asList(new SortedNumericDocValuesField(FIELD_NAME, 3),
@@ -132,13 +132,12 @@ public class SumAggregatorTests extends AggregatorTestCase {
                 SumAggregationBuilder aggregationBuilder = new SumAggregationBuilder("_name");
                 aggregationBuilder.field(FIELD_NAME);
 
-                try (SumAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
-                    aggregator.preCollection();
-                    indexSearcher.search(query, aggregator);
-                    aggregator.postCollection();
+                SumAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+                aggregator.preCollection();
+                indexSearcher.search(query, aggregator);
+                aggregator.postCollection();
 
-                    verify.accept((Sum) aggregator.buildAggregation(0L));
-                }
+                verify.accept((Sum) aggregator.buildAggregation(0L));
             }
         }
     }

@@ -54,7 +54,7 @@ public final class DateProcessor extends AbstractProcessor {
         this.field = field;
         this.targetField = targetField;
         this.formats = formats;
-        this.dateParsers = new ArrayList<>();
+        this.dateParsers = new ArrayList<>(this.formats.size());
         for (String format : formats) {
             DateFormat dateFormat = DateFormat.fromString(format);
             dateParsers.add(dateFormat.getFunction(format, timezone, locale));

@@ -24,15 +24,18 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.script.StoredScriptSource;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.Collections;
 
 public class PutStoredScriptRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        PutStoredScriptRequest storedScriptRequest = new PutStoredScriptRequest("foo", "bar", new BytesArray("{}"), XContentType.JSON);
+        PutStoredScriptRequest storedScriptRequest = new PutStoredScriptRequest("bar", "context", new BytesArray("{}"), XContentType.JSON,
+                new StoredScriptSource("foo", "bar", Collections.emptyMap()));
 
         assertEquals(XContentType.JSON, storedScriptRequest.xContentType());
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -42,8 +45,8 @@ public class PutStoredScriptRequestTests extends ESTestCase {
                 PutStoredScriptRequest serialized = new PutStoredScriptRequest();
                 serialized.readFrom(in);
                 assertEquals(XContentType.JSON, serialized.xContentType());
-                assertEquals(storedScriptRequest.lang(), serialized.lang());
                 assertEquals(storedScriptRequest.id(), serialized.id());
+                assertEquals(storedScriptRequest.context(), serialized.context());
             }
         }
     }
@@ -51,13 +54,12 @@ public class PutStoredScriptRequestTests extends ESTestCase {
     public void testSerializationBwc() throws IOException {
         final byte[] rawStreamBytes = Base64.getDecoder().decode("ADwDCG11c3RhY2hlAQZzY3JpcHQCe30A");
         final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+            Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
         try (StreamInput in = StreamInput.wrap(rawStreamBytes)) {
             in.setVersion(version);
             PutStoredScriptRequest serialized = new PutStoredScriptRequest();
             serialized.readFrom(in);
             assertEquals(XContentType.JSON, serialized.xContentType());
-            assertEquals("mustache", serialized.lang());
             assertEquals("script", serialized.id());
             assertEquals(new BytesArray("{}"), serialized.content());
 

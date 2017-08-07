@@ -21,7 +21,6 @@ package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
-
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -35,7 +34,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.util.Map;
-import java.util.function.Function;
 
 /**
  * Azure Storage Service interface
@@ -53,18 +51,6 @@ public interface AzureStorageService {
 
         public static final Setting<TimeValue> TIMEOUT_SETTING =
             Setting.timeSetting("cloud.azure.storage.timeout", TimeValue.timeValueMinutes(-1), Property.NodeScope);
-        public static final Setting<String> ACCOUNT_SETTING =
-            Setting.simpleString("repositories.azure.account", Property.NodeScope, Property.Filtered);
-        public static final Setting<String> CONTAINER_SETTING =
-            new Setting<>("repositories.azure.container", "elasticsearch-snapshots", Function.identity(), Property.NodeScope);
-        public static final Setting<String> BASE_PATH_SETTING =
-            Setting.simpleString("repositories.azure.base_path", Property.NodeScope);
-        public static final Setting<String> LOCATION_MODE_SETTING =
-            Setting.simpleString("repositories.azure.location_mode", Property.NodeScope);
-        public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING =
-            Setting.byteSizeSetting("repositories.azure.chunk_size", MAX_CHUNK_SIZE, MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, Property.NodeScope);
-        public static final Setting<Boolean> COMPRESS_SETTING =
-            Setting.boolSetting("repositories.azure.compress", false, Property.NodeScope);
     }
 
     boolean doesContainerExist(String account, LocationMode mode, String container);

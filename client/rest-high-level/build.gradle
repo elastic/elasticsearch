@@ -20,12 +20,25 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
  */
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'nebula.maven-scm'
 
 group = 'org.elasticsearch.client'
+archivesBaseName = 'elasticsearch-rest-high-level-client'
+
+publishing {
+    publications {
+        nebula {
+            artifactId = archivesBaseName
+        }
+    }
+}
 
 dependencies {
   compile "org.elasticsearch:elasticsearch:${version}"
-  compile "org.elasticsearch.client:rest:${version}"
+  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  compile "org.elasticsearch.plugin:parent-join-client:${version}"
+  compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
 
   testCompile "org.elasticsearch.client:test:${version}"
   testCompile "org.elasticsearch.test:framework:${version}"

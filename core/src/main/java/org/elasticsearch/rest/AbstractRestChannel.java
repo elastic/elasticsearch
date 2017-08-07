@@ -20,12 +20,14 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Collections;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -97,7 +99,9 @@ public abstract class AbstractRestChannel implements RestChannel {
             excludes = filters.stream().filter(EXCLUDE_FILTER).map(f -> f.substring(1)).collect(toSet());
         }
 
-        XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(responseContentType), bytesOutput(), includes, excludes);
+        OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
+        XContentBuilder builder =
+            new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream, includes, excludes);
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }
@@ -107,8 +111,9 @@ public abstract class AbstractRestChannel implements RestChannel {
     }
 
     /**
-     * A channel level bytes output that can be reused. It gets reset on each call to this
-     * method.
+     * A channel level bytes output that can be reused. The bytes output is lazily instantiated
+     * by a call to {@link #newBytesOutput()}. Once the stream is created, it gets reset on each
+     * call to this method.
      */
     @Override
     public final BytesStreamOutput bytesOutput() {
@@ -117,6 +122,14 @@ public abstract class AbstractRestChannel implements RestChannel {
         } else {
             bytesOut.reset();
         }
+        return bytesOut;
+    }
+
+    /**
+     * An accessor to the raw value of the channel bytes output. This method will not instantiate
+     * a new stream if one does not exist and this method will not reset the stream.
+     */
+    protected final BytesStreamOutput bytesOutputOrNull() {
         return bytesOut;
     }
 

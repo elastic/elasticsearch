@@ -111,15 +111,10 @@ public class ShardPathTests extends ESTestCase {
         final Path customPath;
         if (useCustomDataPath) {
             final Path path = createTempDir();
-            final boolean includeNodeId = randomBoolean();
             indexSettings = indexSettingsBuilder.put(IndexMetaData.SETTING_DATA_PATH, "custom").build();
             nodeSettings = Settings.builder().put(Environment.PATH_SHARED_DATA_SETTING.getKey(), path.toAbsolutePath().toAbsolutePath())
-                    .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), includeNodeId).build();
-            if (includeNodeId) {
-                customPath = path.resolve("custom").resolve("0");
-            } else {
-                customPath = path.resolve("custom");
-            }
+                    .build();
+            customPath = path.resolve("custom").resolve("0");
         } else {
             customPath = null;
             indexSettings = indexSettingsBuilder.build();

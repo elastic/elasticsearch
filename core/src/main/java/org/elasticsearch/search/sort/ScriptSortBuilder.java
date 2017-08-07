@@ -32,6 +32,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -41,12 +43,10 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -212,7 +212,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         return builder;
     }
 
-    private static ConstructingObjectParser<ScriptSortBuilder, QueryParseContext> PARSER = new ConstructingObjectParser<>(NAME,
+    private static ConstructingObjectParser<ScriptSortBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME,
             a -> new ScriptSortBuilder((Script) a[0], (ScriptSortType) a[1]));
 
     static {
@@ -222,26 +222,27 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)), ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORTMODE_FIELD);
         PARSER.declareString(ScriptSortBuilder::setNestedPath , NESTED_PATH_FIELD);
-        PARSER.declareObject(ScriptSortBuilder::setNestedFilter, SortBuilder::parseNestedFilter, NESTED_FILTER_FIELD);
+        PARSER.declareObject(ScriptSortBuilder::setNestedFilter, (p,c) -> SortBuilder.parseNestedFilter(p), NESTED_FILTER_FIELD);
     }
 
     /**
-     * Creates a new {@link ScriptSortBuilder} from the query held by the {@link QueryParseContext} in
+     * Creates a new {@link ScriptSortBuilder} from the query held by the {@link XContentParser} in
      * {@link org.elasticsearch.common.xcontent.XContent} format.
      *
-     * @param context the input parse context. The state on the parser contained in this context will be changed as a side effect of this
+     * @param parser the input parser. The state on the parser contained in this context will be changed as a side effect of this
      *        method call
      * @param elementName in some sort syntax variations the field name precedes the xContent object that specifies further parameters, e.g.
      *        in '{ "foo": { "order" : "asc"} }'. When parsing the inner object, the field name can be passed in via this argument
      */
-    public static ScriptSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
-        return PARSER.apply(context.parser(), context);
+    public static ScriptSortBuilder fromXContent(XContentParser parser, String elementName) {
+        return PARSER.apply(parser, null);
     }
 
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
-        final SearchScript searchScript = context.getSearchScript(script, ScriptContext.Standard.SEARCH);
+        final SearchScript.Factory factory = context.getScriptService().compile(script, SearchScript.CONTEXT);
+        final SearchScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
 
         MultiValueMode valueMode = null;
         if (sortMode != null) {
@@ -257,20 +258,24 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         switch (type) {
             case STRING:
                 fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
-                    LeafSearchScript leafScript;
+                    SearchScript leafScript;
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = searchScript.getLeafSearchScript(context);
-                        final BinaryDocValues values = new BinaryDocValues() {
+                        leafScript = searchScript.newInstance(context);
+                        final BinaryDocValues values = new AbstractBinaryDocValues() {
                             final BytesRefBuilder spare = new BytesRefBuilder();
                             @Override
-                            public BytesRef get(int docID) {
-                                leafScript.setDocument(docID);
+                            public boolean advanceExact(int doc) throws IOException {
+                                leafScript.setDocument(doc);
+                                return true;
+                            }
+                            @Override
+                            public BytesRef binaryValue() {
                                 spare.copyChars(leafScript.run().toString());
                                 return spare.get();
                             }
                         };
-                        return FieldData.singleton(values, null);
+                        return FieldData.singleton(values);
                     }
                     @Override
                     protected void setScorer(Scorer scorer) {
@@ -280,18 +285,22 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 break;
             case NUMBER:
                 fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
-                    LeafSearchScript leafScript;
+                    SearchScript leafScript;
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = searchScript.getLeafSearchScript(context);
+                        leafScript = searchScript.newInstance(context);
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override
-                            public double get(int docID) {
-                                leafScript.setDocument(docID);
+                            public boolean advanceExact(int doc) throws IOException {
+                                leafScript.setDocument(doc);
+                                return true;
+                            }
+                            @Override
+                            public double doubleValue() {
                                 return leafScript.runAsDouble();
                             }
                         };
-                        return FieldData.singleton(values, null);
+                        return FieldData.singleton(values);
                     }
                     @Override
                     protected void setScorer(Scorer scorer) {
@@ -341,18 +350,14 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            out.writeVInt(ordinal());
+            out.writeEnum(this);
         }
 
         /**
          * Read from a stream.
          */
         static ScriptSortType readFromStream(final StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown ScriptSortType ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(ScriptSortType.class);
         }
 
         public static ScriptSortType fromString(final String str) {
@@ -371,5 +376,17 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         public String toString() {
             return name().toLowerCase(Locale.ROOT);
         }
+    }
+
+    @Override
+    public SortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        if (nestedFilter == null) {
+            return this;
+        }
+        QueryBuilder rewrite = nestedFilter.rewrite(ctx);
+        if (nestedFilter == rewrite) {
+            return this;
+        }
+        return new ScriptSortBuilder(this).setNestedFilter(rewrite);
     }
 }

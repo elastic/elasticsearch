@@ -1,0 +1,133 @@
+---
+"Stored Template validate tests":
+
+  - do:
+      put_script:
+        id: "1"
+        body: { "script": { "lang": "mustache", "source": { "query": { "match": { "text": "{{my_value}}" } }, "aggs": { "my_terms": { "terms": { "field": "{{my_field}}" } } } } } }
+  - match: { acknowledged: true }
+
+  - do:
+      render_search_template:
+        body: { "id": "1", "params": { "my_value": "foo", "my_field": "field1" } }
+
+  - match: { template_output.query.match.text: "foo" }
+  - match: { template_output.aggs.my_terms.terms.field: "field1" }
+
+  - do:
+      render_search_template:
+        body: { "id": "1", "params": { "my_value": "bar", "my_field": "my_other_field" } }
+
+  - match: { template_output.query.match.text: "bar" }
+  - match: { template_output.aggs.my_terms.terms.field: "my_other_field" }
+
+  - do:
+      render_search_template:
+        id: "1"
+        body: { "params": { "my_value": "bar", "my_field": "field1" } }
+
+  - match: { template_output.query.match.text: "bar" }
+  - match: { template_output.aggs.my_terms.terms.field: "field1" }
+
+---
+"Inline Template validate tests":
+
+  - do:
+      render_search_template:
+        body: { "source": { "query": { "match": { "text": "{{my_value}}" } }, "aggs": { "my_terms": { "terms": { "field": "{{my_field}}" } } } }, "params": { "my_value": "foo", "my_field": "field1" } }
+
+  - match: { template_output.query.match.text: "foo" }
+  - match: { template_output.aggs.my_terms.terms.field: "field1" }
+
+  - do:
+      render_search_template:
+        body: { "source": { "query": { "match": { "text": "{{my_value}}" } }, "aggs": { "my_terms": { "terms": { "field": "{{my_field}}" } } } }, "params": { "my_value": "bar", "my_field": "my_other_field" } }
+
+  - match: { template_output.query.match.text: "bar" }
+  - match: { template_output.aggs.my_terms.terms.field: "my_other_field" }
+
+  - do:
+      catch: /Improperly.closed.variable.in.query-template/
+      render_search_template:
+        body: { "source": { "query": { "match": { "text": "{{{my_value}}" } }, "aggs": { "my_terms": { "terms": { "field": "{{my_field}}" } } } }, "params": { "my_value": "bar", "my_field": "field1" } }
+---
+"Escaped Stored Template validate tests":
+
+  - do:
+      put_script:
+        id: "1"
+        body: { "script": { "lang" : "mustache", "source" : "{ \"query\": { \"match\": { \"text\": \"{{my_value}}\" } }, \"size\": {{my_size}} }" } }
+  - match: { acknowledged: true }
+
+  - do:
+      render_search_template:
+        body: { "id": "1", "params": { "my_value": "foo", "my_size": 20 } }
+
+  - match: { template_output.query.match.text: "foo" }
+  - match: { template_output.size: 20 }
+
+  - do:
+      render_search_template:
+        body: { "id": "1", "params": { "my_value": "bar", "my_size": 100 } }
+
+  - match: { template_output.query.match.text: "bar" }
+  - match: { template_output.size: 100 }
+
+  - do:
+      render_search_template:
+        id: "1"
+        body: { "params": { "my_value": "bar", "my_size": 100 } }
+
+  - match: { template_output.query.match.text: "bar" }
+  - match: { template_output.size: 100 }
+
+---
+"Escaped Inline Template validate tests":
+
+  - do:
+      render_search_template:
+        body: { "source": "{ \"query\": { \"match\": { \"text\": \"{{my_value}}\" } }, \"size\": {{my_size}} }", "params": { "my_value": "foo", "my_size": 20 } }
+
+  - match: { template_output.query.match.text: "foo" }
+  - match: { template_output.size: 20 }
+
+  - do:
+      render_search_template:
+        body: { "source": "{ \"query\": { \"match\": { \"text\": \"{{my_value}}\" } }, \"size\": {{my_size}} }", "params": { "my_value": "bar", "my_size": 100 } }
+
+  - match: { template_output.query.match.text: "bar" }
+  - match: { template_output.size: 100 }
+
+  - do:
+      catch: /Improperly.closed.variable.in.query-template/
+      render_search_template:
+        body: { "source": "{ \"query\": { \"match\": { \"text\": \"{{{my_value}}\" } }, \"size\": {{my_size}} }", "params": { "my_value": "bar", "my_size": 100 } }
+
+---
+"Indexed Template query tests":
+
+  - do:
+      index:
+        index:  test
+        type:   testtype
+        id:     1
+        body:   { "text": "value1_foo" }
+  - do:
+      index:
+        index:  test
+        type:   testtype
+        id:     2
+        body:   { "text": "value2_foo value3_foo" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      put_script:
+        id: "1"
+        body: { "script": { "lang": "mustache", "source": { "query": { "match" : { "text": "{{my_value}}" } }, "size": "{{my_size}}" } } }
+  - match: { acknowledged: true }
+
+  - do:
+      search_template:
+        body: {  "id" : "1", "params" : { "my_value" : "value1_foo", "my_size" : 1 } }
+  - match: { hits.total: 1 }

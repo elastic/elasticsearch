@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
@@ -30,10 +29,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
-import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude.OrdinalsFilter;
+import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
+import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.OrdinalsFilter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -58,13 +57,14 @@ public class IncludeExcludeTests extends ESTestCase {
     }
 
     public void testSingleTermWithOrds() throws IOException {
-        RandomAccessOrds ords = new RandomAccessOrds() {
+        SortedSetDocValues ords = new AbstractSortedSetDocValues() {
 
             boolean consumed = true;
 
             @Override
-            public void setDocument(int docID) {
+            public boolean advanceExact(int docID) {
                 consumed = false;
+                return true;
             }
 
             @Override
@@ -88,15 +88,6 @@ public class IncludeExcludeTests extends ESTestCase {
                 return 1;
             }
 
-            @Override
-            public long ordAt(int index) {
-                return 0;
-            }
-
-            @Override
-            public int cardinality() {
-                return 1;
-            }
         };
         IncludeExclude inexcl = new IncludeExclude(
                 new TreeSet<>(Collections.singleton(new BytesRef("foo"))),
@@ -231,11 +222,10 @@ public class IncludeExcludeTests extends ESTestCase {
         assertEquals(field.getPreferredName(), parser.currentName());
         token = parser.nextToken();
 
-        QueryParseContext parseContext = new QueryParseContext(parser);
         if (field.getPreferredName().equalsIgnoreCase("include")) {
-            return IncludeExclude.parseInclude(parser, parseContext);
+            return IncludeExclude.parseInclude(parser);
         } else if (field.getPreferredName().equalsIgnoreCase("exclude")) {
-            return IncludeExclude.parseExclude(parser, parseContext);
+            return IncludeExclude.parseExclude(parser);
         } else {
             throw new IllegalArgumentException(
                     "Unexpected field name serialized in test: " + field.getPreferredName());
@@ -271,7 +261,6 @@ public class IncludeExcludeTests extends ESTestCase {
         builder.endObject();
 
         XContentParser parser = createParser(builder);
-        QueryParseContext parseContext = new QueryParseContext(parser);
         XContentParser.Token token = parser.nextToken();
         assertEquals(token, XContentParser.Token.START_OBJECT);
 
@@ -281,10 +270,10 @@ public class IncludeExcludeTests extends ESTestCase {
             assertEquals(XContentParser.Token.FIELD_NAME, token);
             if (IncludeExclude.INCLUDE_FIELD.match(parser.currentName())) {
                 token = parser.nextToken();
-                inc = IncludeExclude.parseInclude(parser, parseContext);
+                inc = IncludeExclude.parseInclude(parser);
             } else if (IncludeExclude.EXCLUDE_FIELD.match(parser.currentName())) {
                 token = parser.nextToken();
-                exc = IncludeExclude.parseExclude(parser, parseContext);
+                exc = IncludeExclude.parseExclude(parser);
             } else {
                 throw new IllegalArgumentException("Unexpected field name serialized in test: " + parser.currentName());
             }

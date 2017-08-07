@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.refresh;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -106,20 +105,14 @@ public class RefreshStats implements Streamable, ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         total = in.readVLong();
         totalTimeInMillis = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
-            listeners = in.readVInt();
-        } else {
-            listeners = 0;
-        }
+        listeners = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(total);
         out.writeVLong(totalTimeInMillis);
-        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
-            out.writeVInt(listeners);
-        }
+        out.writeVInt(listeners);
     }
 
     @Override

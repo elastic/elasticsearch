@@ -20,7 +20,6 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.rest.yaml.section.SetupSection;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -54,7 +53,7 @@ public class SetupSectionTests extends AbstractClientYamlTestFragmentParserTestC
     public void testParseSetupAndSkipSectionNoSkip() throws Exception {
         parser = createParser(YamlXContent.yamlXContent,
                 "  - skip:\n" +
-                        "      version:  \"2.0.0 - 2.3.0\"\n" +
+                        "      version:  \"5.0.0 - 5.3.0\"\n" +
                         "      reason:   \"Update doesn't return metadata fields, waiting for #3259\"\n" +
                         "  - do:\n" +
                         "      index1:\n" +
@@ -75,8 +74,9 @@ public class SetupSectionTests extends AbstractClientYamlTestFragmentParserTestC
         assertThat(setupSection, notNullValue());
         assertThat(setupSection.getSkipSection().isEmpty(), equalTo(false));
         assertThat(setupSection.getSkipSection(), notNullValue());
-        assertThat(setupSection.getSkipSection().getLowerVersion(), equalTo(Version.V_2_0_0));
-        assertThat(setupSection.getSkipSection().getUpperVersion(), equalTo(Version.V_2_3_0));
+        assertThat(setupSection.getSkipSection().getLowerVersion(), equalTo(Version.V_5_0_0));
+        assertThat(setupSection.getSkipSection().getUpperVersion(),
+                equalTo(Version.V_5_3_0));
         assertThat(setupSection.getSkipSection().getReason(), equalTo("Update doesn't return metadata fields, waiting for #3259"));
         assertThat(setupSection.getDoSections().size(), equalTo(2));
         assertThat(setupSection.getDoSections().get(0).getApiCallSection().getApi(), equalTo("index1"));

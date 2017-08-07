@@ -35,9 +35,12 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * A static factory for simple "import static" usage.
+ * Utility class to create search queries.
  */
-public abstract class QueryBuilders {
+public final class QueryBuilders {
+
+    private QueryBuilders() {
+    }
 
     /**
      * A query that matches on all documents.
@@ -267,7 +270,7 @@ public abstract class QueryBuilders {
      * when no field is added (using {@link QueryStringQueryBuilder#field(String)}, will run the query once and non prefixed fields
      * will use the {@link QueryStringQueryBuilder#defaultField(String)} set. The second, when one or more fields are added
      * (using {@link QueryStringQueryBuilder#field(String)}), will run the parsed query against the provided fields, and combine
-     * them either using DisMax or a plain boolean query (see {@link QueryStringQueryBuilder#useDisMax(boolean)}).
+     * them either using Dismax.
      *
      * @param queryString The query string to run
      */
@@ -469,38 +472,6 @@ public abstract class QueryBuilders {
      */
     public static MoreLikeThisQueryBuilder moreLikeThisQuery(Item[] likeItems) {
         return moreLikeThisQuery(null, null, likeItems);
-    }
-
-    /**
-     * Constructs a new has_child query, with the child type and the query to run on the child documents. The
-     * results of this query are the parent docs that those child docs matched.
-     *
-     * @param type      The child type.
-     * @param query     The query.
-     * @param scoreMode How the scores from the children hits should be aggregated into the parent hit.
-     */
-    public static HasChildQueryBuilder hasChildQuery(String type, QueryBuilder query, ScoreMode scoreMode) {
-        return new HasChildQueryBuilder(type, query, scoreMode);
-    }
-
-    /**
-     * Constructs a new parent query, with the parent type and the query to run on the parent documents. The
-     * results of this query are the children docs that those parent docs matched.
-     *
-     * @param type      The parent type.
-     * @param query     The query.
-     * @param score     Whether the score from the parent hit should propagate to the child hit
-     */
-    public static HasParentQueryBuilder hasParentQuery(String type, QueryBuilder query, boolean score) {
-        return new HasParentQueryBuilder(type, query, score);
-    }
-
-    /**
-     * Constructs a new parent id query that returns all child documents of the specified type that
-     * point to the specified id.
-     */
-    public static ParentIdQueryBuilder parentId(String type, String id) {
-        return new ParentIdQueryBuilder(type, id);
     }
 
     public static NestedQueryBuilder nestedQuery(String path, QueryBuilder query, ScoreMode scoreMode) {
@@ -724,9 +695,5 @@ public abstract class QueryBuilders {
      */
     public static ExistsQueryBuilder existsQuery(String name) {
         return new ExistsQueryBuilder(name);
-    }
-
-    private QueryBuilders() {
-
     }
 }

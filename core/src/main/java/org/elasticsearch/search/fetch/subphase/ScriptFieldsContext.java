@@ -28,10 +28,10 @@ public class ScriptFieldsContext {
 
     public static class ScriptField {
         private final String name;
-        private final SearchScript script;
+        private final SearchScript.LeafFactory script;
         private final boolean ignoreException;
 
-        public ScriptField(String name, SearchScript script, boolean ignoreException) {
+        public ScriptField(String name, SearchScript.LeafFactory script, boolean ignoreException) {
             this.name = name;
             this.script = script;
             this.ignoreException = ignoreException;
@@ -41,7 +41,7 @@ public class ScriptFieldsContext {
             return name;
         }
 
-        public SearchScript script() {
+        public SearchScript.LeafFactory script() {
             return this.script;
         }
 

@@ -103,7 +103,7 @@ public class SimulatePipelineRequest extends ActionRequest {
         id = in.readOptionalString();
         verbose = in.readBoolean();
         source = in.readBytesReference();
-        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
             xContentType = XContentType.readFrom(in);
         } else {
             xContentType = XContentFactory.xContentType(source);
@@ -116,7 +116,7 @@ public class SimulatePipelineRequest extends ActionRequest {
         out.writeOptionalString(id);
         out.writeBoolean(verbose);
         out.writeBytesReference(source);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             xContentType.writeTo(out);
         }
     }
@@ -174,16 +174,24 @@ public class SimulatePipelineRequest extends ActionRequest {
     }
 
     private static List<IngestDocument> parseDocs(Map<String, Object> config) {
-        List<Map<String, Object>> docs = ConfigurationUtils.readList(null, null, config, Fields.DOCS);
+        List<Map<String, Object>> docs =
+            ConfigurationUtils.readList(null, null, config, Fields.DOCS);
         List<IngestDocument> ingestDocumentList = new ArrayList<>();
         for (Map<String, Object> dataMap : docs) {
-            Map<String, Object> document = ConfigurationUtils.readMap(null, null, dataMap, Fields.SOURCE);
-            IngestDocument ingestDocument = new IngestDocument(ConfigurationUtils.readStringProperty(null, null, dataMap, MetaData.INDEX.getFieldName(), "_index"),
-                    ConfigurationUtils.readStringProperty(null, null, dataMap, MetaData.TYPE.getFieldName(), "_type"),
-                    ConfigurationUtils.readStringProperty(null, null, dataMap, MetaData.ID.getFieldName(), "_id"),
-                    ConfigurationUtils.readOptionalStringProperty(null, null, dataMap, MetaData.ROUTING.getFieldName()),
-                    ConfigurationUtils.readOptionalStringProperty(null, null, dataMap, MetaData.PARENT.getFieldName()),
-                    document);
+            Map<String, Object> document = ConfigurationUtils.readMap(null, null,
+                dataMap, Fields.SOURCE);
+            String index = ConfigurationUtils.readStringOrIntProperty(null, null,
+                dataMap, MetaData.INDEX.getFieldName(), "_index");
+            String type = ConfigurationUtils.readStringOrIntProperty(null, null,
+                dataMap, MetaData.TYPE.getFieldName(), "_type");
+            String id = ConfigurationUtils.readStringOrIntProperty(null, null,
+                dataMap, MetaData.ID.getFieldName(), "_id");
+            String routing = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
+                dataMap, MetaData.ROUTING.getFieldName());
+            String parent = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
+                dataMap, MetaData.PARENT.getFieldName());
+            IngestDocument ingestDocument =
+                new IngestDocument(index, type, id, routing, parent, document);
             ingestDocumentList.add(ingestDocument);
         }
         return ingestDocumentList;

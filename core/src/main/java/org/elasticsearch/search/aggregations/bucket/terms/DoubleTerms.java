@@ -25,6 +25,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,8 +77,8 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         }
 
         @Override
-        int compareTerm(Terms.Bucket other) {
-            return Double.compare(term, ((Number) other.getKey()).doubleValue());
+        public int compareKey(Bucket other) {
+            return Double.compare(term, other.term);
         }
 
         @Override
@@ -86,18 +87,11 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(CommonFields.KEY, term);
+        protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
+            builder.field(CommonFields.KEY.getPreferredName(), term);
             if (format != DocValueFormat.RAW) {
-                builder.field(CommonFields.KEY_AS_STRING, format.format(term));
+                builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), format.format(term));
             }
-            builder.field(CommonFields.DOC_COUNT, getDocCount());
-            if (showDocCountError) {
-                builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, getDocCountError());
-            }
-            aggregations.toXContentInternal(builder, params);
-            builder.endObject();
             return builder;
         }
 
@@ -112,7 +106,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         }
     }
 
-    public DoubleTerms(String name, Terms.Order order, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
+    public DoubleTerms(String name, BucketOrder order, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
             List<Bucket> buckets, long docCountError) {
         super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData, format, shardSize, showTermDocCountError,
@@ -150,18 +144,6 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
     }
 
     @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, docCountError);
-        builder.field(SUM_OF_OTHER_DOC_COUNTS, otherDocCount);
-        builder.startArray(CommonFields.BUCKETS);
-        for (Bucket bucket : buckets) {
-            bucket.toXContent(builder, params);
-        }
-        builder.endArray();
-        return builder;
-    }
-
-    @Override
     protected Bucket[] createBucketsArray(int size) {
         return new Bucket[size];
     }
@@ -171,7 +153,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         boolean promoteToDouble = false;
         for (InternalAggregation agg : aggregations) {
             if (agg instanceof LongTerms && ((LongTerms) agg).format == DocValueFormat.RAW) {
-                /**
+                /*
                  * this terms agg mixes longs and doubles, we must promote longs to doubles to make the internal aggs
                  * compatible
                  */
@@ -182,7 +164,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         if (promoteToDouble == false) {
             return super.doReduce(aggregations, reduceContext);
         }
-        List<InternalAggregation> newAggs = new ArrayList<>();
+        List<InternalAggregation> newAggs = new ArrayList<>(aggregations.size());
         for (InternalAggregation agg : aggregations) {
             if (agg instanceof LongTerms) {
                 DoubleTerms dTerms = LongTerms.convertLongTermsToDouble((LongTerms) agg, format);

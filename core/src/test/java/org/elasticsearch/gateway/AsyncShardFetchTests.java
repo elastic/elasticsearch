@@ -140,6 +140,55 @@ public class AsyncShardFetchTests extends ESTestCase {
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
     }
 
+    public void testIgnoreResponseFromDifferentRound() throws Exception {
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).build();
+        test.addSimulation(node1.getId(), response1);
+
+        // first fetch, no data, still on going
+        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        assertThat(fetchData.hasData(), equalTo(false));
+        assertThat(test.reroute.get(), equalTo(0));
+
+        // handle a response with incorrect round id, wait on reroute incrementing
+        test.processAsyncFetch(Collections.singletonList(response1), Collections.emptyList(), 0);
+        assertThat(fetchData.hasData(), equalTo(false));
+        assertThat(test.reroute.get(), equalTo(1));
+
+        // fire a response (with correct round id), wait on reroute incrementing
+        test.fireSimulationAndWait(node1.getId());
+        // verify we get back the data node
+        assertThat(test.reroute.get(), equalTo(2));
+        fetchData = test.fetchData(nodes, emptySet());
+        assertThat(fetchData.hasData(), equalTo(true));
+        assertThat(fetchData.getData().size(), equalTo(1));
+        assertThat(fetchData.getData().get(node1), sameInstance(response1));
+    }
+
+    public void testIgnoreFailureFromDifferentRound() throws Exception {
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).build();
+        // add a failed response for node1
+        test.addSimulation(node1.getId(), failure1);
+
+        // first fetch, no data, still on going
+        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        assertThat(fetchData.hasData(), equalTo(false));
+        assertThat(test.reroute.get(), equalTo(0));
+
+        // handle a failure with incorrect round id, wait on reroute incrementing
+        test.processAsyncFetch(Collections.emptyList(), Collections.singletonList(
+            new FailedNodeException(node1.getId(), "dummy failure", failure1)), 0);
+        assertThat(fetchData.hasData(), equalTo(false));
+        assertThat(test.reroute.get(), equalTo(1));
+
+        // fire a response, wait on reroute incrementing
+        test.fireSimulationAndWait(node1.getId());
+        // failure, fetched data exists, but has no data
+        assertThat(test.reroute.get(), equalTo(2));
+        fetchData = test.fetchData(nodes, emptySet());
+        assertThat(fetchData.hasData(), equalTo(true));
+        assertThat(fetchData.getData().size(), equalTo(0));
+    }
+
     public void testTwoNodesOnSetup() throws Exception {
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).build();
         test.addSimulation(node1.getId(), response1);
@@ -267,7 +316,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         }
 
         @Override
-        protected void asyncFetch(final ShardId shardId, DiscoveryNode[] nodes) {
+        protected void asyncFetch(DiscoveryNode[] nodes, long fetchingRound) {
             for (final DiscoveryNode node : nodes) {
                 final String nodeId = node.getId();
                 threadPool.generic().execute(new Runnable() {
@@ -283,11 +332,10 @@ public class AsyncShardFetchTests extends ESTestCase {
                             assert entry != null;
                             entry.executeLatch.await();
                             if (entry.failure != null) {
-                                processAsyncFetch(shardId, null, Collections.singletonList(new FailedNodeException(nodeId,
-                                                                                                                   "unexpected",
-                                                                                                                   entry.failure)));
+                                processAsyncFetch(null,
+                                    Collections.singletonList(new FailedNodeException(nodeId, "unexpected", entry.failure)), fetchingRound);
                             } else {
-                                processAsyncFetch(shardId, Collections.singletonList(entry.response), null);
+                                processAsyncFetch(Collections.singletonList(entry.response), null, fetchingRound);
                             }
                         } catch (Exception e) {
                             logger.error("unexpected failure", e);

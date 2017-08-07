@@ -63,13 +63,13 @@ public class PluginBuildPlugin extends BuildPlugin {
                 project.ext.set("nebulaPublish.maven.jar", false)
             }
 
-            project.integTest.dependsOn(project.bundlePlugin)
+            project.integTestCluster.dependsOn(project.bundlePlugin)
             project.tasks.run.dependsOn(project.bundlePlugin)
             if (isModule) {
-                project.integTest.clusterConfig.module(project)
+                project.integTestCluster.module(project)
                 project.tasks.run.clusterConfig.module(project)
             } else {
-                project.integTest.clusterConfig.plugin(project.path)
+                project.integTestCluster.plugin(project.path)
                 project.tasks.run.clusterConfig.plugin(project.path)
                 addZipPomGeneration(project)
                 addNoticeGeneration(project)
@@ -96,7 +96,7 @@ public class PluginBuildPlugin extends BuildPlugin {
             provided "com.vividsolutions:jts:${project.versions.jts}"
             provided "org.apache.logging.log4j:log4j-api:${project.versions.log4j}"
             provided "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
-            provided "net.java.dev.jna:jna:${project.versions.jna}"
+            provided "org.elasticsearch:jna:${project.versions.jna}"
         }
     }
 
@@ -257,10 +257,10 @@ public class PluginBuildPlugin extends BuildPlugin {
                 include(licenseFile.name)
             }
         }
-        File noticeFile = project.pluginProperties.extension.licenseFile
+        File noticeFile = project.pluginProperties.extension.noticeFile
         if (noticeFile != null) {
             NoticeTask generateNotice = project.tasks.create('generateNotice', NoticeTask.class)
-            generateNotice.dependencies(project)
+            generateNotice.inputFile = noticeFile
             project.bundlePlugin.from(generateNotice)
         }
     }

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
@@ -78,7 +79,7 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
         clusterService = createClusterService(threadPool);
         Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
                 new NoneCircuitBreakerService(), new NamedWriteableRegistry(Collections.emptyList()),
-                new NetworkService(settings, Collections.emptyList()));
+                new NetworkService(Collections.emptyList()));
         transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -114,22 +115,24 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
         request.source(Requests.INDEX_CONTENT_TYPE, "foo", 3);
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(request);
-        final AtomicBoolean onFailureCalled = new AtomicBoolean();
+        final AtomicBoolean gotResponse = new AtomicBoolean();
 
         transportBulkAction.execute(bulkRequest, new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse bulkResponse) {
-                fail("onResponse shouldn't be called");
+                BulkItemResponse itemResponse = bulkResponse.getItems()[0];
+                assertTrue(itemResponse.isFailed());
+                assertThat(itemResponse.getFailure().getCause(), instanceOf(IndexNotFoundException.class));
+                assertEquals("no such index and [index.mapper.dynamic] is [false]", itemResponse.getFailure().getCause().getMessage());
+                gotResponse.set(true);
             }
 
             @Override
             public void onFailure(Exception e) {
-                onFailureCalled.set(true);
-                assertThat(e, instanceOf(IndexNotFoundException.class));
-                assertEquals("no such index and [index.mapper.dynamic] is [false]", e.getMessage());
+                fail("unexpected failure in bulk action, expected failed bulk item");
             }
         });
 
-        assertTrue(onFailureCalled.get());
+        assertTrue(gotResponse.get());
     }
 }

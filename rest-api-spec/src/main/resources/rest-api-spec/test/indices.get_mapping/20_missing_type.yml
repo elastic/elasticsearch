@@ -1,0 +1,113 @@
+---
+"Non-existent type returns 404":
+  - skip:
+      version: " - 5.5.99"
+      reason: Previous versions did not 404 on missing types
+  - do:
+        indices.create:
+          index: test_index
+          body:
+              mappings:
+                test_type:
+                  properties:
+                    text:
+                      type:     text
+                      analyzer: whitespace
+
+  - do:
+      catch: missing
+      indices.get_mapping:
+        index: test_index
+        type: not_test_type
+
+  - match: { status: 404 }
+  - match: { error.reason: 'type[[not_test_type]] missing' }
+
+---
+"No type matching pattern returns 404":
+  - skip:
+      version: " - 5.5.99"
+      reason: Previous versions did not 404 on missing types
+  - do:
+        indices.create:
+          index: test_index
+          body:
+              mappings:
+                test_type:
+                  properties:
+                    text:
+                      type:     text
+                      analyzer: whitespace
+
+  - do:
+      catch: missing
+      indices.get_mapping:
+        index: test_index
+        type: test*,not*
+
+  - match: { status: 404 }
+  - match: { error: 'type [not*] missing' }
+  - is_true: test_index.mappings.test_type
+
+---
+"Existent and non-existent type returns 404 and the existing type":
+  - skip:
+      version: " - 5.5.99"
+      reason: Previous versions did not 404 on missing types
+  - do:
+        indices.create:
+          index: test_index
+          body:
+              mappings:
+                test_type:
+                  properties:
+                    text:
+                      type:     text
+                      analyzer: whitespace
+
+  - do:
+      catch: missing
+      indices.get_mapping:
+        index: test_index
+        type: test_type,not_test_type
+
+  - match: { status: 404 }
+  - match: { error: 'type [not_test_type] missing' }
+  - is_true: test_index.mappings.test_type
+
+---
+"Existent and non-existent types returns 404 and the existing type":
+  - skip:
+      version: " - 5.5.99"
+      reason: Previous versions did not 404 on missing types
+  - do:
+        indices.create:
+          index: test_index
+          body:
+              mappings:
+                test_type:
+                  properties:
+                    text:
+                      type:     text
+                      analyzer: whitespace
+
+  - do:
+      catch: missing
+      indices.get_mapping:
+        index: test_index
+        type: test_type,not_test_type,another_not_test_type
+
+  - match: { status: 404 }
+  - match: { error: 'types [another_not_test_type,not_test_type] missing' }
+  - is_true: test_index.mappings.test_type
+
+---
+"Type missing when no types exist":
+  - skip:
+      version: " - 5.0.2"
+      reason: there was a bug prior to 5.0.2
+  - do:
+      catch: missing
+      indices.get_mapping:
+        type: not_test_type
+ 

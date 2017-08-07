@@ -50,4 +50,12 @@ public final class ContextPreservingActionListener<R> implements ActionListener<
             delegate.onFailure(e);
         }
     }
+
+    /**
+     * Wraps the provided action listener in a {@link ContextPreservingActionListener} that will
+     * also copy the response headers when the {@link ThreadContext.StoredContext} is closed
+     */
+    public static <R> ContextPreservingActionListener<R> wrapPreservingContext(ActionListener<R> listener, ThreadContext threadContext) {
+        return new ContextPreservingActionListener<>(threadContext.newRestorableContext(true), listener);
+    }
 }

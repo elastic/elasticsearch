@@ -20,8 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequest;
-import org.elasticsearch.action.bulk.byscroll.DeleteByQueryRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -31,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.tasks.TaskId;
@@ -56,17 +53,17 @@ public class RoundTripTests extends ESTestCase {
         reindex.getDestination().index("test");
         if (randomBoolean()) {
             int port = between(1, Integer.MAX_VALUE);
-            BytesReference query = new BytesArray(randomAsciiOfLength(5));
-            String username = randomBoolean() ? randomAsciiOfLength(5) : null;
-            String password = username != null && randomBoolean() ? randomAsciiOfLength(5) : null;
+            BytesReference query = new BytesArray(randomAlphaOfLength(5));
+            String username = randomBoolean() ? randomAlphaOfLength(5) : null;
+            String password = username != null && randomBoolean() ? randomAlphaOfLength(5) : null;
             int headersCount = randomBoolean() ? 0 : between(1, 10);
             Map<String, String> headers = new HashMap<>(headersCount);
             while (headers.size() < headersCount) {
-                headers.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+                headers.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
             TimeValue socketTimeout = parseTimeValue(randomPositiveTimeValue(), "socketTimeout");
             TimeValue connectTimeout = parseTimeValue(randomPositiveTimeValue(), "connectTimeout");
-            reindex.setRemoteInfo(new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), port, query, username, password, headers,
+            reindex.setRemoteInfo(new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), port, query, username, password, headers,
                     socketTimeout, connectTimeout));
         }
         ReindexRequest tripped = new ReindexRequest();
@@ -90,7 +87,7 @@ public class RoundTripTests extends ESTestCase {
         UpdateByQueryRequest update = new UpdateByQueryRequest(new SearchRequest());
         randomRequest(update);
         if (randomBoolean()) {
-            update.setPipeline(randomAsciiOfLength(5));
+            update.setPipeline(randomAlphaOfLength(5));
         }
         UpdateByQueryRequest tripped = new UpdateByQueryRequest();
         roundTrip(update, tripped);
@@ -134,7 +131,9 @@ public class RoundTripTests extends ESTestCase {
     private void randomRequest(AbstractBulkByScrollRequest<?> request) {
         request.getSearchRequest().indices("test");
         request.getSearchRequest().source().size(between(1, 1000));
-        request.setSize(random().nextBoolean() ? between(1, Integer.MAX_VALUE) : -1);
+        if (randomBoolean()) {
+            request.setSize(between(1, Integer.MAX_VALUE));
+        }
         request.setAbortOnVersionConflict(random().nextBoolean());
         request.setRefresh(rarely());
         request.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), null, "test"));
@@ -162,7 +161,7 @@ public class RoundTripTests extends ESTestCase {
             assertEquals(request.getRemoteInfo().getUsername(), tripped.getRemoteInfo().getUsername());
             assertEquals(request.getRemoteInfo().getPassword(), tripped.getRemoteInfo().getPassword());
             assertEquals(request.getRemoteInfo().getHeaders(), tripped.getRemoteInfo().getHeaders());
-            if (version.onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            if (version.onOrAfter(Version.V_5_2_0)) {
                 assertEquals(request.getRemoteInfo().getSocketTimeout(), tripped.getRemoteInfo().getSocketTimeout());
                 assertEquals(request.getRemoteInfo().getConnectTimeout(), tripped.getRemoteInfo().getConnectTimeout());
             } else {
@@ -196,7 +195,7 @@ public class RoundTripTests extends ESTestCase {
         if (randomBoolean()) {
             request.setActions(randomFrom(UpdateByQueryAction.NAME, ReindexAction.NAME));
         } else {
-            request.setTaskId(new TaskId(randomAsciiOfLength(5), randomLong()));
+            request.setTaskId(new TaskId(randomAlphaOfLength(5), randomLong()));
         }
         RethrottleRequest tripped = new RethrottleRequest();
         roundTrip(request, tripped);
@@ -224,6 +223,8 @@ public class RoundTripTests extends ESTestCase {
         String idOrCode = randomSimpleString(random());
         Map<String, Object> params = Collections.emptyMap();
 
-        return new Script(type, lang, idOrCode, params);
+        type = ScriptType.STORED;
+
+        return new Script(type, type == ScriptType.STORED ? null : lang, idOrCode, params);
     }
 }

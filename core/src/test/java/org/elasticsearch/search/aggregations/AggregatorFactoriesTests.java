@@ -19,17 +19,25 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.query.WrapperQueryBuilder;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders;
+import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptPipelineAggregationBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
 
@@ -41,6 +49,7 @@ import java.util.regex.Pattern;
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class AggregatorFactoriesTests extends ESTestCase {
     private String[] currentTypes;
@@ -52,13 +61,12 @@ public class AggregatorFactoriesTests extends ESTestCase {
         // we have to prefer CURRENT since with the range of versions we support
         // it's rather unlikely to get the current actually.
         Settings settings = Settings.builder().put("node.name", AbstractQueryTestCase.class.toString())
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         // create some random type with some default field, those types will
         // stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {
-            String type = randomAsciiOfLengthBetween(1, 10);
+            String type = randomAlphaOfLengthBetween(1, 10);
             currentTypes[i] = type;
         }
         xContentRegistry = new NamedXContentRegistry(new SearchModule(settings, false, emptyList()).getNamedXContents());
@@ -97,9 +105,8 @@ public class AggregatorFactoriesTests extends ESTestCase {
                     .endObject()
                 .endObject();
         XContentParser parser = createParser(source);
-        QueryParseContext parseContext = new QueryParseContext(parser);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parseContext));
+        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Found two aggregation type definitions in [in_stock]: [filter] and [terms]"));
     }
 
@@ -130,9 +137,8 @@ public class AggregatorFactoriesTests extends ESTestCase {
                     .endObject()
                 .endObject();
         XContentParser parser = createParser(source);
-        QueryParseContext parseContext = new QueryParseContext(parser);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parseContext));
+        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Found two sub aggregation definitions under [by_date]"));
     }
 
@@ -165,16 +171,15 @@ public class AggregatorFactoriesTests extends ESTestCase {
                     .endObject()
                 .endObject();
         XContentParser parser = createParser(source);
-        QueryParseContext parseContext = new QueryParseContext(parser);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parseContext));
+        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Invalid aggregation name [" + name + "]"));
     }
 
     public void testSameAggregationName() throws Exception {
         assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
             XContent.isStrictDuplicateDetectionEnabled());
-        final String name = randomAsciiOfLengthBetween(1, 10);
+        final String name = randomAlphaOfLengthBetween(1, 10);
         XContentBuilder source = JsonXContent.contentBuilder()
                 .startObject()
                     .startObject(name)
@@ -189,9 +194,8 @@ public class AggregatorFactoriesTests extends ESTestCase {
                     .endObject()
                 .endObject();
         XContentParser parser = createParser(source);
-        QueryParseContext parseContext = new QueryParseContext(parser);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parseContext));
+        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Two sibling aggregations cannot have the same name: [" + name + "]"));
     }
 
@@ -214,9 +218,8 @@ public class AggregatorFactoriesTests extends ESTestCase {
                     .endObject()
                 .endObject();
         XContentParser parser = createParser(source);
-        QueryParseContext parseContext = new QueryParseContext(parser);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parseContext));
+        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Expected [START_OBJECT] under [field], but got a [VALUE_STRING] in [cardinality]"));
     }
 
@@ -239,10 +242,47 @@ public class AggregatorFactoriesTests extends ESTestCase {
                     .endObject()
                 .endObject();
         XContentParser parser = createParser(source);
-        QueryParseContext parseContext = new QueryParseContext(parser);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parseContext));
+        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Expected [START_OBJECT] under [field], but got a [VALUE_STRING] in [tag_count]"));
+    }
+
+    public void testRewrite() throws Exception {
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference bytesReference;
+        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
+            builder.startObject();
+            {
+                builder.startObject("terms");
+                {
+                    builder.array("title", "foo");
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            bytesReference = builder.bytes();
+        }
+        FilterAggregationBuilder filterAggBuilder = new FilterAggregationBuilder("titles", new WrapperQueryBuilder(bytesReference));
+        BucketScriptPipelineAggregationBuilder pipelineAgg = new BucketScriptPipelineAggregationBuilder("const", new Script("1"));
+        AggregatorFactories.Builder builder = new AggregatorFactories.Builder().addAggregator(filterAggBuilder)
+                .addPipelineAggregator(pipelineAgg);
+        AggregatorFactories.Builder rewritten = builder
+                .rewrite(new QueryRewriteContext(xContentRegistry, null, null, () -> 0L));
+        assertNotSame(builder, rewritten);
+        List<AggregationBuilder> aggregatorFactories = rewritten.getAggregatorFactories();
+        assertEquals(1, aggregatorFactories.size());
+        assertThat(aggregatorFactories.get(0), instanceOf(FilterAggregationBuilder.class));
+        FilterAggregationBuilder rewrittenFilterAggBuilder = (FilterAggregationBuilder) aggregatorFactories.get(0);
+        assertNotSame(filterAggBuilder, rewrittenFilterAggBuilder);
+        assertNotEquals(filterAggBuilder, rewrittenFilterAggBuilder);
+        // Check the filter was rewritten from a wrapper query to a terms query
+        QueryBuilder rewrittenFilter = rewrittenFilterAggBuilder.getFilter();
+        assertThat(rewrittenFilter, instanceOf(TermsQueryBuilder.class));
+
+        // Check that a further rewrite returns the same aggregation factories builder
+        AggregatorFactories.Builder secondRewritten = rewritten
+                .rewrite(new QueryRewriteContext(xContentRegistry, null, null, () -> 0L));
+        assertSame(rewritten, secondRewritten);
     }
 
     @Override

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -42,12 +41,12 @@ import java.util.Map;
 /**
  * A geo metric aggregator that computes a geo-centroid from a {@code geo_point} type field
  */
-public final class GeoCentroidAggregator extends MetricsAggregator {
+final class GeoCentroidAggregator extends MetricsAggregator {
     private final ValuesSource.GeoPoint valuesSource;
-    LongArray centroids;
-    LongArray counts;
+    private LongArray centroids;
+    private LongArray counts;
 
-    protected GeoCentroidAggregator(String name, SearchContext context, Aggregator parent,
+    GeoCentroidAggregator(String name, SearchContext context, Aggregator parent,
                                     ValuesSource.GeoPoint valuesSource, List<PipelineAggregator> pipelineAggregators,
                                     Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
@@ -72,29 +71,30 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
                 centroids = bigArrays.grow(centroids, bucket + 1);
                 counts = bigArrays.grow(counts, bucket + 1);
 
-                values.setDocument(doc);
-                final int valueCount = values.count();
-                if (valueCount > 0) {
+                if (values.advanceExact(doc)) {
+                    final int valueCount = values.docValueCount();
                     double[] pt = new double[2];
                     // get the previously accumulated number of counts
                     long prevCounts = counts.get(bucket);
                     // increment by the number of points for this document
                     counts.increment(bucket, valueCount);
-                    // get the previous GeoPoint if a moving avg was computed
+                    // get the previous GeoPoint if a moving avg was
+                    // computed
                     if (prevCounts > 0) {
                         final long mortonCode = centroids.get(bucket);
-                        pt[0] = GeoPointField.decodeLongitude(mortonCode);
-                        pt[1] = GeoPointField.decodeLatitude(mortonCode);
+                        pt[0] = InternalGeoCentroid.decodeLongitude(mortonCode);
+                        pt[1] = InternalGeoCentroid.decodeLatitude(mortonCode);
                     }
                     // update the moving average
                     for (int i = 0; i < valueCount; ++i) {
-                        GeoPoint value = values.valueAt(i);
+                        GeoPoint value = values.nextValue();
                         pt[0] = pt[0] + (value.getLon() - pt[0]) / ++prevCounts;
                         pt[1] = pt[1] + (value.getLat() - pt[1]) / prevCounts;
                     }
-                    // TODO: we do not need to interleave the lat and lon bits here
+                    // TODO: we do not need to interleave the lat and lon
+                    // bits here
                     // should we just store them contiguously?
-                    centroids.set(bucket, GeoPointField.encodeLatLon(pt[1], pt[0]));
+                    centroids.set(bucket, InternalGeoCentroid.encodeLatLon(pt[1], pt[0]));
                 }
             }
         };
@@ -108,7 +108,8 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
         final long bucketCount = counts.get(bucket);
         final long mortonCode = centroids.get(bucket);
         final GeoPoint bucketCentroid = (bucketCount > 0)
-                ? new GeoPoint(GeoPointField.decodeLatitude(mortonCode), GeoPointField.decodeLongitude(mortonCode))
+                ? new GeoPoint(InternalGeoCentroid.decodeLatitude(mortonCode),
+                        InternalGeoCentroid.decodeLongitude(mortonCode))
                 : null;
         return new InternalGeoCentroid(name, bucketCentroid , bucketCount, pipelineAggregators(), metaData());
     }

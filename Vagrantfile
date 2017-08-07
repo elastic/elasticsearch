@@ -22,10 +22,6 @@
 # under the License.
 
 Vagrant.configure(2) do |config|
-  config.vm.define "ubuntu-1204" do |config|
-    config.vm.box = "elastic/ubuntu-12.04-x86_64"
-    ubuntu_common config
-  end
   config.vm.define "ubuntu-1404" do |config|
     config.vm.box = "elastic/ubuntu-14.04-x86_64"
     ubuntu_common config
@@ -37,11 +33,15 @@ Vagrant.configure(2) do |config|
       [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
     SHELL
   end
-  # Wheezy's backports don't contain Openjdk 8 and the backflips required to
-  # get the sun jdk on there just aren't worth it. We have jessie for testing
-  # debian and it works fine.
+  # Wheezy's backports don't contain Openjdk 8 and the backflips
+  # required to get the sun jdk on there just aren't worth it. We have
+  # jessie and stretch for testing debian and it works fine.
   config.vm.define "debian-8" do |config|
     config.vm.box = "elastic/debian-8-x86_64"
+    deb_common config
+  end
+  config.vm.define "debian-9" do |config|
+    config.vm.box = "elastic/debian-9-x86_64"
     deb_common config
   end
   config.vm.define "centos-6" do |config|
@@ -60,12 +60,12 @@ Vagrant.configure(2) do |config|
     config.vm.box = "elastic/oraclelinux-7-x86_64"
     rpm_common config
   end
-  config.vm.define "fedora-24" do |config|
-    config.vm.box = "elastic/fedora-24-x86_64"
+  config.vm.define "fedora-25" do |config|
+    config.vm.box = "elastic/fedora-25-x86_64"
     dnf_common config
   end
-  config.vm.define "opensuse-13" do |config|
-    config.vm.box = "elastic/opensuse-13-x86_64"
+  config.vm.define "opensuse-42" do |config|
+    config.vm.box = "elastic/opensuse-42-x86_64"
     opensuse_common config
   end
   config.vm.define "sles-12" do |config|
@@ -107,6 +107,12 @@ SOURCE_PROMPT
 # Replace the standard prompt with a consistent one
 source /etc/profile.d/elasticsearch_prompt.sh
 SOURCE_PROMPT
+      SHELL
+      # Creates a file to mark the machine as created by vagrant. Tests check
+      # for this file and refuse to run if it is not present so that they can't
+      # be run unexpectedly.
+      config.vm.provision "markerfile", type: "shell", inline: <<-SHELL
+        touch /etc/is_vagrant_vm
       SHELL
     end
     config.config_procs.push ['2', set_prompt]
@@ -165,8 +171,6 @@ end
 def sles_common(config)
   extra = <<-SHELL
     zypper rr systemsmanagement_puppet puppetlabs-pc1
-    zypper addrepo -t yast2 http://demeter.uni-regensburg.de/SLES12-x64/DVD1/ dvd1 || true
-    zypper --no-gpg-checks --non-interactive refresh
     zypper --non-interactive install git-core
 SHELL
   suse_common config, extra
@@ -266,14 +270,13 @@ def provision(config,
     }
 
     installed gradle || {
-      echo "==> Installing gradle"
-      curl -o /tmp/gradle.zip -L https://services.gradle.org/distributions/gradle-3.3-bin.zip
-      unzip /tmp/gradle.zip -d /opt
-      rm -rf /tmp/gradle.zip 
+      echo "==> Installing Gradle"
+      curl -sS -o /tmp/gradle.zip -L https://services.gradle.org/distributions/gradle-3.3-bin.zip
+      unzip -q /tmp/gradle.zip -d /opt
+      rm -rf /tmp/gradle.zip
       ln -s /opt/gradle-3.3/bin/gradle /usr/bin/gradle
       # make nfs mounted gradle home dir writeable
-      # TODO: also chgrp to vagrant once sles and opensuse have vagrant group...
-      chown vagrant /home/vagrant/.gradle
+      chown vagrant:vagrant /home/vagrant/.gradle
     }
 
 

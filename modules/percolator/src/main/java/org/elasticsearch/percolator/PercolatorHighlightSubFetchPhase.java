@@ -33,11 +33,11 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 
@@ -50,9 +50,9 @@ import java.util.Map;
  * Highlighting in the case of the percolate query is a bit different, because the PercolateQuery itself doesn't get highlighted,
  * but the source of the PercolateQuery gets highlighted by each hit containing a query.
  */
-public final class PercolatorHighlightSubFetchPhase extends HighlightPhase {
+final class PercolatorHighlightSubFetchPhase extends HighlightPhase {
 
-    public PercolatorHighlightSubFetchPhase(Settings settings, Map<String, Highlighter> highlighters) {
+    PercolatorHighlightSubFetchPhase(Settings settings, Map<String, Highlighter> highlighters) {
         super(settings, highlighters);
     }
 
@@ -93,7 +93,7 @@ public final class PercolatorHighlightSubFetchPhase extends HighlightPhase {
             if (query != null) {
                 subSearchContext.parsedQuery(new ParsedQuery(query));
                 hitContext.reset(
-                        new SearchHit(0, "unknown", new Text(percolateQuery.getDocumentType()), Collections.emptyMap()),
+                        new SearchHit(0, "unknown", new Text(hit.getType()), Collections.emptyMap()),
                         percolatorLeafReaderContext, 0, percolatorIndexSearcher
                 );
                 hitContext.cache().clear();

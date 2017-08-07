@@ -28,9 +28,11 @@ import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBu
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -98,13 +100,13 @@ public class SamplerIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("test").setTypes("book").setSearchType(SearchType.QUERY_THEN_FETCH)
                 .addAggregation(terms("genres")
                         .field("genre")
-                        .order(Terms.Order.aggregation("sample>max_price.value", asc))
+                        .order(BucketOrder.aggregation("sample>max_price.value", asc))
                         .subAggregation(sampler("sample").shardSize(100)
                                 .subAggregation(max("max_price").field("price")))
                 ).execute().actionGet();
         assertSearchResponse(response);
         Terms genres = response.getAggregations().get("genres");
-        Collection<Bucket> genreBuckets = genres.getBuckets();
+        List<? extends Bucket> genreBuckets = genres.getBuckets();
         // For this test to be useful we need >1 genre bucket to compare
         assertThat(genreBuckets.size(), greaterThan(1));
         double lastMaxPrice = asc ? Double.MIN_VALUE : Double.MAX_VALUE;
@@ -130,7 +132,7 @@ public class SamplerIT extends ESIntegTestCase {
         assertSearchResponse(response);
         Sampler sample = response.getAggregations().get("sample");
         Terms authors = sample.getAggregations().get("authors");
-        Collection<Bucket> testBuckets = authors.getBuckets();
+        List<? extends Bucket> testBuckets = authors.getBuckets();
 
         long maxBooksPerAuthor = 0;
         for (Terms.Bucket testBucket : testBuckets) {

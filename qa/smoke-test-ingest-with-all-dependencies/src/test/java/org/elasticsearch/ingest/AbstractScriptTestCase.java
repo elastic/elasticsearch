@@ -20,36 +20,34 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.TemplateScript;
+import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-import org.mockito.internal.util.collections.Sets;
 
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
+
+import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
 
 public abstract class AbstractScriptTestCase extends ESTestCase {
 
-    protected TemplateService templateService;
+    protected ScriptService scriptService;
 
     @Before
     public void init() throws Exception {
-        Settings settings = Settings.builder()
-            .put("path.home", createTempDir())
-            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
-            .build();
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(new MustacheScriptEngineService(settings)));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-
-        ScriptService scriptService = new ScriptService(settings, new Environment(settings), null,
-                scriptEngineRegistry, scriptContextRegistry, scriptSettings);
-        templateService = new InternalTemplateService(scriptService);
+        MustacheScriptEngine engine = new MustacheScriptEngine();
+        Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
+        scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
     }
 
+    protected TemplateScript.Factory compile(String template) {
+        Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, template, Collections.emptyMap());
+        return scriptService.compile(script, TemplateScript.CONTEXT);
+    }
 }

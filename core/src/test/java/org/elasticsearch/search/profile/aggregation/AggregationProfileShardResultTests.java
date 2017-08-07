@@ -20,6 +20,7 @@
 package org.elasticsearch.search.profile.aggregation;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -52,7 +53,7 @@ public class AggregationProfileShardResultTests extends ESTestCase {
         AggregationProfileShardResult profileResult = createTestItem(2);
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(profileResult, xContentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(profileResult, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
         AggregationProfileShardResult parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {

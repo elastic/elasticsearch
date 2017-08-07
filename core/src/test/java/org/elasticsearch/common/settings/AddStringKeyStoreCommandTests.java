@@ -39,7 +39,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new AddStringKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Terminal terminal, Map<String, String> settings) {
+            protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
                 return env;
             }
             @Override
@@ -127,7 +127,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertEquals("String value must contain only ASCII", e.getMessage());
     }
 
-    public void testNpe() throws Exception {
+    public void testMissingSettingName() throws Exception {
         createKeystore("");
         terminal.addTextInput("");
         UserException e = expectThrows(UserException.class, this::execute);

@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
@@ -44,6 +43,7 @@ import static java.util.Collections.unmodifiableList;
 public final class InternalBinaryRange
         extends InternalMultiBucketAggregation<InternalBinaryRange, InternalBinaryRange.Bucket>
         implements Range {
+
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
 
         private final transient DocValueFormat format;
@@ -133,16 +133,16 @@ public final class InternalBinaryRange
             } else {
                 builder.startObject();
                 if (key != null) {
-                    builder.field(CommonFields.KEY, key);
+                    builder.field(CommonFields.KEY.getPreferredName(), key);
                 }
             }
             if (from != null) {
-                builder.field(CommonFields.FROM, getFrom());
+                builder.field(CommonFields.FROM.getPreferredName(), getFrom());
             }
             if (to != null) {
-                builder.field(CommonFields.TO, getTo());
+                builder.field(CommonFields.TO.getPreferredName(), getTo());
             }
-            builder.field(CommonFields.DOC_COUNT, docCount);
+            builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;
@@ -225,7 +225,7 @@ public final class InternalBinaryRange
     }
 
     @Override
-    public List<Range.Bucket> getBuckets() {
+    public List<InternalBinaryRange.Bucket> getBuckets() {
         return unmodifiableList(buckets);
     }
 
@@ -270,9 +270,9 @@ public final class InternalBinaryRange
     public XContentBuilder doXContentBody(XContentBuilder builder,
             Params params) throws IOException {
         if (keyed) {
-            builder.startObject(CommonFields.BUCKETS);
+            builder.startObject(CommonFields.BUCKETS.getPreferredName());
         } else {
-            builder.startArray(CommonFields.BUCKETS);
+            builder.startArray(CommonFields.BUCKETS.getPreferredName());
         }
         for (Bucket range : buckets) {
             range.toXContent(builder, params);

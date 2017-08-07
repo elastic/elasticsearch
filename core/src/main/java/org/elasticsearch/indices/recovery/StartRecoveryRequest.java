@@ -21,10 +21,8 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -39,6 +37,7 @@ public class StartRecoveryRequest extends TransportRequest {
 
     private long recoveryId;
     private ShardId shardId;
+    private String targetAllocationId;
     private DiscoveryNode sourceNode;
     private DiscoveryNode targetNode;
     private Store.MetadataSnapshot metadataSnapshot;
@@ -51,15 +50,17 @@ public class StartRecoveryRequest extends TransportRequest {
     /**
      * Construct a request for starting a peer recovery.
      *
-     * @param shardId           the shard ID to recover
-     * @param sourceNode        the source node to remover from
-     * @param targetNode        the target node to recover to
-     * @param metadataSnapshot  the Lucene metadata
-     * @param primaryRelocation whether or not the recovery is a primary relocation
-     * @param recoveryId        the recovery ID
-     * @param startingSeqNo     the starting sequence number
+     * @param shardId            the shard ID to recover
+     * @param targetAllocationId the allocation id of the target shard
+     * @param sourceNode         the source node to remover from
+     * @param targetNode         the target node to recover to
+     * @param metadataSnapshot   the Lucene metadata
+     * @param primaryRelocation  whether or not the recovery is a primary relocation
+     * @param recoveryId         the recovery ID
+     * @param startingSeqNo      the starting sequence number
      */
     public StartRecoveryRequest(final ShardId shardId,
+                                final String targetAllocationId,
                                 final DiscoveryNode sourceNode,
                                 final DiscoveryNode targetNode,
                                 final Store.MetadataSnapshot metadataSnapshot,
@@ -68,6 +69,7 @@ public class StartRecoveryRequest extends TransportRequest {
                                 final long startingSeqNo) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
+        this.targetAllocationId = targetAllocationId;
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
         this.metadataSnapshot = metadataSnapshot;
@@ -81,6 +83,10 @@ public class StartRecoveryRequest extends TransportRequest {
 
     public ShardId shardId() {
         return shardId;
+    }
+
+    public String targetAllocationId() {
+        return targetAllocationId;
     }
 
     public DiscoveryNode sourceNode() {
@@ -108,11 +114,12 @@ public class StartRecoveryRequest extends TransportRequest {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
+        targetAllocationId = in.readString();
         sourceNode = new DiscoveryNode(in);
         targetNode = new DiscoveryNode(in);
         metadataSnapshot = new Store.MetadataSnapshot(in);
         primaryRelocation = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             startingSeqNo = in.readLong();
         } else {
             startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
@@ -124,11 +131,12 @@ public class StartRecoveryRequest extends TransportRequest {
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
+        out.writeString(targetAllocationId);
         sourceNode.writeTo(out);
         targetNode.writeTo(out);
         metadataSnapshot.writeTo(out);
         out.writeBoolean(primaryRelocation);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             out.writeLong(startingSeqNo);
         }
     }

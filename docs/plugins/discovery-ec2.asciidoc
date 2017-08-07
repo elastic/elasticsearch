@@ -5,35 +5,8 @@ The EC2 discovery plugin uses the https://github.com/aws/aws-sdk-java[AWS API] f
 
 *If you are looking for a hosted solution of Elasticsearch on AWS, please visit http://www.elastic.co/cloud.*
 
-[[discovery-ec2-install]]
-[float]
-==== Installation
-
-This plugin can be installed using the plugin manager:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install discovery-ec2
-----------------------------------------------------------------
-
-The plugin must be installed on every node in the cluster, and each node must
-be restarted after installation.
-
-This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/discovery-ec2/discovery-ec2-{version}.zip.
-
-[[discovery-ec2-remove]]
-[float]
-==== Removal
-
-The plugin can be removed with the following command:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove discovery-ec2
-----------------------------------------------------------------
-
-The node must be stopped before removing the plugin.
+:plugin_name: discovery-ec2
+include::install_remove.asciidoc[]
 
 [[discovery-ec2-usage]]
 ==== Getting started with AWS
@@ -104,35 +77,6 @@ cloud:
                 password: theBestPasswordEver2!
 ----
 
-[[discovery-ec2-usage-region]]
-===== Region
-
-The `cloud.aws.region` can be set to a region and will automatically use the relevant settings for both `ec2` and `s3`.
-The available values are:
-
-* `us-east` (`us-east-1`) for US East (N. Virginia)
-* `us-east-2` for US East (Ohio)
-* `us-west` (`us-west-1`) for US West (N. California)
-* `us-west-2` for US West (Oregon)
-* `ap-south` (`ap-south-1`) for Asia Pacific (Mumbai)
-* `ap-southeast` (`ap-southeast-1`) for Asia Pacific (Singapore)
-* `ap-southeast-2` for Asia Pacific (Sydney)
-* `ap-northeast` (`ap-northeast-1`) for Asia Pacific (Tokyo)
-* `ap-northeast-2` (`ap-northeast-2`) for Asia Pacific (Seoul)
-* `eu-west` (`eu-west-1`) for EU (Ireland)
-* `eu-west-2` (`eu-west-2`) for EU (London)
-* `eu-central` (`eu-central-1`) for EU (Frankfurt)
-* `sa-east` (`sa-east-1`) for South America (São Paulo)
-* `cn-north` (`cn-north-1`) for China (Beijing)
-* `ca-central` (`ca-central-1`) for Canada (Central)
-
-[[discovery-ec2-usage-signer]]
-===== EC2 Signer API
-
-If you are using a compatible EC2 service, they might be using an older API to sign the requests.
-You can set your compatible signer API using `cloud.aws.signer` (or `cloud.aws.ec2.signer`)
-with the right signer to use.
-
 ===== Read timeout
 
 Read timeout determines the amount of time to wait for data to be transferred over an established,
@@ -155,8 +99,6 @@ environments). Here is a simple sample configuration:
 discovery:
     zen.hosts_provider: ec2
 ----
-
-You must also set `cloud.aws.region` if you are not using default AWS region. See <<discovery-ec2-usage-region>> for details.
 
 The ec2 discovery is using the same credentials as the rest of the AWS services provided by this plugin (`repositories`).
 See <<discovery-ec2-usage>> for details.

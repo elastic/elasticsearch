@@ -19,18 +19,18 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.entity.ContentType;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.client.methods.HttpGet;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.message.BasicHeader;
+import org.elasticsearch.client.http.util.EntityUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestPath;
@@ -42,7 +42,6 @@ import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Used by {@link ESClientYamlSuiteTestCase} to execute REST requests according to the tests written in yaml suite files. Wraps a
@@ -55,7 +54,7 @@ public class ClientYamlTestClient {
     private static final ContentType YAML_CONTENT_TYPE = ContentType.create("application/yaml");
 
     private final ClientYamlSuiteRestSpec restSpec;
-    private final RestClient restClient;
+    protected final RestClient restClient;
     private final Version esVersion;
 
     public ClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient, List<HttpHost> hosts,
@@ -75,20 +74,6 @@ public class ClientYamlTestClient {
      */
     public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, HttpEntity entity, Map<String, String> headers)
             throws IOException {
-
-        if ("raw".equals(apiName)) {
-            // Raw requests are bit simpler....
-            Map<String, String> queryStringParams = new HashMap<>(params);
-            String method = Objects.requireNonNull(queryStringParams.remove("method"), "Method must be set to use raw request");
-            String path = "/"+ Objects.requireNonNull(queryStringParams.remove("path"), "Path must be set to use raw request");
-            // And everything else is a url parameter!
-            try {
-                Response response = restClient.performRequest(method, path, queryStringParams, entity);
-                return new ClientYamlTestResponse(response);
-            } catch(ResponseException e) {
-                throw new ClientYamlTestResponseException(e);
-            }
-        }
 
         ClientYamlSuiteRestApi restApi = restApi(apiName);
 

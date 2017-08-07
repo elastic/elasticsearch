@@ -129,4 +129,4 @@ include::search/explain.asciidoc[]
 
 include::search/profile.asciidoc[]
 
-include::search/field-stats.asciidoc[]
+include::search/field-caps.asciidoc[]

@@ -23,6 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -53,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -85,6 +87,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     public enum ThreadPoolType {
         DIRECT("direct"),
         FIXED("fixed"),
+        FIXED_AUTO_QUEUE_SIZE("fixed_auto_queue_size"),
         SCALING("scaling");
 
         private final String type;
@@ -126,7 +129,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         map.put(Names.GET, ThreadPoolType.FIXED);
         map.put(Names.INDEX, ThreadPoolType.FIXED);
         map.put(Names.BULK, ThreadPoolType.FIXED);
-        map.put(Names.SEARCH, ThreadPoolType.FIXED);
+        map.put(Names.SEARCH, ThreadPoolType.FIXED_AUTO_QUEUE_SIZE);
         map.put(Names.MANAGEMENT, ThreadPoolType.SCALING);
         map.put(Names.FLUSH, ThreadPoolType.SCALING);
         map.put(Names.REFRESH, ThreadPoolType.SCALING);
@@ -171,7 +174,8 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         builders.put(Names.INDEX, new FixedExecutorBuilder(settings, Names.INDEX, availableProcessors, 200));
         builders.put(Names.BULK, new FixedExecutorBuilder(settings, Names.BULK, availableProcessors, 200)); // now that we reuse bulk for index/delete ops
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, availableProcessors, 1000));
-        builders.put(Names.SEARCH, new FixedExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(availableProcessors), 1000));
+        builders.put(Names.SEARCH, new AutoQueueAdjustingExecutorBuilder(settings,
+                        Names.SEARCH, searchThreadPoolSize(availableProcessors), 1000, 1000, 1000, 2000));
         builders.put(Names.MANAGEMENT, new ScalingExecutorBuilder(Names.MANAGEMENT, 1, 5, TimeValue.timeValueMinutes(5)));
         // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
         // the assumption here is that the listeners should be very lightweight on the listeners side
@@ -295,16 +299,24 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     }
 
     /**
-     * Get the generic executor service. This executor service {@link Executor#execute(Runnable)} method will run the {@link Runnable} it
-     * is given in the {@link ThreadContext} of the thread that queues it.
+     * Get the generic {@link ExecutorService}. This executor service
+     * {@link Executor#execute(Runnable)} method will run the {@link Runnable} it is given in the
+     * {@link ThreadContext} of the thread that queues it.
+     * <p>
+     * Warning: this {@linkplain ExecutorService} will not throw {@link RejectedExecutionException}
+     * if you submit a task while it shutdown. It will instead silently queue it and not run it.
      */
     public ExecutorService generic() {
         return executor(Names.GENERIC);
     }
 
     /**
-     * Get the executor service with the given name. This executor service's {@link Executor#execute(Runnable)} method will run the
-     * {@link Runnable} it is given in the {@link ThreadContext} of the thread that queues it.
+     * Get the {@link ExecutorService} with the given name. This executor service's
+     * {@link Executor#execute(Runnable)} method will run the {@link Runnable} it is given in the
+     * {@link ThreadContext} of the thread that queues it.
+     * <p>
+     * Warning: this {@linkplain ExecutorService} might not throw {@link RejectedExecutionException}
+     * if you submit a task while it shutdown. It will instead silently queue it and not run it.
      *
      * @param name the name of the executor service to obtain
      * @throws IllegalArgumentException if no executor service with the specified name exists
@@ -608,7 +620,13 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
-            out.writeString(type.getType());
+            if (type == ThreadPoolType.FIXED_AUTO_QUEUE_SIZE &&
+                    out.getVersion().before(Version.V_6_0_0_alpha1)) {
+                // 5.x doesn't know about the "fixed_auto_queue_size" thread pool type, just write fixed.
+                out.writeString(ThreadPoolType.FIXED.getType());
+            } else {
+                out.writeString(type.getType());
+            }
             out.writeInt(min);
             out.writeInt(max);
             out.writeOptionalWriteable(keepAlive);
@@ -679,14 +697,23 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     public static boolean terminate(ExecutorService service, long timeout, TimeUnit timeUnit) {
         if (service != null) {
             service.shutdown();
-            try {
-                if (service.awaitTermination(timeout, timeUnit)) {
-                    return true;
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            if (awaitTermination(service, timeout, timeUnit)) return true;
             service.shutdownNow();
+            return awaitTermination(service, timeout, timeUnit);
+        }
+        return false;
+    }
+
+    private static boolean awaitTermination(
+            final ExecutorService service,
+            final long timeout,
+            final TimeUnit timeUnit) {
+        try {
+            if (service.awaitTermination(timeout, timeUnit)) {
+                return true;
+            }
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
         return false;
     }
@@ -699,18 +726,27 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         if (pool != null) {
             try {
                 pool.shutdown();
-                try {
-                    if (pool.awaitTermination(timeout, timeUnit)) {
-                        return true;
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
+                if (awaitTermination(pool, timeout, timeUnit)) return true;
                 // last resort
                 pool.shutdownNow();
+                return awaitTermination(pool, timeout, timeUnit);
             } finally {
                 IOUtils.closeWhileHandlingException(pool);
             }
+        }
+        return false;
+    }
+
+    private static boolean awaitTermination(
+            final ThreadPool pool,
+            final long timeout,
+            final TimeUnit timeUnit) {
+        try {
+            if (pool.awaitTermination(timeout, timeUnit)) {
+                return true;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
         return false;
     }

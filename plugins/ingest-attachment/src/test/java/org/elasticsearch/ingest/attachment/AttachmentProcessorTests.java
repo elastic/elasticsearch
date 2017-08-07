@@ -70,7 +70,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     @Before
     public void createStandardProcessor() throws IOException {
         // We test the default behavior which is extracting all metadata but the raw_metadata
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+        processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field", "target_field",
             RESERVED_PROPERTIES_KEYS, 10000, false, null);
     }
 
@@ -100,7 +100,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             .map(AttachmentProcessor::asReservedProperty)
             .collect(Collectors.toSet());
 
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+        processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field", "target_field",
             reservedPropertyKeys, 10000, false, null);
 
         Map<String, Object> attachmentData = parseDocument("htmlWithEmptyDateMeta.html", processor);
@@ -254,7 +254,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
             Collections.singletonMap("source_field", null));
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget",
+        Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field", "randomTarget",
             Collections.emptySet(), 10, true, null);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
@@ -263,7 +263,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testNonExistentWithIgnoreMissing() throws Exception {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget",
+        Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field", "randomTarget",
             Collections.emptySet(), 10, true, null);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
@@ -273,7 +273,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
             Collections.singletonMap("source_field", null));
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget",
+        Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field", "randomTarget",
             Collections.emptySet(), 10, false, null);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] is null, cannot parse."));
@@ -282,7 +282,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testNonExistentWithoutIgnoreMissing() throws Exception {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget",
+        Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field", "randomTarget",
             Collections.emptySet(), 10, false, null);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] not present as part of path [source_field]"));

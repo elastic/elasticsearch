@@ -1,60 +1,21 @@
 @echo off
-SETLOCAL enabledelayedexpansion
 
-TITLE Elasticsearch Service ${project.version}
+setlocal enabledelayedexpansion
 
-IF DEFINED JAVA_HOME (
-  SET JAVA="%JAVA_HOME%\bin\java.exe"
-) ELSE (
-  FOR %%I IN (java.exe) DO set JAVA=%%~$PATH:I
-)
-IF NOT EXIST %JAVA% (
-  ECHO Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME 1>&2
-  EXIT /B 1
-)
-IF DEFINED JAVA_HOME GOTO :cont
+call "%~dp0elasticsearch-env.bat" || exit /b 1
 
-IF NOT %JAVA:~-13% == "\bin\java.exe" (
-  FOR /f "tokens=2 delims=[]" %%I IN ('dir %JAVA%') DO @set JAVA=%%I
-)
-IF %JAVA:~-13% == "\bin\java.exe" (
-  SET JAVA_HOME=%JAVA:~0,-13%
-)
-
-:cont
-if not "%CONF_FILE%" == "" goto conffileset
-
-set SCRIPT_DIR=%~dp0
-for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
-
-%JAVA% -Xmx50M -version > nul 2>&1
-
-if errorlevel 1 (
-	echo Warning: Could not start JVM to detect version, defaulting to x86:
-	goto x86
-)
-
-%JAVA% -Xmx50M -version 2>&1 | "%windir%\System32\find" "64-Bit" >nul:
-
-if errorlevel 1 goto x86
 set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe
 set SERVICE_ID=elasticsearch-service-x64
 set ARCH=64-bit
-goto checkExe
 
-:x86
-set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x86.exe
-set SERVICE_ID=elasticsearch-service-x86
-set ARCH=32-bit
-
-:checkExe
 if EXIST "%EXECUTABLE%" goto okExe
-echo elasticsearch-service-(x86|x64).exe was not found...
+echo elasticsearch-service-x64.exe was not found...
+exit /B 1
 
 :okExe
 set ES_VERSION=${project.version}
 
-if "%LOG_DIR%" == "" set LOG_DIR=%ES_HOME%\logs
+if "%SERVICE_LOG_DIR%" == "" set SERVICE_LOG_DIR=%ES_HOME%\logs
 
 if "x%1x" == "xx" goto displayUsage
 set SERVICE_CMD=%1
@@ -64,7 +25,7 @@ set SERVICE_ID=%1
 
 :checkServiceCmd
 
-if "%LOG_OPTS%" == "" set LOG_OPTS=--LogPath "%LOG_DIR%" --LogPrefix "%SERVICE_ID%" --StdError auto --StdOutput auto
+if "%LOG_OPTS%" == "" set LOG_OPTS=--LogPath "%SERVICE_LOG_DIR%" --LogPrefix "%SERVICE_ID%" --StdError auto --StdOutput auto
 
 if /i %SERVICE_CMD% == install goto doInstall
 if /i %SERVICE_CMD% == remove goto doRemove
@@ -130,21 +91,13 @@ rem Check 'server' JRE (JRE installed on Windows Server)
 if exist "%JAVA_HOME%\bin\server\jvm.dll" (
 	set JVM_DLL=\bin\server\jvm.dll
 	goto foundJVM
-)
-
-rem Fallback to 'client' JRE
-if exist "%JAVA_HOME%\bin\client\jvm.dll" (
-	set JVM_DLL=\bin\client\jvm.dll
-	echo Warning: JAVA_HOME points to a JRE and not JDK installation; a client (not a server^) JVM will be used...
 ) else (
-	echo JAVA_HOME points to an invalid Java installation (no jvm.dll found in "%JAVA_HOME%"^). Exiting...
-	goto:eof
+  	echo JAVA_HOME points to an invalid Java installation (no jvm.dll found in "%JAVA_HOME%"^). Exiting...
+  	goto:eof
 )
 
 :foundJVM
-if "%ES_JVM_OPTIONS%" == "" (
-set ES_JVM_OPTIONS=%ES_HOME%\config\jvm.options
-)
+set ES_JVM_OPTIONS=%CONF_DIR%\jvm.options
 
 if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS: =;%
 
@@ -221,12 +174,7 @@ if "%JVM_SS%" == "" (
   goto:eof
 )
 
-CALL "%ES_HOME%\bin\elasticsearch.in.bat"
-if "%DATA_DIR%" == "" set DATA_DIR=%ES_HOME%\data
-
-if "%CONF_DIR%" == "" set CONF_DIR=%ES_HOME%\config
-
-set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.default.path.logs="%LOG_DIR%";-Des.default.path.data="%DATA_DIR%";-Des.default.path.conf="%CONF_DIR%"
+set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.path.conf="%CONF_DIR%"
 
 if "%ES_START_TYPE%" == "" set ES_START_TYPE=manual
 if "%ES_STOP_TIMEOUT%" == "" set ES_STOP_TIMEOUT=0
@@ -317,8 +265,4 @@ set /a conv=%conv% * 1024 * 1024
 set "%~2=%conv%"
 goto:eof
 
-:conffileset
-echo CONF_FILE setting is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed.
-goto:eof
-
-ENDLOCAL
+endlocal

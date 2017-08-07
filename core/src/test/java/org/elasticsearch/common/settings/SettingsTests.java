@@ -21,6 +21,8 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.loader.YamlSettingsLoader;
@@ -38,6 +40,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
@@ -69,7 +72,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testReplacePropertiesPlaceholderByEnvironmentVariables() {
-        final String hostname = randomAsciiOfLength(16);
+        final String hostname = randomAlphaOfLength(16);
         final Settings implicitEnvSettings = Settings.builder()
             .put("setting1", "${HOSTNAME}")
             .replacePropertyPlaceholders(name -> "HOSTNAME".equals(name) ? hostname : null)
@@ -153,9 +156,10 @@ public class SettingsTests extends ESTestCase {
     @SuppressWarnings("deprecation") //#getAsBooleanLenientForPreEs6Indices is the test subject
     public void testLenientBooleanForPreEs6Index() throws IOException {
         // time to say goodbye?
-        assertTrue(
+        // norelease: do what the assumption tells us
+        assumeTrue(
             "It's time to implement #22298. Please delete this test and Settings#getAsBooleanLenientForPreEs6Indices().",
-            Version.CURRENT.minimumCompatibilityVersion().before(Version.V_6_0_0_alpha1_UNRELEASED));
+            Version.CURRENT.minimumCompatibilityVersion().before(Version.V_6_0_0_alpha1));
 
 
         String falsy = randomFrom("false", "off", "no", "0");
@@ -515,6 +519,39 @@ public class SettingsTests extends ESTestCase {
         expectThrows(NoSuchElementException.class, () -> prefixIterator.next());
     }
 
+    public void testSecureSettingsPrefix() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("test.prefix.foo", "somethingsecure");
+        Settings.Builder builder = Settings.builder();
+        builder.setSecureSettings(secureSettings);
+        Settings settings = builder.build();
+        Settings prefixSettings = settings.getByPrefix("test.prefix.");
+        assertTrue(prefixSettings.names().contains("foo"));
+    }
+
+    public void testGroupPrefix() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("test.key1.foo", "somethingsecure");
+        secureSettings.setString("test.key1.bar", "somethingsecure");
+        secureSettings.setString("test.key2.foo", "somethingsecure");
+        secureSettings.setString("test.key2.bog", "somethingsecure");
+        Settings.Builder builder = Settings.builder();
+        builder.put("test.key1.baz", "blah1");
+        builder.put("test.key1.other", "blah2");
+        builder.put("test.key2.baz", "blah3");
+        builder.put("test.key2.else", "blah4");
+        builder.setSecureSettings(secureSettings);
+        Settings settings = builder.build();
+        Map<String, Settings> groups = settings.getGroups("test");
+        assertEquals(2, groups.size());
+        Settings key1 = groups.get("key1");
+        assertNotNull(key1);
+        assertThat(key1.names(), containsInAnyOrder("foo", "bar", "baz", "other"));
+        Settings key2 = groups.get("key2");
+        assertNotNull(key2);
+        assertThat(key2.names(), containsInAnyOrder("foo", "bog", "baz", "else"));
+    }
+
     public void testEmptyFilterMap() {
         Settings.Builder builder = Settings.builder();
         builder.put("a", "a1");
@@ -555,4 +592,41 @@ public class SettingsTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         assertTrue(Settings.builder().setSecureSettings(secureSettings).build().isEmpty());
     }
+
+    public void testWriteSettingsToStream() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("test.key1.foo", "somethingsecure");
+        secureSettings.setString("test.key1.bar", "somethingsecure");
+        secureSettings.setString("test.key2.foo", "somethingsecure");
+        secureSettings.setString("test.key2.bog", "somethingsecure");
+        Settings.Builder builder = Settings.builder();
+        builder.put("test.key1.baz", "blah1");
+        builder.setSecureSettings(secureSettings);
+        assertEquals(5, builder.build().size());
+        Settings.writeSettingsToStream(builder.build(), out);
+        StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+        Settings settings = Settings.readSettingsFromStream(in);
+        assertEquals(1, settings.size());
+        assertEquals("blah1", settings.get("test.key1.baz"));
+    }
+
+    public void testSecureSettingConflict() {
+        Setting<SecureString> setting = SecureSetting.secureString("something.secure", null);
+        Settings settings = Settings.builder().put("something.secure", "notreallysecure").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
+        assertTrue(e.getMessage().contains("must be stored inside the Elasticsearch keystore"));
+    }
+
+    public void testGetAsArrayFailsOnDuplicates() {
+        final Settings settings =
+                Settings.builder()
+                        .put("foobar.0", "bar")
+                        .put("foobar.1", "baz")
+                        .put("foobar", "foo")
+                        .build();
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> settings.getAsArray("foobar"));
+        assertThat(e, hasToString(containsString("settings object contains values for [foobar=foo] and [foobar.0=bar]")));
+    }
+
 }

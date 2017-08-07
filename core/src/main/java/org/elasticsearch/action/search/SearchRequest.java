@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -39,6 +40,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 /**
  * A request to execute search against one or more indices (or all). Best created using
  * {@link org.elasticsearch.client.Requests#searchRequest(String...)}.
@@ -54,6 +57,8 @@ import java.util.Objects;
 public final class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
+
+    public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 128;
 
     private SearchType searchType = SearchType.DEFAULT;
 
@@ -71,6 +76,10 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     private Scroll scroll;
 
     private int batchedReduceSize = 512;
+
+    private int maxConcurrentShardRequests = 0;
+
+    private int preFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -102,7 +111,12 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (source != null && source.trackTotalHits() == false && scroll() != null) {
+            validationException =
+                addValidationError("disabling [track_total_hits] is not allowed in a scroll context", validationException);
+        }
+        return validationException;
     }
 
     /**
@@ -296,6 +310,56 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
+     * Returns the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
+     * reduce the number of shard reqeusts fired per high level search request. Searches that hit the entire cluster can be throttled
+     * with this number to reduce the cluster load. The default grows with the number of nodes in the cluster but is at most <tt>256</tt>.
+     */
+    public int getMaxConcurrentShardRequests() {
+        return maxConcurrentShardRequests == 0 ? 256 : maxConcurrentShardRequests;
+    }
+
+    /**
+     * Sets the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
+     * reduce the number of shard requests fired per high level search request. Searches that hit the entire cluster can be throttled
+     * with this number to reduce the cluster load. The default grows with the number of nodes in the cluster but is at most <tt>256</tt>.
+     */
+    public void setMaxConcurrentShardRequests(int maxConcurrentShardRequests) {
+        if (maxConcurrentShardRequests < 1) {
+            throw new IllegalArgumentException("maxConcurrentShardRequests must be >= 1");
+        }
+        this.maxConcurrentShardRequests = maxConcurrentShardRequests;
+    }
+    /**
+     * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
+     * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
+     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint. The default is <tt>128</tt>
+     */
+    public void setPreFilterShardSize(int preFilterShardSize) {
+        if (preFilterShardSize < 1) {
+            throw new IllegalArgumentException("preFilterShardSize must be >= 1");
+        }
+        this.preFilterShardSize = preFilterShardSize;
+    }
+
+    /**
+     * Returns a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
+     * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
+     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint. The default is <tt>128</tt>
+     */
+    public int getPreFilterShardSize() {
+        return preFilterShardSize;
+    }
+
+    /**
+     * Returns <code>true</code> iff the maxConcurrentShardRequest is set.
+     */
+    boolean isMaxConcurrentShardRequestsSet() {
+        return maxConcurrentShardRequests != 0;
+    }
+
+    /**
      * @return true if the request only has suggest
      */
     public boolean isSuggestOnly() {
@@ -342,6 +406,10 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         requestCache = in.readOptionalBoolean();
         batchedReduceSize = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
+            maxConcurrentShardRequests = in.readVInt();
+            preFilterShardSize = in.readVInt();
+        }
     }
 
     @Override
@@ -360,6 +428,10 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
         out.writeVInt(batchedReduceSize);
+        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
+            out.writeVInt(maxConcurrentShardRequests);
+            out.writeVInt(preFilterShardSize);
+        }
     }
 
     @Override
@@ -379,13 +451,16 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 Objects.equals(requestCache, that.requestCache)  &&
                 Objects.equals(scroll, that.scroll) &&
                 Arrays.equals(types, that.types) &&
+                Objects.equals(batchedReduceSize, that.batchedReduceSize) &&
+                Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests) &&
+                Objects.equals(preFilterShardSize, that.preFilterShardSize) &&
                 Objects.equals(indicesOptions, that.indicesOptions);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
-                scroll, Arrays.hashCode(types), indicesOptions);
+                scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize);
     }
 
     @Override
@@ -399,6 +474,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 ", preference='" + preference + '\'' +
                 ", requestCache=" + requestCache +
                 ", scroll=" + scroll +
+                ", maxConcurrentShardRequests=" + maxConcurrentShardRequests +
+                ", batchedReduceSize=" + batchedReduceSize +
+                ", preFilterShardSize=" + preFilterShardSize +
                 ", source=" + source + '}';
     }
 }

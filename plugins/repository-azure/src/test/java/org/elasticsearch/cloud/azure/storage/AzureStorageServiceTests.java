@@ -20,6 +20,7 @@
 package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.LocationMode;
+import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -28,7 +29,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 
 import static org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl.blobNameFromUri;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AzureStorageServiceTests extends ESTestCase {
@@ -141,6 +144,31 @@ public class AzureStorageServiceTests extends ESTestCase {
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(timeoutSettings);
         CloudBlobClient client1 = azureStorageService.getSelectedClient("azure", LocationMode.PRIMARY_ONLY);
         assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(nullValue()));
+    }
+
+    public void testGetSelectedClientBackoffPolicy() {
+        Settings timeoutSettings = Settings.builder()
+            .put("cloud.azure.storage.azure.account", "myaccount")
+            .put("cloud.azure.storage.azure.key", "mykey")
+            .build();
+
+        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(timeoutSettings);
+        CloudBlobClient client1 = azureStorageService.getSelectedClient("azure", LocationMode.PRIMARY_ONLY);
+        assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), is(notNullValue()));
+        assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), instanceOf(RetryExponentialRetry.class));
+    }
+
+    public void testGetSelectedClientBackoffPolicyNbRetries() {
+        Settings timeoutSettings = Settings.builder()
+            .put("cloud.azure.storage.azure.account", "myaccount")
+            .put("cloud.azure.storage.azure.key", "mykey")
+            .put("cloud.azure.storage.azure.max_retries", 7)
+            .build();
+
+        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(timeoutSettings);
+        CloudBlobClient client1 = azureStorageService.getSelectedClient("azure", LocationMode.PRIMARY_ONLY);
+        assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), is(notNullValue()));
+        assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), instanceOf(RetryExponentialRetry.class));
     }
 
     /**

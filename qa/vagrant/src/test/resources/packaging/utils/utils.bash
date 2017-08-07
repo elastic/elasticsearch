@@ -1,12 +1,17 @@
 #!/bin/bash
 
-# This file contains some utilities to test the elasticsearch scripts,
-# the .deb/.rpm packages and the SysV/Systemd scripts.
+# This file contains some utilities to test the the .deb/.rpm
+# packages and the SysV/Systemd scripts.
 
 # WARNING: This testing file must be executed as root and can
-# dramatically change your system. It removes the 'elasticsearch'
-# user/group and also many directories. Do not execute this file
-# unless you know exactly what you are doing.
+# dramatically change your system. It should only be executed
+# in a throw-away VM like those made by the Vagrantfile at
+# the root of the Elasticsearch source code. This should
+# cause the script to fail if it is executed any other way:
+[ -f /etc/is_vagrant_vm ] || {
+  >&2 echo "must be run on a vagrant VM"
+  exit 1
+}
 
 # Licensed to Elasticsearch under one or more contributor
 # license agreements. See the NOTICE file distributed with
@@ -263,13 +268,16 @@ clean_before_test() {
     userdel elasticsearch > /dev/null 2>&1 || true
     groupdel elasticsearch > /dev/null 2>&1 || true
 
-
     # Removes all files
     for d in "${ELASTICSEARCH_TEST_FILES[@]}"; do
         if [ -e "$d" ]; then
             rm -rf "$d"
         fi
     done
+
+    if is_systemd; then
+        systemctl unmask systemd-sysctl.service
+    fi
 }
 
 purge_elasticsearch() {
@@ -297,8 +305,9 @@ purge_elasticsearch() {
 start_elasticsearch_service() {
     local desiredStatus=${1:-green}
     local index=$2
+    local commandLineArgs=$3
 
-    run_elasticsearch_service 0
+    run_elasticsearch_service 0 $commandLineArgs
 
     wait_for_elasticsearch_status $desiredStatus $index
 
@@ -328,7 +337,7 @@ run_elasticsearch_service() {
     local commandLineArgs=$2
     # Set the CONF_DIR setting in case we start as a service
     if [ ! -z "$CONF_DIR" ] ; then
-        if is_dpkg ; then
+        if is_dpkg; then
             echo "CONF_DIR=$CONF_DIR" >> /etc/default/elasticsearch;
         elif is_rpm; then
             echo "CONF_DIR=$CONF_DIR" >> /etc/sysconfig/elasticsearch;
@@ -336,12 +345,6 @@ run_elasticsearch_service() {
     fi
 
     if [ -f "/tmp/elasticsearch/bin/elasticsearch" ]; then
-        if [ -z "$CONF_DIR" ]; then
-            local CONF_DIR=""
-            local ES_PATH_CONF=""
-        else
-            local ES_PATH_CONF="-Epath.conf=$CONF_DIR"
-        fi
         # we must capture the exit code to compare so we don't want to start as background process in case we expect something other than 0
         local background=""
         local timeoutCommand=""
@@ -359,9 +362,9 @@ run_elasticsearch_service() {
 # This line is attempting to emulate the on login behavior of /usr/share/upstart/sessions/jayatana.conf
 [ -f /usr/share/java/jayatanaag.jar ] && export JAVA_TOOL_OPTIONS="-javaagent:/usr/share/java/jayatanaag.jar"
 # And now we can start Elasticsearch normally, in the background (-d) and with a pidfile (-p).
-export ES_JVM_OPTIONS=$ES_JVM_OPTIONS
+export CONF_DIR=$CONF_DIR
 export ES_JAVA_OPTS=$ES_JAVA_OPTS
-$timeoutCommand/tmp/elasticsearch/bin/elasticsearch $background -p /tmp/elasticsearch/elasticsearch.pid $ES_PATH_CONF $commandLineArgs
+$timeoutCommand/tmp/elasticsearch/bin/elasticsearch $background -p /tmp/elasticsearch/elasticsearch.pid $commandLineArgs
 BASH
         [ "$status" -eq "$expectedStatus" ]
     elif is_systemd; then
@@ -435,7 +438,7 @@ wait_for_elasticsearch_status() {
     if [ $? -eq 0 ]; then
         echo "Connected"
     else
-        echo "Unable to connect to Elastisearch"
+        echo "Unable to connect to Elasticsearch"
         false
     fi
 
@@ -468,11 +471,6 @@ check_elasticsearch_version() {
     }
 }
 
-install_elasticsearch_test_scripts() {
-    install_script is_guide.painless
-    install_script is_guide.mustache
-}
-
 # Executes some basic Elasticsearch tests
 run_elasticsearch_tests() {
     # TODO this assertion is the same the one made when waiting for
@@ -494,24 +492,6 @@ run_elasticsearch_tests() {
     curl -s -XGET 'http://localhost:9200/_count?pretty' |
       grep \"count\"\ :\ 2
 
-    curl -s -H "Content-Type: application/json" -XPOST 'http://localhost:9200/library/book/_count?pretty' -d '{
-      "query": {
-        "script": {
-          "script": {
-            "file": "is_guide",
-            "lang": "painless",
-            "params": {
-              "min_num_pages": 100
-            }
-          }
-        }
-      }
-    }' | grep \"count\"\ :\ 2
-
-    curl -s -H "Content-Type: application/json" -XGET 'http://localhost:9200/library/book/_search/template?pretty' -d '{
-      "file": "is_guide"
-    }' | grep \"total\"\ :\ 1
-
     curl -s -XDELETE 'http://localhost:9200/_all'
 }
 
@@ -525,16 +505,8 @@ move_config() {
     mv "$oldConfig"/* "$ESCONFIG"
     chown -R elasticsearch:elasticsearch "$ESCONFIG"
     assert_file_exist "$ESCONFIG/elasticsearch.yml"
+    assert_file_exist "$ESCONFIG/jvm.options"
     assert_file_exist "$ESCONFIG/log4j2.properties"
-}
-
-# Copies a script into the Elasticsearch install.
-install_script() {
-    local name=$1
-    mkdir -p $ESSCRIPTS
-    local script="$BATS_TEST_DIRNAME/example/scripts/$name"
-    echo "Installing $script to $ESSCRIPTS"
-    cp $script $ESSCRIPTS
 }
 
 # permissions from the user umask with the executable bit set

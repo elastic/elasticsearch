@@ -25,7 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 public class ShardIdTests extends ESTestCase {
 
     public void testShardIdFromString() {
-        String indexName = randomAsciiOfLengthBetween(3,50);
+        String indexName = randomAlphaOfLengthBetween(3,50);
         int shardId = randomInt();
         ShardId id = ShardId.fromString("["+indexName+"]["+shardId+"]");
         assertEquals(indexName, id.getIndexName());

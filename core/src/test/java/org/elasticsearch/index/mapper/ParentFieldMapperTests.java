@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -35,9 +36,12 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -46,6 +50,11 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class ParentFieldMapperTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(InternalSettingsPlugin.class);
+    }
 
     public void testParentSetInDocNotAllowed() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -67,7 +76,7 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
         String childMapping = XContentFactory.jsonBuilder().startObject().startObject("child_type")
                 .startObject("_parent").field("type", "parent_type").endObject()
                 .endObject().endObject().string();
-        IndexService indexService = createIndex("test");
+        IndexService indexService = createIndex("test", Settings.builder().put("index.version.created", Version.V_5_6_0).build());
         indexService.mapperService().merge("parent_type", new CompressedXContent(parentMapping), MergeReason.MAPPING_UPDATE, false);
         indexService.mapperService().merge("child_type", new CompressedXContent(childMapping), MergeReason.MAPPING_UPDATE, false);
 
@@ -115,6 +124,8 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
         Set<String> allFields = new HashSet<>(mapperService.simpleMatchToIndexNames("*"));
         assertTrue(allFields.contains("_parent"));
         assertFalse(allFields.contains("_parent#null"));
+        MappedFieldType fieldType = mapperService.fullName("_parent");
+        assertFalse(fieldType.eagerGlobalOrdinals());
     }
 
     private static int getNumberOfFieldWithParentPrefix(ParseContext.Document doc) {

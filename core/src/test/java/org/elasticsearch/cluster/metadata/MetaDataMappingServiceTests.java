@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -27,14 +28,22 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
+import java.util.Collection;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(InternalSettingsPlugin.class);
+    }
 
     // Tests _parent meta field logic, because part of the validation is in MetaDataMappingService
     public void testAddChildTypePointingToAlreadyExistingType() throws Exception {
@@ -54,6 +63,7 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
     // Tests _parent meta field logic, because part of the validation is in MetaDataMappingService
     public void testAddExtraChildTypePointingToAlreadyParentExistingType() throws Exception {
         IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test")
+                .setSettings("index.version.created", Version.V_5_6_0.id)
                 .addMapping("parent")
                 .addMapping("child1", "_parent", "type=parent")
         );

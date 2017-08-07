@@ -40,7 +40,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 
 /**
  * Base class for write action responses.
@@ -187,8 +186,8 @@ public class ReplicationResponse extends ActionResponse {
                         total = parser.intValue();
                     } else if (SUCCESSFUL.equals(currentFieldName)) {
                         successful = parser.intValue();
-                    } else if (FAILED.equals(currentFieldName) == false) {
-                        throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    } else {
+                        parser.skipChildren();
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if (FAILURES.equals(currentFieldName)) {
@@ -197,8 +196,10 @@ public class ReplicationResponse extends ActionResponse {
                             failuresList.add(Failure.fromXContent(parser));
                         }
                     } else {
-                        throwUnknownField(currentFieldName, parser.getTokenLocation());
+                        parser.skipChildren(); // skip potential inner arrays for forward compatibility
                     }
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    parser.skipChildren(); // skip potential inner arrays for forward compatibility
                 }
             }
             Failure[] failures = EMPTY;
@@ -365,15 +366,15 @@ public class ReplicationResponse extends ActionResponse {
                             status = RestStatus.valueOf(parser.text());
                         } else if (PRIMARY.equals(currentFieldName)) {
                             primary = parser.booleanValue();
-                        } else {
-                            throwUnknownField(currentFieldName, parser.getTokenLocation());
                         }
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if (REASON.equals(currentFieldName)) {
                             reason = ElasticsearchException.fromXContent(parser);
                         } else {
-                            throwUnknownField(currentFieldName, parser.getTokenLocation());
+                            parser.skipChildren(); // skip potential inner objects for forward compatibility
                         }
+                    } else if (token == XContentParser.Token.START_ARRAY) {
+                        parser.skipChildren(); // skip potential inner arrays for forward compatibility
                     }
                 }
                 return new Failure(new ShardId(shardIndex, IndexMetaData.INDEX_UUID_NA_VALUE, shardId), nodeId, reason, status, primary);

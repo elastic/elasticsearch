@@ -59,7 +59,7 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
         super.readFrom(in);
 
         if (in.readBoolean()) {
-            if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
                 source = new StoredScriptSource(in);
             } else {
                 source = new StoredScriptSource(in.readString());
@@ -78,10 +78,10 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
         } else {
             out.writeBoolean(true);
 
-            if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
                 source.writeTo(out);
             } else {
-                out.writeString(source.getCode());
+                out.writeString(source.getSource());
             }
         }
     }

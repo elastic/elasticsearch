@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.elasticsearch.client.http.HttpResponse;
+import org.elasticsearch.client.http.nio.protocol.HttpAsyncResponseConsumer;
 
 import static org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory.DEFAULT_BUFFER_LIMIT;
 
@@ -29,7 +29,7 @@ import static org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBuff
  * consumer object. Users can implement this interface and pass their own instance to the specialized
  * performRequest methods that accept an {@link HttpAsyncResponseConsumerFactory} instance as argument.
  */
-interface HttpAsyncResponseConsumerFactory {
+public interface HttpAsyncResponseConsumerFactory {
 
     /**
      * Creates the default type of {@link HttpAsyncResponseConsumer}, based on heap buffering with a buffer limit of 100MB.
@@ -53,7 +53,7 @@ interface HttpAsyncResponseConsumerFactory {
 
         private final int bufferLimit;
 
-        HeapBufferedResponseConsumerFactory(int bufferLimitBytes) {
+        public HeapBufferedResponseConsumerFactory(int bufferLimitBytes) {
             this.bufferLimit = bufferLimitBytes;
         }
 

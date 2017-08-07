@@ -89,6 +89,18 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         return entries.hashCode();
     }
 
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder("RestoreInProgress[");
+        for (int i = 0; i < entries.size(); i++) {
+            builder.append(entries.get(i).snapshot().getSnapshotId().getName());
+            if (i + 1 < entries.size()) {
+                builder.append(",");
+            }
+        }
+        return builder.append("]").toString();
+    }
+
     /**
      * Restore metadata
      */

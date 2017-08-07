@@ -19,7 +19,7 @@
 
 package org.elasticsearch.http;
 
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.http.message.BasicHeader;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -76,9 +76,9 @@ import static org.hamcrest.Matchers.is;
 public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
     private static final List<RequestAndHeaders> requests =  new CopyOnWriteArrayList<>();
     private static final String CUSTOM_HEADER = "SomeCustomHeader";
-    private String randomHeaderValue = randomAsciiOfLength(20);
-    private String queryIndex = "query-" + randomAsciiOfLength(10).toLowerCase(Locale.ROOT);
-    private String lookupIndex = "lookup-" + randomAsciiOfLength(10).toLowerCase(Locale.ROOT);
+    private String randomHeaderValue = randomAlphaOfLength(20);
+    private String queryIndex = "query-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+    private String lookupIndex = "lookup-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

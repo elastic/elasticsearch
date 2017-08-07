@@ -25,19 +25,17 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.junit.BeforeClass;
@@ -59,6 +57,13 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
     private static final Script MAP_SCRIPT = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "mapScript", Collections.emptyMap());
     private static final Script COMBINE_SCRIPT = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "combineScript",
             Collections.emptyMap());
+
+    private static final Script INIT_SCRIPT_SCORE = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "initScriptScore",
+            Collections.emptyMap());
+    private static final Script MAP_SCRIPT_SCORE = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "mapScriptScore",
+            Collections.emptyMap());
+    private static final Script COMBINE_SCRIPT_SCORE = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "combineScriptScore",
+            Collections.emptyMap());
     private static final Map<String, Function<Map<String, Object>, Object>> SCRIPTS = new HashMap<>();
 
 
@@ -78,6 +83,21 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         SCRIPTS.put("combineScript", params -> {
             Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
             return ((List<Integer>) agg.get("collector")).stream().mapToInt(Integer::intValue).sum();
+        });
+
+        SCRIPTS.put("initScriptScore", params -> {
+            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
+            agg.put("collector", new ArrayList<Double>());
+            return agg;
+            });
+        SCRIPTS.put("mapScriptScore", params -> {
+            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
+            ((List<Double>) agg.get("collector")).add(((ScoreAccessor) params.get("_score")).doubleValue());
+            return agg;
+        });
+        SCRIPTS.put("combineScriptScore", params -> {
+            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
+            return ((List<Double>) agg.get("collector")).stream().mapToDouble(Double::doubleValue).sum();
         });
     }
 
@@ -145,28 +165,40 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
     }
 
     /**
+     * test that uses the score of the documents
+     */
+    public void testScriptedMetricWithCombineAccessesScores() throws IOException {
+        try (Directory directory = newDirectory()) {
+            Integer numDocs = randomInt(100);
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                for (int i = 0; i < numDocs; i++) {
+                    indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
+                }
+            }
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
+                aggregationBuilder.initScript(INIT_SCRIPT_SCORE).mapScript(MAP_SCRIPT_SCORE).combineScript(COMBINE_SCRIPT_SCORE);
+                ScriptedMetric scriptedMetric = search(newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder);
+                assertEquals(AGG_NAME, scriptedMetric.getName());
+                assertNotNull(scriptedMetric.aggregation());
+                // all documents have score of 1.0
+                assertEquals((double) numDocs, scriptedMetric.aggregation());
+            }
+        }
+    }
+
+    /**
      * We cannot use Mockito for mocking QueryShardContext in this case because
      * script-related methods (e.g. QueryShardContext#getLazyExecutableScript)
      * is final and cannot be mocked
      */
     @Override
-    protected QueryShardContext queryShardContextMock(final MappedFieldType[] fieldTypes, IndexSettings idxSettings,
+    protected QueryShardContext queryShardContextMock(MapperService mapperService, final MappedFieldType[] fieldTypes,
             CircuitBreakerService circuitBreakerService) {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                 // no file watching, so we don't need a ResourceWatcherService
-                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), "false").build();
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS);
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(scriptEngine));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        ScriptService scriptService;
-        try {
-            scriptService =  new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry,
-                    scriptSettings);
-        } catch (IOException e) {
-            throw new ElasticsearchException(e);
-        }
-        return new QueryShardContext(0, idxSettings, null, null, null, null, scriptService, xContentRegistry(),
-                null, null, System::currentTimeMillis);
+        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
+        ScriptService scriptService =  new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        return new QueryShardContext(0, mapperService.getIndexSettings(), null, null, mapperService, null, scriptService,
+                xContentRegistry(), writableRegistry(), null, null, System::currentTimeMillis, null);
     }
 }

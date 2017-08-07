@@ -84,7 +84,11 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
             name += randomAlphaOfLength(5);
             break;
         case 1:
-            value += between(1, 100);
+            if (Double.isFinite(value)) {
+                value += between(1, 100);
+            } else {
+                value = randomDoubleBetween(0, 100000, true);
+            }
             break;
         case 2:
             normalizationFactor += between(1, 100);

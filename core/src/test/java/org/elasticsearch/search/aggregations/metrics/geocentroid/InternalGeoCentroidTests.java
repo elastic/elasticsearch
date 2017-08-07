@@ -106,7 +106,6 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
             centroid = newCentroid;
             break;
         case 3:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -114,6 +113,8 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalGeoCentroid(name, centroid, count, pipelineAggregators, metaData);
     }

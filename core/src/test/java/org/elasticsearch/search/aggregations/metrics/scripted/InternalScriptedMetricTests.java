@@ -211,7 +211,6 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             reduceScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, REDUCE_SCRIPT_NAME + "-mutated", Collections.emptyMap());
             break;
         case 3:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -219,6 +218,8 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalScriptedMetric(name, value, reduceScript, pipelineAggregators, metaData);
     }

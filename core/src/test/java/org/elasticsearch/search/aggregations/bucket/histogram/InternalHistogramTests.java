@@ -114,7 +114,6 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             minDocCount += between(1, 10);
             break;
         case 4:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -122,6 +121,8 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalHistogram(name, buckets, order, minDocCount, null, format, keyed, pipelineAggregators, metaData);
     }

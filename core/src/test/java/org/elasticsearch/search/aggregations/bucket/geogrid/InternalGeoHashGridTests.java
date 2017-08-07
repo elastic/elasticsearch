@@ -130,7 +130,6 @@ public class InternalGeoHashGridTests extends InternalMultiBucketAggregationTest
             size = size + between(1, 10);
             break;
         case 3:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -138,6 +137,8 @@ public class InternalGeoHashGridTests extends InternalMultiBucketAggregationTest
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalGeoHashGrid(name, size, buckets, pipelineAggregators, metaData);
     }

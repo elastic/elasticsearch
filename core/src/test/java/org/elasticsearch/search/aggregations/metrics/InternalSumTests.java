@@ -76,7 +76,6 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
             }
             break;
         case 2:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -84,6 +83,8 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalSum(name, value, formatter, pipelineAggregators, metaData);
     }

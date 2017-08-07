@@ -91,7 +91,6 @@ public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTe
             keyed = keyed == false;
             break;
         case 4:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -99,6 +98,8 @@ public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTe
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalHDRPercentileRanks(name, percents, state, keyed, formatter, pipelineAggregators, metaData);
     }

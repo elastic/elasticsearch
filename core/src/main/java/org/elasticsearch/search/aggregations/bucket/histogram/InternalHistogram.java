@@ -267,9 +267,6 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         return Collections.unmodifiableList(buckets);
     }
 
-    /**
-     * Getter for testing only.
-     */
     long getMinDocCount() {
         return minDocCount;
     }

@@ -275,7 +275,6 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
                     searchHits.getMaxScore() + randomFloat());
             break;
         case 5:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -283,6 +282,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalTopHits(name, from, size, topDocs, searchHits, pipelineAggregators, metaData);
     }

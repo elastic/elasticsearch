@@ -70,7 +70,6 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
             }
             break;
         case 2:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -78,6 +77,8 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalValueCount(name, value, pipelineAggregators, metaData);
     }

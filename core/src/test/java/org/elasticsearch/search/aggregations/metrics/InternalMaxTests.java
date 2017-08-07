@@ -82,7 +82,6 @@ public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
             }
             break;
         case 2:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -90,6 +89,8 @@ public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalMax(name, value, formatter, pipelineAggregators, metaData);
     }

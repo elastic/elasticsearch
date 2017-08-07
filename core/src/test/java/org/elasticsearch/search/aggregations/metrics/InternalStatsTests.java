@@ -141,7 +141,6 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
             }
             break;
         case 5:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -149,6 +148,8 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalStats(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
     }

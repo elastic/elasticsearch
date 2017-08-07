@@ -277,23 +277,14 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         return Collections.unmodifiableList(buckets);
     }
 
-    /**
-     * Getter for testing only.
-     */
     DocValueFormat getFormatter() {
         return format;
     }
 
-    /**
-     * Getter for testing only.
-     */
     long getMinDocCount() {
         return minDocCount;
     }
 
-    /**
-     * Getter for testing only.
-     */
     long getOffset() {
         return offset;
     }

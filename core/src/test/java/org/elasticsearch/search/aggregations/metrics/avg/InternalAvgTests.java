@@ -93,7 +93,6 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
             }
             break;
         case 3:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -101,6 +100,8 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalAvg(name, sum, count, formatter, pipelineAggregators, metaData);
     }

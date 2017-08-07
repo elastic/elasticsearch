@@ -126,7 +126,6 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             offset += between(1, 20);
             break;
         case 5:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -134,6 +133,8 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalDateHistogram(name, buckets, order, minDocCount, offset, null, format, keyed, pipelineAggregators,
                 metaData);

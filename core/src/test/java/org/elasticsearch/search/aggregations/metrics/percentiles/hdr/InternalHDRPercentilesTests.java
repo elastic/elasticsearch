@@ -118,7 +118,6 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
             keyed = keyed == false;
             break;
         case 4:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -126,6 +125,8 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalHDRPercentiles(name, percents, state, keyed, formatter, pipelineAggregators, metaData);
     }

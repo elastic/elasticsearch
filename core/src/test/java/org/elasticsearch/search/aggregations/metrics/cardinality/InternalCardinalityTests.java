@@ -117,7 +117,6 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
             state = newState;
             break;
         case 2:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -125,6 +124,8 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalCardinality(name, state, pipelineAggregators, metaData);
     }

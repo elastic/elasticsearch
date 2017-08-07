@@ -102,7 +102,6 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
             keyed = keyed == false;
             break;
         case 4:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -110,6 +109,8 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalTDigestPercentiles(name, percents, state, keyed, formatter, pipelineAggregators, metaData);
     }

@@ -176,7 +176,6 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
             }
             break;
         case 7:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -184,6 +183,8 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, formatter, pipelineAggregators, metaData);
     }

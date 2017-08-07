@@ -142,7 +142,6 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
             wrapLongitude = wrapLongitude == false;
             break;
         case 8:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -150,6 +149,8 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, pipelineAggregators, metaData);
     }

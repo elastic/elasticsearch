@@ -23,6 +23,8 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
@@ -84,7 +86,6 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public class JobProvider {
     private static final Logger LOGGER = Loggers.getLogger(JobProvider.class);
@@ -137,15 +138,42 @@ public class JobProvider {
                 .setQuery(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
                 .setSize(1);
 
+        MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
+                .add(stateDocSearch)
+                .add(resultDocSearch)
+                .add(quantilesDocSearch);
 
         ActionListener<MultiSearchResponse> searchResponseActionListener = new ActionListener<MultiSearchResponse>() {
             @Override
-            public void onResponse(MultiSearchResponse searchResponse) {
-                List<SearchHit> searchHits = Arrays.stream(searchResponse.getResponses())
-                        .flatMap(item -> Arrays.stream(item.getResponse().getHits().getHits()))
-                        .collect(Collectors.toList());
+            public void onResponse(MultiSearchResponse response) {
+                List<SearchHit> searchHits = new ArrayList<>();
+                // Consider the possibility that some of the responses are exceptions
+                for (int i = 0; i < response.getResponses().length; i++) {
+                    MultiSearchResponse.Item itemResponse = response.getResponses()[i];
+                    if (itemResponse.isFailure()) {
+                        Exception e = itemResponse.getFailure();
+                        // There's a further complication, which is that msearch doesn't translate a
+                        // closed index cluster block exception into a friendlier index closed exception
+                        if (e instanceof ClusterBlockException) {
+                            for (ClusterBlock block : ((ClusterBlockException) e).blocks()) {
+                                if ("index closed".equals(block.description())) {
+                                    SearchRequest searchRequest = msearch.request().requests().get(i);
+                                    // Don't wrap the original exception, because then it would be the root cause
+                                    // and Kibana would display it in preference to the friendlier exception
+                                    e = ExceptionsHelper.badRequestException("Cannot create job [{}] as it requires closed index {}",
+                                            job.getId(), searchRequest.indices());
+                                }
+                            }
+                        }
+                        listener.onFailure(e);
+                        return;
+                    }
+                    searchHits.addAll(Arrays.asList(itemResponse.getResponse().getHits().getHits()));
+                }
 
-                if (searchHits.isEmpty() == false) {
+                if (searchHits.isEmpty()) {
+                    listener.onResponse(true);
+                } else {
                     int quantileDocCount = 0;
                     int categorizerStateDocCount = 0;
                     int resultDocCount = 0;
@@ -168,9 +196,6 @@ public class JobProvider {
                                     "[" + resultDocCount + "] result and [" + (quantileDocCount + categorizerStateDocCount) +
                             "] state documents exist for a prior job with Id [" + job.getId() + "]. " +
                                             "Please create the job with a different Id"));
-                    return;
-                } else {
-                    listener.onResponse(true);
                 }
             }
 
@@ -180,11 +205,7 @@ public class JobProvider {
             }
         };
 
-        client.prepareMultiSearch()
-                .add(stateDocSearch)
-                .add(resultDocSearch)
-                .add(quantilesDocSearch)
-                .execute(searchResponseActionListener);
+        msearch.execute(searchResponseActionListener);
     }
 
 
@@ -358,7 +379,7 @@ public class JobProvider {
                                     LOGGER.debug("Found 0 hits for [{}/{}]", searchRequest.indices(), searchRequest.types());
                                 } else if (hitsCount == 1) {
                                     parseAutodetectParamSearchHit(jobId, paramsBuilder, hits.getAt(0), errorHandler);
-                                } else if (hitsCount > 1) {
+                                } else {
                                     errorHandler.accept(new IllegalStateException("Expected hits count to be 0 or 1, but got ["
                                             + hitsCount + "]"));
                                 }

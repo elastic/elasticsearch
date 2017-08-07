@@ -49,7 +49,7 @@ public class ClientYamlTestResponse {
     private ObjectPath parsedResponse;
     private String bodyAsString;
 
-    ClientYamlTestResponse(Response response, Version version) throws IOException {
+    public ClientYamlTestResponse(Response response, Version version) throws IOException {
         this.response = response;
         this.nodeVersion = version;
         if (response.getEntity() != null) {

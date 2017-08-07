@@ -35,9 +35,12 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * A static factory for simple "import static" usage.
+ * Utility class to create search queries.
  */
-public abstract class QueryBuilders {
+public final class QueryBuilders {
+
+    private QueryBuilders() {
+    }
 
     /**
      * A query that matches on all documents.
@@ -692,9 +695,5 @@ public abstract class QueryBuilders {
      */
     public static ExistsQueryBuilder existsQuery(String name) {
         return new ExistsQueryBuilder(name);
-    }
-
-    private QueryBuilders() {
-
     }
 }

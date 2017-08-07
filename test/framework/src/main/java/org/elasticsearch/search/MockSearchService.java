@@ -69,7 +69,7 @@ public class MockSearchService extends SearchService {
     public MockSearchService(ClusterService clusterService,
             IndicesService indicesService, ThreadPool threadPool, ScriptService scriptService,
             BigArrays bigArrays, FetchPhase fetchPhase) {
-        super(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase);
+        super(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase, null);
     }
 
     @Override

@@ -58,4 +58,11 @@ public interface ClusterPlugin {
     default Map<String, Supplier<ShardsAllocator>> getShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
         return Collections.emptyMap();
     }
+
+    /**
+     * Called when the node is started
+     */
+    default void onNodeStarted() {
+
+    }
 }

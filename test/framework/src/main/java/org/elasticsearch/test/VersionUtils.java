@@ -29,7 +29,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableList;
@@ -189,6 +191,12 @@ public class VersionUtils {
         return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
     }
 
+    /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */
+    public static Version randomCompatibleVersion(Random random, Version version) {
+        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).collect(Collectors.toList());
+        return compatible.get(random.nextInt(compatible.size()));
+    }
+
     /** Returns a random {@link Version} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
     public static Version randomVersionBetween(Random random, @Nullable Version minVersion, @Nullable Version maxVersion) {
         int minVersionIndex = 0;
@@ -211,4 +219,20 @@ public class VersionUtils {
             return ALL_VERSIONS.get(minVersionIndex + random.nextInt(range));
         }
     }
+
+    /** returns the first future incompatible version */
+    public static Version incompatibleFutureVersion(Version version) {
+        final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version) == false).findAny();
+        assert opt.isPresent() : "no future incompatible version for " + version;
+        return opt.get();
+    }
+
+    /** Returns the maximum {@link Version} that is compatible with the given version. */
+    public static Version maxCompatibleVersion(Version version) {
+        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).filter(version::onOrBefore)
+            .collect(Collectors.toList());
+        assert compatible.size() > 0;
+        return compatible.get(compatible.size() - 1);
+    }
+
 }

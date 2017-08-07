@@ -33,7 +33,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -200,6 +199,6 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
         ScriptService scriptService =  new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
         return new QueryShardContext(0, mapperService.getIndexSettings(), null, null, mapperService, null, scriptService,
-                xContentRegistry(), null, null, System::currentTimeMillis);
+                xContentRegistry(), writableRegistry(), null, null, System::currentTimeMillis, null);
     }
 }

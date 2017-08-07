@@ -19,10 +19,10 @@
 
 package org.elasticsearch.upgrades;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
+import org.elasticsearch.client.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Booleans;
@@ -50,6 +50,7 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
@@ -62,7 +63,7 @@ import static org.hamcrest.Matchers.greaterThan;
 public class FullClusterRestartIT extends ESRestTestCase {
     private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
     private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
-    private final boolean supportsLenientBooleans = oldClusterVersion.onOrAfter(Version.V_6_0_0_alpha1);
+    private final boolean supportsLenientBooleans = oldClusterVersion.before(Version.V_6_0_0_alpha1);
     private static final Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");
 
     private String index;
@@ -350,6 +351,71 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     }
 
+    public void testShrink() throws IOException {
+        String shrunkenIndex = index + "_shrunk";
+        int numDocs;
+        if (runningAgainstOldCluster) {
+            XContentBuilder mappingsAndSettings = jsonBuilder();
+            mappingsAndSettings.startObject();
+            {
+                mappingsAndSettings.startObject("mappings");
+                mappingsAndSettings.startObject("doc");
+                mappingsAndSettings.startObject("properties");
+                {
+                    mappingsAndSettings.startObject("field");
+                    mappingsAndSettings.field("type", "text");
+                    mappingsAndSettings.endObject();
+                }
+                mappingsAndSettings.endObject();
+                mappingsAndSettings.endObject();
+                mappingsAndSettings.endObject();
+            }
+            mappingsAndSettings.endObject();
+            client().performRequest("PUT", "/" + index, Collections.emptyMap(),
+                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+
+            numDocs = randomIntBetween(512, 1024);
+            indexRandomDocuments(numDocs, true, true, i -> {
+                return JsonXContent.contentBuilder().startObject()
+                    .field("field", "value")
+                    .endObject();
+            });
+
+            String updateSettingsRequestBody = "{\"settings\": {\"index.blocks.write\": true}}";
+            Response rsp = client().performRequest("PUT", "/" + index + "/_settings", Collections.emptyMap(),
+                new StringEntity(updateSettingsRequestBody, ContentType.APPLICATION_JSON));
+            assertEquals(200, rsp.getStatusLine().getStatusCode());
+
+            String shrinkIndexRequestBody = "{\"settings\": {\"index.number_of_shards\": 1}}";
+            rsp = client().performRequest("PUT", "/" + index + "/_shrink/" + shrunkenIndex, Collections.emptyMap(),
+                new StringEntity(shrinkIndexRequestBody, ContentType.APPLICATION_JSON));
+            assertEquals(200, rsp.getStatusLine().getStatusCode());
+
+            rsp = client().performRequest("POST", "/_refresh");
+            assertEquals(200, rsp.getStatusLine().getStatusCode());
+        } else {
+            numDocs = countOfIndexedRandomDocuments();
+        }
+
+        Map<?, ?> response = toMap(client().performRequest("GET", "/" + index + "/_search"));
+        assertNoFailures(response);
+        int totalShards = (int) XContentMapValues.extractValue("_shards.total", response);
+        assertThat(totalShards, greaterThan(1));
+        int successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
+        assertEquals(totalShards, successfulShards);
+        int totalHits = (int) XContentMapValues.extractValue("hits.total", response);
+        assertEquals(numDocs, totalHits);
+
+        response = toMap(client().performRequest("GET", "/" + shrunkenIndex+ "/_search"));
+        assertNoFailures(response);
+        totalShards = (int) XContentMapValues.extractValue("_shards.total", response);
+        assertEquals(1, totalShards);
+        successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
+        assertEquals(1, successfulShards);
+        totalHits = (int) XContentMapValues.extractValue("hits.total", response);
+        assertEquals(numDocs, totalHits);
+    }
+
     void assertBasicSearchWorks(int count) throws IOException {
         logger.info("--> testing basic search");
         Map<String, Object> response = toMap(client().performRequest("GET", "/" + index + "/_search"));
@@ -480,7 +546,11 @@ public class FullClusterRestartIT extends ESRestTestCase {
             int totalBytes = (Integer) indexUpgradeStatus.get("size_in_bytes");
             assertThat(totalBytes, greaterThan(0));
             int toUpgradeBytes = (Integer) indexUpgradeStatus.get("size_to_upgrade_in_bytes");
-            assertThat(toUpgradeBytes, greaterThan(0));
+            if (oldClusterVersion.luceneVersion.equals(Version.CURRENT.luceneVersion)) {
+                assertThat(toUpgradeBytes, equalTo(0));
+            } else {
+                assertThat(toUpgradeBytes, greaterThan(0));
+            }
 
             Response r = client().performRequest("POST", "/" + index + "/_flush");
             assertEquals(200, r.getStatusLine().getStatusCode());
@@ -822,7 +892,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         // Check that the template was restored successfully
         map = toMap(client().performRequest("GET", "/_template/test_template"));
         expected = new HashMap<>();
-        if (runningAgainstOldCluster) {
+        if (runningAgainstOldCluster && oldClusterVersion.before(Version.V_6_0_0_beta1)) {
             expected.put("template", "evil_*");
         } else {
             expected.put("index_patterns", singletonList("evil_*"));

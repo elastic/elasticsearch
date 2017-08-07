@@ -62,6 +62,7 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
         this.nodeId = nodeId;
         this.shardId = shardId;
         this.reason = reason;
+        assert reason != null;
         status = RestStatus.INTERNAL_SERVER_ERROR;
     }
 
@@ -192,7 +193,9 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
                         } else if ("node_id".equals(currentFieldName)) {
                             snapshotShardFailure.nodeId = parser.text();
                         } else if ("reason".equals(currentFieldName)) {
-                            snapshotShardFailure.reason = parser.text();
+                            // Workaround for https://github.com/elastic/elasticsearch/issues/25878
+                            // Some old snapshot might still have null in shard failure reasons
+                            snapshotShardFailure.reason = parser.textOrNull();
                         } else if ("shard_id".equals(currentFieldName)) {
                             shardId = parser.intValue();
                         } else if ("status".equals(currentFieldName)) {
@@ -215,6 +218,11 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
             throw new ElasticsearchParseException("index shard was not set");
         }
         snapshotShardFailure.shardId = new ShardId(index, index_uuid, shardId);
+        // Workaround for https://github.com/elastic/elasticsearch/issues/25878
+        // Some old snapshot might still have null in shard failure reasons
+        if (snapshotShardFailure.reason == null) {
+            snapshotShardFailure.reason = "";
+        }
         return snapshotShardFailure;
     }
 

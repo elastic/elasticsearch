@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -218,7 +219,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
         return this;
     }
 
-    private Double convertDateTime(DateTime dateTime) {
+    private static Double convertDateTime(DateTime dateTime) {
         if (dateTime == null) {
             return null;
         } else {
@@ -281,7 +282,27 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         // We need to call processRanges here so they are parsed and we know whether `now` has been used before we make
         // the decision of whether to cache the request
-        RangeAggregator.Range[] ranges = processRanges(context, config);
+        RangeAggregator.Range[] ranges = processRanges(range -> {
+            DocValueFormat parser = config.format();
+            assert parser != null;
+            double from = range.getFrom();
+            double to = range.getTo();
+            String fromAsString = range.getFromAsString();
+            String toAsString = range.getToAsString();
+            if (fromAsString != null) {
+                from = parser.parseDouble(fromAsString, false, context.getQueryShardContext()::nowInMillis);
+            } else if (Double.isFinite(from)) {
+                // from/to provided as double should be converted to string and parsed regardless to support
+                // different formats like `epoch_millis` vs. `epoch_second` with numeric input
+                from = parser.parseDouble(Long.toString((long) from), false, context.getQueryShardContext()::nowInMillis);
+            }
+            if (toAsString != null) {
+                to = parser.parseDouble(toAsString, false, context.getQueryShardContext()::nowInMillis);
+            } else if (Double.isFinite(to)) {
+                to = parser.parseDouble(Long.toString((long) to), false, context.getQueryShardContext()::nowInMillis);
+            }
+            return new RangeAggregator.Range(range.getKey(), from, fromAsString, to, toAsString);
+        });
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }

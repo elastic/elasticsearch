@@ -1,7 +1,7 @@
 [[index-modules-index-sorting]]
 == Index Sorting
 
-experimental[]
+beta[]
 
 When creating a new index in elasticsearch it is possible to configure how the Segments
 inside each Shard will be sorted. By default Lucene does not apply any sort.

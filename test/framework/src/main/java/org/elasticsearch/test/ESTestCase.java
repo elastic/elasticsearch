@@ -39,6 +39,7 @@ import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.TestRuleMarkFailure;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
@@ -91,6 +92,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -102,6 +104,8 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -130,6 +134,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -883,6 +888,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
     }
 
+    private static boolean useNio;
+
+    @BeforeClass
+    public static void setUseNio() throws Exception {
+        useNio = randomBoolean();
+    }
+
+    public static String getTestTransportType() {
+        return useNio ? NioTransportPlugin.NIO_TRANSPORT_NAME : MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
+    }
+
+    public static Class<? extends Plugin> getTestTransportPlugin() {
+        return useNio ? NioTransportPlugin.class : MockTcpTransportPlugin.class;
+    }
+
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
 
     public static class GeohashGenerator extends CodepointSetGenerator {
@@ -1105,6 +1125,13 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
+    }
+
+    /**
+     * The {@link NamedWriteableRegistry} to use for this test. Subclasses should override and use liberally.
+     */
+    protected NamedWriteableRegistry writableRegistry() {
+        return new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
     }
 
     /**

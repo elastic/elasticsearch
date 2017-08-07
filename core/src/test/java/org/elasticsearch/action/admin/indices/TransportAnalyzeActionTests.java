@@ -319,14 +319,14 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     public void testNonPreBuildTokenFilter() throws IOException {
         AnalyzeRequest request = new AnalyzeRequest();
         request.tokenizer("whitespace");
-        request.addTokenFilter("min_hash");
+        request.addTokenFilter("stop"); // stop token filter is not prebuilt in AnalysisModule#setupPreConfiguredTokenFilters()
         request.text("the quick brown fox");
         AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers, registry, environment);
         List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
-        int default_hash_count = 1;
-        int default_bucket_size = 512;
-        int default_hash_set_size = 1;
-        assertEquals(default_hash_count * default_bucket_size * default_hash_set_size, tokens.size());
+        assertEquals(3, tokens.size());
+        assertEquals("quick", tokens.get(0).getTerm());
+        assertEquals("brown", tokens.get(1).getTerm());
+        assertEquals("fox", tokens.get(2).getTerm());
     }
 
     public void testNormalizerWithIndex() throws IOException {

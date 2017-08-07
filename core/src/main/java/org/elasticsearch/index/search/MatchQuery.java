@@ -29,6 +29,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -41,9 +42,9 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -57,6 +58,9 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
+
+import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
+import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
 public class MatchQuery {
 
@@ -224,23 +228,18 @@ public class MatchQuery {
 
     protected Analyzer getAnalyzer(MappedFieldType fieldType, boolean quoted) {
         if (analyzer == null) {
-            if (fieldType != null) {
-                return quoted ? context.getSearchQuoteAnalyzer(fieldType) : context.getSearchAnalyzer(fieldType);
-            }
-            return quoted ? context.getMapperService().searchQuoteAnalyzer() : context.getMapperService().searchAnalyzer();
+            return quoted ? context.getSearchQuoteAnalyzer(fieldType) : context.getSearchAnalyzer(fieldType);
         } else {
             return analyzer;
         }
     }
 
     public Query parse(Type type, String fieldName, Object value) throws IOException {
-        final String field;
         MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType != null) {
-            field = fieldType.name();
-        } else {
-            field = fieldName;
+        if (fieldType == null) {
+            return newUnmappedFieldQuery(fieldName);
         }
+        final String field = fieldType.name();
 
         /*
          * If the user forced an analyzer we really don't care if they are
@@ -251,7 +250,7 @@ public class MatchQuery {
          * passing through QueryBuilder.
          */
         boolean noForcedAnalyzer = this.analyzer == null;
-        if (fieldType != null && fieldType.tokenized() == false && noForcedAnalyzer) {
+        if (fieldType.tokenized() == false && noForcedAnalyzer) {
             return blendTermQuery(new Term(fieldName, value.toString()), fieldType);
         }
 
@@ -286,12 +285,12 @@ public class MatchQuery {
         }
     }
 
-    protected final Query termQuery(MappedFieldType fieldType, Object value, boolean lenient) {
+    protected final Query termQuery(MappedFieldType fieldType, BytesRef value, boolean lenient) {
         try {
             return fieldType.termQuery(value, context);
         } catch (RuntimeException e) {
             if (lenient) {
-                return null;
+                return newLenientFieldQuery(fieldType.name(), e);
             }
             throw e;
         }
@@ -311,7 +310,7 @@ public class MatchQuery {
         /**
          * Creates a new QueryBuilder using the given analyzer.
          */
-        MatchQueryBuilder(Analyzer analyzer, @Nullable MappedFieldType mapper) {
+        MatchQueryBuilder(Analyzer analyzer, MappedFieldType mapper) {
             super(analyzer);
             this.mapper = mapper;
         }
@@ -454,30 +453,21 @@ public class MatchQuery {
 
     protected Query blendTermQuery(Term term, MappedFieldType fieldType) {
         if (fuzziness != null) {
-            if (fieldType != null) {
-                try {
-                    Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions);
-                    if (query instanceof FuzzyQuery) {
-                        QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
-                    }
-                    return query;
-                } catch (RuntimeException e) {
-                    if (lenient) {
-                        return null;
-                    } else {
-                        throw e;
-                    }
+            try {
+                Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions);
+                if (query instanceof FuzzyQuery) {
+                    QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
+                }
+                return query;
+            } catch (RuntimeException e) {
+                if (lenient) {
+                    return newLenientFieldQuery(fieldType.name(), e);
+                } else {
+                    throw e;
                 }
             }
-            int edits = fuzziness.asDistance(term.text());
-            FuzzyQuery query = new FuzzyQuery(term, edits, fuzzyPrefixLength, maxExpansions, transpositions);
-            QueryParsers.setRewriteMethod(query, fuzzyRewriteMethod);
-            return query;
         }
-        if (fieldType != null) {
-            return termQuery(fieldType, term.bytes(), lenient);
-        }
-        return new TermQuery(term);
+        return termQuery(fieldType, term.bytes(), lenient);
     }
 
 }

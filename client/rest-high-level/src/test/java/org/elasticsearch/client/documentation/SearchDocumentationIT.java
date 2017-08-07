@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -33,8 +34,12 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.Scroll;
@@ -49,6 +54,14 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
+import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
+import org.elasticsearch.search.profile.query.CollectorResult;
+import org.elasticsearch.search.profile.query.QueryProfileShardResult;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.Suggest;
@@ -65,6 +78,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
@@ -100,7 +115,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                             Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request);
-            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertSame(RestStatus.OK, bulkResponse.status());
             assertFalse(bulkResponse.hasFailures());
         }
         {
@@ -132,9 +147,23 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             sourceBuilder.query(QueryBuilders.termQuery("user", "kimchy")); // <2>
             sourceBuilder.from(0); // <3>
             sourceBuilder.size(5); // <4>
-            sourceBuilder.sort(new ScoreSortBuilder().order(SortOrder.ASC));
             sourceBuilder.timeout(new TimeValue(60, TimeUnit.SECONDS)); // <5>
             // end::search-source-basics
+
+            // tag::search-source-sorting
+            sourceBuilder.sort(new ScoreSortBuilder().order(SortOrder.DESC)); // <1>
+            sourceBuilder.sort(new FieldSortBuilder("_uid").order(SortOrder.ASC));  // <2>
+            // end::search-source-sorting
+
+            // tag::search-source-filtering-off
+            sourceBuilder.fetchSource(false);
+            // end::search-source-filtering-off
+            // tag::search-source-filtering-includes
+            String[] includeFields = new String[] {"title", "user", "innerObject.*"};
+            String[] excludeFields = new String[] {"_type"};
+            sourceBuilder.fetchSource(includeFields, excludeFields);
+            // end::search-source-filtering-includes
+            sourceBuilder.fetchSource(true);
 
             // tag::search-source-setter
             SearchRequest searchRequest = new SearchRequest();
@@ -212,6 +241,33 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
+    public void testBuildingSearchQueries() {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::search-query-builder-ctor
+            MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder("user", "kimchy"); // <1>
+            // end::search-query-builder-ctor
+            // tag::search-query-builder-options
+            matchQueryBuilder.fuzziness(Fuzziness.AUTO); // <1>
+            matchQueryBuilder.prefixLength(3); // <2>
+            matchQueryBuilder.maxExpansions(10); // <3>
+            // end::search-query-builder-options
+        }
+        {
+            // tag::search-query-builders
+            QueryBuilder matchQueryBuilder = QueryBuilders.matchQuery("user", "kimchy")
+                                                            .fuzziness(Fuzziness.AUTO)
+                                                            .prefixLength(3)
+                                                            .maxExpansions(10);
+            // end::search-query-builders
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            // tag::search-query-setter
+            searchSourceBuilder.query(matchQueryBuilder);
+            // end::search-query-setter
+        }
+    }
+
     @SuppressWarnings({ "unused" })
     public void testSearchRequestAggregations() throws IOException {
         RestHighLevelClient client = highLevelClient();
@@ -225,7 +281,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                     .source(XContentType.JSON, "company", "Elastic", "age", 40));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request);
-            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertSame(RestStatus.OK, bulkResponse.status());
             assertFalse(bulkResponse.hasFailures());
         }
         {
@@ -298,7 +354,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new IndexRequest("posts", "doc", "4").source(XContentType.JSON, "user", "cbuescher"));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request);
-            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertSame(RestStatus.OK, bulkResponse.status());
             assertFalse(bulkResponse.hasFailures());
         }
         {
@@ -330,6 +386,137 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testSearchRequestHighlighting() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            BulkRequest request = new BulkRequest();
+            request.add(new IndexRequest("posts", "doc", "1")
+                    .source(XContentType.JSON, "title", "In which order are my Elasticsearch queries executed?", "user",
+                            Arrays.asList("kimchy", "luca"), "innerObject", Collections.singletonMap("key", "value")));
+            request.add(new IndexRequest("posts", "doc", "2")
+                    .source(XContentType.JSON, "title", "Current status and upcoming changes in Elasticsearch", "user",
+                            Arrays.asList("kimchy", "christoph"), "innerObject", Collections.singletonMap("key", "value")));
+            request.add(new IndexRequest("posts", "doc", "3")
+                    .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch", "user",
+                            Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
+            request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            BulkResponse bulkResponse = client.bulk(request);
+            assertSame(RestStatus.OK, bulkResponse.status());
+            assertFalse(bulkResponse.hasFailures());
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            // tag::search-request-highlighting
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            HighlightBuilder highlightBuilder = new HighlightBuilder(); // <1>
+            HighlightBuilder.Field highlightTitle =
+                    new HighlightBuilder.Field("title"); // <2>
+            highlightTitle.highlighterType("unified");  // <3>
+            highlightBuilder.field(highlightTitle);  // <4>
+            HighlightBuilder.Field highlightUser = new HighlightBuilder.Field("user");
+            highlightBuilder.field(highlightUser);
+            searchSourceBuilder.highlighter(highlightBuilder);
+            // end::search-request-highlighting
+            searchSourceBuilder.query(QueryBuilders.boolQuery()
+                    .should(matchQuery("title", "Elasticsearch"))
+                    .should(matchQuery("user", "kimchy")));
+            searchRequest.source(searchSourceBuilder);
+            SearchResponse searchResponse = client.search(searchRequest);
+            {
+                // tag::search-request-highlighting-get
+                SearchHits hits = searchResponse.getHits();
+                for (SearchHit hit : hits.getHits()) {
+                    Map<String, HighlightField> highlightFields = hit.getHighlightFields();
+                    HighlightField highlight = highlightFields.get("title"); // <1>
+                    Text[] fragments = highlight.fragments();  // <2>
+                    String fragmentString = fragments[0].string();
+                }
+                // end::search-request-highlighting-get
+                hits = searchResponse.getHits();
+                for (SearchHit hit : hits.getHits()) {
+                    Map<String, HighlightField> highlightFields = hit.getHighlightFields();
+                    HighlightField highlight = highlightFields.get("title");
+                    Text[] fragments = highlight.fragments();
+                    assertEquals(1, fragments.length);
+                    assertThat(fragments[0].string(), containsString("<em>Elasticsearch</em>"));
+                    highlight = highlightFields.get("user");
+                    fragments = highlight.fragments();
+                    assertEquals(1, fragments.length);
+                    assertThat(fragments[0].string(), containsString("<em>kimchy</em>"));
+                }
+            }
+
+        }
+    }
+
+    public void testSearchRequestProfiling() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            IndexRequest request = new IndexRequest("posts", "doc", "1")
+                    .source(XContentType.JSON, "tags", "elasticsearch", "comments", 123);
+            request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
+            IndexResponse indexResponse = client.index(request);
+            assertSame(RestStatus.CREATED, indexResponse.status());
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            // tag::search-request-profiling
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            searchSourceBuilder.profile(true);
+            // end::search-request-profiling
+            searchSourceBuilder.query(QueryBuilders.termQuery("tags", "elasticsearch"));
+            searchSourceBuilder.aggregation(AggregationBuilders.histogram("by_comments").field("comments").interval(100));
+            searchRequest.source(searchSourceBuilder);
+
+            SearchResponse searchResponse = client.search(searchRequest);
+            // tag::search-request-profiling-get
+            Map<String, ProfileShardResult> profilingResults = searchResponse.getProfileResults(); // <1>
+            for (Map.Entry<String, ProfileShardResult> profilingResult : profilingResults.entrySet()) {  // <2>
+                String key = profilingResult.getKey(); // <3>
+                ProfileShardResult profileShardResult = profilingResult.getValue(); // <4>
+            }
+            // end::search-request-profiling-get
+
+            ProfileShardResult profileShardResult = profilingResults.values().iterator().next();
+            assertNotNull(profileShardResult);
+
+            // tag::search-request-profiling-queries
+            List<QueryProfileShardResult> queryProfileShardResults = profileShardResult.getQueryProfileResults(); // <1>
+            for (QueryProfileShardResult queryProfileResult : queryProfileShardResults) { // <2>
+
+            }
+            // end::search-request-profiling-queries
+            assertThat(queryProfileShardResults.size(), equalTo(1));
+
+            for (QueryProfileShardResult queryProfileResult : queryProfileShardResults) {
+                // tag::search-request-profiling-queries-results
+                for (ProfileResult profileResult : queryProfileResult.getQueryResults()) { // <1>
+                    String queryName = profileResult.getQueryName(); // <2>
+                    long queryTimeInMillis = profileResult.getTime(); // <3>
+                    List<ProfileResult> profiledChildren = profileResult.getProfiledChildren(); // <4>
+                }
+                // end::search-request-profiling-queries-results
+
+                // tag::search-request-profiling-queries-collectors
+                CollectorResult collectorResult = queryProfileResult.getCollectorResult();  // <1>
+                String collectorName = collectorResult.getName();  // <2>
+                Long collectorTimeInMillis = collectorResult.getTime(); // <3>
+                List<CollectorResult> profiledChildren = collectorResult.getProfiledChildren(); // <4>
+                // end::search-request-profiling-queries-collectors
+            }
+
+            // tag::search-request-profiling-aggs
+            AggregationProfileShardResult aggsProfileResults = profileShardResult.getAggregationProfileResults(); // <1>
+            for (ProfileResult profileResult : aggsProfileResults.getProfileResults()) { // <2>
+                String aggName = profileResult.getQueryName(); // <3>
+                long aggTimeInMillis = profileResult.getTime(); // <4>
+                List<ProfileResult> profiledChildren = profileResult.getProfiledChildren(); // <5>
+            }
+            // end::search-request-profiling-aggs
+            assertThat(aggsProfileResults.getProfileResults().size(), equalTo(1));
+        }
+    }
+
     public void testScroll() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -342,7 +529,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                     .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch"));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request);
-            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertSame(RestStatus.OK, bulkResponse.status());
             assertFalse(bulkResponse.hasFailures());
         }
         {

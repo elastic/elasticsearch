@@ -30,6 +30,7 @@ import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.XmlProvider
 import org.gradle.api.artifacts.Configuration
+import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
@@ -269,8 +270,8 @@ class BuildPlugin implements Plugin<Project> {
         })
 
         // force all dependencies added directly to compile/testCompile to be non-transitive, except for ES itself
-        Closure disableTransitiveDeps = { ModuleDependency dep ->
-            if (!(dep instanceof ProjectDependency) && dep.group.startsWith('org.elasticsearch') == false) {
+        Closure disableTransitiveDeps = { Dependency dep ->
+            if (dep instanceof ModuleDependency && !(dep instanceof ProjectDependency) && dep.group.startsWith('org.elasticsearch') == false) {
                 dep.transitive = false
 
                 // also create a configuration just for this dependency version, so that later
@@ -407,8 +408,9 @@ class BuildPlugin implements Plugin<Project> {
     static void configureCompile(Project project) {
         project.ext.compactProfile = 'compact3'
         project.afterEvaluate {
-            // fail on all javac warnings
             project.tasks.withType(JavaCompile) {
+                File gradleJavaHome = Jvm.current().javaHome
+                // we fork because compiling lots of different classes in a shared jvm can eventually trigger GC overhead limitations
                 options.fork = true
                 options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
                 options.forkOptions.memoryMaximumSize = "1g"
@@ -425,6 +427,7 @@ class BuildPlugin implements Plugin<Project> {
                  * -serial because we don't use java serialization.
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
+                // fail on all javac warnings
                 options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation' << '-Xdoclint:all' << '-Xdoclint:-missing'
 
                 // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly defined
@@ -439,9 +442,12 @@ class BuildPlugin implements Plugin<Project> {
                     // hack until gradle supports java 9's new "--release" arg
                     assert minimumJava == JavaVersion.VERSION_1_8
                     options.compilerArgs << '--release' << '8'
-                    doFirst{
-                        sourceCompatibility = null
-                        targetCompatibility = null
+                    if (GradleVersion.current().getBaseVersion() < GradleVersion.version("4.1")) {
+                        // this hack is not needed anymore since Gradle 4.1, see https://github.com/gradle/gradle/pull/2474
+                        doFirst {
+                            sourceCompatibility = null
+                            targetCompatibility = null
+                        }
                     }
                 }
             }

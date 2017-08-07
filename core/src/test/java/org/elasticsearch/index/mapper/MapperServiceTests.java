@@ -254,11 +254,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                     .field("enabled", true)
                 .endObject().endObject().bytes());
 
-        CompressedXContent disabledAll = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
-                .startObject("_all")
-                    .field("enabled", false)
-                .endObject().endObject().bytes());
-
         Exception e = expectThrows(MapperParsingException.class,
                 () -> indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, enabledAll,
                         MergeReason.MAPPING_UPDATE, random().nextBoolean()));
@@ -330,5 +325,13 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> mapperService.merge("type2", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, randomBoolean()));
         assertThat(e.getMessage(), Matchers.startsWith("Rejecting mapping update to [test] as the final mapping would have more than 1 type: "));
+    }
+
+    public void testDefaultMappingIsDeprecated() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("_default_").endObject().endObject().string();
+        MapperService mapperService = createIndex("test").mapperService();
+        mapperService.merge("_default_", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean());
+        assertWarnings("[_default_] mapping is deprecated since it is not useful anymore now that indexes " +
+                "cannot have more than one type");
     }
 }

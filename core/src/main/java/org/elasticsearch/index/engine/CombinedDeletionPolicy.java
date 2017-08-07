@@ -51,7 +51,6 @@ class CombinedDeletionPolicy extends IndexDeletionPolicy {
         indexDeletionPolicy.onInit(commits);
         switch (openMode) {
             case CREATE_INDEX_AND_TRANSLOG:
-                assert commits.isEmpty() : "index is being created but we already have commits";
                 break;
             case OPEN_INDEX_CREATE_TRANSLOG:
                 assert commits.isEmpty() == false : "index is opened, but we have no commits";

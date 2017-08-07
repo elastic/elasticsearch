@@ -124,6 +124,8 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
         Set<String> allFields = new HashSet<>(mapperService.simpleMatchToIndexNames("*"));
         assertTrue(allFields.contains("_parent"));
         assertFalse(allFields.contains("_parent#null"));
+        MappedFieldType fieldType = mapperService.fullName("_parent");
+        assertFalse(fieldType.eagerGlobalOrdinals());
     }
 
     private static int getNumberOfFieldWithParentPrefix(ParseContext.Document doc) {

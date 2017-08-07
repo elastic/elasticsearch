@@ -82,6 +82,102 @@ After this, the `SearchSourceBuilder` only needs to be added to the
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-setter]
 --------------------------------------------------
 
+===== Building queries
+
+Search queries are created using `QueryBuilder` objects. A `QueryBuilder` exists
+ for every search query type supported by Elasticsearch's {ref}/query-dsl.html[Query DSL].
+
+A `QueryBuilder` can be created using its constructor:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-query-builder-ctor]
+--------------------------------------------------
+<1> Create a full text {ref}/query-dsl-match-query.html[Match Query] that matches
+the text "kimchy" over the field "user".
+
+Once created, the `QueryBuilder` object provides methods to configure the options
+of the search query it creates:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-query-builder-options]
+--------------------------------------------------
+<1> Enable fuzzy matching on the match query
+<2> Set the prefix length option on the match query
+<3> Set the max expansion options to control the fuzzy
+    process of the query
+
+`QueryBuilder` objects can also be created using the `QueryBuilders` utility class.
+This class provides helper methods that can be used to create `QueryBuilder` objects
+ using a fluent programming style:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-query-builders]
+--------------------------------------------------
+
+Whatever the method used to create it, the `QueryBuilder` object must be added
+to the `SearchSourceBuilder` as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-query-setter]
+--------------------------------------------------
+
+The <<java-rest-high-search-queries, Search Queries>> page gives a list of all available search queries with
+their corresponding `QueryBuilder` objects and `QueryBuilders` helper methods.
+
+
+===== Specifying Sorting
+
+The `SearchSourceBuilder` allows to add one or more `SortBuilder` instances. There are four special implementations (Field-, Score-, GeoDistance- and ScriptSortBuilder).
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-sorting]
+--------------------------------------------------
+<1> Sort descending by `_score` (the default)
+<2> Also sort ascending by `_id` field 
+
+===== Source filtering
+
+By default, search requests return the contents of the document `_source` but like in the Rest API you can overwrite this behavior. For example, you can turn off `_source` retrieval completely:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-filtering-off]
+--------------------------------------------------
+
+The method also accepts an array of one or more wildcard patterns to control which fields get included or excluded in a more fine grained way:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-filtering-includes]
+--------------------------------------------------
+
+[[java-rest-high-request-highlighting]]
+===== Requesting Highlighting
+
+Highlighting search results can be achieved by setting a `HighlightBuilder` on the
+`SearchSourceBuilder`. Different highlighting behaviour can be defined for each
+fields by adding one or more `HighlightBuilder.Field` instances to a `HighlightBuilder`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-highlighting]
+--------------------------------------------------
+<1> Creates a new `HighlightBuilder`
+<2> Create a field highlighter for the `title` field
+<3> Set the field highlighter type
+<4> Add the field highlighter to the highlight builder
+
+There are many options which are explained in detail in the Rest API documentation. The Rest
+API parameters (e.g. `pre_tags`) are usually changed by
+setters with a similar name (e.g. `#preTags(String ...)`).
+
+Highlighted text fragments can <<java-rest-high-retrieve-highlighting,later be retrieved>> from the `SearchResponse`.
+
 ===== Requesting Aggregations
 
 Aggregations can be added to the search by first creating the appropriate
@@ -93,6 +189,9 @@ sub-aggregation on the average age of employees in the company:
 --------------------------------------------------
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations]
 --------------------------------------------------
+
+The <<java-rest-high-aggregations, Aggregations>> page gives a list of all available aggregations with
+their corresponding `AggregationBuilder` objects and `AggregationBuilders` helper methods.
 
 We will later see how to <<java-rest-high-retrieve-aggs,access aggregations>> in the `SearchResponse`.
 
@@ -110,8 +209,21 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-suggestion
 the text `kmichy`
 <2> Adds the suggestion builder and names it `suggest_user`
 
-We will later see how to <<java-rest-high-retrieve-suggestions,retrieve suggestions>> from the 
+We will later see how to <<java-rest-high-retrieve-suggestions,retrieve suggestions>> from the
 `SearchResponse`.
+
+===== Profiling Queries and Aggregations
+
+The {ref}/search-profile.html[Profile API] can be used to profile the execution of queries and aggregations for
+a specific search request. in order to use it, the profile flag must be set to true on the `SearchSourceBuilder`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling]
+--------------------------------------------------
+
+Once the `SearchRequest` is executed the corresponding `SearchResponse` will
+<<java-rest-high-retrieve-profile-results,contain the profiling results>>.
 
 [[java-rest-high-document-search-sync]]
 ==== Synchronous Execution
@@ -210,6 +322,21 @@ cases need to be cast accordingly:
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-hits-singleHit-source]
 --------------------------------------------------
 
+[[java-rest-high-retrieve-highlighting]]
+===== Retrieving Highlighting
+
+If <<java-rest-high-request-highlighting,requested>>, highlighted text fragments can be retrieved from each `SearchHit` in the result. The hit object offers
+access to a map of field names to `HighlightField` instances, each of which contains one
+or many highlighted text fragments:
+
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-highlighting-get]
+--------------------------------------------------
+<1> Get the highlighting for the `title` field
+<2> Get one or many fragments containing the highlighted field content
+
 [[java-rest-high-retrieve-aggs]]
 ===== Retrieving Aggregations
 
@@ -274,3 +401,77 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-suggestion
 type of Suggestion class (here `TermSuggestion`), otherwise a `ClassCastException` is thrown
 <3> Iterate over the suggestion entries
 <4> Iterate over the options in one entry
+
+[[java-rest-high-retrieve-profile-results]]
+===== Retrieving Profiling Results
+
+Profiling results are retrieved from a `SearchResponse` using the `getProfileResults()` method. This
+ method returns a `Map` containing a `ProfileShardResult` object for every shard involved in the
+ `SearchRequest` execution. `ProfileShardResult` are stored in the `Map` using a key that uniquely
+ identifies the shard the profile result corresponds to.
+
+Here is a sample code that shows how to iterate over all the profiling results of every shard:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-get]
+--------------------------------------------------
+<1> Retrieve the `Map` of `ProfileShardResult` from the `SearchResponse`
+<2> Profiling results can be retrieved by shard's key if the key is known, otherwise it might be simpler
+ to iterate over all the profiling results
+<3> Retrieve the key that identifies which shard the `ProfileShardResult` belongs to
+<4> Retrieve the `ProfileShardResult` for the given shard
+
+The `ProfileShardResult` object itself contains one or more query profile results, one for each query
+executed against the underlying Lucene index:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-queries]
+--------------------------------------------------
+<1> Retrieve the list of `QueryProfileShardResult`
+<2> Iterate over each `QueryProfileShardResult`
+
+Each `QueryProfileShardResult` gives access to the detailed query tree execution, returned as a list of
+`ProfileResult` objects:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-queries-results]
+--------------------------------------------------
+<1> Iterate over the profile results
+<2> Retrieve the name of the Lucene query
+<3> Retrieve the time in millis spent executing the Lucene query
+<4> Retrieve the profile results for the sub-queries (if any)
+
+The Rest API documentation contains more information about {ref}/_profiling_queries.html[Profiling Queries] with
+a description of the {ref}/_profiling_queries.html#_literal_query_literal_section[query profiling information]
+
+The `QueryProfileShardResult` also gives access to the profiling information for the Lucene collectors:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-queries-collectors]
+--------------------------------------------------
+<1> Retrieve the profiling result of the Lucene collector
+<2> Retrieve the name of the Lucene collector
+<3> Retrieve the time in millis spent executing the Lucene collector
+<4> Retrieve the profile results for the sub-collectors (if any)
+
+The Rest API documentation contains more information about profiling information
+{ref}/_profiling_queries.html#_literal_collectors_literal_section[for Lucene collectors].
+
+In a very similar manner to the query tree execution, the `QueryProfileShardResult` objects gives access
+to the detailed aggregations tree execution:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-aggs]
+--------------------------------------------------
+<1> Retrieve the `AggregationProfileShardResult`
+<2> Iterate over the aggregation profile results
+<3> Retrieve the type of the aggregation (corresponds to Java class used to execute the aggregation)
+<4> Retrieve the time in millis spent executing the Lucene collector
+<5> Retrieve the profile results for the sub-aggregations (if any)
+
+The Rest API documentation contains more information about {ref}/_profiling_aggregations.html[Profiling Aggregations]

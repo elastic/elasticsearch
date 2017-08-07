@@ -147,6 +147,7 @@ final class Bootstrap {
 
         Natives.trySetMaxNumberOfThreads();
         Natives.trySetMaxSizeVirtualMemory();
+        Natives.trySetMaxFileSize();
 
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();
@@ -290,8 +291,6 @@ final class Bootstrap {
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
-        checkForCustomConfFile();
-
         if (environment.pidFile() != null) {
             try {
                 PidFile.create(environment.pidFile(), true);
@@ -387,28 +386,6 @@ final class Bootstrap {
     @SuppressForbidden(reason = "System#err")
     private static void closeSysError() {
         System.err.close();
-    }
-
-    private static void checkForCustomConfFile() {
-        String confFileSetting = System.getProperty("es.default.config");
-        checkUnsetAndMaybeExit(confFileSetting, "es.default.config");
-        confFileSetting = System.getProperty("es.config");
-        checkUnsetAndMaybeExit(confFileSetting, "es.config");
-        confFileSetting = System.getProperty("elasticsearch.config");
-        checkUnsetAndMaybeExit(confFileSetting, "elasticsearch.config");
-    }
-
-    private static void checkUnsetAndMaybeExit(String confFileSetting, String settingName) {
-        if (confFileSetting != null && confFileSetting.isEmpty() == false) {
-            Logger logger = Loggers.getLogger(Bootstrap.class);
-            logger.info("{} is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed.", settingName);
-            exit(1);
-        }
-    }
-
-    @SuppressForbidden(reason = "Allowed to exit explicitly in bootstrap phase")
-    private static void exit(int status) {
-        System.exit(status);
     }
 
     private static void checkLucene() {

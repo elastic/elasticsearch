@@ -123,8 +123,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                     throw ex;
                 }
             }
-            ClientYamlTestClient clientYamlTestClient =
-                new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
+            ClientYamlTestClient clientYamlTestClient = initClientYamlTestClient(restSpec, restClient, hosts, esVersion);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
             String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
@@ -141,6 +140,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         adminExecutionContext.clear();
 
         restTestExecutionContext.clear();
+    }
+
+    protected ClientYamlTestClient initClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient,
+                                                            List<HttpHost> hosts, Version esVersion) throws IOException {
+        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
     }
 
     @Override

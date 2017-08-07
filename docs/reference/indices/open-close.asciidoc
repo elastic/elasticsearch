@@ -33,6 +33,9 @@ This setting can also be changed via the cluster update settings api.
 Closed indices consume a significant amount of disk-space which can cause problems in managed environments. Closing indices can be disabled via the cluster settings
 API by setting `cluster.indices.close.enable` to `false`. The default is `true`.
 
-Closed index responses with `index_closed_exception` and `403` for most APIs, including `_stats` and `_search`. `ignore_unavailable` allows to control whether closed index do not cause `index_closed_exception` to be returned.  Index returns value on call to `_aliases`. 
+Most APIs, including _stats and _search, return `index_closed_exception` and 403 status code when accessing closed index.  The `ignore_unavailable` querystring parameter allows to control whether closed index cause an error to be returned or not.  Call to index `_aliases` returns correct value without error. 
 
-Closed indices are not returned in most wildcard index API calls, like `_aliases`, `_stats` or `_search`, nor throw any exceptions and behave like non-existent.
+Closed indices are not returned in most wildcard API calls, like `_aliases`, `_stats` or `_search`, nor throw any exceptions. Closed indices behave like non-existent, closed indices will not be returned during call to `_aliases`. Passing `ignore_unavailable` is irrelevant to wildcard indices calls.
+
+
+

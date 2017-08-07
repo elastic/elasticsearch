@@ -36,6 +36,8 @@ import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.FutureListener;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
@@ -96,24 +98,24 @@ public class NioHttpNettyAdaptor {
         final HttpRequestDecoder decoder = new HttpRequestDecoder(maxInitialLineLength, maxHeaderSize, maxChunkSize);
         ch.pipeline().addLast(decoder);
         ch.pipeline().addLast(new HttpContentDecompressor());
-        ch.pipeline().addLast("writer", new ChannelOutboundHandlerAdapter() {
-
-            @Override
-            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-                channel.getWriteContext().sendMessage(Netty4Utils.toBytesReference((ByteBuf) msg), new ActionListener<NioChannel>() {
-                    @Override
-                    public void onResponse(NioChannel nioChannel) {
-                        promise.setSuccess();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        promise.setFailure(e);
-                    }
-                });
-                ctx.write(msg, promise);
-            }
-        });
+//        ch.pipeline().addLast("writer", new ChannelOutboundHandlerAdapter() {
+//
+//            @Override
+//            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+//                channel.getWriteContext().sendMessage(Netty4Utils.toBytesReference((ByteBuf) msg), new ActionListener<NioChannel>() {
+//                    @Override
+//                    public void onResponse(NioChannel nioChannel) {
+//                        promise.setSuccess();
+//                    }
+//
+//                    @Override
+//                    public void onFailure(Exception e) {
+//                        promise.setFailure(e);
+//                    }
+//                });
+//                ctx.write(msg, promise);
+//            }
+//        });
         ch.pipeline().addLast(new HttpResponseEncoder());
         decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
         final HttpObjectAggregator aggregator = new HttpObjectAggregator(maxContentLength);
@@ -137,6 +139,7 @@ public class NioHttpNettyAdaptor {
             }
         });
 
+        ch.closeFuture().addListener((FutureListener<Object>) future -> channel.closeAsync());
 
         return ch;
     }

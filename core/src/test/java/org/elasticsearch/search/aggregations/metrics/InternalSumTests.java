@@ -16,14 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.metrics.sum;
+package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.sum.ParsedSum;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -52,5 +55,37 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
         ParsedSum parsed = ((ParsedSum) parsedAggregation);
         assertEquals(sum.getValue(), parsed.getValue(), Double.MIN_VALUE);
         assertEquals(sum.getValueAsString(), parsed.getValueAsString());
+    }
+
+    @Override
+    protected InternalSum mutateInstance(InternalSum instance) {
+        String name = instance.getName();
+        double value = instance.getValue();
+        DocValueFormat formatter = instance.format;
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 2)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            if (Double.isFinite(value)) {
+                value += between(1, 100);
+            } else {
+                value = between(1, 100);
+            }
+            break;
+        case 2:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalSum(name, value, formatter, pipelineAggregators, metaData);
     }
 }

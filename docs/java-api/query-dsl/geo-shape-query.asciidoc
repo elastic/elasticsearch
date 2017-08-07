@@ -48,7 +48,7 @@ points.add(new Coordinate(0, 0));
 
 QueryBuilder qb = geoShapeQuery(
         "pin.location",                         <1>
-        ShapeBuilders.newMultiPoint(points)     <2>
+        ShapeBuilders.newMultiPoint(points))    <2>
         .relation(ShapeRelation.WITHIN);        <3>
 --------------------------------------------------
 <1> field
@@ -62,7 +62,7 @@ QueryBuilder qb = geoShapeQuery(
         "pin.location",                  <1>
         "DEU",                           <2>
         "countries")                     <3>
-        .relation(ShapeRelation.WITHIN)) <4>
+        .relation(ShapeRelation.WITHIN)  <4>
         .indexedShapeIndex("shapes")     <5>
         .indexedShapePath("location");   <6>
 --------------------------------------------------

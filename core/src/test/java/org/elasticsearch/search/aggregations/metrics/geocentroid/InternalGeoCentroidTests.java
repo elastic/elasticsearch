@@ -27,6 +27,7 @@ import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -79,5 +80,42 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
 
         assertEquals(aggregation.centroid(), parsed.centroid());
         assertEquals(aggregation.count(), parsed.count());
+    }
+
+    @Override
+    protected InternalGeoCentroid mutateInstance(InternalGeoCentroid instance) {
+        String name = instance.getName();
+        GeoPoint centroid = instance.centroid();
+        long count = instance.count();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 2)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            count += between(1, 100);
+            break;
+        case 2:
+            GeoPoint newCentroid = new GeoPoint(centroid);
+            if (randomBoolean()) {
+                newCentroid.resetLat(centroid.getLat() / 2.0);
+            } else {
+                newCentroid.resetLon(centroid.getLon() / 2.0);
+            }
+            centroid = newCentroid;
+            break;
+        case 3:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalGeoCentroid(name, centroid, count, pipelineAggregators, metaData);
     }
 }

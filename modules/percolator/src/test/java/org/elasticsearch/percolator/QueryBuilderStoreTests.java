@@ -21,10 +21,10 @@ package org.elasticsearch.percolator;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -75,7 +75,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 new Mapper.BuilderContext(settings, new ContentPath(0)));
 
             Version version = randomBoolean() ? Version.V_5_6_0 : Version.V_6_1_0;
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config)) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
                 for (int i = 0; i < queryBuilders.length; i++) {
                     queryBuilders[i] = new TermQueryBuilder(randomAlphaOfLength(4), randomAlphaOfLength(8));
                     ParseContext parseContext = mock(ParseContext.class);

@@ -10,7 +10,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
 /**
- * Monitoring document collected by {@link IndicesStatsCollector}
+ * Monitoring document collected by {@link IndexStatsCollector}
  */
 public class IndicesStatsMonitoringDoc extends MonitoringDoc {
 

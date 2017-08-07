@@ -24,10 +24,10 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Collector for indices statistics.
+ * Collector for indices and singular index statistics.
  * <p>
- * This collector runs on the master node only and collect a {@link IndexStatsMonitoringDoc}
- * document for each existing index in the cluster.
+ * This collector runs on the master node only and collect a single {@link IndicesStatsMonitoringDoc} for the cluster and a
+ * {@link IndexStatsMonitoringDoc} document for each existing index in the cluster.
  */
 public class IndexStatsCollector extends Collector {
 
@@ -47,8 +47,8 @@ public class IndexStatsCollector extends Collector {
 
     @Override
     protected Collection<MonitoringDoc> doCollect() throws Exception {
-        List<MonitoringDoc> results = new ArrayList<>();
-        IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
+        final List<MonitoringDoc> results = new ArrayList<>();
+        final IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
                 .setIndices(monitoringSettings.indices())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .clear()
@@ -64,14 +64,18 @@ public class IndexStatsCollector extends Collector {
                 .setRequestCache(true)
                 .get(monitoringSettings.indexStatsTimeout());
 
-        long timestamp = System.currentTimeMillis();
-        String clusterUUID = clusterUUID();
-        DiscoveryNode sourceNode = localNode();
+        final long timestamp = System.currentTimeMillis();
+        final String clusterUUID = clusterUUID();
+        final DiscoveryNode sourceNode = localNode();
 
+        // add the indices stats that we use to collect the index stats
+        results.add(new IndicesStatsMonitoringDoc(monitoringId(), monitoringVersion(), clusterUUID, timestamp, sourceNode, indicesStats));
+
+        // collect each index stats document
         for (IndexStats indexStats : indicesStats.getIndices().values()) {
-            results.add(new IndexStatsMonitoringDoc(monitoringId(), monitoringVersion(),
-                    clusterUUID, timestamp, sourceNode, indexStats));
+            results.add(new IndexStatsMonitoringDoc(monitoringId(), monitoringVersion(), clusterUUID, timestamp, sourceNode, indexStats));
         }
+
         return Collections.unmodifiableCollection(results);
     }
 }

@@ -53,8 +53,8 @@ public class ChildBulkByScrollWorkerTests extends ESTestCase {
     @Before
     public void createTask() {
         task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID);
-        task.setChild(null, Float.POSITIVE_INFINITY);
-        worker = task.getChildWorker();
+        task.setSliceChild(Float.POSITIVE_INFINITY);
+        worker = task.getSliceChildWorker();
     }
 
     public void testBasicData() {

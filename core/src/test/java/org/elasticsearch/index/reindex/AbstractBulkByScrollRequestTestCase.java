@@ -47,13 +47,13 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
 
         int actualSlices = between(2, 1000);
         if (randomBoolean()) {
-            original.setSlices(Slices.of(actualSlices));
+            original.setSlices(actualSlices);
         } else {
             /*
              * In this case we pretend that the true number of slices will be randomSlices, since we're just verifying the request
              * behavior and not the slicing itself
              */
-            original.setSlices(Slices.AUTO);
+            original.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
         }
 
         TaskId slicingTask = new TaskId(randomAlphaOfLength(5), randomLong());
@@ -66,7 +66,7 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         assertEquals(original.getRetryBackoffInitialTime(), forSliced.getRetryBackoffInitialTime());
         assertEquals(original.getMaxRetries(), forSliced.getMaxRetries());
         assertEquals("only the parent task should store results", false, forSliced.getShouldStoreResult());
-        assertEquals("slice requests always have a single worker", Slices.ONE, forSliced.getSlices());
+        assertEquals("slice requests always have a single worker", 1, forSliced.getSlices());
         assertEquals("requests_per_second is split between all workers", original.getRequestsPerSecond() / actualSlices,
                 forSliced.getRequestsPerSecond(), Float.MIN_NORMAL);
         assertEquals("size is split evenly between all workers", original.getSize() == AbstractBulkByScrollRequest.SIZE_ALL_MATCHES

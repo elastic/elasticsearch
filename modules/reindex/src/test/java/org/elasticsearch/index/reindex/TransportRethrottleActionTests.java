@@ -54,7 +54,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
     public void createTask() {
         slices = between(2, 50);
         task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID);
-        task.setParent(slices);
+        task.setSliceChildren(slices);
     }
 
     /**
@@ -114,7 +114,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
         List<BulkByScrollTask.StatusOrException> sliceStatuses = new ArrayList<>(slices);
         for (int i = 0; i < succeeded; i++) {
             BulkByScrollTask.Status status = believeableCompletedStatus(i);
-            task.getParentWorker().onSliceResponse(neverCalled(), i,
+            task.getSlicesParentWorker().onSliceResponse(neverCalled(), i,
                     new BulkByScrollResponse(timeValueMillis(10), status, emptyList(), emptyList(), false));
             sliceStatuses.add(new BulkByScrollTask.StatusOrException(status));
         }
@@ -135,7 +135,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<BulkByScrollResponse> listener = i < slices - 1 ? neverCalled() : mock(ActionListener.class);
             BulkByScrollTask.Status status = believeableCompletedStatus(i);
-            task.getParentWorker().onSliceResponse(listener, i, new BulkByScrollResponse(timeValueMillis(10), status, emptyList(),
+            task.getSlicesParentWorker().onSliceResponse(listener, i, new BulkByScrollResponse(timeValueMillis(10), status, emptyList(),
                 emptyList(), false));
             if (i == slices - 1) {
                 // The whole thing succeeded so we should have got the success

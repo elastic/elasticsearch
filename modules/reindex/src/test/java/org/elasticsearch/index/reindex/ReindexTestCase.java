@@ -66,28 +66,40 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
         return new BulkIndexByScrollResponseMatcher();
     }
 
+    static int randomSlices(int min, int max) {
+        if (randomBoolean()) {
+            return AbstractBulkByScrollRequest.AUTO_SLICES;
+        } else {
+            return between(min, max);
+        }
+    }
+
+    static int randomSlices() {
+        return randomSlices(2, 10);
+    }
+
     /**
      * Figures out how many slices the request handling will use
      */
-    protected int expectedSlices(Slices requestSlices, Collection<String> indices) {
-        if (requestSlices.isAuto()) {
+    protected int expectedSlices(int requestSlices, Collection<String> indices) {
+        if (requestSlices == AbstractBulkByScrollRequest.AUTO_SLICES) {
             int leastNumShards = Collections.min(indices.stream()
                 .map(sourceIndex -> getNumShards(sourceIndex).numPrimaries)
                 .collect(Collectors.toList()));
             return Math.min(leastNumShards, BulkByScrollParallelizationHelper.AUTO_SLICE_CEILING);
         } else {
-            return requestSlices.number();
+            return requestSlices;
         }
     }
 
-    protected int expectedSlices(Slices requestSlices, String index) {
+    protected int expectedSlices(int requestSlices, String index) {
         return expectedSlices(requestSlices, singleton(index));
     }
 
     /**
      * Figures out how many slice statuses to expect in the response
      */
-    protected int expectedSliceStatuses(Slices requestSlices, Collection<String> indices) {
+    protected int expectedSliceStatuses(int requestSlices, Collection<String> indices) {
         int slicesConfigured = expectedSlices(requestSlices, indices);
 
         if (slicesConfigured > 1) {
@@ -97,7 +109,7 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
         }
     }
 
-    protected int expectedSliceStatuses(Slices slicesConfigured, String index) {
+    protected int expectedSliceStatuses(int slicesConfigured, String index) {
         return expectedSliceStatuses(slicesConfigured, singleton(index));
     }
 }

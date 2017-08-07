@@ -126,10 +126,10 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             ActionListener<BulkByScrollResponse> listener, Settings settings) {
 
         this.task = task;
-        if (!task.isChild()) {
+        if (!task.isSliceChild()) {
             throw new IllegalArgumentException("Given task [" + task.getId() + "] must have a child worker");
         }
-        this.worker = task.getChildWorker();
+        this.worker = task.getSliceChildWorker();
 
         this.logger = logger;
         this.client = client;

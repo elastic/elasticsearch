@@ -81,9 +81,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
         assertEquals(1, client().prepareGet("test", "test", "1").get().getVersion());
         assertEquals(1, client().prepareGet("test", "test", "4").get().getVersion());
 
-        Slices slices = randomBoolean()
-                        ? Slices.AUTO
-                        : Slices.of(between(2, 10));
+        int slices = randomSlices(2, 10);
         int expectedSlices = expectedSliceStatuses(slices, "test");
 
         // Reindex all the docs
@@ -146,9 +144,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
             assertHitCount(client().prepareSearch(entry.getKey()).setSize(0).get(), entry.getValue().size());
         }
 
-        Slices slices = randomBoolean()
-            ? Slices.AUTO
-            : Slices.of(between(1, 10));
+        int slices = randomSlices(1, 10);
         int expectedSlices = expectedSliceStatuses(slices, docs.keySet());
 
         String[] sourceIndexNames = docs.keySet().toArray(new String[docs.size()]);

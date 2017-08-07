@@ -45,6 +45,10 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     private static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
     private static final int DEFAULT_SCROLL_SIZE = 1000;
 
+    public static final int AUTO_SLICES = 0;
+    public static final String AUTO_SLICES_VALUE = "auto";
+    private static final int DEFAULT_SLICES = 1;
+
     /**
      * The search to be executed.
      */
@@ -102,7 +106,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
      */
-    private Slices slices = Slices.DEFAULT;
+    private int slices = DEFAULT_SLICES;
 
     /**
      * Constructor for deserialization.
@@ -152,8 +156,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
                             + size + "]",
                     e);
         }
-        if (searchRequest.source().slice() != null && !slices.equals(Slices.DEFAULT)) {
-            e = addValidationError("can't specify both slice and workers", e);
+        if (searchRequest.source().slice() != null && slices != DEFAULT_SLICES) {
+            e = addValidationError("can't set a specific single slice for this request and multiple slices", e);
         }
         return e;
     }
@@ -340,7 +344,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
      */
-    public Self setSlices(Slices slices) {
+    public Self setSlices(int slices) {
         this.slices = slices;
         return self();
     }
@@ -348,7 +352,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
      */
-    public Slices getSlices() {
+    public int getSlices() {
         return slices;
     }
 
@@ -368,7 +372,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
                 // Split requests per second between all slices
                 .setRequestsPerSecond(requestsPerSecond / totalSlices)
                 // Sub requests don't have workers
-                .setSlices(Slices.ONE);
+                .setSlices(1);
         if (size != -1) {
             // Size is split between workers. This means the size might round
             // down!
@@ -398,11 +402,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         retryBackoffInitialTime = new TimeValue(in);
         maxRetries = in.readVInt();
         requestsPerSecond = in.readFloat();
-        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
-            slices = new Slices(in);
-        } else {
-            slices = Slices.DEFAULT;
-        }
+        slices = in.readVInt();
     }
 
     @Override
@@ -417,12 +417,14 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         retryBackoffInitialTime.writeTo(out);
         out.writeVInt(maxRetries);
         out.writeFloat(requestsPerSecond);
-        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
-            slices.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeVInt(slices);
         } else {
-            if (slices.isAuto() || slices.number() > 1) {
-                throw new IllegalArgumentException("Attempting to send sliced reindex-style request to a node that doesn't support "
-                        + "it. Version is [" + out.getVersion() + "] but must be [" + Version.V_5_1_1 + "]");
+            if (slices == AUTO_SLICES) {
+                throw new IllegalArgumentException("Slices set as \"auto\" are not supported before version [" + Version.V_6_1_0 + "]. " +
+                    "Found version [" + out.getVersion() + "]");
+            } else {
+                out.writeVInt(slices);
             }
         }
     }

@@ -45,24 +45,24 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
                 e.getMessage());
     }
 
-    public void testReindexFromRemoteDoesNotSupportWorkers() {
+    public void testReindexFromRemoteDoesNotSupportSlices() {
         ReindexRequest reindex = newRequest();
         reindex.setRemoteInfo(
                 new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE), new BytesArray("real_query"),
                         null, null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
-        reindex.setSlices(Slices.of(between(2, Integer.MAX_VALUE)));
+        reindex.setSlices(between(2, Integer.MAX_VALUE));
         ActionRequestValidationException e = reindex.validate();
         assertEquals(
-                "Validation Failed: 1: reindex from remote sources doesn't support workers > 1 but was [" + reindex.getSlices() + "];",
+                "Validation Failed: 1: reindex from remote sources doesn't support slices > 1 but was [" + reindex.getSlices() + "];",
                 e.getMessage());
     }
 
-    public void testNoSliceWithWorkers() {
+    public void testNoSliceBuilderSetWithSlicedRequest() {
         ReindexRequest reindex = newRequest();
         reindex.getSearchRequest().source().slice(new SliceBuilder(0, 4));
-        reindex.setSlices(Slices.of(between(2, Integer.MAX_VALUE)));
+        reindex.setSlices(between(2, Integer.MAX_VALUE));
         ActionRequestValidationException e = reindex.validate();
-        assertEquals("Validation Failed: 1: can't specify both slice and workers;", e.getMessage());
+        assertEquals("Validation Failed: 1: can't set a specific single slice for this request and multiple slices;", e.getMessage());
     }
 
     @Override

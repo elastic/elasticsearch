@@ -94,8 +94,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             if (getSearchRequest().source().query() != null) {
                 e = addValidationError("reindex from remote sources should use RemoteInfo's query instead of source's query", e);
             }
-            if (getSlices().isAuto() || getSlices().number() > 1) {
-                e = addValidationError("reindex from remote sources doesn't support workers > 1 but was [" + getSlices() + "]", e);
+            if (getSlices() == AbstractBulkByScrollRequest.AUTO_SLICES || getSlices() > 1) {
+                e = addValidationError("reindex from remote sources doesn't support slices > 1 but was [" + getSlices() + "]", e);
             }
         }
         return e;

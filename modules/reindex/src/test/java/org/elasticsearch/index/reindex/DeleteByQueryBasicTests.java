@@ -238,9 +238,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         );
         assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 7);
 
-        Slices slices = randomBoolean()
-            ? Slices.AUTO
-            : Slices.of(between(2, 10));
+        int slices = randomSlices();
         int expectedSlices = expectedSliceStatuses(slices, "test");
 
         // Deletes the two docs that matches "foo:a"
@@ -287,9 +285,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             assertHitCount(client().prepareSearch(entry.getKey()).setSize(0).get(), entry.getValue().size());
         }
 
-        Slices slices = randomBoolean()
-            ? Slices.AUTO
-            : Slices.of(between(1, 10));
+        int slices = randomSlices(1, 10);
         int expectedSlices = expectedSliceStatuses(slices, docs.keySet());
 
         String[] sourceIndexNames = docs.keySet().toArray(new String[docs.size()]);

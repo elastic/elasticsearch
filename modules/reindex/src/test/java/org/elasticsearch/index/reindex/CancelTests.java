@@ -88,7 +88,7 @@ public class CancelTests extends ReindexTestCase {
         createIndex(INDEX);
 
         // Total number of documents created for this test (~10 per primary shard per slice)
-        int numDocs = getNumShards(INDEX).numPrimaries * 10 * builder.request().getSlices().number();
+        int numDocs = getNumShards(INDEX).numPrimaries * 10 * builder.request().getSlices();
         ALLOWED_OPERATIONS.release(numDocs);
 
         indexRandom(true, false, true, IntStream.range(0, numDocs)
@@ -104,8 +104,8 @@ public class CancelTests extends ReindexTestCase {
 
         /* Allow a random number of the documents less the number of workers to be modified by the reindex action. That way at least one
          * worker is blocked. */
-        int numModifiedDocs = randomIntBetween(builder.request().getSlices().number() * 2, numDocs);
-        ALLOWED_OPERATIONS.release(numModifiedDocs - builder.request().getSlices().number());
+        int numModifiedDocs = randomIntBetween(builder.request().getSlices() * 2, numDocs);
+        ALLOWED_OPERATIONS.release(numModifiedDocs - builder.request().getSlices());
 
         // Now execute the reindex action...
         ActionFuture<? extends BulkByScrollResponse> future = builder.execute();
@@ -115,7 +115,7 @@ public class CancelTests extends ReindexTestCase {
         awaitBusy(() -> ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0);
 
         // Status should show the task running
-        TaskInfo mainTask = findTaskToCancel(action, builder.request().getSlices().number());
+        TaskInfo mainTask = findTaskToCancel(action, builder.request().getSlices());
         BulkByScrollTask.Status status = (BulkByScrollTask.Status) mainTask.getStatus();
         assertNull(status.getReasonCancelled());
 
@@ -132,7 +132,7 @@ public class CancelTests extends ReindexTestCase {
         mainTask = client().admin().cluster().prepareGetTask(mainTask.getTaskId()).get().getTask().getTask();
         status = (BulkByScrollTask.Status) mainTask.getStatus();
         assertEquals(CancelTasksRequest.DEFAULT_REASON, status.getReasonCancelled());
-        if (builder.request().getSlices().number() > 1) {
+        if (builder.request().getSlices() > 1) {
             boolean foundCancelled = false;
             ListTasksResponse sliceList = client().admin().cluster().prepareListTasks().setParentTaskId(mainTask.getTaskId())
                     .setDetailed(true).get();
@@ -147,11 +147,11 @@ public class CancelTests extends ReindexTestCase {
         }
 
         // Unblock the last operations
-        ALLOWED_OPERATIONS.release(builder.request().getSlices().number());
+        ALLOWED_OPERATIONS.release(builder.request().getSlices());
 
         // Checks that no more operations are executed
         assertBusy(() -> {
-            if (builder.request().getSlices().number() == 1) {
+            if (builder.request().getSlices() == 1) {
                 /* We can only be sure that we've drained all the permits if we only use a single worker. Otherwise some worker may have
                  * exhausted all of its documents before we blocked. */
                 assertEquals(0, ALLOWED_OPERATIONS.availablePermits());
@@ -172,7 +172,7 @@ public class CancelTests extends ReindexTestCase {
         assertThat(response.getBulkFailures(), emptyIterable());
         assertThat(response.getSearchFailures(), emptyIterable());
 
-        if (builder.request().getSlices().number() >= 1) {
+        if (builder.request().getSlices() >= 1) {
             // If we have more than one worker we might not have made all the modifications
             numModifiedDocs -= ALLOWED_OPERATIONS.availablePermits();
         }
@@ -232,7 +232,7 @@ public class CancelTests extends ReindexTestCase {
 
     public void testReindexCancelWithWorkers() throws Exception {
         testCancel(ReindexAction.NAME,
-                reindex().source(INDEX).filter(QueryBuilders.matchAllQuery()).destination("dest", TYPE).setSlices(Slices.of(5)),
+                reindex().source(INDEX).filter(QueryBuilders.matchAllQuery()).destination("dest", TYPE).setSlices(5),
                 (response, total, modified) -> {
                     assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
                     refresh("dest");
@@ -250,7 +250,7 @@ public class CancelTests extends ReindexTestCase {
                 "}");
         assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, XContentType.JSON).get());
 
-        testCancel(UpdateByQueryAction.NAME, updateByQuery().setPipeline("set-processed").source(INDEX).setSlices(Slices.of(5)),
+        testCancel(UpdateByQueryAction.NAME, updateByQuery().setPipeline("set-processed").source(INDEX).setSlices(5),
                 (response, total, modified) -> {
                     assertThat(response, matcher().updated(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
                     assertHitCount(client().prepareSearch(INDEX).setSize(0).setQuery(termQuery("processed", true)).get(), modified);
@@ -260,7 +260,7 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testDeleteByQueryCancelWithWorkers() throws Exception {
-        testCancel(DeleteByQueryAction.NAME, deleteByQuery().source(INDEX).filter(QueryBuilders.matchAllQuery()).setSlices(Slices.of(5)),
+        testCancel(DeleteByQueryAction.NAME, deleteByQuery().source(INDEX).filter(QueryBuilders.matchAllQuery()).setSlices(5),
             (response, total, modified) -> {
                 assertThat(response, matcher().deleted(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
                 assertHitCount(client().prepareSearch(INDEX).setSize(0).get(), total - modified);

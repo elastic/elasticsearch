@@ -67,8 +67,7 @@ class BulkByScrollParallelizationHelper {
         DiscoveryNode node,
         Supplier<AbstractAsyncBulkByScrollAction<Request>> taskSupplier) {
 
-        Slices slices = request.getSlices();
-        if (slices.isAuto()) {
+        if (request.getSlices() == AbstractBulkByScrollRequest.AUTO_SLICES) {
             client.admin().cluster().prepareSearchShards(request.getSearchRequest().indices()).execute(ActionListener.wrap(
                 response -> {
                     int actualNumSlices = countSlicesBasedOnShards(response);
@@ -77,7 +76,7 @@ class BulkByScrollParallelizationHelper {
                 listener::onFailure
             ));
         } else {
-            sliceConditionally(request, task, action, listener, client, node, taskSupplier, slices.number());
+            sliceConditionally(request, task, action, listener, client, node, taskSupplier, request.getSlices());
         }
     }
 
@@ -92,13 +91,13 @@ class BulkByScrollParallelizationHelper {
         int slices) {
 
         if (slices > 1) {
-            task.setParent(slices);
+            task.setSliceChildren(slices);
             sendSubRequests(client, action, node.getId(), task, request, listener);
         } else {
             Integer sliceId = request.getSearchRequest().source().slice() == null
                 ? null
                 : request.getSearchRequest().source().slice().getId();
-            task.setChild(sliceId, request.getRequestsPerSecond());
+            task.setSliceChild(request.getRequestsPerSecond(), sliceId);
             taskSupplier.get().start();
         }
     }
@@ -122,7 +121,7 @@ class BulkByScrollParallelizationHelper {
         Request request,
         ActionListener<BulkByScrollResponse> listener) {
 
-        ParentBulkByScrollWorker worker = task.getParentWorker();
+        ParentBulkByScrollWorker worker = task.getSlicesParentWorker();
         int totalSlices = worker.getSlices();
         TaskId parentTaskId = new TaskId(localNodeId, task.getId());
         for (final SearchRequest slice : sliceIntoSubRequests(request.getSearchRequest(), UidFieldMapper.NAME, totalSlices)) {

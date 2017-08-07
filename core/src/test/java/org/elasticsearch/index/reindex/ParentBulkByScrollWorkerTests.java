@@ -43,8 +43,8 @@ public class ParentBulkByScrollWorkerTests extends ESTestCase {
     public void createTask() {
         slices = between(2, 50);
         task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID);
-        task.setParent(slices);
-        worker = task.getParentWorker();
+        task.setSliceChildren(slices);
+        worker = task.getSlicesParentWorker();
     }
 
     public void testBasicData() {

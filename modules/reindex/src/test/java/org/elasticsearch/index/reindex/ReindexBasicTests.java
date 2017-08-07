@@ -101,9 +101,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         indexRandom(true, docs);
         assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
 
-        Slices slices = randomBoolean()
-            ? Slices.AUTO
-            : Slices.of(between(2, 10));
+        int slices = randomSlices();
         int expectedSlices = expectedSliceStatuses(slices, "source");
 
         // Copy all the docs
@@ -144,9 +142,7 @@ public class ReindexBasicTests extends ReindexTestCase {
             assertHitCount(client().prepareSearch(entry.getKey()).setSize(0).get(), entry.getValue().size());
         }
 
-        Slices slices = randomBoolean()
-            ? Slices.AUTO
-            : Slices.of(between(1, 10));
+        int slices = randomSlices(1, 10);
         int expectedSlices = expectedSliceStatuses(slices, docs.keySet());
 
         String[] sourceIndexNames = docs.keySet().toArray(new String[docs.size()]);

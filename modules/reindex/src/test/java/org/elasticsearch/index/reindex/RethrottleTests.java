@@ -71,14 +71,6 @@ public class RethrottleTests extends ReindexTestCase {
         testCase(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).setSlices(randomSlices()), DeleteByQueryAction.NAME);
     }
 
-    private static Slices randomSlices() {
-        if (randomBoolean()) {
-            return Slices.AUTO;
-        } else {
-            return Slices.of(between(2, 10));
-        }
-    }
-
     private void testCase(AbstractBulkByScrollRequestBuilder<?, ?> request, String actionName) throws Exception {
         logger.info("Starting test for [{}] with [{}] slices", actionName, request.request().getSlices());
         /* Add ten documents per slice so most slices will have many documents to process, having to go to multiple batches.

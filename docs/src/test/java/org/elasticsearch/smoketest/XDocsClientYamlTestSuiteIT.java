@@ -7,16 +7,21 @@ package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
+import org.elasticsearch.Version;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.http.HttpHost;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.rest.yaml.ClientYamlDocsTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.junit.After;
 
-
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -50,6 +55,12 @@ public class XDocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @Override
     protected boolean preserveTemplatesUponCompletion() {
         return true;
+    }
+
+    @Override
+    protected ClientYamlTestClient initClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient,
+                                                            List<HttpHost> hosts, Version esVersion) throws IOException {
+        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion);
     }
 
     /**

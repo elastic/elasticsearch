@@ -22,7 +22,7 @@ public class InfoRequest extends AbstractInfoRequest {
         super();
     }
 
-    InfoRequest(String jvmVersion, String jvmVendor, String jvmClassPath, String osName, String osVersion) {
+    public InfoRequest(String jvmVersion, String jvmVendor, String jvmClassPath, String osName, String osVersion) {
         super(jvmVersion, jvmVendor, jvmClassPath, osName, osVersion);
     }
 

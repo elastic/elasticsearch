@@ -14,17 +14,11 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.xpack.sql.cli.net.protocol.Proto;
-import org.elasticsearch.xpack.sql.plugin.AbstractSqlServer;
-import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
-import java.io.DataInputStream;
 import java.io.IOException;
 
 import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class CliHttpHandler extends BaseRestHandler {
@@ -40,29 +34,14 @@ public class CliHttpHandler extends BaseRestHandler {
             throw new IllegalArgumentException("expected a request body");
         }
 
-        try (DataInputStream in = new DataInputStream(request.content().streamInput())) {
-            CliRequest cliRequest = new CliRequest(Proto.INSTANCE.readRequest(in));
-            return c -> client.executeLocally(CliAction.INSTANCE, cliRequest,
-                                                ActionListener.wrap(response -> cliResponse(c, response), ex -> error(c, ex)));
-        }
-    }
-    
-    private static void cliResponse(RestChannel channel, CliResponse response) {
-        BytesRestResponse restResponse = null;
-        
-        try {
-            // NOCOMMIT use a real version
-            restResponse = new BytesRestResponse(OK, TEXT_CONTENT_TYPE,
-                    AbstractSqlServer.write(AbstractProto.CURRENT_VERSION, response.response()));
-        } catch (IOException ex) {
-            restResponse = new BytesRestResponse(INTERNAL_SERVER_ERROR, TEXT_CONTENT_TYPE, StringUtils.EMPTY);
-        }
-
-        channel.sendResponse(restResponse);
+        CliRequest cliRequest = new CliRequest(request.content());
+        return c -> client.executeLocally(CliAction.INSTANCE, cliRequest,
+                ActionListener.wrap(response -> c.sendResponse(new BytesRestResponse(OK, TEXT_CONTENT_TYPE, response.bytesReference())),
+                        ex -> error(c, ex)));
     }
 
     private static void error(RestChannel channel, Exception ex) {
-        BytesRestResponse response = null;
+        BytesRestResponse response;
         try {
             response = new BytesRestResponse(channel, ex);
         } catch (IOException e) {

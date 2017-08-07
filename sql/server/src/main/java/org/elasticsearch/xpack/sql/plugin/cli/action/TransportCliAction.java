@@ -18,6 +18,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.plugin.cli.CliServer;
+import org.elasticsearch.xpack.sql.protocol.shared.Request;
+
+import java.io.IOException;
 
 import static org.elasticsearch.xpack.sql.util.ActionUtils.chain;
 
@@ -26,17 +29,25 @@ public class TransportCliAction extends HandledTransportAction<CliRequest, CliRe
 
     @Inject
     public TransportCliAction(Settings settings, ThreadPool threadPool,
-            TransportService transportService, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            ClusterService clusterService,
-            PlanExecutor planExecutor) {
+                              TransportService transportService, ActionFilters actionFilters,
+                              IndexNameExpressionResolver indexNameExpressionResolver,
+                              ClusterService clusterService,
+                              PlanExecutor planExecutor) {
         super(settings, CliAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, CliRequest::new);
 
         this.cliServer = new CliServer(planExecutor, clusterService.getClusterName().value(), () -> clusterService.localNode().getName(), Version.CURRENT, Build.CURRENT);
     }
 
     @Override
-    protected void doExecute(CliRequest request, ActionListener<CliResponse> listener) {
-        cliServer.handle(request.request(), chain(listener, CliResponse::new));
+    protected void doExecute(CliRequest cliRequest, ActionListener<CliResponse> listener) {
+        final Request request;
+        try {
+            request = cliRequest.request();
+        } catch (IOException ex) {
+            listener.onFailure(ex);
+            return;
+        }
+        // NOCOMMIT we need to pass the protocol version of the client to the response here
+        cliServer.handle(request, chain(listener, CliResponse::new));
     }
 }

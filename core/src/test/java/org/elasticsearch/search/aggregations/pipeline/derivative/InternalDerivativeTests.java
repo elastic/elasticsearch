@@ -90,7 +90,6 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
             normalizationFactor += between(1, 100);
             break;
         case 3:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -98,6 +97,8 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalDerivative(name, value, normalizationFactor, formatter, pipelineAggregators, metaData);
     }

@@ -71,9 +71,6 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
         return value;
     }
 
-    /**
-     * For testing only.
-     */
     DocValueFormat formatter() {
         return format;
     }

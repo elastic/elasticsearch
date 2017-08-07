@@ -84,7 +84,6 @@ public class InternalSimpleValueTests extends InternalAggregationTestCase<Intern
             value += between(1, 100);
             break;
         case 2:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -92,6 +91,8 @@ public class InternalSimpleValueTests extends InternalAggregationTestCase<Intern
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalSimpleValue(name, value, formatter, pipelineAggregators, metaData);
     }

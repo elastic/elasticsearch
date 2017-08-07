@@ -96,7 +96,6 @@ public class InternalBucketMetricValueTests extends InternalAggregationTestCase<
             keys[keys.length - 1] = randomAlphaOfLengthBetween(1, 20);
             break;
         case 3:
-        default:
             if (metaData == null) {
                 metaData = new HashMap<>(1);
             } else {
@@ -104,6 +103,8 @@ public class InternalBucketMetricValueTests extends InternalAggregationTestCase<
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalBucketMetricValue(name, keys, value, formatter, pipelineAggregators, metaData);
     }

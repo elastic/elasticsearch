@@ -100,9 +100,6 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         return format.format(percentile(percent));
     }
 
-    /**
-     * For testing only.
-     */
     DocValueFormat formatter() {
         return format;
     }

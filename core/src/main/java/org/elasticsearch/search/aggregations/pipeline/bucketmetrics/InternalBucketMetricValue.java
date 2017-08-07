@@ -81,9 +81,6 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
         return keys;
     }
 
-    /**
-     * For testing only
-     */
     DocValueFormat formatter() {
         return format;
     }

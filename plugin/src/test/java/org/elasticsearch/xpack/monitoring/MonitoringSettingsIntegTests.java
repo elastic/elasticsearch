@@ -27,7 +27,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class MonitoringSettingsIntegTests extends MonitoringIntegTestCase {
     private final TimeValue interval = newRandomTimeValue();
     private final TimeValue indexStatsTimeout = newRandomTimeValue();
-    private final TimeValue indicesStatsTimeout = newRandomTimeValue();
     private final String[] indices = randomStringArray();
     private final TimeValue clusterStateTimeout = newRandomTimeValue();
     private final TimeValue clusterStatsTimeout = newRandomTimeValue();
@@ -55,7 +54,6 @@ public class MonitoringSettingsIntegTests extends MonitoringIntegTestCase {
         return Settings.builder()
                 .put(MonitoringSettings.INTERVAL.getKey(), interval)
                 .put(MonitoringSettings.INDEX_STATS_TIMEOUT.getKey(), indexStatsTimeout)
-                .put(MonitoringSettings.INDICES_STATS_TIMEOUT.getKey(), indicesStatsTimeout)
                 .putArray(MonitoringSettings.INDICES.getKey(), indices)
                 .put(MonitoringSettings.CLUSTER_STATE_TIMEOUT.getKey(), clusterStateTimeout)
                 .put(MonitoringSettings.CLUSTER_STATS_TIMEOUT.getKey(), clusterStatsTimeout)
@@ -68,7 +66,6 @@ public class MonitoringSettingsIntegTests extends MonitoringIntegTestCase {
     public void testMonitoringSettings() throws Exception {
         for (final MonitoringSettings monitoringSettings : internalCluster().getInstances(MonitoringSettings.class)) {
             assertThat(monitoringSettings.indexStatsTimeout().millis(), equalTo(indexStatsTimeout.millis()));
-            assertThat(monitoringSettings.indicesStatsTimeout().millis(), equalTo(indicesStatsTimeout.millis()));
             assertArrayEquals(monitoringSettings.indices(), indices);
             assertThat(monitoringSettings.clusterStateTimeout().millis(), equalTo(clusterStateTimeout.millis()));
             assertThat(monitoringSettings.clusterStatsTimeout().millis(), equalTo(clusterStatsTimeout.millis()));
@@ -89,7 +86,6 @@ public class MonitoringSettingsIntegTests extends MonitoringIntegTestCase {
                 MonitoringSettings.INTERVAL,
                 MonitoringSettings.INDEX_RECOVERY_TIMEOUT,
                 MonitoringSettings.INDEX_STATS_TIMEOUT,
-                MonitoringSettings.INDICES_STATS_TIMEOUT,
                 MonitoringSettings.INDEX_RECOVERY_ACTIVE_ONLY,
                 MonitoringSettings.CLUSTER_STATE_TIMEOUT,
                 MonitoringSettings.CLUSTER_STATS_TIMEOUT,
@@ -129,8 +125,6 @@ public class MonitoringSettingsIntegTests extends MonitoringIntegTestCase {
                 for (final MonitoringSettings monitoringSettings1 : internalCluster().getInstances(MonitoringSettings.class)) {
                     if (setting == MonitoringSettings.INDEX_STATS_TIMEOUT) {
                         assertEquals(monitoringSettings1.indexStatsTimeout(), setting.get(updatedSettings));
-                    } else if (setting == MonitoringSettings.INDICES_STATS_TIMEOUT) {
-                        assertEquals(monitoringSettings1.indicesStatsTimeout(), setting.get(updatedSettings));
                     } else if (setting == MonitoringSettings.CLUSTER_STATS_TIMEOUT) {
                         assertEquals(monitoringSettings1.clusterStatsTimeout(), setting.get(updatedSettings));
                     } else if (setting == MonitoringSettings.JOB_STATS_TIMEOUT) {

@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryCollector;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexStatsCollector;
-import org.elasticsearch.xpack.monitoring.collector.indices.IndicesStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.ml.JobStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.node.NodeStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.shards.ShardsCollector;
@@ -117,7 +116,6 @@ public class Monitoring implements ActionPlugin {
         final Exporters exporters = new Exporters(settings, exporterFactories, clusterService, licenseState, threadPool.getThreadContext());
 
         Set<Collector> collectors = new HashSet<>();
-        collectors.add(new IndicesStatsCollector(settings, clusterService, monitoringSettings, licenseState, client));
         collectors.add(new IndexStatsCollector(settings, clusterService, monitoringSettings, licenseState, client));
         collectors.add(new ClusterStatsCollector(settings, clusterService, monitoringSettings, licenseState, client, licenseService));
         collectors.add(new ShardsCollector(settings, clusterService, monitoringSettings, licenseState));

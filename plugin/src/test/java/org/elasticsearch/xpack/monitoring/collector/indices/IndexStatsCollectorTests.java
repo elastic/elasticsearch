@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring.collector.indices;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -19,8 +20,12 @@ import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -40,19 +45,19 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
     public void testEmptyCluster() throws Exception {
         final String node = internalCluster().startNode();
         waitForNoBlocksOnNode(node);
-        assertThat(newIndexStatsCollector(node).doCollect(), hasSize(0));
+        assertThat(newIndexStatsCollector(node).doCollect(), hasSize(1));
     }
 
     public void testEmptyClusterAllIndices() throws Exception {
         final String node = internalCluster().startNode(Settings.builder().put(MonitoringSettings.INDICES.getKey(), MetaData.ALL));
         waitForNoBlocksOnNode(node);
-        assertThat(newIndexStatsCollector(node).doCollect(), hasSize(0));
+        assertThat(newIndexStatsCollector(node).doCollect(), hasSize(1));
     }
 
     public void testEmptyClusterMissingIndex() throws Exception {
         final String node = internalCluster().startNode(Settings.builder().put(MonitoringSettings.INDICES.getKey(), "unknown"));
         waitForNoBlocksOnNode(node);
-        assertThat(newIndexStatsCollector(node).doCollect(), hasSize(0));
+        assertThat(newIndexStatsCollector(node).doCollect(), hasSize(1));
     }
 
     public void testIndexStatsCollectorOneIndex() throws Exception {
@@ -68,19 +73,40 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
             client().prepareIndex(indexName, "test").setSource("num", i).get();
         }
 
-        flush();
         refresh();
 
         assertHitCount(client().prepareSearch().setSize(0).get(), nbDocs);
 
         Collection<MonitoringDoc> results = newIndexStatsCollector().doCollect();
-        assertThat(results, hasSize(1));
+        assertThat(results, hasSize(2));
 
-        MonitoringDoc monitoringDoc = results.iterator().next();
-        assertNotNull(monitoringDoc);
-        assertThat(monitoringDoc, instanceOf(IndexStatsMonitoringDoc.class));
+        // indices stats
+        final Optional<IndicesStatsMonitoringDoc> indicesStatsDoc =
+            results.stream().filter(doc -> doc instanceof IndicesStatsMonitoringDoc).map(doc -> (IndicesStatsMonitoringDoc)doc).findFirst();
 
-        IndexStatsMonitoringDoc indexStatsMonitoringDoc = (IndexStatsMonitoringDoc) monitoringDoc;
+        assertThat(indicesStatsDoc.isPresent(), is(true));
+
+        IndicesStatsMonitoringDoc indicesStatsMonitoringDoc = indicesStatsDoc.get();
+        assertThat(indicesStatsMonitoringDoc.getClusterUUID(), equalTo(client().admin().cluster().
+                prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
+        assertThat(indicesStatsMonitoringDoc.getTimestamp(), greaterThan(0L));
+        assertThat(indicesStatsMonitoringDoc.getSourceNode(), notNullValue());
+
+        IndicesStatsResponse indicesStats = indicesStatsMonitoringDoc.getIndicesStats();
+        assertNotNull(indicesStats);
+        assertThat(indicesStats.getIndices().keySet(), hasSize(1));
+        assertThat(indicesStats.getIndex(indexName).getShards(), arrayWithSize(getNumShards(indexName).totalNumShards));
+
+        // index stats
+        final Optional<IndexStatsMonitoringDoc> indexStatsDoc =
+                results.stream()
+                       .filter(doc -> doc instanceof IndexStatsMonitoringDoc)
+                       .map(doc -> (IndexStatsMonitoringDoc)doc)
+                       .findFirst();
+
+        assertThat(indexStatsDoc.isPresent(), is(true));
+
+        IndexStatsMonitoringDoc indexStatsMonitoringDoc = indexStatsDoc.get();
         assertThat(indexStatsMonitoringDoc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
         assertThat(indexStatsMonitoringDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
         assertThat(indexStatsMonitoringDoc.getClusterUUID(),
@@ -118,7 +144,6 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
             }
         }
 
-        flush();
         refresh();
 
         for (int i = 0; i < nbIndices; i++) {
@@ -128,18 +153,45 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
         String clusterUUID = client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID();
 
         Collection<MonitoringDoc> results = newIndexStatsCollector().doCollect();
-        assertThat(results, hasSize(nbIndices));
+        // extra document is for the IndicesStatsMonitoringDoc
+        assertThat(results, hasSize(nbIndices + 1));
+
+        // indices stats
+        final Optional<IndicesStatsMonitoringDoc> indicesStatsDoc =
+                results.stream()
+                       .filter(doc -> doc instanceof IndicesStatsMonitoringDoc)
+                       .map(doc -> (IndicesStatsMonitoringDoc)doc)
+                       .findFirst();
+
+        assertThat(indicesStatsDoc.isPresent(), is(true));
+
+        IndicesStatsMonitoringDoc indicesStatsMonitoringDoc = indicesStatsDoc.get();
+        assertThat(indicesStatsMonitoringDoc.getMonitoringId(), equalTo(MonitoredSystem.ES.getSystem()));
+        assertThat(indicesStatsMonitoringDoc.getMonitoringVersion(), equalTo(Version.CURRENT.toString()));
+        assertThat(indicesStatsMonitoringDoc.getClusterUUID(),
+                equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
+        assertThat(indicesStatsMonitoringDoc.getTimestamp(), greaterThan(0L));
+
+        IndicesStatsResponse indicesStats = indicesStatsMonitoringDoc.getIndicesStats();
+        assertNotNull(indicesStats);
+        assertThat(indicesStats.getIndices().keySet(), hasSize(nbIndices));
+
+        // index stats
+        final List<IndexStatsMonitoringDoc> indexStatsDocs =
+                results.stream()
+                       .filter(doc -> doc instanceof IndexStatsMonitoringDoc)
+                       .map(doc -> (IndexStatsMonitoringDoc)doc)
+                       .collect(Collectors.toList());
+
+        assertThat(indexStatsDocs, hasSize(nbIndices));
 
         for (int i = 0; i < nbIndices; i++) {
             String indexName = indexPrefix + i;
             boolean found = false;
 
-            Iterator<MonitoringDoc> it = results.iterator();
+            Iterator<IndexStatsMonitoringDoc> it = indexStatsDocs.iterator();
             while (!found && it.hasNext()) {
-                MonitoringDoc monitoringDoc = it.next();
-                assertThat(monitoringDoc, instanceOf(IndexStatsMonitoringDoc.class));
-
-                IndexStatsMonitoringDoc indexStatsMonitoringDoc = (IndexStatsMonitoringDoc) monitoringDoc;
+                IndexStatsMonitoringDoc indexStatsMonitoringDoc = it.next();
                 IndexStats indexStats = indexStatsMonitoringDoc.getIndexStats();
                 assertNotNull(indexStats);
 

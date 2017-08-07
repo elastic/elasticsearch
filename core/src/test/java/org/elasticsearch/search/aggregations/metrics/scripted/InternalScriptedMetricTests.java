@@ -205,7 +205,11 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             name += randomAlphaOfLength(5);
             break;
         case 1:
-            value = randomValue(valueTypes, 0);
+            Object newValue = randomValue(valueTypes, 0);
+            while (newValue.equals(value)) {
+                newValue = randomValue(valueTypes, 0);
+            }
+            value = newValue;
             break;
         case 2:
             reduceScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, REDUCE_SCRIPT_NAME + "-mutated", Collections.emptyMap());

@@ -2005,7 +2005,7 @@ into:
 --------------------------------------------------
 {
   "foo" : {
-     "bar" : "value"
+    "bar" : "value"
   }
 }
 --------------------------------------------------
@@ -2081,3 +2081,27 @@ pipeline should be used:
 
 The reason for this is that Ingest doesn't know how to automatically cast
 a scalar field to an object field.
+
+[[urldecode-processor]]
+=== URL Decode Processor
+URL-decodes a string
+
+[[urldecode-options]]
+.URL Decode Options
+[options="header"]
+|======
+| Name             | Required  | Default  | Description
+| `field`          | yes       | -        | The field to decode
+| `target_field`   | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
+| `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "urldecode": {
+    "field": "my_url_to_decode"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

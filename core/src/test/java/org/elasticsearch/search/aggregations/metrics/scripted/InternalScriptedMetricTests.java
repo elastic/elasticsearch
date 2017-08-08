@@ -206,7 +206,18 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             break;
         case 1:
             Object newValue = randomValue(valueTypes, 0);
-            while (newValue.equals(value)) {
+            while ((newValue == null && value == null) || newValue.equals(value)) {
+                int levels = randomIntBetween(1, 3);
+                Supplier[] valueTypes = new Supplier[levels];
+                for (int i = 0; i < levels; i++) {
+                    if (i < levels - 1) {
+                        valueTypes[i] = randomFrom(nestedValueSuppliers);
+                    } else {
+                        // the last one needs to be a leaf value, not map or
+                        // list
+                        valueTypes[i] = randomFrom(leafValueSuppliers);
+                    }
+                }
                 newValue = randomValue(valueTypes, 0);
             }
             value = newValue;

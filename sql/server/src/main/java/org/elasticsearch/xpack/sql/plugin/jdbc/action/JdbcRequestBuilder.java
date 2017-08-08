@@ -9,17 +9,19 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 
+import java.io.IOException;
+
 public class JdbcRequestBuilder extends ActionRequestBuilder<JdbcRequest, JdbcResponse, JdbcRequestBuilder> {
 
     public JdbcRequestBuilder(ElasticsearchClient client, JdbcAction action) {
-        this(client, action, null);
+        super(client, action, new JdbcRequest());
     }
 
     public JdbcRequestBuilder(ElasticsearchClient client, JdbcAction action, Request req) {
         super(client, action, new JdbcRequest(req));
     }
 
-    public JdbcRequestBuilder request(Request req) {
+    public JdbcRequestBuilder request(Request req) throws IOException {
         request.request(req);
         return this;
     }

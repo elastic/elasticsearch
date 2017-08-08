@@ -44,31 +44,17 @@ public class JdbcHttpHandler extends BaseRestHandler { // NOCOMMIT these are cal
         try (DataInputStream in = new DataInputStream(request.content().streamInput())) {
             try {
                 return c -> client.executeLocally(JdbcAction.INSTANCE, new JdbcRequest(Proto.INSTANCE.readRequest(in)),
-                                                    wrap(response -> jdbcResponse(c, response), ex -> error(c, ex)));
+                        wrap(response -> c.sendResponse(new BytesRestResponse(OK, TEXT_CONTENT_TYPE, response.bytesReference())),
+                                ex -> error(c, ex)));
 
             } catch (Exception ex) {
                 return badProto("Unknown message");
             }
         }
     }
-    
+
     private static RestChannelConsumer badProto(String message) {
         return c -> c.sendResponse(new BytesRestResponse(BAD_REQUEST, TEXT_CONTENT_TYPE, message));
-    }
-
-    private void jdbcResponse(RestChannel channel, JdbcResponse response) {
-        BytesRestResponse restResponse = null;
-        
-        try {
-            // NOCOMMIT use the real version
-            restResponse = new BytesRestResponse(OK, TEXT_CONTENT_TYPE,
-                    AbstractSqlServer.write(AbstractProto.CURRENT_VERSION, response.response()));
-        } catch (IOException ex) {
-            logger.error("error building jdbc response", ex);
-            restResponse = new BytesRestResponse(INTERNAL_SERVER_ERROR, TEXT_CONTENT_TYPE, StringUtils.EMPTY);
-        }
-
-        channel.sendResponse(restResponse);
     }
 
     private void error(RestChannel channel, Exception ex) {

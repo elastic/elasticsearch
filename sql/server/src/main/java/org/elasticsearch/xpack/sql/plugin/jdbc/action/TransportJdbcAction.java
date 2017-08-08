@@ -18,6 +18,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.plugin.jdbc.JdbcServer;
+import org.elasticsearch.xpack.sql.protocol.shared.Request;
+
+import java.io.IOException;
 
 import static org.elasticsearch.xpack.sql.util.ActionUtils.chain;
 
@@ -36,8 +39,15 @@ public class TransportJdbcAction extends HandledTransportAction<JdbcRequest, Jdb
     }
 
     @Override
-    protected void doExecute(JdbcRequest request, ActionListener<JdbcResponse> listener) {
+    protected void doExecute(JdbcRequest jdbcRequest, ActionListener<JdbcResponse> listener) {
+        final Request request;
+        try {
+            request = jdbcRequest.request();
+        } catch (IOException ex) {
+            listener.onFailure(ex);
+            return;
+        }
         // NOCOMMIT looks like this runs on the netty threadpool which might be bad. If we go async immediately it is ok, but we don't.
-        jdbcServer.handle(request.request(), chain(listener, JdbcResponse::new));
+        jdbcServer.handle(request, chain(listener, JdbcResponse::new));
     }
 }

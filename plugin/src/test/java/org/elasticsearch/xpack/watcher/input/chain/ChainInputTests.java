@@ -55,6 +55,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 import static org.joda.time.DateTimeZone.UTC;
 
 public class ChainInputTests extends ESTestCase {
@@ -165,7 +166,8 @@ public class ChainInputTests extends ESTestCase {
 
         XContentBuilder builder = jsonBuilder();
         chainedResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(builder.bytes().utf8ToString(), containsString("\"reason\":\"ElasticsearchException[foo]\""));
+        assertThat(builder.bytes().utf8ToString(), containsString("\"type\":\"exception\""));
+        assertThat(builder.bytes().utf8ToString(), containsString("\"reason\":\"foo\""));
     }
 
     /* https://github.com/elastic/x-plugins/issues/3736

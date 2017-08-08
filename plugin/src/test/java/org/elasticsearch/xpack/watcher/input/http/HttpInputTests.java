@@ -10,7 +10,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -33,6 +36,7 @@ import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.InputBuilders;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
+import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -42,6 +46,7 @@ import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -60,7 +65,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -325,6 +332,32 @@ public class HttpInputTests extends ESTestCase {
         assertThat(data.get(1).get("foo"), is("second"));
     }
 
+    public void testExceptionCase() throws Exception {
+        when(httpClient.execute(any(HttpRequest.class))).thenThrow(new IOException("could not connect"));
+
+        HttpRequestTemplate.Builder request = HttpRequestTemplate.builder("localhost", 8080);
+        HttpInput httpInput = InputBuilders.httpInput(request.build()).build();
+        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
+
+        WatchExecutionContext ctx = createWatchExecutionContext();
+        HttpInput.Result result = input.execute(ctx, new Payload.Simple());
+
+        assertThat(result.getException(), is(notNullValue()));
+        assertThat(result.getException(), is(instanceOf(IOException.class)));
+        assertThat(result.getException().getMessage(), is("could not connect"));
+
+        try (XContentBuilder builder = jsonBuilder()) {
+            result.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            BytesReference bytes = builder.bytes();
+            try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, bytes)) {
+                Map<String, Object> data = parser.map();
+                String reason = ObjectPath.eval("error.reason", data);
+                assertThat(reason, is("could not connect"));
+                String type = ObjectPath.eval("error.type", data);
+                assertThat(type, is("i_o_exception"));
+            }
+        }
+    }
 
     private WatchExecutionContext createWatchExecutionContext() {
         Watch watch = new Watch("test-watch",

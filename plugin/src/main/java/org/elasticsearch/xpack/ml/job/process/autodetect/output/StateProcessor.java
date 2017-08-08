@@ -73,8 +73,11 @@ public class StateProcessor extends AbstractComponent {
                 // No more zero bytes in this block
                 break;
             }
-            // No validation - assume the native process has formatted the state correctly
-            persist(jobId, bytesRef.slice(splitFrom, nextZeroByte - splitFrom));
+            // Ignore completely empty chunks
+            if (nextZeroByte > splitFrom) {
+                // No validation - assume the native process has formatted the state correctly
+                persist(jobId, bytesRef.slice(splitFrom, nextZeroByte - splitFrom));
+            }
             splitFrom = nextZeroByte + 1;
         }
         if (splitFrom >= bytesRef.length()) {

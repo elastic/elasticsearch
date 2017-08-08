@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.input;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -20,27 +21,31 @@ public interface Input extends ToXContentObject {
 
     abstract class Result implements ToXContentObject {
 
+        private static final ParseField STATUS = new ParseField("status");
+        private static final ParseField TYPE = new ParseField("type");
+        private static final ParseField PAYLOAD = new ParseField("payload");
+
         public enum Status {
             SUCCESS, FAILURE
         }
 
         protected final String type;
         protected final Status status;
-        private final String reason;
         private final Payload payload;
+        @Nullable private final Exception exception;
 
         protected Result(String type, Payload payload) {
             this.status = Status.SUCCESS;
             this.type = type;
             this.payload = payload;
-            this.reason = null;
+            this.exception = null;
         }
 
         protected Result(String type, Exception e) {
             this.status = Status.FAILURE;
             this.type = type;
-            this.reason = ExceptionsHelper.detailedMessage(e);
             this.payload = Payload.EMPTY;
+            this.exception = e;
         }
 
         public String type() {
@@ -55,24 +60,24 @@ public interface Input extends ToXContentObject {
             return payload;
         }
 
-        public String reason() {
+        public Exception getException() {
             assert status == Status.FAILURE;
-            return reason;
+            return exception;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(Field.TYPE.getPreferredName(), type);
-            builder.field(Field.STATUS.getPreferredName(), status.name().toLowerCase(Locale.ROOT));
+            builder.field(TYPE.getPreferredName(), type);
+            builder.field(STATUS.getPreferredName(), status.name().toLowerCase(Locale.ROOT));
             switch (status) {
                 case SUCCESS:
                     assert payload != null;
-                    builder.field(Field.PAYLOAD.getPreferredName(), payload, params);
+                    builder.field(PAYLOAD.getPreferredName(), payload, params);
                     break;
                 case FAILURE:
-                    assert reason != null;
-                    builder.field(Field.REASON.getPreferredName(), reason);
+                    assert exception != null;
+                    ElasticsearchException.generateFailureXContent(builder, params, exception, true);
                     break;
                 default:
                     assert false;
@@ -86,12 +91,5 @@ public interface Input extends ToXContentObject {
 
     interface Builder<I extends Input> {
         I build();
-    }
-
-    interface Field {
-        ParseField STATUS = new ParseField("status");
-        ParseField TYPE = new ParseField("type");
-        ParseField PAYLOAD = new ParseField("payload");
-        ParseField REASON = new ParseField("reason");
     }
 }

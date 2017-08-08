@@ -287,7 +287,7 @@ public class IndexAction implements Action {
         }
     }
 
-    interface Field extends Action.Field {
+    interface Field {
         ParseField INDEX = new ParseField("index");
         ParseField DOC_TYPE = new ParseField("doc_type");
         ParseField DOC_ID = new ParseField("doc_id");

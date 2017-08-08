@@ -41,11 +41,10 @@ public class ExecutableWebhookAction extends ExecutableAction<WebhookAction> {
 
         HttpResponse response = httpClient.execute(request);
 
-        int status = response.status();
-        if (status >= 400) {
-            logger.warn("received http status [{}] when connecting to watch action [{}/{}/{}]", status, ctx.watch().id(), type(), actionId);
+        if (response.status() >= 400) {
             return new WebhookAction.Result.Failure(request, response);
+        } else {
+            return new WebhookAction.Result.Success(request, response);
         }
-        return new WebhookAction.Result.Success(request, response);
     }
 }

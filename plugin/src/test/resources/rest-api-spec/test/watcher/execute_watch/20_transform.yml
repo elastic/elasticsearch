@@ -192,4 +192,5 @@ setup:
   - match: { watch_record.trigger_event.type: "manual" }
   - match: { watch_record.state: "executed" }
   - match: { watch_record.result.transform.status: "failure" }
-  - match: { watch_record.result.transform.reason: "ParsingException[no [query] registered for [does_not_exist]]" }
+  - match: { watch_record.result.transform.reason: "no [query] registered for [does_not_exist]" }
+  - is_true: watch_record.result.transform.error

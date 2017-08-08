@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.annotations.Network;
@@ -201,7 +202,10 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
         for (SentMessages.SentMessage message : messages) {
             logger.info("Request: [{}]", message.getRequest());
             logger.info("Response: [{}]", message.getResponse());
-            assertThat("Expected no failures, but got [" + message.getFailureReason() + "]", message.successful(), is(true));
+            if (message.getException() != null) {
+                logger.info("Exception stacktrace: [{}]", ExceptionsHelper.stackTrace(message.getException()));
+            }
+            assertThat(message.isSuccess(), is(true));
             assertThat(message.getRequest(), notNullValue());
             assertThat(message.getResponse(), notNullValue());
             assertThat(message.getResponse().status(), lessThan(300));

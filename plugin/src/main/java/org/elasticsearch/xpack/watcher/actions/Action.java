@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -58,6 +59,8 @@ public interface Action extends ToXContentObject {
          */
         public static class StoppedResult extends Result {
 
+            private static ParseField REASON = new ParseField("reason");
+
             private final String reason;
 
             protected StoppedResult(String type, Status status, String reason, Object... args) {
@@ -71,7 +74,7 @@ public interface Action extends ToXContentObject {
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(Field.REASON.getPreferredName(), reason);
+                return builder.field(REASON.getPreferredName(), reason);
             }
 
         }
@@ -85,7 +88,26 @@ public interface Action extends ToXContentObject {
             public Failure(String type, String reason, Object... args) {
                 super(type, Status.FAILURE, reason, args);
             }
+        }
 
+        public static class FailureWithException extends Result {
+
+            private final Exception exception;
+
+            public FailureWithException(String type, Exception exception) {
+                super(type, Status.FAILURE);
+                this.exception = exception;
+            }
+
+            public Exception getException() {
+                return exception;
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                ElasticsearchException.generateFailureXContent(builder, params, exception, true);
+                return builder;
+            }
         }
 
         /**
@@ -126,9 +148,5 @@ public interface Action extends ToXContentObject {
     interface Builder<A extends Action> {
 
         A build();
-    }
-
-    interface Field {
-        ParseField REASON = new ParseField("reason");
     }
 }

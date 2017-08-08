@@ -31,6 +31,16 @@
           }
         },
         {
+          "disabled_exception_fields": {
+            "path_match": "result\\.(input(\\..+)*|(transform(\\..+)*)|(actions\\.transform(\\..+)*)|actions)\\.error",
+            "match_pattern": "regex",
+            "mapping": {
+              "type": "object",
+              "enabled": false
+            }
+          }
+        },
+        {
           "disabled_jira_custom_fields": {
             "path_match":   "result.actions.jira.fields.customfield_*",
             "mapping": {

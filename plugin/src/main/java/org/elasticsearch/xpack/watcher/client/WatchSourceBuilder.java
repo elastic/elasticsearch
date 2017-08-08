@@ -195,7 +195,7 @@ public class WatchSourceBuilder extends ToXContentToBytes implements ToXContent 
                         .endObject();
             }
             if (transform != null) {
-                builder.startObject(Transform.Field.TRANSFORM.getPreferredName())
+                builder.startObject(Transform.TRANSFORM.getPreferredName())
                         .field(transform.type(), transform, params)
                         .endObject();
             }

@@ -694,11 +694,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
         public void setGroups(List<String> groups) {
             this.groups = groups == null ? Collections.emptyList() : groups;
-            for (String group : this.groups) {
-                if (MlStrings.isValidId(group) == false) {
-                    throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_GROUP, group));
-                }
-            }
         }
 
         public Date getCreateTime() {
@@ -994,6 +989,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MAX_JOB_ID_LENGTH));
             }
 
+            validateGroups();
+
             // Results index name not specified in user input means use the default, so is acceptable in this validation
             if (!Strings.isNullOrEmpty(resultsIndexName) && !MlStrings.isValidId(resultsIndexName)) {
                 throw new IllegalArgumentException(
@@ -1001,6 +998,14 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             }
 
             // Creation time is NOT required in user input, hence validated only on build
+        }
+
+        private void validateGroups() {
+            for (String group : this.groups) {
+                if (MlStrings.isValidId(group) == false) {
+                    throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_GROUP, group));
+                }
+            }
         }
 
         /**

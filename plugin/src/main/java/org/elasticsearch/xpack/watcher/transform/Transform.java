@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.transform;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -18,9 +18,16 @@ import java.util.Locale;
 
 public interface Transform extends ToXContent {
 
+    ParseField TRANSFORM = new ParseField("transform");
+
     String type();
 
     abstract class Result implements ToXContentObject {
+
+        private static final ParseField TYPE = new ParseField("type");
+        private static final ParseField STATUS = new ParseField("status");
+        private static final ParseField PAYLOAD = new ParseField("payload");
+        private static final ParseField REASON = new ParseField("reason");
 
         public enum Status {
             SUCCESS, FAILURE
@@ -30,23 +37,30 @@ public interface Transform extends ToXContent {
         protected final Status status;
         @Nullable protected final Payload payload;
         @Nullable protected final String reason;
+        @Nullable protected final Exception exception;
 
         public Result(String type, Payload payload) {
             this.type = type;
             this.status = Status.SUCCESS;
             this.payload = payload;
             this.reason = null;
+            this.exception = null;
+        }
+
+        public Result(String type, String reason) {
+            this.type = type;
+            this.status = Status.FAILURE;
+            this.reason = reason;
+            this.payload = null;
+            this.exception = null;
         }
 
         public Result(String type, Exception e) {
-            this(type, ExceptionsHelper.detailedMessage(e));
-        }
-
-        public Result(String type, String errorMessage) {
             this.type = type;
             this.status = Status.FAILURE;
-            this.reason = errorMessage;
+            this.reason = e.getMessage();
             this.payload = null;
+            this.exception = e;
         }
 
         public String type() {
@@ -70,16 +84,17 @@ public interface Transform extends ToXContent {
         @Override
         public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(Field.TYPE.getPreferredName(), type);
-            builder.field(Field.STATUS.getPreferredName(), status.name().toLowerCase(Locale.ROOT));
+            builder.field(TYPE.getPreferredName(), type);
+            builder.field(STATUS.getPreferredName(), status.name().toLowerCase(Locale.ROOT));
             switch (status) {
                 case SUCCESS:
-                    assert reason == null;
-                    builder.field(Field.PAYLOAD.getPreferredName(), payload, params);
+                    assert exception == null;
+                    builder.field(PAYLOAD.getPreferredName(), payload, params);
                     break;
                 case FAILURE:
                     assert payload == null;
-                    builder.field(Field.REASON.getPreferredName(), reason);
+                    builder.field(REASON.getPreferredName(), reason);
+                    ElasticsearchException.generateFailureXContent(builder, params, exception, true);
                     break;
                 default:
                     assert false;
@@ -95,15 +110,5 @@ public interface Transform extends ToXContent {
     interface Builder<T extends Transform> {
 
         T build();
-    }
-
-    interface Field {
-        ParseField TRANSFORM = new ParseField("transform");
-
-        ParseField TYPE = new ParseField("type");
-        ParseField STATUS = new ParseField("status");
-        ParseField PAYLOAD = new ParseField("payload");
-        ParseField REASON = new ParseField("reason");
-
     }
 }

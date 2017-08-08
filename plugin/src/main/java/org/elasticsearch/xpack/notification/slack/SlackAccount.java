@@ -111,7 +111,7 @@ public class SlackAccount {
             return SentMessages.SentMessage.responded(to, message, request, response);
         } catch (Exception e) {
             logger.error("failed to execute slack api http request", e);
-            return SentMessages.SentMessage.error(to, message, ExceptionsHelper.detailedMessage(e));
+            return SentMessages.SentMessage.error(to, message, e);
         }
     }
 

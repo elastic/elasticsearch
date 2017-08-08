@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.actions;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
@@ -138,9 +137,7 @@ public class ActionWrapper implements ToXContentObject {
                 action.logger().error(
                         (Supplier<?>) () -> new ParameterizedMessage(
                                 "failed to execute action [{}/{}]. failed to transform payload.", ctx.watch().id(), id), e);
-                return new ActionWrapper.Result(id, conditionResult, null,
-                                                new Action.Result.Failure(action.type(), "Failed to transform payload. error: {}",
-                                                    ExceptionsHelper.detailedMessage(e)));
+                return new ActionWrapper.Result(id, conditionResult, null, new Action.Result.FailureWithException(action.type(), e));
             }
         }
         try {
@@ -149,7 +146,7 @@ public class ActionWrapper implements ToXContentObject {
         } catch (Exception e) {
             action.logger().error(
                     (Supplier<?>) () -> new ParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), id), e);
-            return new ActionWrapper.Result(id, new Action.Result.Failure(action.type(), ExceptionsHelper.detailedMessage(e)));
+            return new ActionWrapper.Result(id, new Action.Result.FailureWithException(action.type(), e));
         }
     }
 
@@ -160,19 +157,15 @@ public class ActionWrapper implements ToXContentObject {
 
         ActionWrapper that = (ActionWrapper) o;
 
-        if (!id.equals(that.id)) return false;
-        if (condition != null ? !condition.equals(that.condition) : that.condition != null) return false;
-        if (transform != null ? !transform.equals(that.transform) : that.transform != null) return false;
-        return action.equals(that.action);
+        return Objects.equals(id, that.id) &&
+                Objects.equals(condition, that.condition) &&
+                Objects.equals(transform, that.transform) &&
+                Objects.equals(action, that.action);
     }
 
     @Override
     public int hashCode() {
-        int result = id.hashCode();
-        result = 31 * result + (condition != null ? condition.hashCode() : 0);
-        result = 31 * result + (transform != null ? transform.hashCode() : 0);
-        result = 31 * result + action.hashCode();
-        return result;
+        return Objects.hash(id, condition, transform, action);
     }
 
     @Override
@@ -189,7 +182,7 @@ public class ActionWrapper implements ToXContentObject {
                     .endObject();
         }
         if (transform != null) {
-            builder.startObject(Transform.Field.TRANSFORM.getPreferredName())
+            builder.startObject(Transform.TRANSFORM.getPreferredName())
                     .field(transform.type(), transform, params)
                     .endObject();
         }
@@ -215,7 +208,7 @@ public class ActionWrapper implements ToXContentObject {
             } else {
                 if (Watch.Field.CONDITION.match(currentFieldName)) {
                     condition = actionRegistry.getConditionRegistry().parseExecutable(watchId, parser);
-                } else if (Transform.Field.TRANSFORM.match(currentFieldName)) {
+                } else if (Transform.TRANSFORM.match(currentFieldName)) {
                     transform = actionRegistry.getTransformRegistry().parse(watchId, parser);
                 } else if (Throttler.Field.THROTTLE_PERIOD.match(currentFieldName)) {
                     throttlePeriod = timeValueMillis(parser.longValue());
@@ -309,7 +302,7 @@ public class ActionWrapper implements ToXContentObject {
                 builder.field(Watch.Field.CONDITION.getPreferredName(), condition, params);
             }
             if (transform != null) {
-                builder.field(Transform.Field.TRANSFORM.getPreferredName(), transform, params);
+                builder.field(Transform.TRANSFORM.getPreferredName(), transform, params);
             }
             action.toXContent(builder, params);
             return builder.endObject();

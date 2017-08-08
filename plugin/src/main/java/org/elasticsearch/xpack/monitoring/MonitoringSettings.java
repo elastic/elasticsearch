@@ -58,12 +58,6 @@ public class MonitoringSettings extends AbstractComponent {
             timeSetting(collectionKey("index.stats.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
 
     /**
-     * Timeout value when collecting total indices statistics (default to 10s)
-     */
-    public static final Setting<TimeValue> INDICES_STATS_TIMEOUT =
-            timeSetting(collectionKey("indices.stats.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
-
-    /**
      * List of indices names whose stats will be exported (default to all indices)
      */
     public static final Setting<List<String>> INDICES =
@@ -127,7 +121,6 @@ public class MonitoringSettings extends AbstractComponent {
                 INTERVAL,
                 INDEX_RECOVERY_TIMEOUT,
                 INDEX_STATS_TIMEOUT,
-                INDICES_STATS_TIMEOUT,
                 INDEX_RECOVERY_ACTIVE_ONLY,
                 CLUSTER_STATE_TIMEOUT,
                 CLUSTER_STATS_TIMEOUT,
@@ -142,7 +135,6 @@ public class MonitoringSettings extends AbstractComponent {
 
 
     private volatile TimeValue indexStatsTimeout;
-    private volatile TimeValue indicesStatsTimeout;
     private volatile TimeValue clusterStateTimeout;
     private volatile TimeValue clusterStatsTimeout;
     private volatile TimeValue recoveryTimeout;
@@ -155,8 +147,6 @@ public class MonitoringSettings extends AbstractComponent {
 
         setIndexStatsTimeout(INDEX_STATS_TIMEOUT.get(settings));
         clusterSettings.addSettingsUpdateConsumer(INDEX_STATS_TIMEOUT, this::setIndexStatsTimeout);
-        setIndicesStatsTimeout(INDICES_STATS_TIMEOUT.get(settings));
-        clusterSettings.addSettingsUpdateConsumer(INDICES_STATS_TIMEOUT, this::setIndicesStatsTimeout);
         setIndices(INDICES.get(settings));
         clusterSettings.addSettingsUpdateConsumer(INDICES, this::setIndices);
         setClusterStateTimeout(CLUSTER_STATE_TIMEOUT.get(settings));
@@ -174,8 +164,6 @@ public class MonitoringSettings extends AbstractComponent {
     public TimeValue indexStatsTimeout() {
         return indexStatsTimeout;
     }
-
-    public TimeValue indicesStatsTimeout() { return indicesStatsTimeout; }
 
     public String[] indices() {
         return indices;
@@ -203,10 +191,6 @@ public class MonitoringSettings extends AbstractComponent {
 
     private void setIndexStatsTimeout(TimeValue indexStatsTimeout) {
         this.indexStatsTimeout = indexStatsTimeout;
-    }
-
-    private void setIndicesStatsTimeout(TimeValue indicesStatsTimeout) {
-        this.indicesStatsTimeout = indicesStatsTimeout;
     }
 
     private void setClusterStateTimeout(TimeValue clusterStateTimeout) {

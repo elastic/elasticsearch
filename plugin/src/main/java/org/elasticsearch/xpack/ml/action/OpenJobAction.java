@@ -42,7 +42,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -566,14 +565,20 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
         private final AutodetectProcessManager autodetectProcessManager;
 
-        private final int maxNumberOfOpenJobs;
+        /**
+         * The maximum number of open jobs can be different on each node.  However, nodes on older versions
+         * won't add their setting to the cluster state, so for backwards compatibility with these nodes we
+         * assume the older node's setting is the same as that of the node running this code.
+         * TODO: remove this member in 7.0
+         */
+        private final int fallbackMaxNumberOfOpenJobs;
         private volatile int maxConcurrentJobAllocations;
 
         public OpenJobPersistentTasksExecutor(Settings settings, ClusterService clusterService,
                                               AutodetectProcessManager autodetectProcessManager) {
             super(settings, TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
             this.autodetectProcessManager = autodetectProcessManager;
-            this.maxNumberOfOpenJobs = AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.get(settings);
+            this.fallbackMaxNumberOfOpenJobs = AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.get(settings);
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
             clusterService.getClusterSettings()
                     .addSettingsUpdateConsumer(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, this::setMaxConcurrentJobAllocations);
@@ -581,7 +586,8 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
         @Override
         public Assignment getAssignment(JobParams params, ClusterState clusterState) {
-            return selectLeastLoadedMlNode(params.getJobId(), clusterState, maxConcurrentJobAllocations, maxNumberOfOpenJobs, logger);
+            return selectLeastLoadedMlNode(params.getJobId(), clusterState, maxConcurrentJobAllocations, fallbackMaxNumberOfOpenJobs,
+                    logger);
         }
 
         @Override
@@ -591,7 +597,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
             OpenJobAction.validate(params.getJobId(), mlMetadata);
             Assignment assignment = selectLeastLoadedMlNode(params.getJobId(), clusterState, maxConcurrentJobAllocations,
-                    maxNumberOfOpenJobs, logger);
+                    fallbackMaxNumberOfOpenJobs, logger);
             if (assignment.getExecutorNode() == null) {
                 String msg = "Could not open job because no suitable nodes were found, allocation explanation ["
                         + assignment.getExplanation() + "]";
@@ -649,7 +655,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
     }
 
     static Assignment selectLeastLoadedMlNode(String jobId, ClusterState clusterState, int maxConcurrentJobAllocations,
-                                              long maxNumberOfOpenJobs, Logger logger) {
+                                              int fallbackMaxNumberOfOpenJobs, Logger logger) {
         List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(jobId, clusterState);
         if (unavailableIndices.size() != 0) {
             String reason = "Not opening job [" + jobId + "], because not all primary shards are active for the following indices [" +
@@ -716,6 +722,20 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                 continue;
             }
 
+            String maxNumberOfOpenJobsStr = nodeAttributes.get(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR);
+            int maxNumberOfOpenJobs = fallbackMaxNumberOfOpenJobs;
+            // TODO: remove leniency and reject the node if the attribute is null in 7.0
+            if (maxNumberOfOpenJobsStr != null) {
+                try {
+                    maxNumberOfOpenJobs = Integer.parseInt(maxNumberOfOpenJobsStr);
+                } catch (NumberFormatException e) {
+                    String reason = "Not opening job [" + jobId + "] on node [" + node + "], because " +
+                            MachineLearning.MAX_OPEN_JOBS_NODE_ATTR + " attribute [" + maxNumberOfOpenJobsStr + "] is not an integer";
+                    logger.trace(reason);
+                    reasons.add(reason);
+                    continue;
+                }
+            }
             long available = maxNumberOfOpenJobs - numberOfAssignedJobs;
             if (available == 0) {
                 String reason = "Not opening job [" + jobId + "] on node [" + node + "], because this node is full. " +

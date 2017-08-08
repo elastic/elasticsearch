@@ -180,8 +180,12 @@ public final class Whitelist {
             this.ptype = Objects.requireNonNull(ptype);
         }
     }
-    
-    public static Whitelist loadFromResourceFiles(ClassLoader loader, Map<Class<?>, List<String>> resourcesToFiles) {
+
+    /**
+     * Loads a white-list from a set of resource files given a specific {@link ClassLoader} where the specified
+     * Painless structs, methods, and fields can
+     */
+    public static Whitelist loadFromResourceFiles(Map<Class<?>, List<String>> resourcesToFiles) {
         Map<String, Class<?>> namesToClasses = new HashMap<>();
         Set<String> pdynamics = new HashSet<>();
 
@@ -254,7 +258,7 @@ public final class Whitelist {
                             } else if ("double".equals(jname)) {
                                 jclass = double.class;
                             } else {
-                                jclass = Class.forName(jname, true, loader);
+                                jclass = Class.forName(jname, true, resource.getClassLoader());
                             }
 
                             if (pdynamics.contains(pname)) {
@@ -278,79 +282,79 @@ public final class Whitelist {
             }
         }
 
-        Function<String, Class<?>> getClassFromName = pname -> {
-            int dimensions = 0;
-            int index = pname.indexOf('[');
-            String pnonarray = pname;
-
-            if (index != -1) {
-                int length = pname.length();
-
-                while (index < length) {
-                    if (pname.charAt(index) == '[' && ++index < length && pname.charAt(index++) == ']') {
-                        ++dimensions;
-                    } else {
-                        throw new IllegalArgumentException("invalid struct/dynamic name [" + pname + "]");
-                    }
-                }
-
-                pnonarray = pname.substring(0, pname.length() - dimensions*2);
-            }
-
-            Class<?> clazz = pdynamics.contains(pnonarray) ? Object.class : namesToClasses.get(pnonarray);
-
-            if (clazz == null) {
-                throw new IllegalArgumentException("invalid struct/dynamic name [" + pname + "]");
-            }
-
-            if (dimensions > 0) {
-                pnonarray = clazz.getName();
-
-                if ("boolean".equals(pnonarray)) {
-                    pnonarray = "Z";
-                } else if ("byte".equals(pnonarray)) {
-                    pnonarray = "B";
-                } else if ("short".equals(pnonarray)) {
-                    pnonarray = "S";
-                } else if ("char".equals(pnonarray)) {
-                    pnonarray = "C";
-                } else if ("int".equals(pnonarray)) {
-                    pnonarray = "I";
-                } else if ("long".equals(pnonarray)) {
-                    pnonarray = "J";
-                } else if ("float".equals(pnonarray)) {
-                    pnonarray = "F";
-                } else if ("double".equals(pnonarray)) {
-                    pnonarray = "D";
-                } else if ("void".equals(pnonarray)) {
-                    pnonarray = "V";
-                } else {
-                    pnonarray = "L" + pnonarray + ";";
-                }
-
-                StringBuilder jarray = new StringBuilder();
-
-                for (int dimension = 0; dimension < dimensions; ++dimension) {
-                    jarray.append('[');
-                }
-
-                jarray.append(pnonarray);
-
-                try {
-                    clazz = Class.forName(jarray.toString(), true, loader);
-                } catch (ClassNotFoundException cnfe) {
-                    throw new IllegalArgumentException("invalid struct/dynamic name [" + pname + "]", cnfe);
-                }
-            }
-
-            return clazz;
-        };
-
         List<WStruct> wstructs = new ArrayList<>();
 
         for (Entry<Class<?>, List<String>> resourceToFiles : resourcesToFiles.entrySet()) {
             Class<?> resource = resourceToFiles.getKey();
             List<String> files = resourceToFiles.getValue();
+
+            Function<String, Class<?>> getClassFromName = pname -> {
+                int dimensions = 0;
+                int index = pname.indexOf('[');
+                String pnonarray = pname;
+
+                if (index != -1) {
+                    int length = pname.length();
+
+                    while (index < length) {
+                        if (pname.charAt(index) == '[' && ++index < length && pname.charAt(index++) == ']') {
+                            ++dimensions;
+                        } else {
+                            throw new IllegalArgumentException("invalid struct/dynamic name [" + pname + "]");
+                        }
+                    }
+
+                    pnonarray = pname.substring(0, pname.length() - dimensions*2);
+                }
+
+                Class<?> clazz = pdynamics.contains(pnonarray) ? Object.class : namesToClasses.get(pnonarray);
+
+                if (clazz == null) {
+                    throw new IllegalArgumentException("invalid struct/dynamic name [" + pname + "]");
+                }
+
+                if (dimensions > 0) {
+                    pnonarray = clazz.getName();
+
+                    if ("boolean".equals(pnonarray)) {
+                        pnonarray = "Z";
+                    } else if ("byte".equals(pnonarray)) {
+                        pnonarray = "B";
+                    } else if ("short".equals(pnonarray)) {
+                        pnonarray = "S";
+                    } else if ("char".equals(pnonarray)) {
+                        pnonarray = "C";
+                    } else if ("int".equals(pnonarray)) {
+                        pnonarray = "I";
+                    } else if ("long".equals(pnonarray)) {
+                        pnonarray = "J";
+                    } else if ("float".equals(pnonarray)) {
+                        pnonarray = "F";
+                    } else if ("double".equals(pnonarray)) {
+                        pnonarray = "D";
+                    } else if ("void".equals(pnonarray)) {
+                        pnonarray = "V";
+                    } else {
+                        pnonarray = "L" + pnonarray + ";";
+                    }
+
+                    StringBuilder jarray = new StringBuilder();
+
+                    for (int dimension = 0; dimension < dimensions; ++dimension) {
+                        jarray.append('[');
+                    }
+
+                    jarray.append(pnonarray);
+
+                    try {
+                        clazz = Class.forName(jarray.toString(), true, resource.getClassLoader());
+                    } catch (ClassNotFoundException cnfe) {
+                        throw new IllegalArgumentException("invalid struct/dynamic name [" + pname + "]", cnfe);
+                    }
+                }
+
+                return clazz;
+            };
 
             for (String file : files) {
                 String line;
@@ -459,7 +463,7 @@ public final class Whitelist {
                                     methodname = elements[2];
 
                                     try {
-                                        augmented = Class.forName(elements[1], true, loader);
+                                        augmented = Class.forName(elements[1], true, resource.getClassLoader());
                                     } catch (ClassNotFoundException cnfe) {
                                         throw new IllegalArgumentException(
                                             "invalid method definition: augmented class [" + elements[1] + "] does not exist", cnfe);

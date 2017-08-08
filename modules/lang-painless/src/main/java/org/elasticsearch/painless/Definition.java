@@ -530,28 +530,28 @@ public final class Definition {
         }
 
         for (WStruct wstruct : whitelist.wstructs) {
-            addStruct(wstruct.pname, wstruct.jclass);
+            addStruct(wstruct.pName, wstruct.jclass);
         }
 
         for (WStruct wstruct : whitelist.wstructs) {
             for (WConstructor wconstructor : wstruct.wconstructors) {
-                addConstructorInternal(wstruct.pname, wconstructor);
+                addConstructorInternal(wstruct.pName, wconstructor);
             }
 
             for (WMethod wmethod : wstruct.wmethods) {
-                addMethodInternal(wstruct.pname, wmethod);
+                addMethodInternal(wstruct.pName, wmethod);
             }
 
             for (WField wfield : wstruct.wfields) {
-                addFieldInternal(wstruct.pname, wfield);
+                addFieldInternal(wstruct.pName, wfield);
             }
         }
 
         for (WStruct wstruct : whitelist.wstructs) {
-            copyStruct(wstruct.pname, wstruct.psupers);
+            copyStruct(wstruct.pName, wstruct.psupers);
 
             if (wstruct.jclass.isInterface()) {
-                copyStruct(wstruct.pname, Collections.singletonList("Object"));
+                copyStruct(wstruct.pName, Collections.singletonList("Object"));
             }
         }
 
@@ -615,7 +615,7 @@ public final class Definition {
 
         final int modifiers = wconstructor.jconstructor.getModifiers();
         final Method constructor = new Method("<init>", owner, null, returnType, Arrays.asList(parameters), asm, modifiers, handle);
-        owner.constructors.put(new MethodKey("<init>", wconstructor.jconstructor.getParameterCount()), constructor);
+        owner.constructors.put(new MethodKey("<init>", wconstructor.pparameterTypes.size()), constructor);
     }
 
     private void addMethodInternal(String struct, WMethod wmethod) {
@@ -626,7 +626,7 @@ public final class Definition {
                 " for method [" + wmethod.jmethod.getName() + "].");
         }
 
-        MethodKey methodKey = new MethodKey(wmethod.jmethod.getName(), wmethod.jmethod.getParameterCount());
+        MethodKey methodKey = new MethodKey(wmethod.jmethod.getName(), wmethod.pparameterTypes.size());
 
         if (owner.staticMethods.containsKey(methodKey) || owner.methods.containsKey(methodKey)) {
             throw new IllegalArgumentException(

@@ -72,33 +72,33 @@ public final class Whitelist {
     static class WStruct {
 
         /** The Painless name of this struct which will also be the name of a type in a Painless script.  */
-        final String pname;
+        final String pStructName;
 
         /** The Java class this struct represents. */
-        final Class<?> jclass;
+        final Class<?> jClass;
 
         /** The {@link List} of Painless structs, as names, this struct extends. */
-        final List<String> psupers;
+        final List<String> pSuperStructNames;
 
         /** The {@link List} of white-listed constructors ({@link WConstructor}s) available to this struct. */
-        final List<WConstructor> wconstructors;
+        final List<WConstructor> wConstructors;
 
         /** The {@link List} of white-listed methods ({@link WMethod}s) available to this struct. */
-        final List<WMethod> wmethods;
+        final List<WMethod> wMethods;
 
         /** The {@link List} of white-listed fields ({@link WField}s) available to this struct. */
-        final List<WField> wfields;
+        final List<WField> wFields;
 
         /** Standard constructor. All values must be not {@code null}. */
-        WStruct(String pname, Class<?> jclass, List<String> psupers,
-                       List<WConstructor> wconstructors, List<WMethod> wmethods, List<WField> wfields) {
-            this.pname = Objects.requireNonNull(pname);
-            this.jclass = Objects.requireNonNull(jclass);
-            this.psupers = Collections.unmodifiableList(Objects.requireNonNull(psupers));
+        private WStruct(String pStructName, Class<?> jClass, List<String> pSuperStructNames,
+                       List<WConstructor> wConstructors, List<WMethod> wMethods, List<WField> wFields) {
+            this.pStructName = Objects.requireNonNull(pStructName);
+            this.jClass = Objects.requireNonNull(jClass);
+            this.pSuperStructNames = Collections.unmodifiableList(Objects.requireNonNull(pSuperStructNames));
 
-            this.wconstructors = Collections.unmodifiableList(Objects.requireNonNull(wconstructors));
-            this.wmethods = Collections.unmodifiableList(Objects.requireNonNull(wmethods));
-            this.wfields = Collections.unmodifiableList(Objects.requireNonNull(wfields));
+            this.wConstructors = Collections.unmodifiableList(Objects.requireNonNull(wConstructors));
+            this.wMethods = Collections.unmodifiableList(Objects.requireNonNull(wMethods));
+            this.wFields = Collections.unmodifiableList(Objects.requireNonNull(wFields));
         }
     }
 
@@ -108,18 +108,18 @@ public final class Whitelist {
      * constructors for Java classes are using the 'new' keyword.  Painless structs may have multiple
      * constructors as long as they comply with arity overloading described for {@link WStruct}.
      */
-    public static class WConstructor {
+    static class WConstructor {
 
         /** The Java reflection {@link Constructor} available as a Painless struct constructor. */
-        public final Constructor<?> jconstructor;
+        final Constructor<?> jConstructor;
 
         /** The {@link List} of this constructor's parameter types as Painless struct names. */
-        public final List<String> pparameterTypes;
+        final List<String> pParameterTypeNames;
 
         /** Standard constructor. All values must be not {@code null}. */
-        public WConstructor(Constructor<?> constructor, List<String> parameterTypes) {
-            this.jconstructor = Objects.requireNonNull(constructor);
-            this.pparameterTypes = Collections.unmodifiableList(Objects.requireNonNull(parameterTypes));
+        private WConstructor(Constructor<?> jConstructor, List<String> pParameterTypeNames) {
+            this.jConstructor = Objects.requireNonNull(jConstructor);
+            this.pParameterTypeNames = Collections.unmodifiableList(Objects.requireNonNull(pParameterTypeNames));
         }
     }
 
@@ -135,29 +135,29 @@ public final class Whitelist {
      * represented by the struct.  Note that the augmented method's parent Java class does not need to be
      * white-listed.
      */
-    public static class WMethod {
+    static class WMethod {
 
         /** The Java reflection {@link Method} available as a Painless struct method. */
-        public final Method jmethod;
+        final Method jMethod;
 
         /** The Java {@link Class} owner for an augmented method.  If the method is not augmented this should be {@code null}. */
-        public final Class<?> jaugmented;
+        final Class<?> jAugmentedClass;
 
-         /** The return type as a Painless struct name. */
-        public final String preturnType;
+        /** The return type as a Painless struct name. */
+        final String pReturnTypeName;
 
         /** The {@link List} of this constructor's parameter types as Painless struct names. */
-        public final List<String> pparameterTypes;
+        final List<String> pParameterTypeNames;
 
         /**
-         * Standard constructor. All values must be not {@code null} with the exception of augmented.
-         * Augmented will be {@code null} unless the method is augmented as described in the class documentation.
+         * Standard constructor. All values must be not {@code null} with the exception of jAugmentedClass;
+         * jAugmentedClass will be {@code null} unless the method is augmented as described in the class documentation.
          */
-        public WMethod(Method jmethod, Class<?> jaugmented, String preturnType, List<String> pparameterTypes) {
-            this.jmethod = Objects.requireNonNull(jmethod);
-            this.jaugmented = jaugmented;
-            this.preturnType = Objects.requireNonNull(preturnType);
-            this.pparameterTypes = Collections.unmodifiableList(Objects.requireNonNull(pparameterTypes));
+        private WMethod(Method jMethod, Class<?> jAugmentedClass, String pReturnTypeName, List<String> pParameterTypeNames) {
+            this.jMethod = Objects.requireNonNull(jMethod);
+            this.jAugmentedClass = jAugmentedClass;
+            this.pReturnTypeName = Objects.requireNonNull(pReturnTypeName);
+            this.pParameterTypeNames = Collections.unmodifiableList(Objects.requireNonNull(pParameterTypeNames));
         }
     }
 
@@ -166,24 +166,23 @@ public final class Whitelist {
      * within Painless.  Fields for Painless structs may be accessed exactly as fields for Java classes
      * are using the '.' operator on an existing struct variable/field.
      */
-    public static class WField {
+    static class WField {
 
         /** The Java reflection {@link Field} available as a Painless struct field. */
-        public final Field jfield;
+        final Field jField;
 
         /** The field type as a Painless struct name. */
-        public final String ptype;
+        final String pTypeName;
 
         /** Standard constructor. All values must be not {@code null}. */
-        public WField(Field jfield, String ptype) {
-            this.jfield = Objects.requireNonNull(jfield);
-            this.ptype = Objects.requireNonNull(ptype);
+        private WField(Field jField, String pTypeName) {
+            this.jField = Objects.requireNonNull(jField);
+            this.pTypeName = Objects.requireNonNull(pTypeName);
         }
     }
 
     /**
-     * Loads a white-list from a set of resource files given a specific {@link ClassLoader} where the specified
-     * Painless structs, methods, and fields can
+     * Loads a white-list from
      */
     public static Whitelist loadFromResourceFiles(Map<Class<?>, List<String>> resourcesToFiles) {
         Map<String, Class<?>> namesToClasses = new HashMap<>();

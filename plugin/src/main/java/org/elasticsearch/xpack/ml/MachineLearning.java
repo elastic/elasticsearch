@@ -155,8 +155,9 @@ public class MachineLearning implements ActionPlugin {
     public static final Setting<Boolean> AUTODETECT_PROCESS =
             Setting.boolSetting("xpack.ml.autodetect_process", true, Property.NodeScope);
     public static final Setting<Boolean> ML_ENABLED =
-            Setting.boolSetting("node.ml", XPackSettings.MACHINE_LEARNING_ENABLED, Setting.Property.NodeScope);
+            Setting.boolSetting("node.ml", XPackSettings.MACHINE_LEARNING_ENABLED, Property.NodeScope);
     public static final String ML_ENABLED_NODE_ATTR = "ml.enabled";
+    public static final String MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
             Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
 
@@ -200,7 +201,10 @@ public class MachineLearning implements ActionPlugin {
         Settings.Builder additionalSettings = Settings.builder();
         Boolean allocationEnabled = ML_ENABLED.get(settings);
         if (allocationEnabled != null && allocationEnabled) {
+            // TODO: the simple true/false flag will not be required once all supported versions have the number - consider removing in 7.0
             additionalSettings.put("node.attr." + ML_ENABLED_NODE_ATTR, "true");
+            additionalSettings.put("node.attr." + MAX_OPEN_JOBS_NODE_ATTR,
+                    AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.get(settings));
         }
         return additionalSettings.build();
     }

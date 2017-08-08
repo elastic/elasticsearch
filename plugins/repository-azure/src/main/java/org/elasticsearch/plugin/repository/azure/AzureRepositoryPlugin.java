@@ -62,16 +62,9 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-            AzureStorageService.Storage.STORAGE_ACCOUNTS,
             AzureStorageSettings.ACCOUNT_SETTING,
             AzureStorageSettings.KEY_SETTING,
             AzureStorageSettings.TIMEOUT_SETTING
         );
-    }
-
-    @Override
-    public List<String> getSettingsFilter() {
-        // Cloud storage API settings using a pattern needed to be hidden
-        return Arrays.asList(AzureStorageService.Storage.PREFIX + "*.account", AzureStorageService.Storage.PREFIX + "*.key");
     }
 }

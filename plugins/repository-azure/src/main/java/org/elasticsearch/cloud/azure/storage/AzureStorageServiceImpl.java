@@ -32,11 +32,9 @@ import com.microsoft.azure.storage.blob.ListBlobItem;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cloud.azure.blobstore.util.SocketAccess;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryException;
@@ -51,51 +49,25 @@ import java.util.Map;
 public class AzureStorageServiceImpl extends AbstractComponent implements AzureStorageService {
 
     final Map<String, AzureStorageSettings> storageSettings;
-    final Map<String, AzureStorageSettings> deprecatedStorageSettings;
 
-    final Map<String, CloudBlobClient> clients;
+    final Map<String, CloudBlobClient> clients = new HashMap<>();
 
-    public AzureStorageServiceImpl(Settings settings, Map<String, AzureStorageSettings> regularStorageSettings) {
+    public AzureStorageServiceImpl(Settings settings, Map<String, AzureStorageSettings> storageSettings) {
         super(settings);
 
-        if (regularStorageSettings.isEmpty()) {
-            this.storageSettings = new HashMap<>();
-            // We have deprecated settings so we need to migrate them to the new implementation
-            Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> storageSettingsMapTuple = AzureStorageSettings.loadLegacy(settings);
-            deprecatedStorageSettings = storageSettingsMapTuple.v2();
-            if (storageSettingsMapTuple.v1() != null) {
-                if (storageSettingsMapTuple.v1().getName().equals("default") == false) {
-                    // We add the primary configuration to the list of all settings with its deprecated name in case someone is
-                    // forcing a specific configuration name when creating the repository instance
-                    deprecatedStorageSettings.put(storageSettingsMapTuple.v1().getName(), storageSettingsMapTuple.v1());
-                }
-                // We add the primary configuration to the list of all settings as the "default" one
-                deprecatedStorageSettings.put("default", storageSettingsMapTuple.v1());
-            } else {
-                // If someone did not register any settings or deprecated settings, they
-                // basically can't use the plugin
-                throw new IllegalArgumentException("If you want to use an azure repository, you need to define a client configuration.");
-            }
+        this.storageSettings = storageSettings;
 
-
-        } else {
-            this.storageSettings = regularStorageSettings;
-            this.deprecatedStorageSettings = new HashMap<>();
+        if (storageSettings.isEmpty()) {
+            // If someone did not register any settings or deprecated settings, they
+            // basically can't use the plugin
+            throw new IllegalArgumentException("If you want to use an azure repository, you need to define a client configuration.");
         }
-
-        this.clients = new HashMap<>();
 
         logger.debug("starting azure storage client instance");
 
         // We register all regular azure clients
         for (Map.Entry<String, AzureStorageSettings> azureStorageSettingsEntry : this.storageSettings.entrySet()) {
             logger.debug("registering regular client for account [{}]", azureStorageSettingsEntry.getKey());
-            createClient(azureStorageSettingsEntry.getValue());
-        }
-
-        // We register all deprecated azure clients
-        for (Map.Entry<String, AzureStorageSettings> azureStorageSettingsEntry : this.deprecatedStorageSettings.entrySet()) {
-            logger.debug("registering deprecated client for account [{}]", azureStorageSettingsEntry.getKey());
             createClient(azureStorageSettingsEntry.getValue());
         }
     }
@@ -127,17 +99,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         logger.trace("selecting a client for account [{}], mode [{}]", account, mode.name());
         AzureStorageSettings azureStorageSettings = this.storageSettings.get(account);
         if (azureStorageSettings == null) {
-            // We can't find a client that has been registered using regular settings so we try deprecated client
-            azureStorageSettings = this.deprecatedStorageSettings.get(account);
-            if (azureStorageSettings == null) {
-                // We did not get an account. That's bad.
-                if (Strings.hasLength(account)) {
-                    throw new IllegalArgumentException("Can not find named azure client [" + account +
-                        "]. Check your elasticsearch.yml.");
-                }
-                throw new IllegalArgumentException("Can not find primary/secondary client using deprecated settings. " +
-                    "Check your elasticsearch.yml.");
-            }
+            throw new IllegalArgumentException("Can not find named azure client [" + account + "]. Check your settings.");
         }
 
         CloudBlobClient client = this.clients.get(azureStorageSettings.getAccount());

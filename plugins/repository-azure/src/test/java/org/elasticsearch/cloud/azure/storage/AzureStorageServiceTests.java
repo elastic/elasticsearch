@@ -23,7 +23,6 @@ import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -32,11 +31,6 @@ import java.net.URISyntaxException;
 import java.util.Map;
 
 import static org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl.blobNameFromUri;
-import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.DEPRECATED_ACCOUNT_SETTING;
-import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.DEPRECATED_DEFAULT_SETTING;
-import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.DEPRECATED_KEY_SETTING;
-import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.DEPRECATED_TIMEOUT_SETTING;
-import static org.elasticsearch.repositories.azure.AzureSettingsParserTests.getConcreteSetting;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -44,18 +38,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AzureStorageServiceTests extends ESTestCase {
-
-    @Deprecated
-    static final Settings deprecatedSettings = Settings.builder()
-            .put("cloud.azure.storage.azure1.account", "myaccount1")
-            .put("cloud.azure.storage.azure1.key", "mykey1")
-            .put("cloud.azure.storage.azure1.default", true)
-            .put("cloud.azure.storage.azure2.account", "myaccount2")
-            .put("cloud.azure.storage.azure2.key", "mykey2")
-            .put("cloud.azure.storage.azure3.account", "myaccount3")
-            .put("cloud.azure.storage.azure3.key", "mykey3")
-            .put("cloud.azure.storage.azure3.timeout", "30s")
-            .build();
 
     private MockSecureSettings buildSecureSettings() {
         MockSecureSettings secureSettings = new MockSecureSettings();
@@ -102,23 +84,7 @@ public class AzureStorageServiceTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             azureStorageService.getSelectedClient("azure4", LocationMode.PRIMARY_ONLY);
         });
-        assertThat(e.getMessage(), is("Can not find named azure client [azure4]. Check your elasticsearch.yml."));
-    }
-
-    public void testGetSelectedClientGlobalTimeout() {
-        Settings timeoutSettings = Settings.builder()
-                .setSecureSettings(buildSecureSettings())
-                .put(AzureStorageService.Storage.TIMEOUT_SETTING.getKey(), "10s")
-                .put("azure.client.azure3.timeout", "30s")
-                .build();
-
-        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(timeoutSettings);
-        CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
-        assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(10 * 1000));
-        CloudBlobClient client3 = azureStorageService.getSelectedClient("azure3", LocationMode.PRIMARY_ONLY);
-        assertThat(client3.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(30 * 1000));
-
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{AzureStorageService.Storage.TIMEOUT_SETTING});
+        assertThat(e.getMessage(), is("Can not find named azure client [azure4]. Check your settings."));
     }
 
     public void testGetSelectedClientDefaultTimeout() {
@@ -170,7 +136,7 @@ public class AzureStorageServiceTests extends ESTestCase {
         @Override
         void createClient(AzureStorageSettings azureStorageSettings) {
             this.clients.put(azureStorageSettings.getAccount(),
-                    new CloudBlobClient(URI.create("https://" + azureStorageSettings.getName())));
+                    new CloudBlobClient(URI.create("https://" + azureStorageSettings.getAccount())));
         }
     }
 
@@ -183,88 +149,5 @@ public class AzureStorageServiceTests extends ESTestCase {
         assertThat(name, is("path/to/myfile"));
         name = blobNameFromUri(new URI("https://127.0.0.1/container/path/to/myfile"));
         assertThat(name, is("path/to/myfile"));
-    }
-
-    // Deprecated settings. We still test them until we remove definitely the deprecated settings
-
-    @Deprecated
-    public void testGetSelectedClientWithNoSecondary() {
-        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(Settings.builder()
-            .put("cloud.azure.storage.azure1.account", "myaccount1")
-            .put("cloud.azure.storage.azure1.key", "mykey1")
-            .build());
-        CloudBlobClient client = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
-        assertThat(client.getEndpoint(), is(URI.create("https://azure1")));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{
-            getConcreteSetting(DEPRECATED_ACCOUNT_SETTING, "azure1"),
-            getConcreteSetting(DEPRECATED_KEY_SETTING, "azure1")
-        });
-    }
-
-    @Deprecated
-    public void testGetDefaultClientWithNoSecondary() {
-        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(Settings.builder()
-            .put("cloud.azure.storage.azure1.account", "myaccount1")
-            .put("cloud.azure.storage.azure1.key", "mykey1")
-            .build());
-        CloudBlobClient client = azureStorageService.getSelectedClient("default", LocationMode.PRIMARY_ONLY);
-        assertThat(client.getEndpoint(), is(URI.create("https://azure1")));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{
-            getConcreteSetting(DEPRECATED_ACCOUNT_SETTING, "azure1"),
-            getConcreteSetting(DEPRECATED_KEY_SETTING, "azure1")
-        });
-    }
-
-    @Deprecated
-    public void testGetSelectedClientPrimary() {
-        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(deprecatedSettings);
-        CloudBlobClient client = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
-        assertThat(client.getEndpoint(), is(URI.create("https://azure1")));
-        assertDeprecatedWarnings();
-    }
-
-    @Deprecated
-    public void testGetSelectedClientSecondary1() {
-        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(deprecatedSettings);
-        CloudBlobClient client = azureStorageService.getSelectedClient("azure2", LocationMode.PRIMARY_ONLY);
-        assertThat(client.getEndpoint(), is(URI.create("https://azure2")));
-        assertDeprecatedWarnings();
-    }
-
-    @Deprecated
-    public void testGetSelectedClientSecondary2() {
-        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(deprecatedSettings);
-        CloudBlobClient client = azureStorageService.getSelectedClient("azure3", LocationMode.PRIMARY_ONLY);
-        assertThat(client.getEndpoint(), is(URI.create("https://azure3")));
-        assertDeprecatedWarnings();
-    }
-
-    @Deprecated
-    public void testGetDefaultClientWithPrimaryAndSecondaries() {
-        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(deprecatedSettings);
-        CloudBlobClient client = azureStorageService.getSelectedClient("default", LocationMode.PRIMARY_ONLY);
-        assertThat(client.getEndpoint(), is(URI.create("https://azure1")));
-        assertDeprecatedWarnings();
-    }
-
-    @Deprecated
-    public void testGetSelectedClientDefault() {
-        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(deprecatedSettings);
-        CloudBlobClient client = azureStorageService.getSelectedClient("default", LocationMode.PRIMARY_ONLY);
-        assertThat(client.getEndpoint(), is(URI.create("https://azure1")));
-        assertDeprecatedWarnings();
-    }
-
-    private void assertDeprecatedWarnings() {
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{
-            getConcreteSetting(DEPRECATED_ACCOUNT_SETTING, "azure1"),
-            getConcreteSetting(DEPRECATED_KEY_SETTING, "azure1"),
-            getConcreteSetting(DEPRECATED_DEFAULT_SETTING, "azure1"),
-            getConcreteSetting(DEPRECATED_ACCOUNT_SETTING, "azure2"),
-            getConcreteSetting(DEPRECATED_KEY_SETTING, "azure2"),
-            getConcreteSetting(DEPRECATED_ACCOUNT_SETTING, "azure3"),
-            getConcreteSetting(DEPRECATED_KEY_SETTING, "azure3"),
-            getConcreteSetting(DEPRECATED_TIMEOUT_SETTING, "azure3")
-        });
     }
 }

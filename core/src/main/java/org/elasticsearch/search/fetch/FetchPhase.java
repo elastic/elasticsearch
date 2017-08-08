@@ -284,7 +284,7 @@ public class FetchPhase implements SearchPhase {
             }
             context.lookup().source().setSource(nestedSourceAsMap);
             XContentType contentType = tuple.v1();
-            BytesReference nestedSource = contentBuilder(contentType).map(sourceAsMap).bytes();
+            BytesReference nestedSource = contentBuilder(contentType).map(nestedSourceAsMap).bytes();
             context.lookup().source().setSource(nestedSource);
             context.lookup().source().setSourceContentType(contentType);
         }

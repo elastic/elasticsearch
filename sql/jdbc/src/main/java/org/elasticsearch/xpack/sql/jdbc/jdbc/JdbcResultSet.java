@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
 import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
+import org.elasticsearch.xpack.sql.protocol.shared.Nullable;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -54,11 +55,12 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     private int rowNumber;
 
-    JdbcResultSet(JdbcStatement statement, Cursor cursor) {
+    JdbcResultSet(JdbcConfiguration cfg, @Nullable JdbcStatement statement, Cursor cursor) {
         this.statement = statement;
         this.cursor = cursor;
+        // statement can be null so we have to extract the timeZone from the non-nullable cfg
         // TODO: should we consider the locale as well? 
-        this.defaultCalendar = Calendar.getInstance(statement.cfg.timeZone(), Locale.ROOT);
+        this.defaultCalendar = Calendar.getInstance(cfg.timeZone(), Locale.ROOT);
 
         List<ColumnInfo> columns = cursor.columns();
         for (int i = 0; i < columns.size(); i++) {

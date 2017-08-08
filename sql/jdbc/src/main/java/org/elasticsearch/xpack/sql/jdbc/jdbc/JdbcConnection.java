@@ -33,6 +33,8 @@ import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
 
 public class JdbcConnection implements Connection, JdbcWrapper {
 
+    private final String url, userName;
+    final JdbcConfiguration cfg;
     final JdbcHttpClient client;
 
     private boolean closed = false;
@@ -40,12 +42,8 @@ public class JdbcConnection implements Connection, JdbcWrapper {
     private String schema;
     private Properties clientInfo = new Properties();
 
-    private final JdbcConfiguration info;
-    private final String url, userName;
-
-
     public JdbcConnection(JdbcConfiguration connectionInfo) {
-        info = connectionInfo;
+        cfg = connectionInfo;
         client = new JdbcHttpClient(connectionInfo);
 
         url = connectionInfo.asUrl().toExternalForm();
@@ -61,13 +59,13 @@ public class JdbcConnection implements Connection, JdbcWrapper {
     @Override
     public Statement createStatement() throws SQLException {
         checkOpen();
-        return new JdbcStatement(this, info);
+        return new JdbcStatement(this, cfg);
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql) throws SQLException {
         checkOpen();
-        return new JdbcPreparedStatement(this, info, sql);
+        return new JdbcPreparedStatement(this, cfg, sql);
     }
 
     @Override
@@ -117,7 +115,7 @@ public class JdbcConnection implements Connection, JdbcWrapper {
     public void close() throws SQLException {
         if (!isClosed()) {
             closed = true;
-            Debug.release(info);
+            Debug.release(cfg);
             client.close();
         }
     }

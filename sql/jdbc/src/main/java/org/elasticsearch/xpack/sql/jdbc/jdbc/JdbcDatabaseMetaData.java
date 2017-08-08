@@ -636,7 +636,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     // https://www.postgresql.org/docs/9.0/static/infoschema-routines.html
     @Override
     public ResultSet getProcedures(String catalog, String schemaPattern, String procedureNamePattern) throws SQLException {
-        return emptySet("ROUTINES",
+        return emptySet(con.cfg,
+                     "ROUTINES",
                      "PROCEDURE_CAT", 
                      "PROCEDURE_SCHEM", 
                      "PROCEDURE_NAME", 
@@ -650,7 +651,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getProcedureColumns(String catalog, String schemaPattern, String procedureNamePattern, String columnNamePattern) throws SQLException {
-        return emptySet("PARAMETERS",
+        return emptySet(con.cfg,
+                     "PARAMETERS",
                      "PROCEDURE_CAT", 
                      "PROCEDURE_SCHEM", 
                      "PROCEDURE_NAME", 
@@ -703,7 +705,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
  
         // schema and catalogs are not being used, if these are specified return an empty result set
         if (!isDefaultCatalog(catalog) || !isDefaultSchema(schemaPattern)) {
-            return emptySet(info);
+            return emptySet(con.cfg, info);
         }
 
         String cat = defaultCatalog();
@@ -724,7 +726,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             row[8] = null;
             row[9] = null;
         }
-        return memorySet(info, data);
+        return memorySet(con.cfg, info, data);
     }
 
     /**
@@ -747,7 +749,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     @Override
     public ResultSet getSchemas() throws SQLException {
         Object[][] data = { { EMPTY, defaultCatalog() } };
-        return memorySet(columnInfo("SCHEMATA",
+        return memorySet(con.cfg, columnInfo("SCHEMATA",
                                     "TABLE_SCHEM", 
                                     "TABLE_CATALOG"), data);
     }
@@ -758,23 +760,23 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                                            "TABLE_SCHEM",
                                            "TABLE_CATALOG");
         if (!isDefaultCatalog(catalog) || !isDefaultSchema(schemaPattern)) {
-            return emptySet(info);
+            return emptySet(con.cfg, info);
         }
         Object[][] data = { { EMPTY, defaultCatalog() } };
-        return memorySet(info, data);
+        return memorySet(con.cfg, info, data);
     }
 
     @Override
     public ResultSet getCatalogs() throws SQLException {
         Object[][] data = { { defaultCatalog() } };
-        return memorySet(columnInfo("CATALOGS",
+        return memorySet(con.cfg, columnInfo("CATALOGS",
                                     "TABLE_CAT"), data);
     }
 
     @Override
     public ResultSet getTableTypes() throws SQLException {
         Object[][] data = { { "TABLE" } };
-        return memorySet(columnInfo("TABLE_TYPES",
+        return memorySet(con.cfg, columnInfo("TABLE_TYPES",
                                     "TABLE_TYPE"), data);
     }
 
@@ -809,7 +811,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
         // schema and catalogs are not being used, if these are specified return an empty result set
         if (!isDefaultCatalog(catalog) || !isDefaultSchema(schemaPattern)) {
-            return emptySet(info);
+            return emptySet(con.cfg, info);
         }
 
         String cat = defaultCatalog();
@@ -845,7 +847,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             row[22] = EMPTY;
             row[23] = EMPTY;
         }
-        return memorySet(info, data);
+        return memorySet(con.cfg, info, data);
     }
 
     @Override
@@ -890,7 +892,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getTypeInfo() throws SQLException {
-        return emptySet("TYPE_INFO",
+        return emptySet(con.cfg,
+                     "TYPE_INFO",
                      "TYPE_NAME",
                      "DATA_TYPE", int.class,
                      "PRECISION", int.class,
@@ -979,7 +982,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getUDTs(String catalog, String schemaPattern, String typeNamePattern, int[] types) throws SQLException {
-        return emptySet("USER_DEFINED_TYPES",
+        return emptySet(con.cfg,
+                    "USER_DEFINED_TYPES",
                     "TYPE_CAT",
                     "TYPE_SCHEM",
                     "TYPE_NAME",
@@ -1016,7 +1020,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getSuperTypes(String catalog, String schemaPattern, String typeNamePattern) throws SQLException {
-        return emptySet("SUPER_TYPES",
+        return emptySet(con.cfg,
+                     "SUPER_TYPES",
                      "TYPE_CAT",
                      "TYPE_SCHEM",
                      "TYPE_NAME",
@@ -1028,7 +1033,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getSuperTables(String catalog, String schemaPattern, String tableNamePattern) throws SQLException {
-        return emptySet("SUPER_TABLES",
+        return emptySet(con.cfg, "SUPER_TABLES",
                      "TABLE_CAT",
                      "TABLE_SCHEM",
                      "TABLE_NAME",
@@ -1037,7 +1042,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getAttributes(String catalog, String schemaPattern, String typeNamePattern, String attributeNamePattern) throws SQLException {
-        return emptySet("ATTRIBUTES",
+        return emptySet(con.cfg,
+                     "ATTRIBUTES",
                      "TYPE_CAT",
                      "TYPE_SCHEM",
                      "TYPE_NAME",
@@ -1128,7 +1134,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getFunctions(String catalog, String schemaPattern, String functionNamePattern) throws SQLException {
-        return emptySet("FUNCTIONS",
+        return emptySet(con.cfg,
+                     "FUNCTIONS",
                      "FUNCTION_CAT",
                      "FUNCTION_SCHEM",
                      "FUNCTION_NAME",
@@ -1139,7 +1146,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getFunctionColumns(String catalog, String schemaPattern, String functionNamePattern, String columnNamePattern) throws SQLException {
-        return emptySet("FUNCTION_COLUMNS",
+        return emptySet(con.cfg,
+                     "FUNCTION_COLUMNS",
                      "FUNCTION_CAT",
                      "FUNCTION_SCHEM",
                      "FUNCTION_NAME",
@@ -1160,7 +1168,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getPseudoColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
-        return emptySet("PSEUDO_COLUMNS",
+        return emptySet(con.cfg,
+                     "PSEUDO_COLUMNS",
                      "TABLE_CAT",
                      "TABLE_SCHEM",
                      "TABLE_NAME",
@@ -1204,16 +1213,16 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         return columns;
     }
 
-    private static ResultSet emptySet(String tableName, Object... cols) {
-        return new JdbcResultSet(null, new InMemoryCursor(columnInfo(tableName, cols), null));
+    private static ResultSet emptySet(JdbcConfiguration cfg, String tableName, Object... cols) {
+        return new JdbcResultSet(cfg, null, new InMemoryCursor(columnInfo(tableName, cols), null));
     }
 
-    private static ResultSet emptySet(List<ColumnInfo> columns) {
-        return memorySet(columns, null);
+    private static ResultSet emptySet(JdbcConfiguration cfg, List<ColumnInfo> columns) {
+        return memorySet(cfg, columns, null);
     }
 
-    private static ResultSet memorySet(List<ColumnInfo> columns, Object[][] data) {
-        return new JdbcResultSet(null, new InMemoryCursor(columns, data));
+    private static ResultSet memorySet(JdbcConfiguration cfg, List<ColumnInfo> columns, Object[][] data) {
+        return new JdbcResultSet(cfg, null, new InMemoryCursor(columns, data));
     }
 
     static class InMemoryCursor implements Cursor {

@@ -156,7 +156,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
         closeResultSet();
 
         Cursor cursor = con.client.query(sql, requestMeta);
-        rs = new JdbcResultSet(this, cursor);
+        rs = new JdbcResultSet(cfg, this, cursor);
     }
 
     @Override

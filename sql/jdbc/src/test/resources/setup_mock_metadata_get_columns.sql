@@ -22,7 +22,7 @@ CREATE TABLE mock (
   SOURCE_DATA_TYPE SMALLINT,
   IS_AUTOINCREMENT VARCHAR,
   IS_GENERATEDCOLUMN VARCHAR
-) AS SELECT '', 'test.doc', 'name', 12, 'VARCHAR', 1, null, null,
+) AS SELECT '', 'test', 'name', 12, 'VARCHAR', 1, null, null,
   10, -- NOCOMMIT 10 seem wrong to hard code for stuff like strings
   2, -- columnNullableUnknown NOCOMMIT I think it'd be more correct to return columnNullable
   null, null, null, null, null, 1, '', null, null, null, null, '', ''

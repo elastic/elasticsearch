@@ -8,4 +8,4 @@ CREATE TABLE mock (
   TYPE_NAME VARCHAR,
   SELF_REFERENCING_COL_NAME VARCHAR,
   REF_GENERATION VARCHAR
-) AS SELECT '', 'test.doc', 'TABLE', '', null, null, null, null, null FROM DUAL;
+) AS SELECT '', 'test', 'TABLE', '', null, null, null, null, null FROM DUAL;

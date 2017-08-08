@@ -121,6 +121,9 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         if (randomBoolean()) {
             query.zeroTermsQuery(randomFrom(MatchQuery.ZeroTermsQuery.values()));
         }
+        if (randomBoolean()) {
+            query.autoGenerateSynonymsPhraseQuery(randomBoolean());
+        }
         // test with fields with boost and patterns delegated to the tests further below
         return query;
     }
@@ -238,6 +241,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 "    \"max_expansions\" : 50,\n" +
                 "    \"lenient\" : false,\n" +
                 "    \"zero_terms_query\" : \"NONE\",\n" +
+                "      \"auto_generate_synonyms_phrase_query\" : true,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";

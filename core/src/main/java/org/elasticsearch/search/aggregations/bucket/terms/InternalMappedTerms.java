@@ -123,7 +123,8 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
                 && Objects.equals(format, that.format)
                 && Objects.equals(otherDocCount, that.otherDocCount)
                 && Objects.equals(showTermDocCountError, that.showTermDocCountError)
-                && Objects.equals(shardSize, that.shardSize);
+                && Objects.equals(shardSize, that.shardSize)
+                && Objects.equals(docCountError, that.docCountError);
     }
 
     @Override

@@ -1,0 +1,20 @@
+[[release-notes-5.5.2]]
+== 5.5.2 Release Notes
+
+Also see <<breaking-changes-5.5>>.
+
+[[bug-5.5.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fixes array out of bounds for value count agg {pull}26038[#26038] (issue: {issue}17379[#17379])
+
+Core::
+* Release operation permit on thread-pool rejection {pull}25930[#25930] (issue: {issue}25863[#25863])
+
+Inner Hits::
+* When fetching nested inner hits only access stored fields when needed {pull}25864[#25864] (issue: {issue}6[#6])
+
+Logging::
+* Declare XContent deprecation logger as static {pull}25881[#25881] (issue: {issue}25879[#25879])

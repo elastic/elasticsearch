@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,15 +34,28 @@ import java.io.IOException;
 public class PercentageScore extends SignificanceHeuristic {
     public static final String NAME = "percentage";
 
-    public PercentageScore() {
+    private static final ParseField MAX_SCORE = new ParseField("max_score");
+    private static final ParseField MIN_SCORE = new ParseField("min_score");
+    private final double maxScore;
+    private final double minScore;
+
+    public PercentageScore(double minScore,double maxScore) {
+        this.minScore = minScore;
+        this.maxScore = maxScore;
     }
 
-    public PercentageScore(StreamInput in) {
-        // Nothing to read.
+    public PercentageScore() {
+        this(0,1);
+    }
+    public PercentageScore(StreamInput in) throws  IOException{
+        minScore = in.readLong();
+        maxScore = in.readLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeDouble(minScore);
+        out.writeDouble(maxScore);
     }
 
     @Override
@@ -51,17 +65,39 @@ public class PercentageScore extends SignificanceHeuristic {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NAME).endObject();
+        builder.startObject(NAME)
+            .field(MIN_SCORE.getPreferredName(), minScore)
+            .field(MAX_SCORE.getPreferredName(), maxScore)
+            .endObject();
         return builder;
+    }
+
+    public double getMinScore() {
+        return minScore;
+    }
+
+    public double getMaxScore() {
+        return  maxScore;
     }
 
     public static SignificanceHeuristic parse(XContentParser parser)
             throws IOException, QueryShardException {
-        // move to the closing bracket
-        if (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
-            throw new ElasticsearchParseException("failed to parse [percentage] significance heuristic. expected an empty object, but got [{}] instead", parser.currentToken());
+        double minScore = 0;
+        double maxScore  = 1;
+        XContentParser.Token token = parser.nextToken();
+        while (!token.equals(XContentParser.Token.END_OBJECT)) {
+            if (MIN_SCORE.match(parser.currentName())) {
+                parser.nextToken();
+                minScore = parser.doubleValue();
+            } else if (MAX_SCORE.match(parser.currentName())) {
+                parser.nextToken();
+                maxScore = parser.doubleValue();
+            } else {
+                throw new ElasticsearchParseException("failed to parse percent heuristic. unknown field [{}]", parser.currentName());
+            }
+            token = parser.nextToken();
         }
-        return new PercentageScore();
+        return new PercentageScore(minScore,maxScore);
     }
 
     /**
@@ -75,7 +111,11 @@ public class PercentageScore extends SignificanceHeuristic {
             // avoid a divide by zero issue
             return 0;
         }
-        return (double) subsetFreq / (double) supersetFreq;
+        double score =  (double) subsetFreq / (double) supersetFreq;
+        if ( score >= minScore && score <= maxScore) {
+            return score;
+        }
+        return 0;
     }
 
     @Override

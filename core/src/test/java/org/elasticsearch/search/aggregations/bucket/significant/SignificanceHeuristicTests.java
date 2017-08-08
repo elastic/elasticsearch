@@ -408,17 +408,38 @@ public class SignificanceHeuristicTests extends ESTestCase {
         testBackgroundAssertions(new MutualInformation(true, true), new MutualInformation(true, false));
         testBackgroundAssertions(new ChiSquare(true, true), new ChiSquare(true, false));
         testBackgroundAssertions(new GND(true), new GND(false));
-        testAssertions(new PercentageScore());
+        testAssertions(new PercentageScore(0,1));
         testAssertions(new JLHScore());
     }
 
     public void testBasicScoreProperties() {
         basicScoreProperties(new JLHScore(), true);
         basicScoreProperties(new GND(true), true);
-        basicScoreProperties(new PercentageScore(), true);
+        basicScoreProperties(new PercentageScore(0, 1), true);
         basicScoreProperties(new MutualInformation(true, true), false);
         basicScoreProperties(new ChiSquare(true, true), false);
     }
+
+    public void testPercentScoreProperties() {
+        SignificanceHeuristic heuristic = new PercentageScore(0,0);
+        assertThat(heuristic.getScore(1, 1, 1, 3), equalTo(0.0));
+        heuristic = new PercentageScore(1,1);
+        assertThat(heuristic.getScore(1, 1, 2, 3), equalTo(0.0));
+        assertThat(heuristic.getScore(2, 2, 2, 10), equalTo(1.0));
+
+    }
+
+    public void testPercentHeuristicParse() throws IOException {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry = searchModule.getSignificanceHeuristicParserRegistry();
+        PercentageScore percentageScore = (PercentageScore) parseFromString(significanceHeuristicParserRegistry,"\"percentage\" : { \"min_score\" : 0.0 , \"max_score\" : 1.0 }");
+        assertThat(percentageScore.getMaxScore(), equalTo(1.0));
+        assertThat(percentageScore.getMinScore(), equalTo(0.0));
+        percentageScore = (PercentageScore) parseFromString(significanceHeuristicParserRegistry,"\"percentage\" : {}");
+        assertThat(percentageScore.getMaxScore(), equalTo(1.0));
+        assertThat(percentageScore.getMinScore(), equalTo(0.0));
+    }
+
 
     public void basicScoreProperties(SignificanceHeuristic heuristic, boolean test0) {
         assertThat(heuristic.getScore(1, 1, 1, 3), greaterThan(0.0));

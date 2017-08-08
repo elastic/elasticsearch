@@ -10,7 +10,7 @@ Elasticsearch is a distributed RESTful search engine built for the cloud. Featur
 ** Each index is fully sharded with a configurable number of shards.
 ** Each shard can have one or more replicas.
 ** Read / Search operations performed on any of the replica shards.
-* Multi Tenant with Multi Types.
+* Multi Tenant.
 ** Support for more than one index.
 ** Index level configuration (number of shards, index storage, ...).
 * Various set of APIs
@@ -46,34 +46,37 @@ h3. Installation
 
 h3. Indexing
 
-Let's try and index some twitter like information. First, let's create a twitter user, and add some tweets (the @twitter@ index will be created automatically):
+Let's try and index some twitter like information. First, let's index some tweets (the @twitter@ index will be created automatically):
 
 <pre>
-curl -XPUT 'http://localhost:9200/twitter/doc/user_kimchy?pretty' -H 'Content-Type: application/json' -d '{ "type": "user", "name" : "Shay Banon" }'
-
-curl -XPUT 'http://localhost:9200/twitter/doc/tweet_1?pretty' -H 'Content-Type: application/json' -d '
+curl -XPUT 'http://localhost:9200/twitter/doc/1?pretty' -H 'Content-Type: application/json' -d '
 {
-    "type": "tweet",
     "user": "kimchy",
     "post_date": "2009-11-15T13:12:00",
     "message": "Trying out Elasticsearch, so far so good?"
 }'
 
-curl -XPUT 'http://localhost:9200/twitter/doc/tweet_2?pretty' -H 'Content-Type: application/json' -d '
+curl -XPUT 'http://localhost:9200/twitter/doc/2?pretty' -H 'Content-Type: application/json' -d '
 {
-    "type": "tweet",
     "user": "kimchy",
     "post_date": "2009-11-15T14:12:12",
     "message": "Another tweet, will it be indexed?"
+}'
+
+curl -XPUT 'http://localhost:9200/twitter/doc/3?pretty' -H 'Content-Type: application/json' -d '
+{
+    "user": "elastic",
+    "post_date": "2010-01-15T01:46:38",
+    "message": "Building the site, should be kewl"
 }'
 </pre>
 
 Now, let's see if the information was added by GETting it:
 
 <pre>
-curl -XGET 'http://localhost:9200/twitter/doc/user_kimchy?pretty=true'
-curl -XGET 'http://localhost:9200/twitter/doc/tweet_1?pretty=true'
-curl -XGET 'http://localhost:9200/twitter/doc/tweet_2?pretty=true'
+curl -XGET 'http://localhost:9200/twitter/doc/1?pretty=true'
+curl -XGET 'http://localhost:9200/twitter/doc/2?pretty=true'
+curl -XGET 'http://localhost:9200/twitter/doc/3?pretty=true'
 </pre>
 
 h3. Searching
@@ -96,7 +99,7 @@ curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -H 'Content-Type:
 }'
 </pre>
 
-Just for kicks, let's get all the documents stored (we should see the user as well):
+Just for kicks, let's get all the documents stored (we should see the tweet from @elastic@ as well):
 
 <pre>
 curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -H 'Content-Type: application/json' -d '
@@ -131,16 +134,14 @@ Elasticsearch supports multiple indices, and each index may store heterogeneous 
 Another way to define our simple twitter system is to have a different index per user (note, though that each index has an overhead). Here is the indexing curl's in this case:
 
 <pre>
-curl -XPUT 'http://localhost:9200/kimchy/doc/info?pretty' -H 'Content-Type: application/json' -d '{ "name" : "Shay Banon" }'
-
-curl -XPUT 'http://localhost:9200/kimchy/doc/tweet_1?pretty' -H 'Content-Type: application/json' -d '
+curl -XPUT 'http://localhost:9200/kimchy/doc/1?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "kimchy",
     "post_date": "2009-11-15T13:12:00",
     "message": "Trying out Elasticsearch, so far so good?"
 }'
 
-curl -XPUT 'http://localhost:9200/kimchy/doc/tweet_2?pretty' -H 'Content-Type: application/json' -d '
+curl -XPUT 'http://localhost:9200/kimchy/doc/2?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "kimchy",
     "post_date": "2009-11-15T14:12:12",

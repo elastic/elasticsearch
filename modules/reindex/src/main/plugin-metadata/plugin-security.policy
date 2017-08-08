@@ -22,7 +22,7 @@ grant {
    permission java.net.SocketPermission "*", "connect";
 };
 
-grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta1-SNAPSHOT.jar}" {
+grant codeBase "${codebase.elasticsearch-rest-client-6.0.0-beta2-SNAPSHOT.jar}" {
   // rest client uses system properties which gets the default proxy
   permission java.net.NetPermission "getProxySelector";
 };

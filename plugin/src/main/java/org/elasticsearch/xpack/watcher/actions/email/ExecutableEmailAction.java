@@ -57,7 +57,7 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
                     Attachment attachment = parser.toAttachment(ctx, payload, emailAttachment);
                     attachments.put(attachment.id(), attachment);
                 } catch (ElasticsearchException | IOException e) {
-                    return new EmailAction.Result.Failure(action.type(), e.getMessage());
+                    return new EmailAction.Result.FailureWithException(action.type(), e);
                 }
             }
         }

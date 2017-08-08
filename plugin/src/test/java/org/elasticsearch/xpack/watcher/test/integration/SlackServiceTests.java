@@ -38,6 +38,7 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interva
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @Network
 public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
@@ -78,7 +79,7 @@ public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
         assertThat(messages.count(), is(2));
         for (SentMessages.SentMessage sentMessage : messages) {
             try {
-                assertThat(sentMessage.successful(), is(true));
+                assertThat(sentMessage.getException(), is(nullValue()));
                 assertThat(sentMessage.getRequest(), notNullValue());
                 assertThat(sentMessage.getResponse(), notNullValue());
                 assertThat(sentMessage.getResponse().status(), lessThan(300));

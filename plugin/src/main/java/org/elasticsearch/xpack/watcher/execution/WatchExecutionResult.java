@@ -82,7 +82,7 @@ public class WatchExecutionResult implements ToXContentObject {
             builder.field(Field.CONDITION.getPreferredName(), conditionResult, params);
         }
         if (transformResult != null) {
-            builder.field(Transform.Field.TRANSFORM.getPreferredName(), transformResult, params);
+            builder.field(Transform.TRANSFORM.getPreferredName(), transformResult, params);
         }
         builder.startArray(Field.ACTIONS.getPreferredName());
         for (ActionWrapper.Result result : actionsResults.values()) {

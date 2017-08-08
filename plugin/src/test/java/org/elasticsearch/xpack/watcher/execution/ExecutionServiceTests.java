@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -229,7 +230,7 @@ public class ExecutionServiceTests extends ESTestCase {
         input = mock(ExecutableInput.class);
         Input.Result inputResult = mock(Input.Result.class);
         when(inputResult.status()).thenReturn(Input.Result.Status.FAILURE);
-        when(inputResult.reason()).thenReturn("_reason");
+        when(inputResult.getException()).thenReturn(new IOException());
         when(input.execute(eq(context), any(Payload.class))).thenReturn(inputResult);
 
         Condition.Result conditionResult = AlwaysCondition.RESULT_INSTANCE;

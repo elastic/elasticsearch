@@ -553,9 +553,9 @@ public class EmailActionTests extends ESTestCase {
                 .buildMock();
 
         Action.Result result = executableEmailAction.execute("test", ctx, new Payload.Simple());
-        assertThat(result, instanceOf(EmailAction.Result.Failure.class));
-        EmailAction.Result.Failure failure = (EmailAction.Result.Failure) result;
-        assertThat(failure.reason(),
+        assertThat(result, instanceOf(EmailAction.Result.FailureWithException.class));
+        EmailAction.Result.FailureWithException failure = (EmailAction.Result.FailureWithException) result;
+        assertThat(failure.getException().getMessage(),
                 is("Watch[watch1] attachment[second] HTTP error status host[localhost], port[80], method[GET], path[/second], " +
                         "status[403]"));
     }

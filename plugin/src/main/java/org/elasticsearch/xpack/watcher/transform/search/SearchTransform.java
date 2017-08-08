@@ -189,7 +189,7 @@ public class SearchTransform implements Transform {
         }
     }
 
-    public interface Field extends Transform.Field {
+    public interface Field {
         ParseField REQUEST = new ParseField("request");
         ParseField TIMEOUT = new ParseField("timeout_in_millis");
         ParseField TIMEOUT_HUMAN = new ParseField("timeout");

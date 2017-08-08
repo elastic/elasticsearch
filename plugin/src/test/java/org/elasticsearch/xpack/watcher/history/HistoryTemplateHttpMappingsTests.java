@@ -5,7 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher.history;
 
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.http.MockResponse;
@@ -15,20 +20,31 @@ import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
+import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.webhookAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -110,5 +126,65 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         assertThat(webServer.requests(), hasSize(2));
         assertThat(webServer.requests().get(0).getUri().getPath(), is("/input/path"));
         assertThat(webServer.requests().get(1).getUri().getPath(), is("/webhook/path"));
+    }
+
+    public void testExceptionMapping() {
+        // delete all history indices to ensure that we start with a fresh mapping
+        assertAcked(client().admin().indices().prepareDelete(HistoryStore.INDEX_PREFIX + "*"));
+
+        String id = randomAlphaOfLength(10);
+        // switch between delaying the input or the action http request
+        boolean abortAtInput = randomBoolean();
+        if (abortAtInput) {
+            webServer.enqueue(new MockResponse().setBeforeReplyDelay(TimeValue.timeValueSeconds(5)));
+        } else {
+            webServer.enqueue(new MockResponse().setBody("{}"));
+            webServer.enqueue(new MockResponse().setBeforeReplyDelay(TimeValue.timeValueSeconds(5)));
+        }
+
+        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch(id).setSource(watchBuilder()
+                .trigger(schedule(interval("5s")))
+                .input(httpInput(HttpRequestTemplate.builder("localhost", webServer.getPort())
+                        .path("/")
+                        .readTimeout(TimeValue.timeValueMillis(10))))
+                .condition(AlwaysCondition.INSTANCE)
+                .addAction("_webhook", webhookAction(HttpRequestTemplate.builder("localhost", webServer.getPort())
+                        .readTimeout(TimeValue.timeValueMillis(10))
+                        .path("/webhook/path")
+                        .method(HttpMethod.POST)
+                        .body("_body"))))
+                .get();
+
+        assertThat(putWatchResponse.isCreated(), is(true));
+        watcherClient().prepareExecuteWatch(id).setRecordExecution(true).get();
+
+        // ensure watcher history index has been written with this id
+        flushAndRefresh(HistoryStore.INDEX_PREFIX + "*");
+        SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
+                .setQuery(QueryBuilders.termQuery("watch_id", id))
+                .get();
+        assertHitCount(searchResponse, 1L);
+
+        // ensure that enabled is set to false
+        List<Boolean> indexed = new ArrayList<>();
+        GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings(HistoryStore.INDEX_PREFIX + "*").get();
+        Iterator<ImmutableOpenMap<String, MappingMetaData>> iterator = mappingsResponse.getMappings().valuesIt();
+        while (iterator.hasNext()) {
+            ImmutableOpenMap<String, MappingMetaData> mapping = iterator.next();
+            assertThat(mapping.containsKey("doc"), is(true));
+            Map<String, Object> docMapping = mapping.get("doc").getSourceAsMap();
+            if (abortAtInput) {
+                Boolean enabled = ObjectPath.eval("properties.result.properties.input.properties.error.enabled", docMapping);
+                indexed.add(enabled);
+            } else {
+                Boolean enabled = ObjectPath.eval("properties.result.properties.actions.properties.error.enabled", docMapping);
+                indexed.add(enabled);
+            }
+        }
+
+        assertThat(indexed, hasSize(greaterThanOrEqualTo(1)));
+        logger.info("GOT [{}]", indexed);
+        assertThat(indexed, hasItem(false));
+        assertThat(indexed, not(hasItem(true)));
     }
 }

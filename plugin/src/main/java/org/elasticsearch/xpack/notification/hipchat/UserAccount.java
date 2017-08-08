@@ -88,8 +88,7 @@ public class UserAccount extends HipChatAccount {
                             response));
                 } catch (IOException e) {
                     logger.error("failed to execute hipchat api http request", e);
-                    sentMessages.add(SentMessages.SentMessage.error(room, SentMessages.SentMessage.TargetType.ROOM, message,
-                            ExceptionsHelper.detailedMessage(e)));
+                    sentMessages.add(SentMessages.SentMessage.error(room, SentMessages.SentMessage.TargetType.ROOM, message, e));
                 }
             }
         }
@@ -102,8 +101,7 @@ public class UserAccount extends HipChatAccount {
                             response));
                 } catch (Exception e) {
                     logger.error("failed to execute hipchat api http request", e);
-                    sentMessages.add(SentMessages.SentMessage.error(user, SentMessages.SentMessage.TargetType.USER, message,
-                            ExceptionsHelper.detailedMessage(e)));
+                    sentMessages.add(SentMessages.SentMessage.error(user, SentMessages.SentMessage.TargetType.USER, message, e));
                 }
             }
         }

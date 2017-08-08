@@ -186,7 +186,7 @@ public class LoggingAction implements Action {
         }
     }
 
-    interface Field extends Action.Field {
+    interface Field {
         ParseField CATEGORY = new ParseField("category");
         ParseField LEVEL = new ParseField("level");
         ParseField TEXT = new ParseField("text");

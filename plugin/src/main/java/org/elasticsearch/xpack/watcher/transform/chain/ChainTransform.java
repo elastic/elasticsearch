@@ -162,7 +162,7 @@ public class ChainTransform implements Transform {
         }
     }
 
-    interface Field extends Transform.Field {
+    interface Field {
         ParseField RESULTS = new ParseField("results");
     }
 }

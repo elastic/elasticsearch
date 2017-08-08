@@ -154,7 +154,6 @@ public class HttpClient extends AbstractComponent {
 
         // timeouts
         if (request.connectionTimeout() != null) {
-
             config.setConnectTimeout(Math.toIntExact(request.connectionTimeout.millis()));
         } else {
             config.setConnectTimeout(Math.toIntExact(defaultConnectionTimeout.millis()));

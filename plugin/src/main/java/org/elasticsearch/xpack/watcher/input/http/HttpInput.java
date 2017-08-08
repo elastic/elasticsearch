@@ -202,7 +202,7 @@ public class HttpInput implements Input {
         }
     }
 
-    interface Field extends Input.Field {
+    interface Field {
         ParseField REQUEST = new ParseField("request");
         ParseField EXTRACT = new ParseField("extract");
         ParseField STATUS_CODE = new ParseField("status_code");

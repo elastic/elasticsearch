@@ -215,6 +215,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
             Map<String, String> expectedNodeAttr = new HashMap<>();
             expectedNodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
+            expectedNodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10");
             assertEquals(expectedNodeAttr, node.getAttributes());
             JobTaskStatus jobTaskStatus = (JobTaskStatus) task.getStatus();
             assertNotNull(jobTaskStatus);
@@ -402,6 +403,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
             Map<String, String> expectedNodeAttr = new HashMap<>();
             expectedNodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
+            expectedNodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10");
             assertEquals(expectedNodeAttr, node.getAttributes());
 
             JobTaskStatus jobTaskStatus = (JobTaskStatus) task.getStatus();

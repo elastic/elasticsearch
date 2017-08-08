@@ -153,7 +153,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             if (indexOptions() == IndexOptions.NONE) {
                 throw new IllegalArgumentException("Fielddata access on the _uid field is disallowed");
             }

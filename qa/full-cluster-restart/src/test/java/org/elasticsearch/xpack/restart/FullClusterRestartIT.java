@@ -248,6 +248,21 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
     }
 
+    public void testSqlFailsOnIndexWithTwoTypes() throws IOException {
+        // TODO this isn't going to trigger until we backport to 6.1
+        assumeTrue("It is only possible to build an index that sql doesn't like before 6.0.0",
+                oldClusterVersion.onOrAfter(Version.V_6_0_0_alpha1));
+        if (runningAgainstOldCluster) {
+            client().performRequest("POST", "/testsqlfailsonindexwithtwotypes/type1", emptyMap(), new StringEntity("{}"));
+            client().performRequest("POST", "/testsqlfailsonindexwithtwotypes/type2", emptyMap(), new StringEntity("{}"));
+            return;
+        }
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest("POST", "/_sql", emptyMap(),
+                new StringEntity("{\"query\":\"SELECT * FROM testsqlfailsonindexwithtwotypes\"}")));
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("Invalid index testsqlfailsonindexwithtwotypes; contains more than one type"));
+    }
+
     private String loadWatch(String watch) throws IOException {
         return StreamsUtils.copyToStringFromClasspath("/org/elasticsearch/xpack/restart/" + watch);
     }

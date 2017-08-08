@@ -20,12 +20,4 @@ public class ErrorsIT extends JdbcIntegrationTestCase {
             assertEquals("line 1:15: Cannot resolve index [test]", e.getMessage());
         }
     }
-
-//    public void testMultiTypeIndex() throws Exception {
-//       NOCOMMIT bwc tests   
-//        try (Connection c = esJdbc()) {
-//            SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT * from multi_type").executeQuery());
-//            assertEquals(message("multi_type"), e.getMessage());
-//        }
-//    }
 }

@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -290,13 +291,22 @@ public class Upgrade implements ActionPlugin {
 
     private static ActionListener<DeleteIndexTemplateResponse> deleteIndexTemplateListener(String name, ActionListener<Boolean> listener,
                                                                                            Runnable runnable) {
-        return ActionListener.wrap(r -> {
-            if (r.isAcknowledged()) {
-                runnable.run();
-            } else {
-                listener.onFailure(new ElasticsearchException("Deleting [{}] template was not acknowledged", name));
-            }
-        }, listener::onFailure);
+        return ActionListener.wrap(
+                r -> {
+                    if (r.isAcknowledged()) {
+                        runnable.run();
+                    } else {
+                        listener.onFailure(new ElasticsearchException("Deleting [{}] template was not acknowledged", name));
+                    }
+                },
+                // if the index template we tried to delete is gone already, no need to worry
+                e -> {
+                    if (e instanceof IndexTemplateMissingException) {
+                        runnable.run();
+                    } else {
+                        listener.onFailure(e);
+                    }
+                });
     }
 
     private static void startWatcherIfNeeded(Boolean shouldStartWatcher, Client client, ActionListener<TransportResponse.Empty> listener) {

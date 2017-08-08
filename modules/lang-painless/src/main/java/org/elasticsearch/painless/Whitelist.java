@@ -72,13 +72,13 @@ public final class Whitelist {
     static class WStruct {
 
         /** The Painless name of this struct which will also be the name of a type in a Painless script.  */
-        final String pStructName;
+        final String pTypeName;
 
         /** The Java class this struct represents. */
         final Class<?> jClass;
 
         /** The {@link List} of Painless structs, as names, this struct extends. */
-        final List<String> pSuperStructNames;
+        final List<String> pSuperTypeNames;
 
         /** The {@link List} of white-listed constructors ({@link WConstructor}s) available to this struct. */
         final List<WConstructor> wConstructors;
@@ -90,11 +90,11 @@ public final class Whitelist {
         final List<WField> wFields;
 
         /** Standard constructor. All values must be not {@code null}. */
-        private WStruct(String pStructName, Class<?> jClass, List<String> pSuperStructNames,
+        private WStruct(String pTypeName, Class<?> jClass, List<String> pSuperTypeNames,
                        List<WConstructor> wConstructors, List<WMethod> wMethods, List<WField> wFields) {
-            this.pStructName = Objects.requireNonNull(pStructName);
+            this.pTypeName = Objects.requireNonNull(pTypeName);
             this.jClass = Objects.requireNonNull(jClass);
-            this.pSuperStructNames = Collections.unmodifiableList(Objects.requireNonNull(pSuperStructNames));
+            this.pSuperTypeNames = Collections.unmodifiableList(Objects.requireNonNull(pSuperTypeNames));
 
             this.wConstructors = Collections.unmodifiableList(Objects.requireNonNull(wConstructors));
             this.wMethods = Collections.unmodifiableList(Objects.requireNonNull(wMethods));
@@ -182,7 +182,53 @@ public final class Whitelist {
     }
 
     /**
-     * Loads a white-list from
+     * Loads and creates a {@link Whitelist} from one to many text files.  The file paths are passed in as a
+     * {@link Map} with keys of {@link Class} and values of {@link List}s of {@link String}s where each {@link String}
+     * is the path of a single text file.  The key {@link Class} for each {@link List} of file paths will be
+     * used to load each file path in the {@link List} as a resource and then the key {@link Class}'s
+     * {@link ClassLoader} will be used to lookup the Java reflection objects for each individual {@link Class},
+     * {@link Constructor}, {@link Method}, and {@link Field} specified as part of the white-list in the text file.
+     *
+     * Two passes are made through each specified text file.  The first pass will load both the dynamic Painless
+     * type names and static Painless type names that can then be used during a second pass as a lookup for Painless
+     * constructor/method/field return and parameter type names.  The second pass will load each individual
+     * constructor, method, and field that will be white-listed for use in Painless scripts.
+     *
+     * The following example is used to create a single white-list text file:
+     *
+     * {@code
+     * # dynamic types
+     *
+     * dynamic def
+     *
+     * # primitive types
+     *
+     * class int -> int {
+     * }
+     *
+     * # complex types
+     *
+     * class Example -> my.package.Example {
+     *   # constructors
+     *   ()
+     *   (int)
+     *   (Example)
+     *
+     *   # method
+     *   Example add(int)
+     *   int add(Example, Example)
+     *   void example()
+     *
+     *   # augmented
+     *   Example some.other.Class sub(int)
+     *
+     *   # fields
+     *   int value0
+     *   int value1
+     * }
+     * }
+     *
+     * 
      */
     public static Whitelist loadFromResourceFiles(Map<Class<?>, List<String>> resourcesToFiles) {
         Map<String, Class<?>> namesToClasses = new HashMap<>();

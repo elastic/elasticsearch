@@ -245,6 +245,11 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField pointField = fields[1];
         assertEquals(2, pointField.fieldType().pointDimensionCount());
 
+        // date_range ignores the coerce parameter and epoch_millis date format truncates floats (see issue: #14641)
+        if (type.equals("date_range")) {
+            return;
+        }
+
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field").field("type", type).field("coerce", false).endObject().endObject()
             .endObject().endObject();

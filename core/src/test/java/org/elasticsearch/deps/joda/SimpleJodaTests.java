@@ -262,6 +262,26 @@ public class SimpleJodaTests extends ESTestCase {
         }
     }
 
+    public void testThatFloatEpochsCanBeParsed() {
+
+        long millisFromEpoch = randomNonNegativeLong();
+
+        String epochFloatValue = String.format(Locale.US, "%d.%d", millisFromEpoch, randomNonNegativeLong());
+        FormatDateTimeFormatter formatter = Joda.forPattern("epoch_millis");
+
+        DateTime dateTime = formatter.parser().parseDateTime(epochFloatValue);
+
+        assertEquals(dateTime.getMillis(), millisFromEpoch);
+
+
+        epochFloatValue = String.format(Locale.US, "%d.%d", millisFromEpoch / 1000, randomNonNegativeLong());
+        formatter = Joda.forPattern("epoch_second");
+
+        dateTime = formatter.parser().parseDateTime(epochFloatValue);
+
+        assertEquals(dateTime.getMillis(), millisFromEpoch / 1000 * 1000);
+    }
+
     public void testThatNegativeEpochsCanBeParsed() {
         // problem: negative epochs can be arbitrary in size...
         boolean parseMilliSeconds = randomBoolean();

@@ -78,6 +78,7 @@ class BuildPlugin implements Plugin<Project> {
         configureRepositories(project)
         configureConfigurations(project)
         project.ext.versions = VersionProperties.versions
+        project.ext.artifacts_host = project.ext.versions.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
         configureCompile(project)
         configureJavadocJar(project)
         configureSourcesJar(project)
@@ -289,7 +290,7 @@ class BuildPlugin implements Plugin<Project> {
         project.configurations.provided.dependencies.all(disableTransitiveDeps)
     }
 
-    /** Adds repositores used by ES dependencies */
+    /** Adds repositories used by ES dependencies */
     static void configureRepositories(Project project) {
         RepositoryHandler repos = project.repositories
         if (System.getProperty("repos.mavenlocal") != null) {

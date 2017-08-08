@@ -129,7 +129,7 @@ h3. Multi Tenant - Indices and Types
 
 Man, that twitter index might get big (in this case, index size == valuation). Let's see if we can structure our twitter system a bit differently in order to support such large amounts of data.
 
-Elasticsearch supports multiple indices, and each index may store heterogeneous documents. In the previous example we used an index called @twitter@ that stored both @user@s and @tweet@s.
+Elasticsearch supports multiple indices. In the previous example we used an index called @twitter@ that stored tweets for every user.
 
 Another way to define our simple twitter system is to have a different index per user (note, though that each index has an overhead). Here is the indexing curl's in this case:
 

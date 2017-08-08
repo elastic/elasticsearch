@@ -35,11 +35,6 @@ public class FilteredCatalog implements Catalog {
     }
 
     @Override
-    public boolean indexIsValid(String index) {
-        return delegate.indexIsValid(index);
-    }
-
-    @Override
     public EsIndex getIndex(String index) {
         // NOCOMMIT we need to think really carefully about how we deal with aliases that resolve into multiple indices.
         EsIndex result = delegate.getIndex(index);

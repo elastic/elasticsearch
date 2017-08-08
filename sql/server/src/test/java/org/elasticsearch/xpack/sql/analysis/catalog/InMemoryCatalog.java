@@ -35,13 +35,7 @@ class InMemoryCatalog implements Catalog {
     }
 
     @Override
-    public boolean indexIsValid(String index) {
-        return true;
-    }
-
-    @Override
     public EsIndex getIndex(String index) {
         return indices.get(index);
     }
-
 }

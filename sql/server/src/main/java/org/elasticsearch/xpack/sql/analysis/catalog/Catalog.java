@@ -6,23 +6,19 @@
 package org.elasticsearch.xpack.sql.analysis.catalog;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.util.List;
 
 
 public interface Catalog {
     /**
-     * Check if an index is valid for sql.
-     */
-    boolean indexIsValid(String index); // NOCOMMIT should probably be merged into EsCatalog's getIndex method.
-
-    /**
      * Lookup the information for a table, returning {@code null} if
      * the index is not found.
+     * @throws SqlIllegalArgumentException if the index is in some way invalid for use with sql
      */
     @Nullable
-    EsIndex getIndex(String index);
+    EsIndex getIndex(String index) throws SqlIllegalArgumentException;
 
     List<EsIndex> listIndices(String pattern);
-    // NOCOMMIT should these be renamed to getTable and listTables? That seems like a name given that this is a SQL Catalog abstraction. 
 }

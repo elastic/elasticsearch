@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -36,19 +37,16 @@ public class EsCatalog implements Catalog {
     }
 
     @Override
-    public EsIndex getIndex(String index) {
+    public EsIndex getIndex(String index) throws SqlIllegalArgumentException {
         MetaData metadata = metadata();
-        if (false == metadata.hasIndex(index)) {
+        IndexMetaData idx = metadata.index(index);
+        if (idx == null) {
             return null;
         }
-        return EsIndex.build(metadata.index(index));
-    }
-
-    @Override
-    public boolean indexIsValid(String index) {
-        // NOCOMMIT there is a race condition here with indices being deleted. This should be moved into getIndex
-        IndexMetaData idx = metadata().index(index);
-        return idx == null || indexHasOnlyOneType(idx);
+        if (false == indexHasOnlyOneType(idx)) {
+            throw new SqlIllegalArgumentException("index has more than one type");
+        }
+        return EsIndex.build(idx);
     }
 
     @Override

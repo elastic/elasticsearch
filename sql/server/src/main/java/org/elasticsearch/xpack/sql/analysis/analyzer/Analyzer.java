@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
-import org.elasticsearch.xpack.sql.analysis.InvalidIndexException;
 import org.elasticsearch.xpack.sql.analysis.UnknownFunctionException;
 import org.elasticsearch.xpack.sql.analysis.UnknownIndexException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
@@ -241,10 +241,12 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan) {
             TableIdentifier table = plan.table();
-            if (!catalog.indexIsValid(table.index())) {
-                throw new InvalidIndexException(table.index(), plan);
+            EsIndex found;
+            try {
+                found = catalog.getIndex(table.index());
+            } catch (SqlIllegalArgumentException e) {
+                throw new AnalysisException(plan, e.getMessage(), e);
             }
-            EsIndex found = catalog.getIndex(table.index());
             if (found == null) {
                 throw new UnknownIndexException(table.index(), plan);
             }

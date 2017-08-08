@@ -30,6 +30,17 @@ public class AnalysisException extends SqlException {
         this.column = loc.getColumnNumber();
     }
 
+    public AnalysisException(Node<?> source, String message, Throwable cause) {
+        super(message, cause);
+
+        Location loc = Location.EMPTY;
+        if (source != null && source.location() != null) {
+            loc = source.location();
+        }
+        this.line = loc.getLineNumber();
+        this.column = loc.getColumnNumber();
+    }
+
     public int getLineNumber() {
         return line;
     }

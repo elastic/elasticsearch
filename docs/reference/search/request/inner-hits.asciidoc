@@ -158,8 +158,10 @@ An example of a response snippet that could be generated from the above search r
                   },
                   "_score": 1.0,
                   "_source": {
-                    "author": "nik9000",
-                    "number": 2
+                    "comments" : {
+                      "author": "nik9000",
+                      "number": 2
+                    }
                   }
                 }
               ]
@@ -404,8 +406,12 @@ Which would look like:
                   },
                   "_score": 0.6931472,
                   "_source": {
-                    "value": 1,
-                    "voter": "kimchy"
+                    "comments": {
+                      "votes": {
+                        "value": 1,
+                        "voter": "kimchy"
+                      }
+                    }
                   }
                 }
               ]

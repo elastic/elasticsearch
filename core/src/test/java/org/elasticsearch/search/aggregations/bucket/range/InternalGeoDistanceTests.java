@@ -24,12 +24,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.range.InternalGeoDistance;
-import org.elasticsearch.search.aggregations.bucket.range.ParsedGeoDistance;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -98,5 +97,39 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
     @Override
     protected Class<? extends ParsedMultiBucketAggregation.ParsedBucket> parsedRangeBucketClass() {
         return ParsedGeoDistance.ParsedBucket.class;
+    }
+
+    @Override
+    protected InternalGeoDistance mutateInstance(InternalGeoDistance instance) {
+        String name = instance.getName();
+        boolean keyed = instance.keyed;
+        List<InternalGeoDistance.Bucket> buckets = instance.getBuckets();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 3)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            keyed = keyed == false;
+            break;
+        case 2:
+            buckets = new ArrayList<>(buckets);
+            double from = randomDouble();
+            buckets.add(new InternalGeoDistance.Bucket("range_a", from, from + randomDouble(), randomNonNegativeLong(),
+                    InternalAggregations.EMPTY, false));
+            break;
+        case 3:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalGeoDistance(name, buckets, keyed, pipelineAggregators, metaData);
     }
 }

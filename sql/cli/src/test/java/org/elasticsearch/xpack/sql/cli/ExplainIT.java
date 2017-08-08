@@ -5,14 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
-
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2074")
 public class ExplainIT extends CliIntegrationTestCase {
     public void testExplainBasic() throws IOException {
         index("test", body -> body.field("test_field", "test_value"));
@@ -22,14 +19,14 @@ public class ExplainIT extends CliIntegrationTestCase {
         assertThat(in.readLine(), startsWith("----------"));
         assertThat(in.readLine(), startsWith("With[{}]"));
         assertThat(in.readLine(), startsWith("\\_Project[[?*]]"));
-        assertThat(in.readLine(), startsWith("  \\_UnresolvedRelation[[test],null]"));
+        assertThat(in.readLine(), startsWith("  \\_UnresolvedRelation[[index=test],null]"));
         assertEquals("", in.readLine());
 
         command("EXPLAIN " + (randomBoolean() ? "" : "(PLAN ANALYZED) ") + "SELECT * FROM test");
         assertThat(in.readLine(), containsString("plan"));
         assertThat(in.readLine(), startsWith("----------"));
         assertThat(in.readLine(), startsWith("Project[[test_field{r}#"));
-        assertThat(in.readLine(), startsWith("\\_SubQueryAlias[doc]"));
+        assertThat(in.readLine(), startsWith("\\_SubQueryAlias[test]"));
         assertThat(in.readLine(), startsWith("  \\_CatalogTable[test][test_field{r}#"));
         assertEquals("", in.readLine());
 
@@ -65,7 +62,7 @@ public class ExplainIT extends CliIntegrationTestCase {
         assertThat(in.readLine(), startsWith("With[{}]"));
         assertThat(in.readLine(), startsWith("\\_Project[[?*]]"));
         assertThat(in.readLine(), startsWith("  \\_Filter[?i = 2]"));
-        assertThat(in.readLine(), startsWith("    \\_UnresolvedRelation[[type],null]"));
+        assertThat(in.readLine(), startsWith("    \\_UnresolvedRelation[[index=test],null]"));
         assertEquals("", in.readLine());
 
         command("EXPLAIN " + (randomBoolean() ? "" : "(PLAN ANALYZED) ") + "SELECT * FROM test WHERE i = 2");
@@ -73,7 +70,7 @@ public class ExplainIT extends CliIntegrationTestCase {
         assertThat(in.readLine(), startsWith("----------"));
         assertThat(in.readLine(), startsWith("Project[[i{r}#"));
         assertThat(in.readLine(), startsWith("\\_Filter[i{r}#"));
-        assertThat(in.readLine(), startsWith("  \\_SubQueryAlias[doc]"));
+        assertThat(in.readLine(), startsWith("  \\_SubQueryAlias[test]"));
         assertThat(in.readLine(), startsWith("    \\_CatalogTable[test][i{r}#"));
         assertEquals("", in.readLine());
 
@@ -110,7 +107,6 @@ public class ExplainIT extends CliIntegrationTestCase {
         assertEquals("", in.readLine());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2074")
     public void testExplainWithCount() throws IOException {
         index("test", body -> body.field("test_field", "test_value1").field("i", 1));
         index("test", body -> body.field("test_field", "test_value2").field("i", 2));
@@ -120,14 +116,14 @@ public class ExplainIT extends CliIntegrationTestCase {
         assertThat(in.readLine(), startsWith("----------"));
         assertThat(in.readLine(), startsWith("With[{}]"));
         assertThat(in.readLine(), startsWith("\\_Project[[?COUNT(?*)]]"));
-        assertThat(in.readLine(), startsWith("  \\_UnresolvedRelation[[test],null]"));
+        assertThat(in.readLine(), startsWith("  \\_UnresolvedRelation[[index=test],null]"));
         assertEquals("", in.readLine());
 
         command("EXPLAIN " + (randomBoolean() ? "" : "(PLAN ANALYZED) ") + "SELECT COUNT(*) FROM test");
         assertThat(in.readLine(), containsString("plan"));
         assertThat(in.readLine(), startsWith("----------"));
         assertThat(in.readLine(), startsWith("Aggregate[[],[COUNT(1)#"));
-        assertThat(in.readLine(), startsWith("\\_SubQueryAlias[doc]"));
+        assertThat(in.readLine(), startsWith("\\_SubQueryAlias[test]"));
         assertThat(in.readLine(), startsWith("  \\_CatalogTable[test][i{r}#"));
         assertEquals("", in.readLine());
 

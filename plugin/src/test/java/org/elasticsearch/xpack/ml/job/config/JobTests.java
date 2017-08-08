@@ -470,15 +470,17 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
     public void testEmptyGroup() {
         Job.Builder builder = buildJobBuilder("foo");
+        builder.setGroups(Arrays.asList("foo-group", ""));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> builder.setGroups(Arrays.asList("foo-group", "")));
+                () -> builder.build());
         assertThat(e.getMessage(), containsString("Invalid group id ''"));
     }
 
     public void testInvalidGroup() {
         Job.Builder builder = buildJobBuilder("foo");
+        builder.setGroups(Arrays.asList("foo-group", "$$$"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> builder.setGroups(Arrays.asList("foo-group", "$$$")));
+                () -> builder.build());
         assertThat(e.getMessage(), containsString("Invalid group id '$$$'"));
     }
 

@@ -137,7 +137,7 @@ public class HipChatAction implements Action {
                 boolean hasSuccesses = false;
                 boolean hasFailures = false;
                 for (SentMessages.SentMessage message : sentMessages) {
-                    if (message.successful()) {
+                    if (message.isSuccess()) {
                         hasSuccesses = true;
                     } else {
                         hasFailures = true;

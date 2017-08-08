@@ -48,6 +48,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
@@ -231,7 +232,7 @@ public class ExecutionServiceTests extends ESTestCase {
         input = mock(ExecutableInput.class);
         Input.Result inputResult = mock(Input.Result.class);
         when(inputResult.status()).thenReturn(Input.Result.Status.FAILURE);
-        when(inputResult.reason()).thenReturn("_reason");
+        when(inputResult.getException()).thenReturn(new IOException());
         when(input.execute(eq(context), any(Payload.class))).thenReturn(inputResult);
 
         Condition.Result conditionResult = AlwaysCondition.RESULT_INSTANCE;

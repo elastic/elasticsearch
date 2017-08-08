@@ -9,10 +9,10 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.HttpResponse;
+import org.elasticsearch.xpack.watcher.actions.Action;
 
 import java.io.IOException;
 
@@ -170,7 +170,7 @@ public class WebhookAction implements Action {
         }
     }
 
-    interface Field extends Action.Field {
+    interface Field {
         ParseField REQUEST = new ParseField("request");
         ParseField RESPONSE = new ParseField("response");
     }

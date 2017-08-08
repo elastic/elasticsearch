@@ -110,9 +110,10 @@ public class SlackActionTests extends ESTestCase {
         for (int i = 0; i < count; i++) {
             HttpResponse response = mock(HttpResponse.class);
             HttpRequest request = mock(HttpRequest.class);
-            switch (randomIntBetween(0, 2)) {
+            int randomInt = randomIntBetween(0, 2);
+            switch (randomInt) {
                 case 0:
-                    messages.add(SentMessages.SentMessage.error(randomAlphaOfLength(10), message, "unknown error"));
+                    messages.add(SentMessages.SentMessage.error(randomAlphaOfLength(10), message, new Exception("unknown error")));
                     hasError = true;
                     break;
                 case 1:

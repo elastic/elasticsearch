@@ -282,7 +282,7 @@ public class EmailAction implements Action {
         }
     }
 
-    interface Field extends Action.Field {
+    interface Field {
 
         // common fields
         ParseField ACCOUNT = new ParseField("account");

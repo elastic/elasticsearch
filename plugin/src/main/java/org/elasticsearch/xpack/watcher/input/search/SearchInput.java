@@ -233,7 +233,7 @@ public class SearchInput implements Input {
         }
     }
 
-    public interface Field extends Input.Field {
+    public interface Field {
         ParseField REQUEST = new ParseField("request");
         ParseField EXTRACT = new ParseField("extract");
         ParseField TIMEOUT = new ParseField("timeout_in_millis");

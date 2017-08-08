@@ -253,12 +253,14 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assumeTrue("It is only possible to build an index that sql doesn't like before 6.0.0",
                 oldClusterVersion.onOrAfter(Version.V_6_0_0_alpha1));
         if (runningAgainstOldCluster) {
-            client().performRequest("POST", "/testsqlfailsonindexwithtwotypes/type1", emptyMap(), new StringEntity("{}"));
-            client().performRequest("POST", "/testsqlfailsonindexwithtwotypes/type2", emptyMap(), new StringEntity("{}"));
+            client().performRequest("POST", "/testsqlfailsonindexwithtwotypes/type1", emptyMap(),
+                    new StringEntity("{}", ContentType.APPLICATION_JSON));
+            client().performRequest("POST", "/testsqlfailsonindexwithtwotypes/type2", emptyMap(),
+                    new StringEntity("{}", ContentType.APPLICATION_JSON));
             return;
         }
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest("POST", "/_sql", emptyMap(),
-                new StringEntity("{\"query\":\"SELECT * FROM testsqlfailsonindexwithtwotypes\"}")));
+                new StringEntity("{\"query\":\"SELECT * FROM testsqlfailsonindexwithtwotypes\"}", ContentType.APPLICATION_JSON)));
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("Invalid index testsqlfailsonindexwithtwotypes; contains more than one type"));
     }

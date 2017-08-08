@@ -29,6 +29,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.is;
 
 public class XDocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final String USER_TOKEN = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
@@ -78,7 +79,23 @@ public class XDocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
      */
     @After
     public void reenableWatcher() throws Exception {
-        getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
+        if (isWatcherTest()) {
+            assertBusy(() -> {
+                ClientYamlTestResponse response =
+                        getAdminExecutionContext().callApi("xpack.watcher.stats", emptyMap(), emptyList(), emptyMap());
+                String state = (String) response.evaluate("stats.0.watcher_state");
+                if (state.equals("started") == false || state.equals("starting") == false) {
+                    getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
+                }
+
+                assertThat(state, is("started"));
+            });
+        }
+    }
+
+    private boolean isWatcherTest() {
+        String testName = getTestName();
+        return testName != null && testName.contains("watcher");
     }
 
     /**

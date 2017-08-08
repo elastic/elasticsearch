@@ -26,7 +26,13 @@ import java.io.IOException;
 /** A script that is used to build {@link ScriptedSimilarity} instances. */
 public abstract class SimilarityScript  {
 
-    /** Compute the score. */
+    /** Compute the score.
+     * @param weight weight computed by the {@link SimilarityWeightScript} if any, or 1.
+     * @param query  scoring factors that come from the query
+     * @param field  field-level statistics
+     * @param term   term-level statistics
+     * @param doc    per-document statistics
+     */
     public abstract double execute(double weight, ScriptedSimilarity.Query query,
             ScriptedSimilarity.Field field, ScriptedSimilarity.Term term, ScriptedSimilarity.Doc doc) throws IOException;
 

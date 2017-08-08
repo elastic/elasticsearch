@@ -38,8 +38,8 @@ import java.io.IOException;
  */
 public final class ScriptedSimilarity extends Similarity {
 
-    final String weightScriptString;
-    final String scriptString;
+    final String weightScriptSource;
+    final String scriptSource;
     final SimilarityWeightScript.Factory weightScriptFactory;
     final SimilarityScript.Factory scriptFactory;
     final boolean discountOverlaps;
@@ -47,16 +47,16 @@ public final class ScriptedSimilarity extends Similarity {
     /** Sole constructor. */
     public ScriptedSimilarity(String weightScriptString, SimilarityWeightScript.Factory weightScriptFactory,
             String scriptString, SimilarityScript.Factory scriptFactory, boolean discountOverlaps) {
-        this.weightScriptString = weightScriptString;
+        this.weightScriptSource = weightScriptString;
         this.weightScriptFactory = weightScriptFactory;
-        this.scriptString = scriptString;
+        this.scriptSource = scriptString;
         this.scriptFactory = scriptFactory;
         this.discountOverlaps = discountOverlaps;
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "(weightScript=[" + weightScriptString + "], script=[" + scriptString + "])";
+        return getClass().getSimpleName() + "(weightScript=[" + weightScriptSource + "], script=[" + scriptSource + "])";
     }
 
     @Override

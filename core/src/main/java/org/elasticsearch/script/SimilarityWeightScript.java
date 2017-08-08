@@ -26,7 +26,11 @@ import java.io.IOException;
 /** A script that is used to compute scoring factors that are the same for all documents. */
 public abstract class SimilarityWeightScript  {
 
-    /** Compute the weight. */
+    /** Compute the weight.
+     * @param query  scoring factors that come from the query
+     * @param field  field-level statistics
+     * @param term   term-level statistics
+     */
     public abstract double execute(ScriptedSimilarity.Query query, ScriptedSimilarity.Field field,
             ScriptedSimilarity.Term term) throws IOException;
 

@@ -10,6 +10,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.text.TextTemplate;
@@ -20,7 +21,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-public class IncidentEventContext implements ToXContent {
+public class IncidentEventContext implements ToXContentObject {
 
     enum Type {
         LINK, IMAGE

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.action.user;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -17,7 +17,7 @@ import java.io.IOException;
  * Response when deleting a native user. Returns a single boolean field for whether the user was
  * found (and deleted) or not found.
  */
-public class DeleteUserResponse extends ActionResponse implements ToXContent {
+public class DeleteUserResponse extends ActionResponse implements ToXContentObject {
 
     private boolean found;
 

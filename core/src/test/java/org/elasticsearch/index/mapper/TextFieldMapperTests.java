@@ -477,7 +477,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper disabledMapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, disabledMapper.mappingSource().toString());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> disabledMapper.mappers().getMapper("field").fieldType().fielddataBuilder());
+                () -> disabledMapper.mappers().getMapper("field").fieldType().fielddataBuilder("test"));
         assertThat(e.getMessage(), containsString("Fielddata is disabled"));
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -490,7 +490,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper enabledMapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, enabledMapper.mappingSource().toString());
-        enabledMapper.mappers().getMapper("field").fieldType().fielddataBuilder(); // no exception this time
+        enabledMapper.mappers().getMapper("field").fieldType().fielddataBuilder("test"); // no exception this time
 
         String illegalMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")

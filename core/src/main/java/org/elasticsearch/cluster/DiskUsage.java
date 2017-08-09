@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -33,7 +33,7 @@ import java.util.Objects;
 /**
  * Encapsulation class used to represent the amount of disk used on a node.
  */
-public class DiskUsage implements ToXContent, Writeable {
+public class DiskUsage implements ToXContentFragment, Writeable {
     final String nodeId;
     final String nodeName;
     final String path;
@@ -73,7 +73,7 @@ public class DiskUsage implements ToXContent, Writeable {
         return Math.round(pct * 10.0) / 10.0;
     }
 
-    public XContentBuilder toShortXContent(XContentBuilder builder, Params params) throws IOException {
+    XContentBuilder toShortXContent(XContentBuilder builder) throws IOException {
         builder.field("path", this.path);
         builder.byteSizeField("total_bytes", "total", this.totalBytes);
         builder.byteSizeField("used_bytes", "used", this.getUsedBytes());
@@ -86,7 +86,7 @@ public class DiskUsage implements ToXContent, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("node_id", this.nodeId);
         builder.field("node_name", this.nodeName);
-        builder = toShortXContent(builder, params);
+        builder = toShortXContent(builder);
         return builder;
     }
 

@@ -45,10 +45,9 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
 
     public void testEmpty() throws IOException {
-        PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg")
+        PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[]{0.5})
                 .field("field")
-                .method(PercentilesMethod.TDIGEST)
-                .values(0.5);
+                .method(PercentilesMethod.TDIGEST);
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
         fieldType.setName("field");
         try (IndexReader reader = new MultiReader()) {
@@ -57,20 +56,6 @@ public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
             Percentile rank = ranks.iterator().next();
             assertEquals(Double.NaN, rank.getPercent(), 0d);
             assertEquals(0.5, rank.getValue(), 0d);
-        }
-    }
-
-    public void testMissingValues() throws IOException {
-        PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg")
-            .field("field")
-            .method(PercentilesMethod.TDIGEST);
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        fieldType.setName("field");
-        try (IndexReader reader = new MultiReader()) {
-            IndexSearcher searcher = new IndexSearcher(reader);
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
-            assertThat(e.getMessage(), equalTo("Parameter [values] cannot be null."));
         }
     }
 
@@ -83,10 +68,9 @@ public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
                 w.addDocument(doc);
             }
 
-            PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg")
+            PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[]{0.1, 0.5, 12})
                     .field("field")
-                    .method(PercentilesMethod.TDIGEST)
-                    .values(0.1, 0.5, 12);
+                    .method(PercentilesMethod.TDIGEST);
             MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
             fieldType.setName("field");
             try (IndexReader reader = w.getReader()) {

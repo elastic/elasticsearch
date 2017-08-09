@@ -28,6 +28,9 @@ import org.elasticsearch.transport.nio.channel.WriteContext;
 import java.io.IOException;
 
 public class HttpWriteContext implements WriteContext {
+
+
+
     @Override
     public void sendMessage(BytesReference reference, ActionListener<NioChannel> listener) {
 

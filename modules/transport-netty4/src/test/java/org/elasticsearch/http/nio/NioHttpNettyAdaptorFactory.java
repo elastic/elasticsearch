@@ -35,10 +35,14 @@ import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
+import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseEncoder;
+import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.FutureListener;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
@@ -48,6 +52,7 @@ import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
+import java.util.LinkedList;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
@@ -59,7 +64,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
 import static org.elasticsearch.http.netty4.Netty4HttpServerTransport.SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS;
 
-public class NioHttpNettyAdaptor {
+public class NioHttpNettyAdaptorFactory {
 
     private final BiConsumer<NioSocketChannel, Throwable> exceptionHandler;
     private final Netty4CorsConfig corsConfig;
@@ -73,8 +78,8 @@ public class NioHttpNettyAdaptor {
     private final int maxInitialLineLength;
     private final int maxCompositeBufferComponents;
 
-    protected NioHttpNettyAdaptor(Settings settings, BiConsumer<NioSocketChannel, Throwable> exceptionHandler, Netty4CorsConfig config,
-                                  int maxContentLength) {
+    protected NioHttpNettyAdaptorFactory(Settings settings, BiConsumer<NioSocketChannel, Throwable> exceptionHandler,
+                                         Netty4CorsConfig config, int maxContentLength) {
         this.exceptionHandler = exceptionHandler;
         this.maxContentLength = maxContentLength;
         this.corsConfig = config;
@@ -90,34 +95,44 @@ public class NioHttpNettyAdaptor {
     }
 
     protected EmbeddedChannel getAdaptor(NioSocketChannel channel) {
-        // TODO: Need to ensure that messages are removed from channel eventually
         EmbeddedChannel ch = new EmbeddedChannel();
         // TODO: Implement Netty allocator that allocates our byte references
         ch.config().setAllocator(UnpooledByteBufAllocator.DEFAULT);
 
         final HttpRequestDecoder decoder = new HttpRequestDecoder(maxInitialLineLength, maxHeaderSize, maxChunkSize);
-        ch.pipeline().addLast(decoder);
-        ch.pipeline().addLast(new HttpContentDecompressor());
-//        ch.pipeline().addLast("writer", new ChannelOutboundHandlerAdapter() {
-//
-//            @Override
-//            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-//                channel.getWriteContext().sendMessage(Netty4Utils.toBytesReference((ByteBuf) msg), new ActionListener<NioChannel>() {
-//                    @Override
-//                    public void onResponse(NioChannel nioChannel) {
-//                        promise.setSuccess();
-//                    }
-//
-//                    @Override
-//                    public void onFailure(Exception e) {
-//                        promise.setFailure(e);
-//                    }
-//                });
-//                ctx.write(msg, promise);
-//            }
-//        });
-        ch.pipeline().addLast(new HttpResponseEncoder());
         decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
+
+        ch.pipeline().addLast(decoder);
+        ch.pipeline().addLast("writer", new ChannelOutboundHandlerAdapter() {
+
+            @Override
+            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+                channel.getWriteContext().sendMessage(Netty4Utils.toBytesReference((ByteBuf) msg), new ActionListener<NioChannel>() {
+                    @Override
+                    public void onResponse(NioChannel nioChannel) {
+                        promise.setSuccess();
+                        // We should only be using unpooled buffers. So releasing only removes them to ensure they can
+                        // be GCed.
+                        ch.releaseOutbound();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        promise.setFailure(e);
+                        // We should only be using unpooled buffers. So releasing only removes them to ensure they can
+                        // be GCed.
+                        ch.releaseOutbound();
+                    }
+                });
+
+                // This is a little tricky. The embedded channel will complete the promise once it writes the message
+                // to its outbound buffer. We do not want to complete the promise until the message is sent. So we
+                // intercept the promise and pass a different promise back to the rest of the pipeline.
+                ctx.write(msg, ch.newPromise());
+            }
+        });
+        ch.pipeline().addLast(new HttpContentDecompressor());
+        ch.pipeline().addLast(new HttpResponseEncoder());
         final HttpObjectAggregator aggregator = new HttpObjectAggregator(maxContentLength);
         if (maxCompositeBufferComponents != -1) {
             aggregator.setMaxCumulationBufferComponents(maxCompositeBufferComponents);
@@ -138,8 +153,14 @@ public class NioHttpNettyAdaptor {
                 exceptionHandler.accept(channel, cause);
             }
         });
+        ch.pipeline().addLast("close_adaptor", new ChannelOutboundHandlerAdapter() {
 
-        ch.closeFuture().addListener((FutureListener<Object>) future -> channel.closeAsync());
+            @Override
+            public void close(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
+                channel.closeAsync();
+            }
+
+        });
 
         return ch;
     }

@@ -23,12 +23,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.FullHttpRequest;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.http.netty4.Netty4HttpChannel;
-import org.elasticsearch.http.netty4.Netty4HttpRequest;
-import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.ReadContext;
@@ -43,7 +38,7 @@ public class HttpReadContext implements ReadContext {
     private final LinkedList<NetworkBytesReference> references = new LinkedList<>();
     private final NioHttpRequestHandler requestHandler;
 
-    public HttpReadContext(NioSocketChannel channel, NioHttpNettyAdaptor adaptor, NioHttpRequestHandler requestHandler) {
+    public HttpReadContext(NioSocketChannel channel, NioHttpNettyAdaptorFactory adaptor, NioHttpRequestHandler requestHandler) {
         this.channel = channel;
         this.requestHandler = requestHandler;
         this.nettyPipelineAdaptor = adaptor.getAdaptor(channel);

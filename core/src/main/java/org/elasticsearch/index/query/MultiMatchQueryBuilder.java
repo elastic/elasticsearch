@@ -223,7 +223,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         lenient = in.readBoolean();
         cutoffFrequency = in.readOptionalFloat();
         zeroTermsQuery = MatchQuery.ZeroTermsQuery.readFromStream(in);
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             autoGenerateSynonymsPhraseQuery = in.readBoolean();
         }
     }
@@ -250,7 +250,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         out.writeBoolean(lenient);
         out.writeOptionalFloat(cutoffFrequency);
         zeroTermsQuery.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeBoolean(autoGenerateSynonymsPhraseQuery);
         }
     }

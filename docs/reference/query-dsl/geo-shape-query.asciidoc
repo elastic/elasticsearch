@@ -110,10 +110,40 @@ which spatial relation operators may be used at search time.
 The following is a complete list of spatial relation operators available:
 
 * `INTERSECTS` - (default) Return all documents whose `geo_shape` field
-intersects the query geometry.
+intersects the query geometry. Examples of intersections using a `polygon` 
+query geometry in pink and a matching document `geo_shape` field geometry 
+(in this case, a `polygon`) in green:
+
+.query geometry boundary intersects document `geo_shape` field geometry
+image::images/geo_shapes/intersects-boundary.png[]
+
+.query geometry interior intersects document `geo_shape` field geometry boundary
+image::images/geo_shapes/intersects-interior-boundary.png[]
+
+.query geometry interior intersects document `geo_shape` field geometry interior
+image::images/geo_shapes/contains.png[]
+
 * `DISJOINT` - Return all documents whose `geo_shape` field
-has nothing in common with the query geometry.
+has nothing in common with the query geometry. This is the opposite of
+`INTERSECTS`. An example of disjoint using a `polygon` 
+query geometry in pink and a matching document `geo_shape` field geometry 
+(in this case, a `polygon`) in green:
+
+.query geometry disjoint to the document `geo_shape` field geometry
+image::images/geo_shapes/disjoint.png[]
+
 * `WITHIN` - Return all documents whose `geo_shape` field
-is within the query geometry.
+is within the query geometry. An example using a `polygon` 
+query geometry in pink and a matching document `geo_shape` field geometry 
+(in this case, a `polygon`) in green:
+
+.document `geo_shape` field geometry wholly within query geometry
+image::images/geo_shapes/within.png[]
+
 * `CONTAINS` - Return all documents whose `geo_shape` field
-contains the query geometry.
+contains the query geometry. An example using a `polygon` 
+query geometry in pink and a matching document `geo_shape` field geometry 
+(in this case, a `polygon`) in green:
+
+.query geometry wholly contains the document `geo_shape` field geometry
+image::images/geo_shapes/contains.png[]

@@ -454,7 +454,8 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(terms("terms").field("value").order(BucketOrder.compound(BucketOrder.aggregation("filter>ranks.99", true)))
                         .subAggregation(filter("filter", termQuery("value", 100))
-                                .subAggregation(percentileRanks("ranks", new double[]{99}).method(PercentilesMethod.TDIGEST).field("value"))))
+                                .subAggregation(percentileRanks("ranks", new double[]{99})
+                                    .method(PercentilesMethod.TDIGEST).field("value"))))
                 .get();
 
         assertHitCount(searchResponse, 10);
@@ -498,7 +499,9 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                 .getMissCount(), equalTo(0L));
 
         // Test that a request using a script does not get cached
-        SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(percentileRanks("foo", new double[]{50.0}).field("d")
+        SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0)
+            .addAggregation(percentileRanks("foo", new double[]{50.0})
+                .field("d")
                 .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap()))).get();
         assertSearchResponse(r);
 

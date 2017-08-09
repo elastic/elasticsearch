@@ -128,8 +128,9 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .interval(1L)
                                 .minDocCount(0)
                                 .subAggregation(
-                                        percentileRanks("percentile_ranks", new double[]{10, 15}).field("value").method(PercentilesMethod.HDR)
-                                        .numberOfSignificantValueDigits(sigDigits)))
+                                        percentileRanks("percentile_ranks", new double[]{10, 15})
+                                            .field("value").method(PercentilesMethod.HDR)
+                                            .numberOfSignificantValueDigits(sigDigits)))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
@@ -152,7 +153,9 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                 .prepareSearch("idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        percentileRanks("percentile_ranks", new double[]{0,10,15,100}).method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                        percentileRanks("percentile_ranks", new double[]{0,10,15,100})
+                            .method(PercentilesMethod.HDR)
+                            .numberOfSignificantValueDigits(sigDigits)
                         .field("value"))
                 .execute().actionGet();
 
@@ -207,7 +210,9 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         global("global").subAggregation(
-                                percentileRanks("percentile_ranks", pcts).method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                                percentileRanks("percentile_ranks", pcts)
+                                    .method(PercentilesMethod.HDR)
+                                    .numberOfSignificantValueDigits(sigDigits)
                                 .field("value")))
                 .execute().actionGet();
 
@@ -557,7 +562,9 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
 
         // Test that a request using a script does not get cached
         SearchResponse r = client()
-                .prepareSearch("cache_test_idx").setSize(0).addAggregation(percentileRanks("foo", new double[]{50.0}).method(PercentilesMethod.HDR).field("d")
+                .prepareSearch("cache_test_idx").setSize(0)
+                    .addAggregation(percentileRanks("foo", new double[]{50.0})
+                        .method(PercentilesMethod.HDR).field("d")
                         .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap())))
                 .get();
         assertSearchResponse(r);

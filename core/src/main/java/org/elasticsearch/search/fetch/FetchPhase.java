@@ -276,6 +276,11 @@ public class FetchPhase implements SearchPhase {
                 }
                 if ((nestedParsedSource.get(0) instanceof Map) == false &&
                     nestedObjectMapper.parentObjectMapperAreNested(context.mapperService()) == false) {
+                    // When one of the parent objects are not nested then XContentMapValues.extractValue(...) extracts the values
+                    // from two or more layers resulting in a list of list being returned. This is because nestedPath
+                    // encapsulates two or more object layers in the _source.
+                    //
+                    // This is why only the first element of nestedParsedSource needs to be checked.
                     throw new IllegalArgumentException("Cannot execute inner hits. One or more parent object fields of nested field [" +
                         nestedObjectMapper.name() + "] are not nested. All parent fields need to be nested fields too");
                 }

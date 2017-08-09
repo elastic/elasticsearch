@@ -102,6 +102,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private static final ParseField ALL_FIELDS_FIELD = new ParseField("all_fields")
             .withAllDeprecated("Set [default_field] to `*` instead");
     private static final ParseField TYPE_FIELD = new ParseField("type");
+    private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
 
     private final String queryString;
 
@@ -156,6 +157,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     /** To limit effort spent determinizing regexp queries. */
     private int maxDeterminizedStates = DEFAULT_MAX_DETERMINED_STATES;
+
+    private boolean autoGenerateSynonymsPhraseQuery = true;
 
     public QueryStringQueryBuilder(String queryString) {
         if (queryString == null) {
@@ -219,6 +222,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 }
             }
         }
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            autoGenerateSynonymsPhraseQuery = in.readBoolean();
+        }
     }
 
     @Override
@@ -270,6 +276,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 Boolean useAllFields = defaultField == null ? null : Regex.isMatchAllPattern(defaultField);
                 out.writeOptionalBoolean(useAllFields);
             }
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeBoolean(autoGenerateSynonymsPhraseQuery);
         }
     }
 
@@ -625,6 +634,19 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         return false;
     }
 
+    public QueryStringQueryBuilder autoGenerateSynonymsPhraseQuery(boolean value) {
+        this.autoGenerateSynonymsPhraseQuery = value;
+        return this;
+    }
+
+    /**
+     * Whether phrase queries should be automatically generated for multi terms synonyms.
+     * Defaults to <tt>true</tt>.
+     */
+    public boolean autoGenerateSynonymsPhraseQuery() {
+        return autoGenerateSynonymsPhraseQuery;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -682,6 +704,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             builder.field(TIME_ZONE_FIELD.getPreferredName(), this.timeZone.getID());
         }
         builder.field(ESCAPE_FIELD.getPreferredName(), this.escape);
+        builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -714,6 +737,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         String fuzzyRewrite = null;
         String rewrite = null;
         Map<String, Float> fieldsAndWeights = new HashMap<>();
+        boolean autoGenerateSynonymsPhraseQuery = true;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -799,6 +823,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                     }
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
+                } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName)) {
+                    autoGenerateSynonymsPhraseQuery = parser.booleanValue();
                 } else if (AUTO_GENERATE_PHRASE_QUERIES_FIELD.match(currentFieldName)) {
                     // ignore, deprecated setting
                 } else if (LOWERCASE_EXPANDED_TERMS_FIELD.match(currentFieldName)) {
@@ -849,6 +875,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryStringQuery.timeZone(timeZone);
         queryStringQuery.boost(boost);
         queryStringQuery.queryName(queryName);
+        queryStringQuery.autoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
         return queryStringQuery;
     }
 
@@ -882,7 +909,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 timeZone == null ? other.timeZone == null : other.timeZone != null &&
                 Objects.equals(timeZone.getID(), other.timeZone.getID()) &&
                 Objects.equals(escape, other.escape) &&
-                Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates);
+                Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&
+                Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery);
     }
 
     @Override
@@ -891,7 +919,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 quoteFieldSuffix, allowLeadingWildcard, analyzeWildcard,
                 enablePositionIncrements, fuzziness, fuzzyPrefixLength,
                 fuzzyMaxExpansions, fuzzyRewrite, phraseSlop, type, tieBreaker, rewrite, minimumShouldMatch, lenient,
-                timeZone == null ? 0 : timeZone.getID(), escape, maxDeterminizedStates);
+                timeZone == null ? 0 : timeZone.getID(), escape, maxDeterminizedStates, autoGenerateSynonymsPhraseQuery);
     }
 
     @Override
@@ -963,6 +991,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryParser.setMultiTermRewriteMethod(QueryParsers.parseRewriteMethod(this.rewrite));
         queryParser.setTimeZone(timeZone);
         queryParser.setMaxDeterminizedStates(maxDeterminizedStates);
+        queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
 
         Query query;
         try {

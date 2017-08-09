@@ -467,11 +467,15 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 return result;
             }
 
-            @Override
-            public void readFrom(StreamInput in) throws IOException {
+            protected void readFieldsFrom(StreamInput in) throws IOException {
                 text = in.readText();
                 offset = in.readVInt();
                 length = in.readVInt();
+            }
+
+            @Override
+            public void readFrom(StreamInput in) throws IOException {
+                readFieldsFrom(in);
                 int suggestedWords = in.readVInt();
                 options = new ArrayList<>(suggestedWords);
                 for (int j = 0; j < suggestedWords; j++) {
@@ -485,23 +489,31 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 return (O) new Option();
             }
 
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
+            protected void writeFieldsTo(StreamOutput out) throws IOException {
                 out.writeText(text);
                 out.writeVInt(offset);
                 out.writeVInt(length);
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                writeFieldsTo(out);
                 out.writeVInt(options.size());
                 for (Option option : options) {
                     option.writeTo(out);
                 }
             }
 
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startObject();
+            protected void writeFields(XContentBuilder builder) throws IOException {
                 builder.field(Fields.TEXT, text);
                 builder.field(Fields.OFFSET, offset);
                 builder.field(Fields.LENGTH, length);
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject();
+                writeFields(builder);
                 builder.startArray(Fields.OPTIONS);
                 for (Option option : options) {
                     option.toXContent(builder, params);

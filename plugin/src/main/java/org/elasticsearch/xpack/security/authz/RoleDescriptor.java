@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -473,7 +472,7 @@ public class RoleDescriptor implements ToXContentObject {
      * A class representing permissions for a group of indices mapped to
      * privileges, field permissions, and a query.
      */
-    public static class IndicesPrivileges implements ToXContent, Streamable {
+    public static class IndicesPrivileges implements ToXContentObject, Streamable {
 
         private static final IndicesPrivileges[] NONE = new IndicesPrivileges[0];
 

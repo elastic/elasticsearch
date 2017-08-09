@@ -15,10 +15,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import javax.mail.MessagingException;
-import javax.mail.internet.AddressException;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
@@ -29,6 +25,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
+import javax.mail.MessagingException;
+import javax.mail.internet.AddressException;
+import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeMessage;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -491,7 +492,7 @@ public class Email implements ToXContentObject {
         }
     }
 
-    public static class AddressList implements Iterable<Address>, ToXContent {
+    public static class AddressList implements Iterable<Address>, ToXContentObject {
 
         public static final AddressList EMPTY = new AddressList(Collections.<Address>emptyList());
 

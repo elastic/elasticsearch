@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -342,7 +341,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 modelSnapshotId);
     }
 
-    public static class DetectorUpdate implements Writeable, ToXContent {
+    public static class DetectorUpdate implements Writeable, ToXContentObject {
         @SuppressWarnings("unchecked")
         public static final ConstructingObjectParser<DetectorUpdate, Void> PARSER =
                 new ConstructingObjectParser<>("detector_update", a -> new DetectorUpdate((int) a[0], (String) a[1],

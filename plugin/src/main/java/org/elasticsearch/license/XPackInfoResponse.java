@@ -11,7 +11,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.XPackBuild;
@@ -77,7 +76,7 @@ public class XPackInfoResponse extends ActionResponse {
         this.featureSetsInfo = in.readOptionalWriteable(FeatureSetsInfo::new);
     }
 
-    public static class LicenseInfo implements ToXContent, Writeable {
+    public static class LicenseInfo implements ToXContentObject, Writeable {
 
         private final String uid;
         private final String type;
@@ -225,7 +224,7 @@ public class XPackInfoResponse extends ActionResponse {
             }
         }
 
-        public static class FeatureSet implements ToXContent, Writeable {
+        public static class FeatureSet implements ToXContentObject, Writeable {
 
             private final String name;
             @Nullable private final String description;

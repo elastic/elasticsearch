@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -148,7 +147,7 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        public static class DatafeedStats implements ToXContent, Writeable {
+        public static class DatafeedStats implements ToXContentObject, Writeable {
 
             private final String datafeedId;
             private final DatafeedState datafeedState;

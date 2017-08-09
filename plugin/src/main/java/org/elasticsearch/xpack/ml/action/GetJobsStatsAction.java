@@ -33,7 +33,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
@@ -175,7 +174,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
     public static class Response extends BaseTasksResponse implements ToXContentObject {
 
-        public static class JobStats implements ToXContent, Writeable {
+        public static class JobStats implements ToXContentObject, Writeable {
             private final String jobId;
             private DataCounts dataCounts;
             @Nullable

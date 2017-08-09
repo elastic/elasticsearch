@@ -187,7 +187,7 @@ public class ActionStatus implements ToXContentObject {
         return new ActionStatus(ackStatus, lastExecution, lastSuccessfulExecution, lastThrottle);
     }
 
-    public static class AckStatus implements ToXContent {
+    public static class AckStatus implements ToXContentObject {
 
         public enum State {
             AWAITS_SUCCESSFUL_EXECUTION((byte) 1),
@@ -291,7 +291,7 @@ public class ActionStatus implements ToXContentObject {
         }
     }
 
-    public static class Execution implements ToXContent {
+    public static class Execution implements ToXContentObject {
 
         public static Execution successful(DateTime timestamp) {
             return new Execution(timestamp, true, null);

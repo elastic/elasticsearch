@@ -59,21 +59,18 @@ public final class Fuzziness implements ToXContent, Writeable {
     }
 
     private Fuzziness(String fuzziness) {
-        if (fuzziness == null) {
+        if (fuzziness == null  || fuzziness.isEmpty()) {
             throw new IllegalArgumentException("fuzziness can't be null!");
         }
         this.fuzziness = fuzziness.toUpperCase(Locale.ROOT);
     }
 
     private Fuzziness(String fuzziness, int lowDistance, int highDistance) {
-        if (fuzziness == null || fuzziness.isEmpty()) {
-            throw new IllegalArgumentException("fuzziness can't be null!");
-        }
-        if (lowDistance < 0 || highDistance < 0 || lowDistance >= highDistance ) {
+        this(fuzziness);
+        if (lowDistance < 0 || highDistance < 0 || lowDistance > highDistance ) {
             throw new IllegalArgumentException("fuzziness wrongly configured, must be: lowDistance > 0, highDistance" +
-                " > 0 and lowDistance < highDistance ");
+                " > 0 and lowDistance <= highDistance ");
         }
-        this.fuzziness = fuzziness.toUpperCase(Locale.ROOT);
         this.lowDistance = lowDistance;
         this.highDistance = highDistance;
     }
@@ -182,10 +179,10 @@ public final class Fuzziness implements ToXContent, Writeable {
             final int len = termLen(text);
             if (len < lowDistance) {
                 return 0;
-            } else if (len >= highDistance) {
-                return 2;
-            } else {
+            } else if (len < highDistance) {
                 return 1;
+            } else {
+                return 2;
             }
         }
         return Math.min(2, (int) asFloat());

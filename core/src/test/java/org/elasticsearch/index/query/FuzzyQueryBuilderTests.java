@@ -156,7 +156,8 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             "        }\n" +
             "    }\n" +
             "}";
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parseQuery(queryMissingFuzzinessUpLimit).toQuery(createShardContext()));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
+            () -> parseQuery(queryMissingFuzzinessUpLimit).toQuery(createShardContext()));
         String msg = "Auto fuzziness wrongly configured";
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
@@ -170,7 +171,8 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             "        }\n" +
             "    }\n" +
             "}";
-        e = expectThrows(ElasticsearchParseException.class, () -> parseQuery(queryHavingNegativeFuzzinessLowLimit).toQuery(createShardContext()));
+        e = expectThrows(ElasticsearchParseException.class,
+            () -> parseQuery(queryHavingNegativeFuzzinessLowLimit).toQuery(createShardContext()));
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
         String queryMissingFuzzinessUpLimit2 = "{\n" +
@@ -183,7 +185,8 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             "        }\n" +
             "    }\n" +
             "}";
-        e = expectThrows(ElasticsearchParseException.class, () -> parseQuery(queryMissingFuzzinessUpLimit2).toQuery(createShardContext()));
+        e = expectThrows(ElasticsearchParseException.class,
+            () -> parseQuery(queryMissingFuzzinessUpLimit2).toQuery(createShardContext()));
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
         String queryMissingFuzzinessLowLimit = "{\n" +
@@ -196,7 +199,8 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             "        }\n" +
             "    }\n" +
             "}";
-        e = expectThrows(ElasticsearchParseException.class, () -> parseQuery(queryMissingFuzzinessLowLimit).toQuery(createShardContext()));
+        e = expectThrows(ElasticsearchParseException.class,
+            () -> parseQuery(queryMissingFuzzinessLowLimit).toQuery(createShardContext()));
         msg = "failed to parse [AUTO:,5] as a \"auto:int,int\"";
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
     }

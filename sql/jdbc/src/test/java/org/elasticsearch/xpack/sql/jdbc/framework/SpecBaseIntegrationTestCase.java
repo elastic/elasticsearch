@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.framework;
 
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
-import org.junit.BeforeClass;
+import org.junit.AfterClass;
+import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -25,28 +27,12 @@ import static java.lang.String.format;
  * after loading a specific set of test data.
  */
 public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCase {
-    protected static final String PARAM_FORMATTNG = "%0$s.test%2$s";
-
-    private static final boolean SETUP_DATA = Booleans.parseBoolean(System.getProperty("tests.sql.setup.data", "false"));
+    protected static final String PARAM_FORMATTING = "%0$s.test%2$s";
 
     protected final String groupName;
     protected final String testName;
     protected final Integer lineNumber;
     protected final Path source;
-
-    @BeforeClass
-    public static void setupTestData() throws Exception {
-        if (!SETUP_DATA) {
-            // We only need to load the test data once
-            return;
-        }
-        loadDatasetIntoEs();
-    }
-
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return !SETUP_DATA;
-    }
 
     public SpecBaseIntegrationTestCase(String groupName, String testName, Integer lineNumber, Path source) {
         this.groupName = groupName;
@@ -55,11 +41,38 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
         this.source = source;
     }
 
+    @Before
+    public void setupTestDataIfNeeded() throws Exception {
+        if (client().performRequest("HEAD", "/test_emp").getStatusLine().getStatusCode() == 404) {
+            DataLoader.loadDatasetIntoEs(client());
+        }
+    }
+
+    @AfterClass
+    public static void wipeTestData() throws IOException {
+        if (false == EMBED_SQL) {
+            try {
+                adminClient().performRequest("DELETE", "/*");
+            } catch (ResponseException e) {
+                // 404 here just means we had no indexes
+                if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                    throw e;
+                }
+            }
+        }
+    }
+
+    @Override
+    protected boolean preserveIndicesUponCompletion() {
+        return true;
+    }
+
     protected Throwable reworkException(Throwable th) {
         StackTraceElement[] stackTrace = th.getStackTrace();
         StackTraceElement[] redone = new StackTraceElement[stackTrace.length + 1];
         System.arraycopy(stackTrace, 0, redone, 1, stackTrace.length);
-        redone[0] = new StackTraceElement(getClass().getName(), groupName + ".test" + testName, source.getFileName().toString(), lineNumber);
+        redone[0] = new StackTraceElement(getClass().getName(), groupName + ".test" + testName,
+                source.getFileName().toString(), lineNumber);
 
         th.setStackTrace(redone);
         return th;
@@ -68,7 +81,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     //
     // spec reader
     //
-    
+
     // returns groupName, testName, its line location, its source and the custom object (based on each test parser)
     protected static List<Object[]> readScriptSpec(String url, Parser parser) throws Exception {
         Path source = PathUtils.get(SpecBaseIntegrationTestCase.class.getResource(url).toURI());
@@ -89,7 +102,8 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
                 // parse test name
                 if (testName == null) {
                     if (testNames.keySet().contains(line)) {
-                        throw new IllegalStateException(format(Locale.ROOT, "Duplicate test name '%s' at line %d (previously seen at line %d)", line, i, testNames.get(line)));
+                        throw new IllegalStateException(format(Locale.ROOT,
+                                "Duplicate test name '%s' at line %d (previously seen at line %d)", line, i, testNames.get(line)));
                     }
                     else {
                         testName = Strings.capitalize(line);

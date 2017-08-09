@@ -7,25 +7,45 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.xpack.sql.jdbc.framework.SpecBaseIntegrationTestCase;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
+import org.relique.io.TableReader;
+import org.relique.jdbc.csv.CsvConnection;
 
+import java.io.Reader;
+import java.io.StringReader;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 import java.util.Locale;
+import java.util.Properties;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.sql.jdbc.framework.JdbcAssert.assertResultSets;
 
 /**
  * Tests comparing sql queries executed against our jdbc client
  * with hard coded result sets.
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2074")
 public class CsvSpecIT extends SpecBaseIntegrationTestCase {
+    /**
+     * Properties used when settings up a CSV-based jdbc connection.
+     */
+    private static final Properties CSV_PROPERTIES = new Properties();
+    static {
+        CSV_PROPERTIES.setProperty("charset", "UTF-8");
+        // trigger auto-detection
+        CSV_PROPERTIES.setProperty("columnTypes", "");
+        CSV_PROPERTIES.setProperty("separator", "|");
+        CSV_PROPERTIES.setProperty("trimValues", "true");
+    }
+
     private final CsvTestCase testCase;
 
-    @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTNG) // NOCOMMIT are we sure?!
+    @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
         CsvSpecParser parser = new CsvSpecParser();
         return CollectionUtils.combine(
@@ -43,6 +63,36 @@ public class CsvSpecIT extends SpecBaseIntegrationTestCase {
             assertMatchesCsv(testCase.query, testName, testCase.expectedResults);            
         } catch (AssertionError ae) {
             throw reworkException(new AssertionError(errorMessage(ae), ae.getCause()));
+        }
+    }
+
+    private void assertMatchesCsv(String query, String csvTableName, String expectedResults) throws SQLException {
+        Reader reader = new StringReader(expectedResults);
+        TableReader tableReader = new TableReader() {
+            @Override
+            public Reader getReader(Statement statement, String tableName) throws SQLException {
+                return reader;
+            }
+
+            @Override
+            public List<String> getTableNames(Connection connection) throws SQLException {
+                throw new UnsupportedOperationException();
+            }
+        };
+        try (Connection csv = new CsvConnection(tableReader, CSV_PROPERTIES, "") {};
+             Connection es = esJdbc()) {
+            // pass the testName as table for debugging purposes (in case the underlying reader is missing)
+            ResultSet expected = csv.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)
+                    .executeQuery("SELECT * FROM " + csvTableName);
+            // trigger data loading for type inference
+            expected.beforeFirst();
+            Statement statement = es.createStatement();
+            //statement.setFetchSize(randomInt(10));
+            // NOCOMMIT: hook up pagination
+            // NOCOMMIT sometimes accept the default fetch size. I believe it is 0 now which breaks things.
+            statement.setFetchSize(1000);
+            ResultSet actual = statement.executeQuery(query);
+            assertResultSets(expected, actual);
         }
     }
 

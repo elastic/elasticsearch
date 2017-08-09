@@ -5,7 +5,7 @@
 wildcardWithOrder
 SELECT * FROM "test_emp" ORDER BY emp_no;
 column
-SELECT last_name FROM "test_emp" ORDER BY emp_no; 
+SELECT last_name FROM "test_emp" ORDER BY emp_no;
 columnWithAlias
 SELECT last_name AS l FROM "test_emp" ORDER BY emp_no;
 columnWithAliasNoAs
@@ -24,7 +24,7 @@ SELECT * FROM "test_emp" ORDER BY emp_no LIMIT 5;
 wildcardWithOrderWithLimit
 SELECT * FROM "test_emp" ORDER BY emp_no LIMIT 5;
 columnWithLimit
-SELECT last_name FROM "test_emp" ORDER BY emp_no LIMIT 5; 
+SELECT last_name FROM "test_emp" ORDER BY emp_no LIMIT 5;
 columnWithAliasWithLimit
 SELECT last_name AS l FROM "test_emp" ORDER BY emp_no LIMIT 5;
 columnWithAliasNoAsWithLimit

@@ -101,8 +101,8 @@ MINUTE_OF_DAY   |SCALAR
 showTables
 SHOW TABLES;
 
-     index      |    type
-test_emp        |emp
+ table
+test_emp
 ;
 
 // DESCRIBE

@@ -17,22 +17,13 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
-import org.relique.io.TableReader;
-import org.relique.jdbc.csv.CsvConnection;
 
 import java.io.IOException;
-import java.io.Reader;
-import java.io.StringReader;
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.List;
-import java.util.Properties;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.xpack.sql.jdbc.framework.JdbcAssert.assertResultSets;
 
 public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     /**
@@ -45,19 +36,7 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
      * but is not canonical because it runs against a different HTTP server
      * then JDBC will use in production. Gradle always uses non-embedded.
      */
-    private static final boolean EMBED_SQL = Booleans.parseBoolean(System.getProperty("tests.embed.sql", "false"));
-
-    /**
-     * Properties used when settings up a CSV-based jdbc connection.
-     */
-    private static final Properties CSV_PROPERTIES = new Properties();
-    static {
-        CSV_PROPERTIES.setProperty("charset", "UTF-8");
-        // trigger auto-detection
-        CSV_PROPERTIES.setProperty("columnTypes", "");
-        CSV_PROPERTIES.setProperty("separator", "|");
-        CSV_PROPERTIES.setProperty("trimValues", "true");
-    }
+    protected static final boolean EMBED_SQL = Booleans.parseBoolean(System.getProperty("tests.embed.sql", "false"));
 
     @ClassRule
     public static final CheckedSupplier<Connection, SQLException> ES = EMBED_SQL ? new EmbeddedJdbcServer() : () ->
@@ -75,31 +54,6 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         client().performRequest("PUT", "/" + index + "/doc/1", singletonMap("refresh", "true"), doc);
     }
 
-    public void assertMatchesCsv(String query, String csvTableName, String expectedResults) throws SQLException {
-        Reader reader = new StringReader(expectedResults); 
-        TableReader tableReader = new TableReader() {
-            @Override
-            public Reader getReader(Statement statement, String tableName) throws SQLException {
-                return reader;
-            }
-
-            @Override
-            public List<String> getTableNames(Connection connection) throws SQLException {
-                throw new UnsupportedOperationException();
-            }
-        };
-        try (Connection csv = new CsvConnection(tableReader, CSV_PROPERTIES, "") {};
-             Connection es = esJdbc()) {
-            // pass the testName as table for debugging purposes (in case the underlying reader is missing)
-            ResultSet expected = csv.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)
-                    .executeQuery("SELECT * FROM " + csvTableName);
-            // trigger data loading for type inference
-            expected.beforeFirst();
-            ResultSet actual = es.createStatement().executeQuery(query);
-            assertResultSets(expected, actual);
-        }
-    }
-
     protected String clusterName() {
         try {
             String response = EntityUtils.toString(client().performRequest("GET", "/").getEntity());
@@ -107,9 +61,5 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    protected static void loadDatasetIntoEs() throws Exception {
-        DataLoader.loadDatasetIntoEs(client());
     }
 }

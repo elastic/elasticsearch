@@ -5,27 +5,27 @@
 simpleQueryAllFields
 SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE QUERY('Baek fox') LIMIT 3;
 
-    emp_no     |  first_name   |    gender     |   last_name   
-10080          |Premal         |M              |Baek      
+    emp_no     |  first_name   |    gender     |   last_name
+10080          |Premal         |M              |Baek
 ;
 
 simpleQueryDedicatedField
 SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE QUERY('Man*', 'fields=last_name') LIMIT 5;
 
-    emp_no     |  first_name   |    gender     |   last_name   
-10096          |Jayson         |M              |Mandell        
+    emp_no     |  first_name   |    gender     |   last_name
+10096          |Jayson         |M              |Mandell
 ;
 
 matchQuery
 SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH(first_name, 'Erez');
 
-    emp_no     |  first_name   |    gender     |   last_name   
-10076          |Erez           |F              |Ritzmann       
+    emp_no     |  first_name   |    gender     |   last_name
+10076          |Erez           |F              |Ritzmann
 ;
 
 multiMatchQuery
 SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH('first_name,last_name', 'Morton', 'type=best_fields;default_operator=OR');
 
-    emp_no     |  first_name   |    gender     |   last_name   
-10095          |Hilari         |M              |Morton         
+    emp_no     |  first_name   |    gender     |   last_name
+10095          |Hilari         |M              |Morton
 ;

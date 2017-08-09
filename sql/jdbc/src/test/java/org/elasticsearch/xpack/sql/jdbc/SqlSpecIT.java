@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.xpack.sql.jdbc.framework.LocalH2;
 import org.elasticsearch.xpack.sql.jdbc.framework.SpecBaseIntegrationTestCase;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
@@ -28,14 +27,13 @@ import static org.elasticsearch.xpack.sql.jdbc.framework.JdbcAssert.assertResult
  * Tests comparing sql queries executed against our jdbc client
  * with those executed against H2's jdbc client.
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2074")
 public class SqlSpecIT extends SpecBaseIntegrationTestCase {
     private String query;
 
     @ClassRule
     public static LocalH2 H2 = new LocalH2();
 
-    @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTNG)
+    @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
 
         // example for enabling logging
@@ -63,6 +61,7 @@ public class SqlSpecIT extends SpecBaseIntegrationTestCase {
     }
 
     public void test() throws Throwable {
+        assumeFalse("Date time tests have time zone problems", "datetime".equals(groupName));
         try (Connection h2 = H2.get(); 
              Connection es = esJdbc()) {
             ResultSet expected, actual;

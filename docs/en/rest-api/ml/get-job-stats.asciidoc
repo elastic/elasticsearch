@@ -7,18 +7,31 @@ The get jobs API enables you to retrieve usage information for jobs.
 
 ==== Request
 
-`GET _xpack/ml/anomaly_detectors/_stats` +
+
 
 `GET _xpack/ml/anomaly_detectors/<job_id>/_stats`
 
-//===== Description
+`GET _xpack/ml/anomaly_detectors/<job_id>,<job_id>/_stats` +
+
+`GET _xpack/ml/anomaly_detectors/_stats` +
+
+`GET _xpack/ml/anomaly_detectors/_stats/_all` +
+
+
+===== Description
+
+You can get statistics for multiple jobs in a single API request by using a
+group name, a comma-separated list of jobs, or a wildcard expression. You can
+get statistics for all jobs by using `_all`, by specifying `*` as the
+`<job_id>`, or by omitting the `<job_id>`.
+
 
 ==== Path Parameters
 
 `job_id`::
-  (string) A required identifier for the job.
-  This parameter does not support wildcards, but you can specify `_all` or omit
-  the `job_id` to get information about all jobs.
+  (string) An identifier for the job. It can be a job identifier, a group name,
+  or a wildcard expression. If you do not specify one of these options, the API
+  returns statistics for all jobs.
 
 
 ==== Results
@@ -35,7 +48,6 @@ The API returns the following information:
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API. For more information, see
 {xpack-ref}/security-privileges.html[Security Privileges].
-//<<privileges-list-cluster>>.
 
 
 ==== Examples

@@ -37,7 +37,6 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -62,13 +61,12 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         TopDocs topDocs = indexSearcher.search(termQuery, numDocs);
 
         SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings());
-        BestBucketsDeferringCollector collector = new BestBucketsDeferringCollector(searchContext);
         Set<Integer> deferredCollectedDocIds = new HashSet<>();
-        collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
+        BestBucketsDeferringCollector collector = new BestBucketsDeferringCollector(bla(deferredCollectedDocIds), searchContext);
         collector.preCollection();
         indexSearcher.search(termQuery, collector);
         collector.postCollection();
-        collector.replay(0);
+        collector.replaySelectedBuckets(0);
 
         assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {

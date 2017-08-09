@@ -33,18 +33,22 @@ import java.io.IOException;
  * allows to replay a subset of the collected buckets.
  */
 public abstract class DeferringBucketCollector extends BucketCollector {
+    protected final BucketCollector deferredCollector;
 
     /** Sole constructor. */
-    public DeferringBucketCollector() {}
-
-    /** Set the deferred collectors. */
-    public abstract void setDeferredCollector(Iterable<BucketCollector> deferredCollectors);
-
-    public final void replay(long... selectedBuckets) throws IOException {
-        prepareSelectedBuckets(selectedBuckets);
+    public DeferringBucketCollector(BucketCollector deferredCollector) {
+        this.deferredCollector = deferredCollector;
     }
 
-    public abstract void prepareSelectedBuckets(long... selectedBuckets) throws IOException;
+    public abstract void replaySelectedBuckets(long... selectedBuckets) throws IOException;
+
+    @Override
+    public void preCollection() throws IOException {
+        deferredCollector.preCollection();
+    }
+
+    @Override
+    public void postCollection() throws IOException {}
 
     /**
      * Wrap the provided aggregator so that it behaves (almost) as if it had
@@ -54,10 +58,10 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         return new WrappedAggregator(in);
     }
 
-    protected class WrappedAggregator extends Aggregator {
+    public class WrappedAggregator extends Aggregator {
         private Aggregator in;
 
-        WrappedAggregator(Aggregator in) {
+        public WrappedAggregator(Aggregator in) {
             this.in = in;
         }
 

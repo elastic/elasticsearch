@@ -18,10 +18,14 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -41,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
+import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
 public class LongTermsAggregator extends TermsAggregator {
 
@@ -50,9 +55,9 @@ public class LongTermsAggregator extends TermsAggregator {
     private LongFilter longFilter;
 
     public LongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
-            BucketOrder order, BucketCountThresholds bucketCountThresholds, SearchContext aggregationContext, Aggregator parent,
-            SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError, IncludeExclude.LongFilter longFilter,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+                               BucketOrder order, BucketCountThresholds bucketCountThresholds, SearchContext aggregationContext, Aggregator parent,
+                               SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError, IncludeExclude.LongFilter longFilter,
+                               List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, bucketCountThresholds, order, format, subAggCollectMode, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.showTermDocCountError = showTermDocCountError;
@@ -71,31 +76,48 @@ public class LongTermsAggregator extends TermsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+                                                final LeafBucketCollector sub) throws IOException {
         final SortedNumericDocValues values = getValues(valuesSource, ctx);
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrdinal) throws IOException {
                 assert owningBucketOrdinal == 0;
-                if (values.advanceExact(doc)) {
-                    final int valuesCount = values.docValueCount();
+                if (singleton == null) {
+                    if (values.advanceExact(doc)) {
+                        final int valuesCount = values.docValueCount();
 
-                    long previous = Long.MAX_VALUE;
-                    for (int i = 0; i < valuesCount; ++i) {
-                        final long val = values.nextValue();
-                        if (previous != val || i == 0) {
-                            if ((longFilter == null) || (longFilter.accept(val))) {
-                                long bucketOrdinal = bucketOrds.add(val);
-                                if (bucketOrdinal < 0) { // already seen
-                                    bucketOrdinal = -1 - bucketOrdinal;
-                                    collectExistingBucket(sub, doc, bucketOrdinal);
-                                } else {
-                                    collectBucket(sub, doc, bucketOrdinal);
+                        long previous = Long.MAX_VALUE;
+                        for (int i = 0; i < valuesCount; ++i) {
+                            final long val = values.nextValue();
+                            if (previous != val || i == 0) {
+                                if ((longFilter == null) || (longFilter.accept(val))) {
+                                    long bucketOrdinal = bucketOrds.add(val);
+                                    if (bucketOrdinal < 0) { // already seen
+                                        bucketOrdinal = -1 - bucketOrdinal;
+                                        collectExistingBucket(sub, doc, bucketOrdinal);
+                                    } else {
+                                        collectBucket(sub, doc, bucketOrdinal);
+                                    }
                                 }
-                            }
 
-                            previous = val;
+                                previous = val;
+                            }
                         }
+                    }
+                } else {
+                    if (singleton.advanceExact(doc)) {
+                        final long val = singleton.longValue();
+                        if ((longFilter == null) || (longFilter.accept(val))) {
+                            long bucketOrdinal = bucketOrds.add(val);
+                            if (bucketOrdinal < 0) { // already seen
+                                bucketOrdinal = -1 - bucketOrdinal;
+                                collectExistingBucket(sub, doc, bucketOrdinal);
+                            } else {
+                                collectBucket(sub, doc, bucketOrdinal);
+                            }
+                        }
+
                     }
                 }
             }
@@ -138,7 +160,7 @@ public class LongTermsAggregator extends TermsAggregator {
             otherDocCount += spare.docCount;
             spare.bucketOrd = i;
             if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
-                spare = (LongTerms.Bucket) ordered.insertWithOverflow(spare);
+                spare = ordered.insertWithOverflow(spare);
             }
         }
 
@@ -146,7 +168,7 @@ public class LongTermsAggregator extends TermsAggregator {
         final LongTerms.Bucket[] list = new LongTerms.Bucket[ordered.size()];
         long survivingBucketOrds[] = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
-            final LongTerms.Bucket bucket = (LongTerms.Bucket) ordered.pop();
+            final LongTerms.Bucket bucket = ordered.pop();
             survivingBucketOrds[i] = bucket.bucketOrd;
             list[i] = bucket;
             otherDocCount -= bucket.docCount;
@@ -161,14 +183,14 @@ public class LongTermsAggregator extends TermsAggregator {
         }
 
         return new LongTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metaData(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, otherDocCount,
-                Arrays.asList(list), 0);
+            pipelineAggregators(), metaData(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, otherDocCount,
+            Arrays.asList(list), 0);
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new LongTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metaData(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, 0, emptyList(), 0);
+            pipelineAggregators(), metaData(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, 0, emptyList(), 0);
     }
 
     @Override
@@ -176,4 +198,70 @@ public class LongTermsAggregator extends TermsAggregator {
         Releasables.close(bucketOrds);
     }
 
+    @Override
+    protected BucketSelectorValuesSource getBucketSelector(long... selectedBuckets) {
+        final LongHash hash = new LongHash(selectedBuckets.length, BigArrays.NON_RECYCLING_INSTANCE);
+        for (long bucket : selectedBuckets) {
+            // remap the value, not the bucket
+            hash.add(bucketOrds.get(bucket));
+        }
+        return context -> {
+            final SortedNumericDocValues values = getValues(valuesSource, context);
+            return new AbstractSortedNumericDocValues() {
+                long[] buckets = new long[1];
+                int offset;
+                int size;
+
+                @Override
+                public long nextValue() throws IOException {
+                    if (offset >= size) {
+                        return NO_MORE_ORDS;
+                    }
+                    return buckets[offset++];
+                }
+
+                @Override
+                public int docValueCount() {
+                    return size;
+                }
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    if (values.advanceExact(target)) {
+                        return fillBuckets();
+                    }
+                    return false;
+                }
+
+                @Override
+                public int docID() {
+                    return values.docID();
+                }
+
+                boolean fillBuckets() throws IOException {
+                    offset = 0;
+                    int pos = 0;
+                    long previous = Long.MAX_VALUE;
+                    for (int i = 0; i < values.docValueCount(); i++) {
+                        long val = values.nextValue();
+                        if (val == previous && i > 0) {
+                            continue;
+                        }
+                        long bucket = hash.find(val);
+                        if (bucket != -1) {
+                            if (pos >= buckets.length) {
+                                long[] newBuckets = new long[buckets.length * 2];
+                                System.arraycopy(buckets, 0, newBuckets, 0, buckets.length);
+                                buckets = newBuckets;
+                            }
+                            buckets[pos++] = bucket;
+                        }
+                        previous = val;
+                    }
+                    size = pos;
+                    return size > 0;
+                }
+            };
+        };
+    }
 }

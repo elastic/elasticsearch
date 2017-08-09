@@ -50,7 +50,6 @@ import java.util.List;
  */
 public class BestDocsDeferringCollector extends DeferringBucketCollector implements Releasable {
     private final List<PerSegmentCollects> entries = new ArrayList<>();
-    private BucketCollector deferred;
     private ObjectArray<PerParentBucketSamples> perBucketSamples;
     private int shardSize;
     private PerSegmentCollects perSegCollector;
@@ -62,7 +61,8 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
      * @param shardSize
      *            The number of top-scoring docs to collect for each bucket
      */
-    BestDocsDeferringCollector(int shardSize, BigArrays bigArrays) {
+    BestDocsDeferringCollector(BucketCollector deferredCollector, int shardSize, BigArrays bigArrays) {
+        super(deferredCollector);
         this.shardSize = shardSize;
         this.bigArrays = bigArrays;
         perBucketSamples = bigArrays.newObjectArray(1);
@@ -71,12 +71,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     @Override
     public boolean needsScores() {
         return true;
-    }
-
-    /** Set the deferred collectors. */
-    @Override
-    public void setDeferredCollector(Iterable<BucketCollector> deferredCollectors) {
-        this.deferred = BucketCollector.wrap(deferredCollectors);
     }
 
     @Override
@@ -104,20 +98,16 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         return TopScoreDocCollector.create(size);
     }
 
+
     @Override
-    public void preCollection() throws IOException {
-        deferred.preCollection();
+    public void replaySelectedBuckets(long... selectedBuckets) throws IOException {
+        // noop
     }
 
     @Override
     public void postCollection() throws IOException {
+        super.postCollection();
         runDeferredAggs();
-    }
-
-
-    @Override
-    public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
-        // no-op - deferred aggs processed in postCollection call
     }
 
     private void runDeferredAggs() throws IOException {
@@ -140,12 +130,11 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         });
         try {
             for (PerSegmentCollects perSegDocs : entries) {
-                perSegDocs.replayRelatedMatches(docsArr);
+                perSegDocs.replayRelatedMatches(deferredCollector, docsArr);
             }
         } catch (IOException e) {
             throw new ElasticsearchException("IOException collecting best scoring results", e);
         }
-        deferred.postCollection();
     }
 
     class PerParentBucketSamples {
@@ -230,7 +219,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             }
         }
 
-        public void replayRelatedMatches(ScoreDoc[] sd) throws IOException {
+        public void replayRelatedMatches(BucketCollector deferred, ScoreDoc[] sd) throws IOException {
             final LeafBucketCollector leafCollector = deferred.getLeafCollector(readerContext);
             leafCollector.setScorer(this);
 

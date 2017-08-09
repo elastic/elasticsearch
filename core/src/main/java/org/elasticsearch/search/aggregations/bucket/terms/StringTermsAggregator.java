@@ -22,7 +22,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -51,13 +53,13 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     private final IncludeExclude.StringFilter includeExclude;
 
     public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
-            BucketOrder order, DocValueFormat format, BucketCountThresholds bucketCountThresholds,
-            IncludeExclude.StringFilter includeExclude, SearchContext context,
-            Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+                                 BucketOrder order, DocValueFormat format, BucketCountThresholds bucketCountThresholds,
+                                 IncludeExclude.StringFilter includeExclude, SearchContext context,
+                                 Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError,
+                                 List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError,
-                pipelineAggregators, metaData);
+            pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
         bucketOrds = new BytesRefHash(1, context.bigArrays());
@@ -69,8 +71,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             final BytesRefBuilder previous = new BytesRefBuilder();
@@ -161,15 +162,15 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
         // Now build the aggs
         for (int i = 0; i < list.length; i++) {
-          final StringTerms.Bucket bucket = list[i];
-          bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
-          bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-          bucket.docCountError = 0;
+            final StringTerms.Bucket bucket = list[i];
+            bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
+            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
+            bucket.docCountError = 0;
         }
 
         return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metaData(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, otherDocCount,
-                Arrays.asList(list), 0);
+            pipelineAggregators(), metaData(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, otherDocCount,
+            Arrays.asList(list), 0);
     }
 
     @Override
@@ -177,5 +178,70 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         Releasables.close(bucketOrds);
     }
 
+    @Override
+    protected BucketSelectorValuesSource getBucketSelector(long... selectedBuckets) {
+        final BytesRefHash hash = new BytesRefHash(selectedBuckets.length, BigArrays.NON_RECYCLING_INSTANCE);
+        BytesRef rec = new BytesRef();
+        for (long bucket : selectedBuckets) {
+            // remap the value not the bucket
+            hash.add(bucketOrds.get(bucket, rec));
+        }
+
+        return context -> {
+            final BytesRefBuilder previous = new BytesRefBuilder();
+            final SortedBinaryDocValues values = valuesSource.bytesValues(context);
+            return new AbstractSortedNumericDocValues() {
+                int offset;
+                int size;
+                long[] buckets = new long[1];
+
+
+                @Override
+                public long nextValue() throws IOException {
+                    if (offset >= size) {
+                        return -1;
+                    }
+                    return buckets[offset++];
+                }
+
+                @Override
+                public int docValueCount() {
+                    return values.docValueCount();
+                }
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    if (values.advanceExact(target)) {
+                        return fillBuckets();
+                    }
+                    return false;
+                }
+
+                boolean fillBuckets() throws IOException {
+                    offset = 0;
+                    int pos = 0;
+                    previous.clear();
+                    for (int i = 0; i < values.docValueCount(); i++) {
+                        BytesRef value = values.nextValue();
+                        if (i > 0 && previous.get().equals(value)) {
+                            continue;
+                        }
+                        long bucket = hash.find(value);
+                        if (bucket != -1) {
+                            if (pos >= buckets.length) {
+                                long[] newBuckets = new long[buckets.length * 2];
+                                System.arraycopy(buckets, 0, newBuckets, 0, buckets.length);
+                                buckets = newBuckets;
+                            }
+                            buckets[pos++] = bucket;
+                        }
+                        previous.copyBytes(value);
+                    }
+                    size = pos;
+                    return size > 0;
+                }
+            };
+        };
+    }
 }
 

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.bucket.sampler;
+package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -31,19 +31,17 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
+public class BestTermsDeferringCollectorTests extends AggregatorTestCase {
 
     public void testReplay() throws Exception {
         Directory directory = newDirectory();
@@ -63,11 +61,9 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
         TermQuery termQuery = new TermQuery(new Term("field", String.valueOf(randomInt(maxNumValues))));
         TopDocs topDocs = indexSearcher.search(termQuery, numDocs);
 
+        SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings());
         Set<Integer> deferredCollectedDocIds = new HashSet<>();
-        BestDocsDeferringCollector collector =
-                new BestDocsDeferringCollector(testCollector(deferredCollectedDocIds), numDocs,
-                    new MockBigArrays(Settings.EMPTY,
-                    new NoneCircuitBreakerService()));
+        BestTermsDeferringCollector collector = new BestTermsDeferringCollector(bla(deferredCollectedDocIds), searchContext, provider());
         collector.preCollection();
         indexSearcher.search(termQuery, collector);
         collector.postCollection();
@@ -77,12 +73,30 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
             assertTrue("expected docid [" + scoreDoc.doc + "] is missing", deferredCollectedDocIds.contains(scoreDoc.doc));
         }
-        collector.close();
         indexReader.close();
         directory.close();
     }
 
-    private BucketCollector testCollector(Set<Integer> docIds) {
+    private BestTermsDeferringCollector.BucketValuesSourceProvider provider() {
+        return buckets -> (TermsAggregator.BucketSelectorValuesSource) context -> new AbstractSortedNumericDocValues() {
+            @Override
+            public long nextValue() throws IOException {
+                return 0;
+            }
+
+            @Override
+            public int docValueCount() {
+                return 1;
+            }
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                return true;
+            }
+        };
+    }
+
+    private BucketCollector bla(Set<Integer> docIds) {
         return new BucketCollector() {
             @Override
             public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {

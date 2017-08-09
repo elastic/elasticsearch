@@ -153,7 +153,7 @@ help you set all the built-in user passwords.
 
 .. If you have more than one node, you must configure SSL/TLS for inter-node
 communication. For more information, see
-{xpack-ref}/ssl-tls.html[Setting Up SSL/TLS on a Cluster].
+{xpack-ref}/encrypting-communications.html[Encrypting Communications].
 ... Generate node certificates. For example, you can use the `certgen` command
 line tool to generate a certificate authority and signed certificates for your
 nodes.
@@ -221,14 +221,6 @@ If you prefer to have randomly generated passwords, specify `auto` instead of
 
 . {logstash-ref}/installing-xpack-log.html[Install {xpack} on Logstash].
 
-
-[IMPORTANT]
-=============================================================================
-SSL/TLS encryption is disabled by default, which means user credentials are
-passed in the clear. **Do not deploy to production without enabling encryption!**
-For more information, see {xpack-ref}/encrypting-communications.html[Encrypting
-Communications].
-=============================================================================
 
 [float]
 [[xpack-package-installation]]

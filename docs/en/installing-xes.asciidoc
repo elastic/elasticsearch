@@ -135,7 +135,66 @@ the correct value for your environment, you may consider setting the value to
  `*` which will allow automatic creation of all indices.
 =============================================================================
 
-. Start {es}.
+. Change the passwords for the built-in users. For more information,
+see {xpack-ref}/setting-up-authentication.html[Setting Up User Authentication].
+.. If you have not already done so, bootstrap the password for the `elastic`
+user by placing a password in the keystore of at least one node.
++
+--
+[source,shell]
+--------------------------------------------------
+bin/elasticsearch-keystore create
+bin/elasticsearch-keystore add "bootstrap.password"
+--------------------------------------------------
+After you run the "add" command, you will be prompted to enter a password. This
+bootstrap password is only intended to be a transient password that is used to
+help you set all the built-in user passwords.
+--
+
+.. If you have more than one node, you must configure SSL/TLS for inter-node
+communication. For more information, see
+{xpack-ref}/ssl-tls.html[Setting Up SSL/TLS on a Cluster].
+... Generate node certificates. For example, you can use the `certgen` command
+line tool to generate a certificate authority and signed certificates for your
+nodes.
++
+--
+[source,shell]
+----------------------------------------------------------
+bin/x-pack/certgen
+----------------------------------------------------------
+This command generates a zip file with the CA certificate, private key, and
+signed certificates and keys in the PEM format for each node that you specify.
+If you want to use a commercial or organization-specific CA, you can use the
+`-csr` parameter to generate certificate signing requests (CSR) for the nodes
+in your cluster.
+
+TIP: For easier setup, use the node name as the instance name when you run
+this tool.
+
+--
+... Copy the certificate data into a directory within the {es} configuration
+directory. For example,
+`/home/es/config/certs`.
+... Add the following information to the `elasticsearch.yml` on all nodes:
++
+--
+[source,yaml]
+-----------------------------------------------------------
+xpack.ssl.key: certs/${node.name}/${node.name}.key <1>
+xpack.ssl.certificate: certs/${node.name}/${node.name}.crt <2>
+xpack.ssl.certificate_authorities: certs/ca/ca.crt <3>
+xpack.security.authc.token.enabled: false <4>
+-----------------------------------------------------------
+<1> If this path does not exist on every node or the file name does not match
+the `node.name` configuration setting, you must specify the full path to the
+node key file.
+<2> Alternatively, specify the full path to the node certificate.
+<3> Alternatively specify the full path to the CA certificate.
+<4> Disables the built-in token service. 
+--
+
+.. Start {es}.
 +
 --
 [source,shell]
@@ -144,9 +203,24 @@ bin/elasticsearch
 ----------------------------------------------------------
 --
 
-For information, see
-{kibana-ref}/installing-xpack-kb.html[Installing {xpack} on {kib}] and
-{logstash-ref}/installing-xpack-log.html[Installing {xpack} on Logstash].
+.. Set the passwords for all built-in users. You can update passwords from the
+**Management > Users** UI in {kib}, use the `setup-passwords` tool, or use the
+security user API. For example:
++
+--
+[source,shell]
+--------------------------------------------------
+bin/x-pack/setup-passwords interactive
+--------------------------------------------------
+If you prefer to have randomly generated passwords, specify `auto` instead of
+`interactive`. If the node is not listening on "http://localhost:9200", use the
+`-u` parameter to specify the appropriate URL.
+--
+
+. {kibana-ref}/installing-xpack-kb.html[Install {xpack} on {kib}].
+
+. {logstash-ref}/installing-xpack-log.html[Install {xpack} on Logstash].
+
 
 [IMPORTANT]
 =============================================================================
@@ -154,11 +228,6 @@ SSL/TLS encryption is disabled by default, which means user credentials are
 passed in the clear. **Do not deploy to production without enabling encryption!**
 For more information, see {xpack-ref}/encrypting-communications.html[Encrypting
 Communications].
-
-You must also **change the passwords for the built-in `elastic` user and the
-`kibana` user that enables {kib} to communicate with {es} before
-deploying to production**. For more information,
-see {xpack-ref}/setting-up-authentication.html[Setting Up User Authentication].
 =============================================================================
 
 [float]

@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -63,5 +64,85 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
     @Override
     protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
         return ParsedSignificantStringTerms.class;
+    }
+
+    @Override
+    protected InternalSignificantTerms<?, ?> mutateInstance(InternalSignificantTerms<?, ?> instance) {
+        if (instance instanceof SignificantStringTerms) {
+            SignificantStringTerms stringTerms = (SignificantStringTerms) instance;
+            String name = stringTerms.getName();
+            int requiredSize = stringTerms.requiredSize;
+            long minDocCount = stringTerms.minDocCount;
+            DocValueFormat format = stringTerms.format;
+            long subsetSize = stringTerms.getSubsetSize();
+            long supersetSize = stringTerms.getSupersetSize();
+            List<SignificantStringTerms.Bucket> buckets = stringTerms.getBuckets();
+            SignificanceHeuristic significanceHeuristic = stringTerms.significanceHeuristic;
+            List<PipelineAggregator> pipelineAggregators = stringTerms.pipelineAggregators();
+            Map<String, Object> metaData = stringTerms.getMetaData();
+            switch (between(0, 5)) {
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                requiredSize += between(1, 100);
+                break;
+            case 2:
+                minDocCount += between(1, 100);
+                break;
+            case 3:
+                subsetSize += between(1, 100);
+                break;
+            case 4:
+                supersetSize += between(1, 100);
+                break;
+            case 5:
+                buckets = new ArrayList<>(buckets);
+                buckets.add(new SignificantStringTerms.Bucket(new BytesRef(randomAlphaOfLengthBetween(1, 10)),
+                        randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        InternalAggregations.EMPTY, format));
+                break;
+            case 8:
+                if (metaData == null) {
+                    metaData = new HashMap<>(1);
+                } else {
+                    metaData = new HashMap<>(instance.getMetaData());
+                }
+                metaData.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
+            }
+            return new SignificantStringTerms(name, requiredSize, minDocCount, pipelineAggregators, metaData, format, subsetSize,
+                    supersetSize, significanceHeuristic, buckets);
+        } else {
+            String name = instance.getName();
+            int requiredSize = instance.requiredSize;
+            long minDocCount = instance.minDocCount;
+            List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+            Map<String, Object> metaData = instance.getMetaData();
+            switch (between(0, 3)) {
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                requiredSize += between(1, 100);
+                break;
+            case 2:
+                minDocCount += between(1, 100);
+                break;
+            case 3:
+                if (metaData == null) {
+                    metaData = new HashMap<>(1);
+                } else {
+                    metaData = new HashMap<>(instance.getMetaData());
+                }
+                metaData.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
+            }
+            return new UnmappedSignificantTerms(name, requiredSize, minDocCount, pipelineAggregators, metaData);
+        }
     }
 }

@@ -316,4 +316,16 @@ public class BulkRequestTests extends ESTestCase {
             "can't provide version in upsert request"));
     }
 
+    public void testBulkTerminatedByNewline() throws Exception {
+        String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk11.json");
+        IllegalArgumentException expectThrows = expectThrows(IllegalArgumentException.class, () -> new BulkRequest()
+                .add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON));
+        assertEquals("The bulk request must be terminated by a newline [\n]", expectThrows.getMessage());
+
+        String bulkActionWithNewLine = bulkAction + "\n";
+        BulkRequest bulkRequestWithNewLine = new BulkRequest();
+        bulkRequestWithNewLine.add(bulkActionWithNewLine.getBytes(StandardCharsets.UTF_8), 0, bulkActionWithNewLine.length(), null, null,
+                XContentType.JSON);
+        assertEquals(3, bulkRequestWithNewLine.numberOfActions());
+    }
 }

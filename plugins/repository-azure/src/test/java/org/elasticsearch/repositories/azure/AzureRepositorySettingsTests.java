@@ -23,7 +23,6 @@ import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;

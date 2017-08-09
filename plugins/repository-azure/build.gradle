@@ -45,4 +45,8 @@ thirdPartyAudit.excludes = [
 integTestCluster {
   setting 'cloud.azure.storage.my_account_test.account', 'cloudazureresource'
   setting 'cloud.azure.storage.my_account_test.key', 'abcdefgh'
+  keystoreSetting 'azure.client.default.account', 'cloudazureresource'
+  keystoreSetting 'azure.client.default.key', 'abcdefgh'
+  keystoreSetting 'azure.client.secondary.account', 'cloudazureresource'
+  keystoreSetting 'azure.client.secondary.key', 'abcdefgh'
 }

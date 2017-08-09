@@ -525,37 +525,37 @@ public final class Definition {
         simpleTypesMap = new HashMap<>();
         runtimeMap = new HashMap<>();
 
-        for (String dynamic : whitelist.pdynamics) {
+        for (String dynamic : whitelist.pDynamicTypeNames) {
             addStruct(dynamic, Object.class);
         }
 
-        for (WStruct wstruct : whitelist.wstructs) {
-            addStruct(wstruct.pName, wstruct.jclass);
+        for (WStruct wstruct : whitelist.wStructs) {
+            addStruct(wstruct.pTypeName, wstruct.jClass);
         }
 
-        for (WStruct wstruct : whitelist.wstructs) {
-            for (WConstructor wconstructor : wstruct.wconstructors) {
-                addConstructorInternal(wstruct.pName, wconstructor);
+        for (WStruct wstruct : whitelist.wStructs) {
+            for (WConstructor wconstructor : wstruct.wConstructors) {
+                addConstructorInternal(wstruct.pTypeName, wconstructor);
             }
 
-            for (WMethod wmethod : wstruct.wmethods) {
-                addMethodInternal(wstruct.pName, wmethod);
+            for (WMethod wmethod : wstruct.wMethods) {
+                addMethodInternal(wstruct.pTypeName, wmethod);
             }
 
-            for (WField wfield : wstruct.wfields) {
-                addFieldInternal(wstruct.pName, wfield);
-            }
-        }
-
-        for (WStruct wstruct : whitelist.wstructs) {
-            copyStruct(wstruct.pName, wstruct.psupers);
-
-            if (wstruct.jclass.isInterface()) {
-                copyStruct(wstruct.pName, Collections.singletonList("Object"));
+            for (WField wfield : wstruct.wFields) {
+                addFieldInternal(wstruct.pTypeName, wfield);
             }
         }
 
-        for (String dynamic : whitelist.pdynamics) {
+        for (WStruct wstruct : whitelist.wStructs) {
+            copyStruct(wstruct.pTypeName, wstruct.pSuperTypeNames);
+
+            if (wstruct.jClass.isInterface()) {
+                copyStruct(wstruct.pTypeName, Collections.singletonList("Object"));
+            }
+        }
+
+        for (String dynamic : whitelist.pDynamicTypeNames) {
             copyStruct(dynamic, Collections.singletonList("Object"));
         }
 
@@ -592,30 +592,30 @@ public final class Definition {
 
         if (owner == null) {
             throw new IllegalArgumentException(
-                "Owner struct [" + struct + "] not defined for constructor [" + wconstructor.jconstructor + "].");
+                "Owner struct [" + struct + "] not defined for constructor [" + wconstructor.jConstructor + "].");
         }
 
-        final org.objectweb.asm.commons.Method asm = org.objectweb.asm.commons.Method.getMethod(wconstructor.jconstructor);
+        final org.objectweb.asm.commons.Method asm = org.objectweb.asm.commons.Method.getMethod(wconstructor.jConstructor);
         final Type returnType = getTypeInternal("void");
         final MethodHandle handle;
 
         try {
-            handle = MethodHandles.publicLookup().in(owner.clazz).unreflectConstructor(wconstructor.jconstructor);
+            handle = MethodHandles.publicLookup().in(owner.clazz).unreflectConstructor(wconstructor.jConstructor);
         } catch (final IllegalAccessException exception) {
             throw new IllegalArgumentException("Constructor " +
                 " not found for class [" + owner.clazz.getName() + "]" +
-                " with arguments " + Arrays.toString(wconstructor.jconstructor.getParameterTypes()) + ".");
+                " with arguments " + Arrays.toString(wconstructor.jConstructor.getParameterTypes()) + ".");
         }
 
-        Type[] parameters = new Type[wconstructor.jconstructor.getParameterCount()];
+        Type[] parameters = new Type[wconstructor.jConstructor.getParameterCount()];
 
         for (int parameter = 0; parameter < parameters.length; ++parameter) {
-            parameters[parameter] = getTypeInternal(wconstructor.pparameterTypes.get(parameter));
+            parameters[parameter] = getTypeInternal(wconstructor.pParameterTypeNames.get(parameter));
         }
 
-        final int modifiers = wconstructor.jconstructor.getModifiers();
+        final int modifiers = wconstructor.jConstructor.getModifiers();
         final Method constructor = new Method("<init>", owner, null, returnType, Arrays.asList(parameters), asm, modifiers, handle);
-        owner.constructors.put(new MethodKey("<init>", wconstructor.pparameterTypes.size()), constructor);
+        owner.constructors.put(new MethodKey("<init>", wconstructor.pParameterTypeNames.size()), constructor);
     }
 
     private void addMethodInternal(String struct, WMethod wmethod) {
@@ -623,48 +623,48 @@ public final class Definition {
 
         if (owner == null) {
             throw new IllegalArgumentException("Owner struct [" + struct + "] not defined" +
-                " for method [" + wmethod.jmethod.getName() + "].");
+                " for method [" + wmethod.jMethod.getName() + "].");
         }
 
-        MethodKey methodKey = new MethodKey(wmethod.jmethod.getName(), wmethod.pparameterTypes.size());
+        MethodKey methodKey = new MethodKey(wmethod.jMethod.getName(), wmethod.pParameterTypeNames.size());
 
         if (owner.staticMethods.containsKey(methodKey) || owner.methods.containsKey(methodKey)) {
             throw new IllegalArgumentException(
                 "Duplicate method signature [" + methodKey + "] found within the struct [" + owner.name + "].");
         }
 
-        Type rtn = getTypeInternal(wmethod.preturnType);
-        final Class<?> implClass = wmethod.jaugmented == null ? owner.clazz : wmethod.jaugmented;
-        Type[] parameters = new Type[wmethod.pparameterTypes.size()];
+        Type rtn = getTypeInternal(wmethod.pReturnTypeName);
+        final Class<?> implClass = wmethod.jAugmentedClass == null ? owner.clazz : wmethod.jAugmentedClass;
+        Type[] parameters = new Type[wmethod.pParameterTypeNames.size()];
 
         for (int parameter = 0; parameter < parameters.length; ++parameter) {
-            parameters[parameter] = getTypeInternal(wmethod.pparameterTypes.get(parameter));
+            parameters[parameter] = getTypeInternal(wmethod.pParameterTypeNames.get(parameter));
         }
 
-        if (!wmethod.jmethod.getReturnType().equals(rtn.clazz)) {
+        if (!wmethod.jMethod.getReturnType().equals(rtn.clazz)) {
             throw new IllegalArgumentException("Specified return type class [" + rtn.clazz + "]" +
-                " does not match the found return type class [" + wmethod.jmethod.getReturnType() + "] for the" +
-                " method [" + wmethod.jmethod.getName() + "]" +
+                " does not match the found return type class [" + wmethod.jMethod.getReturnType() + "] for the" +
+                " method [" + wmethod.jMethod.getName() + "]" +
                 " within the struct [" + owner.name + "].");
         }
 
-        final org.objectweb.asm.commons.Method asm = org.objectweb.asm.commons.Method.getMethod(wmethod.jmethod);
+        final org.objectweb.asm.commons.Method asm = org.objectweb.asm.commons.Method.getMethod(wmethod.jMethod);
 
         MethodHandle handle;
 
         try {
-            handle = MethodHandles.publicLookup().in(implClass).unreflect(wmethod.jmethod);
+            handle = MethodHandles.publicLookup().in(implClass).unreflect(wmethod.jMethod);
         } catch (final IllegalAccessException exception) {
-            throw new IllegalArgumentException("Method [" + wmethod.jmethod.getName() + "]" +
+            throw new IllegalArgumentException("Method [" + wmethod.jMethod.getName() + "]" +
                 " not found for class [" + implClass.getName() + "]" +
-                " with arguments " + Arrays.asList(wmethod.jmethod.getParameterTypes()) + ".");
+                " with arguments " + Arrays.asList(wmethod.jMethod.getParameterTypes()) + ".");
         }
 
-        final int modifiers = wmethod.jmethod.getModifiers();
-        final Method method = new Method(wmethod.jmethod.getName(),
-            owner, wmethod.jaugmented == null ? null : implClass, rtn, Arrays.asList(parameters), asm, modifiers, handle);
+        final int modifiers = wmethod.jMethod.getModifiers();
+        final Method method = new Method(wmethod.jMethod.getName(),
+            owner, wmethod.jAugmentedClass == null ? null : implClass, rtn, Arrays.asList(parameters), asm, modifiers, handle);
 
-        if (wmethod.jaugmented == null && java.lang.reflect.Modifier.isStatic(modifiers)) {
+        if (wmethod.jAugmentedClass == null && java.lang.reflect.Modifier.isStatic(modifiers)) {
             owner.staticMethods.put(methodKey, method);
         } else {
             owner.methods.put(methodKey, method);
@@ -676,15 +676,15 @@ public final class Definition {
 
         if (owner == null) {
             throw new IllegalArgumentException("Owner struct [" + struct + "] not defined for " +
-                " field [" + wfield.jfield.getName() + "].");
+                " field [" + wfield.jField.getName() + "].");
         }
 
-        if (owner.staticMembers.containsKey(wfield.jfield.getName()) || owner.members.containsKey(wfield.jfield.getName())) {
-            throw new IllegalArgumentException("Duplicate field name [" + wfield.jfield.getName() + "]" +
+        if (owner.staticMembers.containsKey(wfield.jField.getName()) || owner.members.containsKey(wfield.jField.getName())) {
+            throw new IllegalArgumentException("Duplicate field name [" + wfield.jField.getName() + "]" +
                 " found within the struct [" + owner.name + "].");
         }
 
-        final int modifiers = wfield.jfield.getModifiers();
+        final int modifiers = wfield.jField.getModifiers();
         boolean isStatic = java.lang.reflect.Modifier.isStatic(modifiers);
 
         MethodHandle getter = null;
@@ -692,27 +692,27 @@ public final class Definition {
 
         try {
             if (!isStatic) {
-                getter = MethodHandles.publicLookup().unreflectGetter(wfield.jfield);
-                setter = MethodHandles.publicLookup().unreflectSetter(wfield.jfield);
+                getter = MethodHandles.publicLookup().unreflectGetter(wfield.jField);
+                setter = MethodHandles.publicLookup().unreflectSetter(wfield.jField);
             }
         } catch (final IllegalAccessException exception) {
-            throw new IllegalArgumentException("Getter/Setter [" + wfield.jfield.getName() + "]" +
+            throw new IllegalArgumentException("Getter/Setter [" + wfield.jField.getName() + "]" +
                 " not found for class [" + owner.clazz.getName() + "].");
         }
 
-        final Field field =
-            new Field(wfield.jfield.getName(), wfield.jfield.getName(), owner, getTypeInternal(wfield.ptype), modifiers, getter, setter);
+        final Field field = new Field(
+            wfield.jField.getName(), wfield.jField.getName(), owner, getTypeInternal(wfield.pTypeName), modifiers, getter, setter);
 
         if (isStatic) {
             // require that all static fields are static final
             if (!java.lang.reflect.Modifier.isFinal(modifiers)) {
-                throw new IllegalArgumentException("Static [" + wfield.jfield.getName() + "]" +
+                throw new IllegalArgumentException("Static [" + wfield.jField.getName() + "]" +
                     " within the struct [" + owner.name + "] is not final.");
             }
 
-            owner.staticMembers.put(wfield.jfield.getName(), field);
+            owner.staticMembers.put(wfield.jField.getName(), field);
         } else {
-            owner.members.put(wfield.jfield.getName(), field);
+            owner.members.put(wfield.jField.getName(), field);
         }
     }
 

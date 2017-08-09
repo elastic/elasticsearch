@@ -27,10 +27,10 @@ package org.elasticsearch.common.xcontent;
  * guarantees that what gets printed out is fully valid syntax without any
  * external addition.
  */
-public interface ToXContentObject extends ToXContent {
+public interface ToXContentFragment extends ToXContent {
 
     @Override
     default boolean isFragment() {
-        return false;
+        return true;
     }
 }

@@ -1245,7 +1245,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         return builder;
     }
 
-    public static class IndexBoost implements Writeable, ToXContent {
+    public static class IndexBoost implements Writeable, ToXContentObject {
         private final String index;
         private final float boost;
 

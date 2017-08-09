@@ -93,6 +93,11 @@
           "type" : "number",
           "description" : "Number of hits to return (default: 10)"
         },
+        "check_fieldnames": {
+          "type" : "boolean",
+          "default": false,
+          "description" : "Specify whether globally unmapped fields should cause errors. Introduced in 6.1.0 default=false and 7.0.0 defaulted to true"
+        },
         "sort": {
           "type" : "list",
           "description" : "A comma-separated list of <field>:<direction> pairs"

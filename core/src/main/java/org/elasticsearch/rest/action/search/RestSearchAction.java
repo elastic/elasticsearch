@@ -136,6 +136,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
         parseSearchSource(searchRequest.source(), request, setSize);
         searchRequest.requestCache(request.paramAsBoolean("request_cache", null));
+        searchRequest.checkFieldNames(request.paramAsBoolean("check_fieldnames", SearchRequest.DEFAULT_CHECK_FIELDNAMES));
 
         String scroll = request.param("scroll");
         if (scroll != null) {

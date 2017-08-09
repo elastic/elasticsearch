@@ -763,7 +763,7 @@ public class MovAvgIT extends ESIntegTestCase {
     public void testNoBucketsInHistogram() {
 
         SearchResponse response = client()
-                .prepareSearch("idx").setTypes("type")
+                .prepareSearch("idx").setTypes("type").setCheckFieldNames(false)
                 .addAggregation(
                         histogram("histo").field("test").interval(interval)
                                 .subAggregation(randomMetric("the_metric", VALUE_FIELD))
@@ -785,7 +785,7 @@ public class MovAvgIT extends ESIntegTestCase {
     public void testNoBucketsInHistogramWithPredict() {
         int numPredictions = randomIntBetween(1,10);
         SearchResponse response = client()
-                .prepareSearch("idx").setTypes("type")
+                .prepareSearch("idx").setTypes("type").setCheckFieldNames(false)
                 .addAggregation(
                         histogram("histo").field("test").interval(interval)
                                 .subAggregation(randomMetric("the_metric", VALUE_FIELD))

@@ -117,7 +117,7 @@ public class ShardReduceIT extends ESIntegTestCase {
     }
 
     public void testMissing() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
+        SearchResponse response = client().prepareSearch("idx").setCheckFieldNames(false)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(missing("missing").field("foobar")
                         .subAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY).minDocCount(0)))
@@ -131,7 +131,7 @@ public class ShardReduceIT extends ESIntegTestCase {
     }
 
     public void testGlobalWithFilterWithMissing() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
+        SearchResponse response = client().prepareSearch("idx").setCheckFieldNames(false)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(global("global")
                         .subAggregation(filter("filter", QueryBuilders.matchAllQuery())

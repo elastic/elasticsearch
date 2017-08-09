@@ -72,7 +72,11 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     private SearchSourceBuilder source;
 
     private Boolean requestCache;
+    
+    public static final boolean DEFAULT_CHECK_FIELDNAMES = false;
 
+    private boolean checkFieldNames = DEFAULT_CHECK_FIELDNAMES;
+    
     private Scroll scroll;
 
     private int batchedReduceSize = 512;
@@ -134,6 +138,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             maxConcurrentShardRequests = in.readVInt();
             preFilterShardSize = in.readVInt();
         }
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            checkFieldNames = in.readBoolean();
+        }
     }
 
     @Override
@@ -155,6 +162,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
             out.writeVInt(maxConcurrentShardRequests);
             out.writeVInt(preFilterShardSize);
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeBoolean(checkFieldNames);
         }
     }
 
@@ -346,6 +356,19 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     public Boolean requestCache() {
         return this.requestCache;
     }
+    
+    /**
+     * Sets if this request should validate field names against 
+     * index mappings. This is a best-effort check.
+     */
+    public SearchRequest checkFieldNames(boolean checkFieldNames) {
+        this.checkFieldNames = checkFieldNames;
+        return this;
+    }
+
+    public boolean checkFieldNames() {
+        return this.checkFieldNames;
+    }    
 
     /**
      * Sets the number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection
@@ -468,6 +491,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 Objects.equals(preference, that.preference) &&
                 Objects.equals(source, that.source) &&
                 Objects.equals(requestCache, that.requestCache)  &&
+                checkFieldNames == that.checkFieldNames  &&
                 Objects.equals(scroll, that.scroll) &&
                 Arrays.equals(types, that.types) &&
                 Objects.equals(batchedReduceSize, that.batchedReduceSize) &&
@@ -478,7 +502,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     @Override
     public int hashCode() {
-        return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
+        return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache, checkFieldNames,
                 scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize);
     }
 
@@ -492,6 +516,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 ", routing='" + routing + '\'' +
                 ", preference='" + preference + '\'' +
                 ", requestCache=" + requestCache +
+                ", checkFieldNames=" + checkFieldNames +
                 ", scroll=" + scroll +
                 ", maxConcurrentShardRequests=" + maxConcurrentShardRequests +
                 ", batchedReduceSize=" + batchedReduceSize +

@@ -66,7 +66,7 @@ public class MetaDataIT extends ESIntegTestCase {
             put("complex", nestedMetaData);
         }};
 
-        SearchResponse response = client().prepareSearch("idx")
+        SearchResponse response = client().prepareSearch("idx").setCheckFieldNames(false)
                 .addAggregation(
                     terms("the_terms")
                         .setMetaData(metaData)

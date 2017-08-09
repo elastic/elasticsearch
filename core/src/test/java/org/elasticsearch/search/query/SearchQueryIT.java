@@ -1176,7 +1176,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "2", "4");
 
-        searchResponse = client().prepareSearch("test")
+        searchResponse = client().prepareSearch("test").setCheckFieldNames(false)
                 .setQuery(termsLookupQuery("not_exists", new TermsLookup("lookup2", "type", "3", "arr.term"))).get();
         assertHitCount(searchResponse, 0L);
 

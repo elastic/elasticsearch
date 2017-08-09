@@ -234,7 +234,8 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
         DiversifiedAggregationBuilder sampleAgg = new DiversifiedAggregationBuilder("sample").shardSize(100);
         sampleAgg.field("author").maxDocsPerValue(MAX_DOCS_PER_AUTHOR).executionHint(randomExecutionHint());
         sampleAgg.subAggregation(terms("authors").field("author"));
-        SearchResponse response = client().prepareSearch("idx_unmapped", "idx_unmapped_author").setSearchType(SearchType.QUERY_THEN_FETCH)
+        SearchResponse response = client().prepareSearch("idx_unmapped", "idx_unmapped_author").setCheckFieldNames(false)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(new TermQueryBuilder("genre", "fantasy")).setFrom(0).setSize(60).addAggregation(sampleAgg).execute().actionGet();
         assertSearchResponse(response);
         Sampler sample = response.getAggregations().get("sample");

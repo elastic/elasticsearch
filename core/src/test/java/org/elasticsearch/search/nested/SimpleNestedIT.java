@@ -65,7 +65,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         // check on no data, see it works
         SearchResponse searchResponse = client().prepareSearch("test").execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
-        searchResponse = client().prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setCheckFieldNames(false).setQuery(termQuery("n_field1", "n_value1_1")).execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -90,13 +90,13 @@ public class SimpleNestedIT extends ESIntegTestCase {
         // check the numDocs
         assertDocumentCount("test", 3);
 
-        searchResponse = client().prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setCheckFieldNames(false).setQuery(termQuery("n_field1", "n_value1_1")).execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
 
         // search for something that matches the nested doc, and see that we don't find the nested doc
         searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        searchResponse = client().prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")).get();
+        searchResponse = client().prepareSearch("test").setCheckFieldNames(false).setQuery(termQuery("n_field1", "n_value1_1")).get();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
 
         // now, do a nested query

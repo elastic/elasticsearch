@@ -63,7 +63,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch(UNMAPPED_IDX_NAME)
+        SearchResponse response = client().prepareSearch(UNMAPPED_IDX_NAME).setCheckFieldNames(false)
                 .addAggregation(geoCentroid(aggName).field(SINGLE_VALUED_FIELD_NAME))
                 .execute().actionGet();
         assertSearchResponse(response);

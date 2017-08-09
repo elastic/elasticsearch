@@ -68,6 +68,8 @@ public interface ShardSearchRequest {
     long nowInMillis();
 
     Boolean requestCache();
+    
+    boolean checkFieldNames();
 
     Scroll scroll();
 

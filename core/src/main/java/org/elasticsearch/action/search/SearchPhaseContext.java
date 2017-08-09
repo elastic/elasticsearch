@@ -39,6 +39,11 @@ interface SearchPhaseContext extends ActionListener<SearchResponse>, Executor {
      * Returns the total number of shards to the current search across all indices
      */
     int getNumShards();
+    
+    /**
+     * Returns the number of shards that have been skipped so far
+     */
+    int getNumSkippedShards();
 
     /**
      * Returns a logger for this context to prevent each individual phase to create their own logger.

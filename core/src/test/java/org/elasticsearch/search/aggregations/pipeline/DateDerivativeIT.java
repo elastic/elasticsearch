@@ -464,7 +464,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
 
     public void testUnmapped() throws Exception {
         SearchResponse response = client()
-                .prepareSearch("idx_unmapped")
+                .prepareSearch("idx_unmapped").setCheckFieldNames(false)
                 .addAggregation(
                         dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH).minDocCount(0)
                                 .subAggregation(derivative("deriv", "_count"))).execute().actionGet();

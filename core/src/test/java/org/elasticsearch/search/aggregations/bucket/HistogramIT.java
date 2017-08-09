@@ -823,7 +823,7 @@ public class HistogramIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped")
+        SearchResponse response = client().prepareSearch("idx_unmapped").setCheckFieldNames(false)
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval))
                 .execute().actionGet();
 
@@ -1027,7 +1027,7 @@ public class HistogramIT extends ESIntegTestCase {
 
         SearchResponse response = null;
         try {
-            response = client().prepareSearch("idx")
+            response = client().prepareSearch("idx").setCheckFieldNames(false)
                     .setQuery(QueryBuilders.termQuery("foo", "bar"))
                     .addAggregation(histogram("histo")
                             .field(SINGLE_VALUED_FIELD_NAME)

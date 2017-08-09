@@ -488,6 +488,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         request.requestCache(requestCache);
         return this;
     }
+    
+
+    /**
+     * Sets if this request should try validate field names
+     */
+    public SearchRequestBuilder setCheckFieldNames(boolean checkFieldNames) {
+        request.checkFieldNames(checkFieldNames);
+        return this;
+    }    
 
     /**
      * Should the query be profiled. Defaults to <code>false</code>

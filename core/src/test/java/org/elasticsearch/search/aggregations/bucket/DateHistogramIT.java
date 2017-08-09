@@ -891,7 +891,7 @@ public class DateHistogramIT extends ESIntegTestCase {
      */
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped")
+        SearchResponse response = client().prepareSearch("idx_unmapped").setCheckFieldNames(false)
                 .addAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.MONTH))
                 .execute().actionGet();
 

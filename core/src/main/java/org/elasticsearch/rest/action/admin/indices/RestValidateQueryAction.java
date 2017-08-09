@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParsingException;
@@ -68,6 +69,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
         validateQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
         validateQueryRequest.allShards(request.paramAsBoolean("all_shards", false));
+        validateQueryRequest.checkFieldNames(request.paramAsBoolean("check_fieldnames", SearchRequest.DEFAULT_CHECK_FIELDNAMES));
 
         Exception bodyParsingException = null;
         try {

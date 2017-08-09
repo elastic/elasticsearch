@@ -341,7 +341,7 @@ public class DerivativeIT extends ESIntegTestCase {
 
     public void testUnmapped() throws Exception {
         SearchResponse response = client()
-                .prepareSearch("idx_unmapped")
+                .prepareSearch("idx_unmapped").setCheckFieldNames(false)
                 .addAggregation(
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                 .subAggregation(derivative("deriv", "_count"))).execute().actionGet();

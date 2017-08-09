@@ -83,7 +83,7 @@ public class SumIT extends AbstractNumericTestCase {
 
     @Override
     public void testUnmapped() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
+        SearchResponse searchResponse = client().prepareSearch("idx_unmapped").setCheckFieldNames(false)
                 .setQuery(matchAllQuery())
                 .addAggregation(sum("sum").field("value"))
                 .execute().actionGet();

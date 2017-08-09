@@ -35,7 +35,11 @@ import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -61,6 +65,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private float maxScore;
     private long serviceTimeEWMA = -1;
     private int nodeQueueSize = -1;
+    private  Set<String> unmappedFields = Collections.emptySet();
 
     public QuerySearchResult() {
     }
@@ -306,6 +311,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
             serviceTimeEWMA = -1;
             nodeQueueSize = -1;
         }
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            String[] unmappedFieldsArray = in.readOptionalStringArray();            
+            unmappedFields = unmappedFieldsArray == null ? Collections.emptySet() : new HashSet<>(Arrays.asList(unmappedFieldsArray));
+        }
+        
     }
 
     @Override
@@ -347,6 +357,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
             out.writeZLong(serviceTimeEWMA);
             out.writeInt(nodeQueueSize);
         }
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            String[] unmappedFieldsArray = unmappedFields.size() == 0 ? null : unmappedFields.toArray(new String[unmappedFields.size()]);
+            out.writeOptionalStringArray(unmappedFieldsArray);
+        }
+        
     }
 
     public long getTotalHits() {
@@ -355,5 +370,16 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public float getMaxScore() {
         return maxScore;
+    }
+
+    /*
+     * A set of the unmapped fieldnames referenced in this search request
+     */
+    public Set<String> unmappedFieldnames() {
+        return unmappedFields;
+    }
+
+    public void unmappedFieldnames(Set<String> unmappedFields) {
+        this.unmappedFields = unmappedFields;
     }
 }

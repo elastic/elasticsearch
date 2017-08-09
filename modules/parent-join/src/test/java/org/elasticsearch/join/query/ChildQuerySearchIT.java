@@ -826,7 +826,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         }
         ensureGreen();
 
-        SearchResponse response = client().prepareSearch("test")
+        SearchResponse response = client().prepareSearch("test").setCheckFieldNames(false)
                 .setQuery(hasChildQuery("child", matchQuery("text", "value"), ScoreMode.None)).get();
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits(), equalTo(0L));
@@ -839,7 +839,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         }
 
-        response = client().prepareSearch("test")
+        response = client().prepareSearch("test").setCheckFieldNames(false)
                 .setQuery(hasChildQuery("child", matchQuery("text", "value"), ScoreMode.None)).get();
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits(), equalTo(0L));
@@ -849,12 +849,13 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits(), equalTo(0L));
 
-        response = client().prepareSearch("test")
+        response = client().prepareSearch("test").setCheckFieldNames(false)
             .setQuery(hasParentQuery("parent", matchQuery("text", "value"), false)).get();
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits(), equalTo(0L));
 
-        response = client().prepareSearch("test").setQuery(hasParentQuery("parent", matchQuery("text", "value"), true))
+        response = client().prepareSearch("test").setCheckFieldNames(false)
+                .setQuery(hasParentQuery("parent", matchQuery("text", "value"), true))
                 .get();
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits(), equalTo(0L));
@@ -1134,10 +1135,10 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         SearchResponse response;
         if (legacy()){
-            response = client().prepareSearch("test").setQuery(termQuery("_parent#parent:p1", "p1"))
+            response = client().prepareSearch("test").setCheckFieldNames(false).setQuery(termQuery("_parent#parent:p1", "p1"))
                 .get();
         } else {
-            response = client().prepareSearch("test")
+            response = client().prepareSearch("test").setCheckFieldNames(false)
                 .setQuery(boolQuery().filter(termQuery("join_field#parent", "p1")).filter(termQuery("join_field", "child")))
                 .get();
         }
@@ -1147,35 +1148,36 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         refresh();
 
         if (legacy()){
-            response = client().prepareSearch("test").setQuery(termQuery("_parent#parent", "p1"))
+            response = client().prepareSearch("test").setCheckFieldNames(false).setQuery(termQuery("_parent#parent", "p1"))
                 .get();
         } else {
-            response = client().prepareSearch("test")
+            response = client().prepareSearch("test").setCheckFieldNames(false)
                 .setQuery(boolQuery().filter(termQuery("join_field#parent", "p1")).filter(termQuery("join_field", "child")))
                 .get();
         }
         assertHitCount(response, 1L);
 
         if (legacy()) {
-            response = client().prepareSearch("test").setQuery(queryStringQuery("_parent#parent:p1")).get();
+            response = client().prepareSearch("test").setCheckFieldNames(false)
+                    .setQuery(queryStringQuery("_parent#parent:p1")).get();
             assertHitCount(response, 1L);
         }
 
         createIndexRequest("test", "child", "c2", "p2").get();
         refresh();
         if (legacy()) {
-            response = client().prepareSearch("test").setQuery(termsQuery("_parent#parent", "p1", "p2")).get();
+            response = client().prepareSearch("test").setCheckFieldNames(false).setQuery(termsQuery("_parent#parent", "p1", "p2")).get();
             assertHitCount(response, 2L);
         }
 
         if (legacy()) {
-            response = client().prepareSearch("test")
+            response = client().prepareSearch("test").setCheckFieldNames(false)
                 .setQuery(boolQuery()
                     .should(termQuery("_parent#parent", "p1"))
                     .should(termQuery("_parent#parent", "p2"))
                 ).get();
         } else {
-            response = client().prepareSearch("test")
+            response = client().prepareSearch("test").setCheckFieldNames(false)
                 .setQuery(boolQuery()
                     .should(boolQuery().filter(termQuery("join_field#parent", "p1")).filter(termQuery("join_field", "child")))
                     .should(boolQuery().filter(termQuery("join_field#parent", "p2")).filter(termQuery("join_field", "child")))

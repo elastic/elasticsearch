@@ -531,7 +531,7 @@ public class BucketScriptIT extends ESIntegTestCase {
 
     public void testUnmapped() throws Exception {
         SearchResponse response = client()
-                .prepareSearch("idx_unmapped")
+                .prepareSearch("idx_unmapped").setCheckFieldNames(false)
                 .addAggregation(
                         histogram("histo")
                                 .field(FIELD_1_NAME)

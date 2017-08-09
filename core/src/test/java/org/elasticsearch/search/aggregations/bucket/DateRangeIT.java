@@ -704,7 +704,7 @@ public class DateRangeIT extends ESIntegTestCase {
     public void testUnmapped() throws Exception {
         client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().execute().actionGet();
 
-        SearchResponse response = client().prepareSearch("idx_unmapped")
+        SearchResponse response = client().prepareSearch("idx_unmapped").setCheckFieldNames(false)
                 .addAggregation(dateRange("range")
                         .field("date")
                         .addUnboundedTo(date(2, 15))
@@ -750,7 +750,7 @@ public class DateRangeIT extends ESIntegTestCase {
     }
 
     public void testUnmappedWithStringDates() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped")
+        SearchResponse response = client().prepareSearch("idx_unmapped").setCheckFieldNames(false)
                 .addAggregation(dateRange("range")
                         .field("date")
                         .addUnboundedTo("2012-02-15")

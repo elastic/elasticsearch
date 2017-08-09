@@ -218,18 +218,18 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
     }
 
     public void testPhraseType() {
-        SearchResponse searchResponse = client().prepareSearch("test")
+        SearchResponse searchResponse = client().prepareSearch("test").setCheckFieldNames(false)
                 .setQuery(randomizeType(multiMatchQuery("Man the Ultimate", "full_name_phrase", "first_name_phrase", "last_name_phrase", "category_phrase")
                         .operator(Operator.OR).type(MatchQuery.Type.PHRASE))).get();
         assertFirstHit(searchResponse, hasId("ultimate2"));
         assertHitCount(searchResponse, 1L);
 
-        searchResponse = client().prepareSearch("test")
+        searchResponse = client().prepareSearch("test").setCheckFieldNames(false)
                 .setQuery(randomizeType(multiMatchQuery("Captain", "full_name_phrase", "first_name_phrase", "last_name_phrase", "category_phrase")
                         .operator(Operator.OR).type(MatchQuery.Type.PHRASE))).get();
         assertThat(searchResponse.getHits().getTotalHits(), greaterThan(1L));
 
-        searchResponse = client().prepareSearch("test")
+        searchResponse = client().prepareSearch("test").setCheckFieldNames(false)
                 .setQuery(randomizeType(multiMatchQuery("the Ul", "full_name_phrase", "first_name_phrase", "last_name_phrase", "category_phrase")
                         .operator(Operator.OR).type(MatchQuery.Type.PHRASE_PREFIX))).get();
         assertSearchHits(searchResponse, "ultimate2", "ultimate1");
@@ -237,12 +237,12 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
     }
 
     public void testSingleField() throws NoSuchFieldException, IllegalAccessException {
-        SearchResponse searchResponse = client().prepareSearch("test")
+        SearchResponse searchResponse = client().prepareSearch("test").setCheckFieldNames(false)
                 .setQuery(randomizeType(multiMatchQuery("15", "skill"))).get();
         assertNoFailures(searchResponse);
         assertFirstHit(searchResponse, hasId("theone"));
 
-        searchResponse = client().prepareSearch("test")
+        searchResponse = client().prepareSearch("test").setCheckFieldNames(false)
                 .setQuery(randomizeType(multiMatchQuery("15", "skill", "int-field")).analyzer("category")).get();
         assertNoFailures(searchResponse);
         assertFirstHit(searchResponse, hasId("theone"));
@@ -263,7 +263,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 builder.append(RandomPicks.randomFrom(random(), query)).append(" ");
             }
             MultiMatchQueryBuilder multiMatchQueryBuilder = randomizeType(multiMatchQuery(builder.toString(), field));
-            SearchResponse multiMatchResp = client().prepareSearch("test")
+            SearchResponse multiMatchResp = client().prepareSearch("test").setCheckFieldNames(false)
                     // _id sort field is a tie, in case hits have the same score,
                     // the hits will be sorted the same consistently
                     .addSort("_score", SortOrder.DESC)
@@ -271,7 +271,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                     .setQuery(multiMatchQueryBuilder).get();
             MatchQueryBuilder matchQueryBuilder = QueryBuilders.matchQuery(field, builder.toString());
 
-            SearchResponse matchResp = client().prepareSearch("test")
+            SearchResponse matchResp = client().prepareSearch("test").setCheckFieldNames(false)
                     // _id tie sort
                     .addSort("_score", SortOrder.DESC)
                     .addSort("_id", SortOrder.ASC)

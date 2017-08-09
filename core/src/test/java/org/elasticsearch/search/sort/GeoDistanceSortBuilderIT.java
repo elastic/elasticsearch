@@ -339,7 +339,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
                 client().prepareIndex("test1", "type").setSource("str_field", "bcd", "long_field", 3, "double_field", 0.65),
                 client().prepareIndex("test2", "type").setSource());
 
-        SearchResponse resp = client().prepareSearch("test1", "test2")
+        SearchResponse resp = client().prepareSearch("test1", "test2").setCheckFieldNames(false)
                 .addSort(fieldSort("str_field").order(SortOrder.ASC).unmappedType("keyword"))
                 .addSort(fieldSort("str_field2").order(SortOrder.DESC).unmappedType("keyword")).get();
 
@@ -347,14 +347,14 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
                 new Object[] {"bcd", null},
                 new Object[] {null, null});
 
-        resp = client().prepareSearch("test1", "test2")
+        resp = client().prepareSearch("test1", "test2").setCheckFieldNames(false)
                 .addSort(fieldSort("long_field").order(SortOrder.ASC).unmappedType("long"))
                 .addSort(fieldSort("long_field2").order(SortOrder.DESC).unmappedType("long")).get();
         assertSortValues(resp,
                 new Object[] {3L, Long.MIN_VALUE},
                 new Object[] {Long.MAX_VALUE, Long.MIN_VALUE});
 
-        resp = client().prepareSearch("test1", "test2")
+        resp = client().prepareSearch("test1", "test2").setCheckFieldNames(false)
                 .addSort(fieldSort("double_field").order(SortOrder.ASC).unmappedType("double"))
                 .addSort(fieldSort("double_field2").order(SortOrder.DESC).unmappedType("double")).get();
         assertSortValues(resp,

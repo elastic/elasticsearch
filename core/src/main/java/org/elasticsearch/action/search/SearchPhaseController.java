@@ -32,6 +32,7 @@ import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -63,8 +64,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -438,9 +441,11 @@ public final class SearchPhaseController extends AbstractComponent {
         Boolean terminatedEarly = null;
         if (queryResults.isEmpty()) { // early terminate we have nothing to reduce
             return new ReducedQueryPhase(topDocsStats.totalHits, topDocsStats.fetchHits, topDocsStats.maxScore,
-                timedOut, terminatedEarly, null, null, null, EMPTY_DOCS, null, null, numReducePhases, false, 0, 0, true);
+                timedOut, terminatedEarly, null, null, null, EMPTY_DOCS, null, null, numReducePhases, false, 0, 0, true, 
+                Collections.emptySet());
         }
         final QuerySearchResult firstResult = queryResults.stream().findFirst().get().queryResult();
+        Map<String, Set<String>> perIndexUnmappedFieldsNames = new HashMap<>();
         final boolean hasSuggest = firstResult.suggest() != null;
         final boolean hasProfileResults = firstResult.hasProfileResults();
         final boolean consumeAggs;
@@ -468,6 +473,16 @@ public final class SearchPhaseController extends AbstractComponent {
         int size = 0;
         for (SearchPhaseResult entry : queryResults) {
             QuerySearchResult result = entry.queryResult();
+            
+            // OR the list of unmapped fieldnames from the same index.
+            Set<String> unmappedFieldNamesForIndex = perIndexUnmappedFieldsNames.get(result.getSearchShardTarget().getIndex());
+            if (unmappedFieldNamesForIndex == null){
+                unmappedFieldNamesForIndex = new HashSet<String>();
+                perIndexUnmappedFieldsNames.put(result.getSearchShardTarget().getIndex(), unmappedFieldNamesForIndex);
+            }
+            unmappedFieldNamesForIndex.addAll(result.unmappedFieldnames());
+            
+                
             from = result.from();
             size = result.size();
             if (result.searchTimedOut()) {
@@ -495,6 +510,20 @@ public final class SearchPhaseController extends AbstractComponent {
                 profileResults.put(key, result.consumeProfileResult());
             }
         }
+        
+        // AND the sets of unmapped fields across multiple indices.
+        Set<String> unanimouslyUnmappedFieldNames = null;
+        for (Set<String> unmappedFields : perIndexUnmappedFieldsNames.values()) {
+            if (unanimouslyUnmappedFieldNames == null){
+                unanimouslyUnmappedFieldNames  = new HashSet<>(unmappedFields);
+            }else{
+                unanimouslyUnmappedFieldNames.retainAll(unmappedFields);                
+            }
+        }
+        if (unanimouslyUnmappedFieldNames == null) {
+            unanimouslyUnmappedFieldNames = Collections.emptySet();
+        }
+        
         final Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
         ReduceContext reduceContext = new ReduceContext(bigArrays, scriptService, true);
         final InternalAggregations aggregations = aggregationsList.isEmpty() ? null : reduceAggs(aggregationsList,
@@ -504,7 +533,7 @@ public final class SearchPhaseController extends AbstractComponent {
         return new ReducedQueryPhase(topDocsStats.totalHits, topDocsStats.fetchHits, topDocsStats.maxScore,
             timedOut, terminatedEarly, suggest, aggregations, shardResults, scoreDocs.scoreDocs, scoreDocs.sortFields,
             firstResult != null ? firstResult.sortValueFormats() : null,
-            numReducePhases, scoreDocs.isSortedByField, size, from, firstResult == null);
+            numReducePhases, scoreDocs.isSortedByField, size, from, firstResult == null, unanimouslyUnmappedFieldNames);
     }
 
 
@@ -567,11 +596,13 @@ public final class SearchPhaseController extends AbstractComponent {
         final int from;
         // sort value formats used to sort / format the result
         final DocValueFormat[] sortValueFormats;
+        // The fields that were flagged as unmapped by all indices touched in this request
+        final Set<String> unanimouslyUnmappedFieldNames;
 
         ReducedQueryPhase(long totalHits, long fetchHits, float maxScore, boolean timedOut, Boolean terminatedEarly, Suggest suggest,
                           InternalAggregations aggregations, SearchProfileShardResults shardResults, ScoreDoc[] scoreDocs,
                           SortField[] sortFields, DocValueFormat[] sortValueFormats, int numReducePhases, boolean isSortedByField, int size,
-                          int from, boolean isEmptyResult) {
+                          int from, boolean isEmptyResult, Set<String> unanimouslyUnmappedFieldNames) {
             if (numReducePhases <= 0) {
                 throw new IllegalArgumentException("at least one reduce phase must have been applied but was: " + numReducePhases);
             }
@@ -595,6 +626,7 @@ public final class SearchPhaseController extends AbstractComponent {
             this.from = from;
             this.isEmptyResult = isEmptyResult;
             this.sortValueFormats = sortValueFormats;
+            this.unanimouslyUnmappedFieldNames = unanimouslyUnmappedFieldNames;
         }
 
         /**
@@ -603,6 +635,15 @@ public final class SearchPhaseController extends AbstractComponent {
          */
         public InternalSearchResponse buildResponse(SearchHits hits) {
             return new InternalSearchResponse(hits, aggregations, suggest, shardResults, timedOut, terminatedEarly, numReducePhases);
+        }
+
+        /**
+         * Throws an error if all indices have reported the same query field names as unmapped.
+         */
+        public void fieldNamesCheck() {
+            if (unanimouslyUnmappedFieldNames.size() > 0) {
+                throw new ParsingException(null, "The following fields were unmapped in all indices searched: " + unanimouslyUnmappedFieldNames);
+            }
         }
     }
 

@@ -66,6 +66,13 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
     }
 
     /**
+     * Indicates whether the query should fail if all shards see field as unmapped
+     */
+    public ValidateQueryRequestBuilder setCheckFieldNames(boolean checkFieldNames) {
+        request.checkFieldNames(checkFieldNames);
+        return this;
+    }
+    /**
      * Indicates whether the query should be validated on all shards
      */
     public ValidateQueryRequestBuilder setAllShards(boolean rewrite) {

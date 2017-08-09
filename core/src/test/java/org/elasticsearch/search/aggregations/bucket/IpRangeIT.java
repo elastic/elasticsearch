@@ -183,7 +183,7 @@ public class IpRangeIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() {
-        SearchResponse rsp = client().prepareSearch("idx_unmapped").addAggregation(
+        SearchResponse rsp = client().prepareSearch("idx_unmapped").setCheckFieldNames(false).addAggregation(
                 AggregationBuilders.ipRange("my_range")
                     .field("ip")
                     .addUnboundedTo("192.168.1.0")

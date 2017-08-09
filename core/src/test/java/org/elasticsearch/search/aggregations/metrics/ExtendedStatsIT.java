@@ -107,7 +107,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
 
     @Override
     public void testUnmapped() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
+        SearchResponse searchResponse = client().prepareSearch("idx_unmapped").setCheckFieldNames(false)
                 .setQuery(matchAllQuery())
                 .addAggregation(extendedStats("stats").field("value"))
                 .execute().actionGet();

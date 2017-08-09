@@ -164,7 +164,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
 
     @Override
     public void testUnmapped() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
+        SearchResponse searchResponse = client().prepareSearch("idx_unmapped").setCheckFieldNames(false)
                 .setQuery(matchAllQuery())
                 .addAggregation(randomCompression(percentileRanks("percentile_ranks", new double[]{0, 10, 15, 100}))
                         .field("value"))

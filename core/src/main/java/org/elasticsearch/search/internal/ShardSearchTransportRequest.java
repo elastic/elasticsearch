@@ -152,6 +152,12 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
+    public boolean checkFieldNames() {
+        return shardSearchLocalRequest.checkFieldNames();
+    }
+    
+    
+    @Override
     public Scroll scroll() {
         return shardSearchLocalRequest.scroll();
     }

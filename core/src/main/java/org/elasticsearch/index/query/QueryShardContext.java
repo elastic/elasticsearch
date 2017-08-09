@@ -58,7 +58,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
@@ -83,6 +85,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean cachable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
     private final String fullyQualifiedIndexName;
+    private final Set<String> unmappedFieldNames;
 
     public void setTypes(String... types) {
         this.types = types;
@@ -116,6 +119,7 @@ public class QueryShardContext extends QueryRewriteContext {
         this.reader = reader;
         this.clusterAlias = clusterAlias;
         this.fullyQualifiedIndexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName());
+        this.unmappedFieldNames = new HashSet<>();
     }
 
     public QueryShardContext(QueryShardContext source) {
@@ -201,7 +205,12 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public MappedFieldType fieldMapper(String name) {
-        return failIfFieldMappingNotFound(name, mapperService.fullName(name));
+        MappedFieldType fieldType = mapperService.fullName(name);
+        if (fieldType == null) {
+            // Add to list of unmapped fieldnames referenced by this request
+            unmappedFieldNames.add(name);
+        }
+        return failIfFieldMappingNotFound(name, fieldType);
     }
 
     public ObjectMapper getObjectMapper(String name) {
@@ -431,5 +440,12 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public String getFullyQualifiedIndexName() {
         return fullyQualifiedIndexName;
+    }
+    
+    /**
+     * Returns the unmapped fieldnames accessed as part of this query
+     */
+    public Set<String> getUnmappedFields() {
+        return unmappedFieldNames;
     }
 }

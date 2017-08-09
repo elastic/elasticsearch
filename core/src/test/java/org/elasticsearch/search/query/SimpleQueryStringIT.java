@@ -140,20 +140,20 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "3", "4");
 
         logger.info("--> query 2");
-        searchResponse = client().prepareSearch()
+        searchResponse = client().prepareSearch().setCheckFieldNames(false)
                 .setQuery(simpleQueryStringQuery("foo bar").field("body").field("body2").minimumShouldMatch("2")).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "3", "4");
 
         // test case from #13884
         logger.info("--> query 3");
-                searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo")
+                searchResponse = client().prepareSearch().setCheckFieldNames(false).setQuery(simpleQueryStringQuery("foo")
                         .field("body").field("body2").field("body3").minimumShouldMatch("-50%")).get();
                 assertHitCount(searchResponse, 3L);
                 assertSearchHits(searchResponse, "1", "3", "4");
 
         logger.info("--> query 4");
-        searchResponse = client().prepareSearch()
+        searchResponse = client().prepareSearch().setCheckFieldNames(false)
                 .setQuery(simpleQueryStringQuery("foo bar baz").field("body").field("body2").minimumShouldMatch("70%")).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "3", "4");

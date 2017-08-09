@@ -61,7 +61,8 @@ public class MissingValueIT extends ESIntegTestCase {
     }
 
     public void testUnmappedTerms() {
-        SearchResponse response = client().prepareSearch("idx").addAggregation(terms("my_terms").field("non_existing_field").missing("bar")).get();
+        SearchResponse response = client().prepareSearch("idx").setCheckFieldNames(false)
+                .addAggregation(terms("my_terms").field("non_existing_field").missing("bar")).get();
         assertSearchResponse(response);
         Terms terms = response.getAggregations().get("my_terms");
         assertEquals(1, terms.getBuckets().size());
@@ -120,7 +121,8 @@ public class MissingValueIT extends ESIntegTestCase {
     }
 
     public void testUnmappedHistogram() {
-        SearchResponse response = client().prepareSearch("idx").addAggregation(histogram("my_histogram").field("non-existing_field").interval(5).missing(12)).get();
+        SearchResponse response = client().prepareSearch("idx").setCheckFieldNames(false)
+                .addAggregation(histogram("my_histogram").field("non-existing_field").interval(5).missing(12)).get();
         assertSearchResponse(response);
         Histogram histogram = response.getAggregations().get("my_histogram");
         assertEquals(1, histogram.getBuckets().size());
@@ -193,7 +195,8 @@ public class MissingValueIT extends ESIntegTestCase {
     }
 
     public void testUnmappedGeoBounds() {
-        SearchResponse response = client().prepareSearch("idx").addAggregation(geoBounds("bounds").field("non_existing_field").missing("2,1")).get();
+        SearchResponse response = client().prepareSearch("idx").setCheckFieldNames(false)
+                .addAggregation(geoBounds("bounds").field("non_existing_field").missing("2,1")).get();
         assertSearchResponse(response);
         GeoBounds bounds = response.getAggregations().get("bounds");
         assertThat(bounds.bottomRight().lat(), closeTo(2.0, 1E-5));

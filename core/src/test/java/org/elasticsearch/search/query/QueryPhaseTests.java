@@ -51,14 +51,21 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.sort.SortAndFormats;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.TestSearchContext;
 
 import java.io.IOException;
@@ -92,7 +99,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
     }
 
     private void countTestCase(Query query, IndexReader reader, boolean shouldCollect) throws Exception {
-        TestSearchContext context = new TestSearchContext(null, indexShard);
+        TestSearchContext context = new TestSearchContext(mockShardContext(), indexShard);
         context.parsedQuery(new ParsedQuery(query));
         context.setSize(0);
         context.setTask(new SearchTask(123L, "", "", "", null));
@@ -110,6 +117,13 @@ public class QueryPhaseTests extends IndexShardTestCase {
         assertFalse(rescore);
         assertEquals(searcher.count(query), context.queryResult().topDocs().totalHits);
         assertEquals(shouldCollect, collected.get());
+    }
+
+    private QueryShardContext mockShardContext() {
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
+        return  new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(), writableRegistry(), 
+                null, null, System::currentTimeMillis, null);        
+
     }
 
     private void countTestCase(boolean withDeletions) throws Exception {
@@ -162,7 +176,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
     }
 
     public void testPostFilterDisablesCountOptimization() throws Exception {
-        TestSearchContext context = new TestSearchContext(null, indexShard);
+        TestSearchContext context = new TestSearchContext(mockShardContext(), indexShard);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(0);
         context.setTask(new SearchTask(123L, "", "", "", null));
@@ -186,7 +200,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
     }
 
     public void testMinScoreDisablesCountOptimization() throws Exception {
-        TestSearchContext context = new TestSearchContext(null, indexShard);
+        TestSearchContext context = new TestSearchContext(mockShardContext(), indexShard);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(0);
         context.setTask(new SearchTask(123L, "", "", "", null));
@@ -210,7 +224,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
     }
 
     public void testQueryCapturesThreadPoolStats() throws Exception {
-        TestSearchContext context = new TestSearchContext(null, indexShard);
+        TestSearchContext context = new TestSearchContext(mockShardContext(), indexShard);
         context.setTask(new SearchTask(123L, "", "", "", null));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
 
@@ -253,7 +267,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             }
         };
 
-        TestSearchContext context = new TestSearchContext(null, indexShard);
+        TestSearchContext context = new TestSearchContext(mockShardContext(), indexShard);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         ScrollContext scrollContext = new ScrollContext();
         scrollContext.lastEmittedDoc = null;
@@ -298,7 +312,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             w.addDocument(doc);
         }
         w.close();
-        TestSearchContext context = new TestSearchContext(null, indexShard);
+        TestSearchContext context = new TestSearchContext(mockShardContext(), indexShard);
         context.setTask(new SearchTask(123L, "", "", "", null));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.terminateAfter(1);
@@ -407,7 +421,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
         w.close();
 
-        TestSearchContext context = new TestSearchContext(null, indexShard);
+        TestSearchContext context = new TestSearchContext(mockShardContext(), indexShard);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(1);
         context.setTask(new SearchTask(123L, "", "", "", null));
@@ -483,7 +497,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
         w.close();
 
-        TestSearchContext context = new TestSearchContext(null, indexShard);
+        TestSearchContext context = new TestSearchContext(mockShardContext(), indexShard);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         ScrollContext scrollContext = new ScrollContext();
         scrollContext.lastEmittedDoc = null;

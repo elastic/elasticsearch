@@ -173,7 +173,7 @@ public class CardinalityIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx_unmapped").setCheckFieldNames(false).setTypes("type")
                 .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_value"))
                 .execute().actionGet();
 

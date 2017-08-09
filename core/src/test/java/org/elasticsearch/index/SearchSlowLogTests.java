@@ -113,6 +113,11 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
+                public boolean checkFieldNames() {
+                    return false;
+                }
+                
+                @Override
                 public Scroll scroll() {
                     return null;
                 }

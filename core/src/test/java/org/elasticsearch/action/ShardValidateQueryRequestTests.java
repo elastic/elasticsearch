@@ -55,6 +55,7 @@ public class ShardValidateQueryRequestTests extends ESTestCase {
             ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest("indices");
             validateQueryRequest.query(QueryBuilders.termQuery("field", "value"));
             validateQueryRequest.rewrite(true);
+            validateQueryRequest.checkFieldNames(randomBoolean());
             validateQueryRequest.explain(false);
             validateQueryRequest.types("type1", "type2");
             ShardValidateQueryRequest request = new ShardValidateQueryRequest(new ShardId("index", "foobar", 1),
@@ -68,6 +69,7 @@ public class ShardValidateQueryRequestTests extends ESTestCase {
                 assertEquals(request.explain(), readRequest.explain());
                 assertEquals(request.query(), readRequest.query());
                 assertEquals(request.rewrite(), readRequest.rewrite());
+                assertEquals(request.checkFieldNames(), readRequest.checkFieldNames());
                 assertEquals(request.shardId(), readRequest.shardId());
             }
         }

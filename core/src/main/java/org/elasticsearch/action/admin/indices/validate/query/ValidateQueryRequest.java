@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.validate.query;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
@@ -44,6 +45,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
 
     private boolean explain;
     private boolean rewrite;
+    private boolean checkFieldNames = SearchRequest.DEFAULT_CHECK_FIELDNAMES;
     private boolean allShards;
 
     private String[] types = Strings.EMPTY_ARRAY;
@@ -127,6 +129,22 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
         return rewrite;
     }
 
+
+    /**
+     * Indicates whether the query should fail if all shards see a field as unmapped
+     */
+    public void checkFieldNames(boolean checkFieldNames) {
+        this.checkFieldNames = checkFieldNames;
+    }
+
+    /**
+     * Indicates whether the query should be checked for unmapped fields and fail if
+     * all indices have a field missing. This is a best-efforts check. 
+     */
+    public boolean checkFieldNames() {
+        return checkFieldNames;
+    }    
+    
     /**
      * Indicates whether the query should be validated on all shards instead of one random shard
      */
@@ -157,6 +175,9 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
         if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
             allShards = in.readBoolean();
         }
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            checkFieldNames = in.readBoolean();
+        }
     }
 
     @Override
@@ -172,11 +193,14 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
         if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
             out.writeBoolean(allShards);
         }
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeBoolean(checkFieldNames);
+        }
     }
 
     @Override
     public String toString() {
         return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", query[" + query + "], explain:" + explain +
-                ", rewrite:" + rewrite + ", all_shards:" + allShards;
+                ", rewrite:" + rewrite + ", all_shards:" + allShards + ", check_fieldnames:" + checkFieldNames;
     }
 }

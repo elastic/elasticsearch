@@ -237,7 +237,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     public void testUnmapped() throws Exception {
         client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().execute().actionGet();
 
-        SearchResponse response = client().prepareSearch("idx_unmapped")
+        SearchResponse response = client().prepareSearch("idx_unmapped").setCheckFieldNames(false)
                 .addAggregation(geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894))
                         .field("location")
                         .unit(DistanceUnit.KILOMETERS)

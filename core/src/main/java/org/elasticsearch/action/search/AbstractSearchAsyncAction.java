@@ -320,4 +320,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         skippedOps.incrementAndGet();
         super.skipShard(iterator);
     }
+    
+    
+    @Override
+    public int getNumSkippedShards() {
+        return skippedOps.get();        
+    }
 }

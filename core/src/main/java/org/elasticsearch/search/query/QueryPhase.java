@@ -279,6 +279,7 @@ public class QueryPhase implements SearchPhase {
             }
 
             final QuerySearchResult result = searchContext.queryResult();
+            result.unmappedFieldnames(searchContext.getQueryShardContext().getUnmappedFields());
             for (QueryCollectorContext ctx : collectors) {
                 ctx.postProcess(result, shouldCollect);
             }

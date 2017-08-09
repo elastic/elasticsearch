@@ -82,7 +82,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
     }
 
     public void testSingleValueField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx").setCheckFieldNames(false).setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
@@ -116,7 +116,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
     }
 
     public void testMultiValueField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx").setTypes("type").setCheckFieldNames(false)
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
@@ -150,7 +150,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx_unmapped").setCheckFieldNames(false).setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .size(between(1, 5))

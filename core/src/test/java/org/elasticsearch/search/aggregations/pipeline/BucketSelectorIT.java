@@ -474,7 +474,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
             "Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)", Collections.emptyMap());
 
-        SearchResponse response = client().prepareSearch("idx_unmapped")
+        SearchResponse response = client().prepareSearch("idx_unmapped").setCheckFieldNames(false)
                 .addAggregation(
                         histogram("histo")
                                 .field(FIELD_1_NAME)

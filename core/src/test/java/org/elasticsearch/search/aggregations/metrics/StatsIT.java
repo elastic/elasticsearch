@@ -90,7 +90,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
     @Override
     public void testUnmapped() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
+        SearchResponse searchResponse = client().prepareSearch("idx_unmapped").setCheckFieldNames(false)
                 .setQuery(matchAllQuery())
                 .addAggregation(stats("stats").field("value"))
                 .execute().actionGet();
@@ -113,7 +113,7 @@ public class StatsIT extends AbstractNumericTestCase {
         Stats s1 = client().prepareSearch("idx")
                 .addAggregation(stats("stats").field("value")).get()
                 .getAggregations().get("stats");
-        Stats s2 = client().prepareSearch("idx", "idx_unmapped")
+        Stats s2 = client().prepareSearch("idx", "idx_unmapped").setCheckFieldNames(false)
                 .addAggregation(stats("stats").field("value")).get()
                 .getAggregations().get("stats");
         assertEquals(s1.getAvg(), s2.getAvg(), 1e-10);

@@ -104,6 +104,11 @@ final class FetchSearchPhase extends SearchPhase {
         final Runnable finishPhase = ()
             -> moveToNextPhase(searchPhaseController, scrollId, reducedQueryPhase, queryAndFetchOptimization ?
             queryResults : fetchResults);
+
+        if (context.getRequest().checkFieldNames() && context.getNumSkippedShards() == 0) {
+            reducedQueryPhase.fieldNamesCheck();
+        }
+
         if (queryAndFetchOptimization) {
             assert phaseResults.isEmpty() || phaseResults.get(0).fetchResult() != null : "phaseResults empty [" + phaseResults.isEmpty()
                 + "], single result: " +  phaseResults.get(0).fetchResult();

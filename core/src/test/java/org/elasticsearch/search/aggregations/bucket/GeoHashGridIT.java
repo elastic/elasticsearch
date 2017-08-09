@@ -237,7 +237,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
     public void testUnmapped() throws Exception {
         for (int precision = 1; precision <= PRECISION; precision++) {
-            SearchResponse response = client().prepareSearch("idx_unmapped")
+            SearchResponse response = client().prepareSearch("idx_unmapped").setCheckFieldNames(false)
                     .addAggregation(geohashGrid("geohashgrid")
                             .field("location")
                             .precision(precision)

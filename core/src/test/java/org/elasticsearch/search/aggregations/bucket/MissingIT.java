@@ -88,7 +88,7 @@ public class MissingIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("unmapped_idx")
+        SearchResponse response = client().prepareSearch("unmapped_idx").setCheckFieldNames(false)
                 .addAggregation(missing("missing_tag").field("tag"))
                 .execute().actionGet();
 

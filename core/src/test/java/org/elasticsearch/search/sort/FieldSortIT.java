@@ -899,7 +899,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
         logger.info("--> sort with an unmapped field, verify it fails");
         try {
-            SearchResponse result = client().prepareSearch()
+            SearchResponse result = client().prepareSearch().setCheckFieldNames(false)
                     .setQuery(matchAllQuery())
                     .addSort(SortBuilders.fieldSort("kkk"))
                     .execute().actionGet();
@@ -911,7 +911,7 @@ public class FieldSortIT extends ESIntegTestCase {
             }
         }
 
-        SearchResponse searchResponse = client().prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch().setCheckFieldNames(false)
                 .setQuery(matchAllQuery())
                 .addSort(SortBuilders.fieldSort("kkk").unmappedType("keyword"))
                 .execute().actionGet();

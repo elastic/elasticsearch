@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,6 +41,7 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean explain;
     private boolean rewrite;
+    private boolean checkFieldNames = SearchRequest.DEFAULT_CHECK_FIELDNAMES;
     private long nowInMillis;
     private AliasFilter filteringAliases;
 
@@ -51,6 +54,7 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
         this.types = request.types();
         this.explain = request.explain();
         this.rewrite = request.rewrite();
+        this.checkFieldNames = request.checkFieldNames();
         this.filteringAliases = Objects.requireNonNull(filteringAliases, "filteringAliases must not be null");
         this.nowInMillis = request.nowInMillis;
     }
@@ -69,6 +73,10 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
 
     public boolean rewrite() {
         return this.rewrite;
+    }
+
+    public boolean checkFieldNames() {
+        return this.checkFieldNames;
     }
 
     public AliasFilter filteringAliases() {
@@ -95,6 +103,10 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
         explain = in.readBoolean();
         rewrite = in.readBoolean();
         nowInMillis = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            checkFieldNames = in.readBoolean();
+        }
+        
     }
 
     @Override
@@ -109,5 +121,8 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
         out.writeBoolean(explain);
         out.writeBoolean(rewrite);
         out.writeVLong(nowInMillis);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeBoolean(checkFieldNames);
+        }
     }
 }

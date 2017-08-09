@@ -150,7 +150,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
     public void testUnmapped() throws Exception {
         int sigDigits = randomSignificantDigits();
         SearchResponse searchResponse = client()
-                .prepareSearch("idx_unmapped")
+                .prepareSearch("idx_unmapped").setCheckFieldNames(false)
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         percentileRanks("percentile_ranks", new double[]{0, 10, 15, 100})

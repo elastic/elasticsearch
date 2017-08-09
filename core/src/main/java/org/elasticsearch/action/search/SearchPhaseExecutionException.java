@@ -85,7 +85,14 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     @Override
     public RestStatus status() {
         if (shardFailures.length == 0) {
-            // if no successful shards, it means no active shards, so just return SERVICE_UNAVAILABLE
+            // If we have a cause that can report a REST status code then return that.
+            // One such failure occurs when a globally unmapped field is searched with 
+            // check_fieldnames search mode on.
+            Throwable cause = unwrapCause();
+            if (cause instanceof ElasticsearchException) {
+                return ((ElasticsearchException) getCause()).status();
+            }
+            // otherwise when no unsuccessful shards, it means no active shards, so just return SERVICE_UNAVAILABLE
             return RestStatus.SERVICE_UNAVAILABLE;
         }
         RestStatus status = shardFailures[0].status();

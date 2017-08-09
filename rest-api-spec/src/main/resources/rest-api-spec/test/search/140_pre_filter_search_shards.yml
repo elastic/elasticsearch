@@ -32,6 +32,8 @@ setup:
             mappings:
               doc:
                 properties:
+                  mostly_unmapped:
+                     type: keyword
                   created_at:
                      type: date
                      format: "yyyy-MM-dd"
@@ -159,6 +161,47 @@ setup:
   - match: { hits.total: 2 }
   - length: { aggregations.idx_terms.buckets: 2 }
 
+
+---
+"check_fieldnames is on but canMatch optimizes out crucial index":
+  - skip:
+      version: " - 6.0.99"
+      reason:  check_fieldnames was added in 6.1.0
+
+  - do:
+      index:
+        index: index_1
+        type: doc
+        id: 1
+        body: { "created_at": "2016-01-01"}
+  - do:
+      index:
+        index: index_2
+        type: doc
+        id: 2
+        body: { "created_at": "2017-01-01" }
+
+  - do:
+      index:
+        index: index_3
+        type: doc
+        id: 3
+        body: { "created_at": "2018-01-01", "mostly_unmapped" : "foo"  }
+  - do:
+      indices.refresh: {}      
+
+  - do:
+      search:
+        check_fieldnames: true
+        pre_filter_shard_size: 1
+        body: { "size" : 0, "query" : { "range" : { "created_at" : { "lte" : "2017-01-01"}}}, "aggs" : { "idx_terms" :  { "terms" : { "field" : "mostly_unmapped" } } } }
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped : 1 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 2 }
+  - length: { aggregations.idx_terms.buckets: 0 }
 
 
 

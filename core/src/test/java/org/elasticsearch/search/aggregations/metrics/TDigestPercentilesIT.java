@@ -143,7 +143,7 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
 
     @Override
     public void testUnmapped() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
+        SearchResponse searchResponse = client().prepareSearch("idx_unmapped").setCheckFieldNames(false)
                 .setQuery(matchAllQuery())
                 .addAggregation(randomCompression(percentiles("percentiles"))
                         .field("value")

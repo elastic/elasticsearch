@@ -72,6 +72,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     private float indexBoost;
     private SearchSourceBuilder source;
     private Boolean requestCache;
+    private boolean checkFieldNames;
     private long nowInMillis;
 
     private boolean profile;
@@ -82,22 +83,24 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards,
                             AliasFilter aliasFilter, float indexBoost, long nowInMillis, String clusterAlias) {
         this(shardId, numberOfShards, searchRequest.searchType(),
-                searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter, indexBoost);
+                searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter, indexBoost,
+                searchRequest.checkFieldNames());
         this.scroll = searchRequest.scroll();
         this.nowInMillis = nowInMillis;
         this.clusterAlias = clusterAlias;
     }
 
-    public ShardSearchLocalRequest(ShardId shardId, String[] types, long nowInMillis, AliasFilter aliasFilter) {
+    public ShardSearchLocalRequest(ShardId shardId, String[] types, long nowInMillis, AliasFilter aliasFilter, boolean checkFieldnames) {
         this.types = types;
         this.nowInMillis = nowInMillis;
         this.aliasFilter = aliasFilter;
         this.shardId = shardId;
+        this.checkFieldNames = checkFieldnames;
         indexBoost = 1.0f;
     }
 
     public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source, String[] types,
-            Boolean requestCache, AliasFilter aliasFilter, float indexBoost) {
+            Boolean requestCache, AliasFilter aliasFilter, float indexBoost, boolean checkFieldNames) {
         this.shardId = shardId;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
@@ -106,6 +109,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.requestCache = requestCache;
         this.aliasFilter = aliasFilter;
         this.indexBoost = indexBoost;
+        this.checkFieldNames = checkFieldNames;
     }
 
 
@@ -165,6 +169,11 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     @Override
+    public boolean checkFieldNames() {
+        return checkFieldNames;
+    }
+
+    @Override
     public Scroll scroll() {
         return scroll;
     }
@@ -210,6 +219,9 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
             clusterAlias = in.readOptionalString();
         }
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            checkFieldNames = in.readBoolean();
+        }
     }
 
     protected void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {
@@ -232,6 +244,10 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
             out.writeOptionalString(clusterAlias);
         }
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeBoolean(checkFieldNames);
+        }
+
     }
 
     @Override

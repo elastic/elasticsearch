@@ -154,12 +154,18 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         String explanation = null;
         String error = null;
         ShardSearchLocalRequest shardSearchLocalRequest = new ShardSearchLocalRequest(request.shardId(), request.types(),
-            request.nowInMillis(), request.filteringAliases());
+            request.nowInMillis(), request.filteringAliases(), request.checkFieldNames());
         SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         try {
             ParsedQuery parsedQuery = searchContext.getQueryShardContext().toQuery(request.query());
             searchContext.parsedQuery(parsedQuery);
             searchContext.preProcess(request.rewrite());
+            if (request.checkFieldNames()) {
+                Set<String> unmappedFields = searchContext.getQueryShardContext().getUnmappedFields();
+                if (unmappedFields.size() > 0) {
+                    throw new ParsingException(null, "The following fields were unmapped: " + unmappedFields);
+                }
+            }
             valid = true;
             explanation = explain(searchContext, request.rewrite());
         } catch (QueryShardException|ParsingException e) {

@@ -19,6 +19,7 @@
 package org.elasticsearch.validate;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -73,7 +74,8 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("foo:1")).execute().actionGet().isValid(), equalTo(true));
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("bar:hey").lenient(false)).execute().actionGet().isValid(), equalTo(false));
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("nonexistent:hello")).execute().actionGet().isValid(), equalTo(true));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setCheckFieldNames(false)
+                .setQuery(QueryBuilders.queryStringQuery("nonexistent:hello")).execute().actionGet().isValid(), equalTo(true));
 
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("foo:1 AND")).execute().actionGet().isValid(), equalTo(false));
     }
@@ -211,6 +213,23 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(validateQueryResponse.getQueryExplanation().size(), equalTo(1));
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:\"foo (one* two*)\""));
     }
+    
+    
+    public void testStrictFields() {
+        assertAcked(prepareCreate("test")
+                .addMapping("test", "field", "type=text"));
+        ensureGreen();
+        ValidateQueryResponse validateQueryResponse = client().admin().indices().prepareValidateQuery("test").setCheckFieldNames(true)
+                .setQuery(QueryBuilders.matchQuery("unmapped_field","foo")).setExplain(true).get();
+        assertThat(validateQueryResponse.isValid(), equalTo(false));
+        assertThat(validateQueryResponse.getQueryExplanation().size(), equalTo(1));
+        assertThat(validateQueryResponse.getQueryExplanation().get(0).getError(), containsString("[unmapped_field]"));
+        
+        validateQueryResponse = client().admin().indices().prepareValidateQuery("test").setCheckFieldNames(false)
+                .setQuery(QueryBuilders.matchQuery("unmapped_field","foo")).setExplain(true).get();
+        assertThat(validateQueryResponse.isValid(), equalTo(true));
+        
+    }    
 
     public void testExplainWithRewriteValidateQuery() throws Exception {
         client().admin().indices().prepareCreate("test")

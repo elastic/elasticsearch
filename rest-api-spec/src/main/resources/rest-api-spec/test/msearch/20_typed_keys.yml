@@ -97,13 +97,13 @@ setup:
 "Multisearch test with typed_keys parameter for sampler and significant terms":
   - do:
       msearch:
-        typed_keys: true
+        typed_keys: true                        
         body:
-          - index: test-*
+          - { index: test-*, check_fieldnames: false}
           - {query: {match_all: {} }, size: 0, aggs: {test_sampler: {sampler: {shard_size: 200}, aggs: {test_significant_terms: {significant_terms: {field:  name} } } } } }
-          - index: test-*
+          - { index: test-*, check_fieldnames: false}
           - {query: {match_all: {} }, size: 0, aggs: {test_umterms: {terms: {field: surname} } } }
-          - index: test-*
+          - { index: test-*, check_fieldnames: false}
           - {query: {match_all: {} }, size: 0, aggs: {test_sterms: {terms: {field: name}, aggs: {test_umsignificant_terms: {significant_terms: {field:  surname} } } } } }
 
   - match:    { responses.0.hits.total: 5 }

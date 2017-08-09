@@ -150,7 +150,7 @@ public class NaNSortingIT extends ESIntegTestCase {
     public void testTerms(String fieldName) {
         final boolean asc = randomBoolean();
         SubAggregation agg = randomFrom(SubAggregation.values());
-        SearchResponse response = client().prepareSearch("idx")
+        SearchResponse response = client().prepareSearch("idx").setCheckFieldNames(false)
                 .addAggregation(terms("terms").field(fieldName).collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(agg.builder()).order(BucketOrder.aggregation(agg.sortKey(), asc)))
                 .execute().actionGet();
 
@@ -174,7 +174,7 @@ public class NaNSortingIT extends ESIntegTestCase {
     public void testLongHistogram() {
         final boolean asc = randomBoolean();
         SubAggregation agg = randomFrom(SubAggregation.values());
-        SearchResponse response = client().prepareSearch("idx")
+        SearchResponse response = client().prepareSearch("idx").setCheckFieldNames(false)
                 .addAggregation(histogram("histo")
                         .field("long_value").interval(randomIntBetween(1, 2)).subAggregation(agg.builder()).order(BucketOrder.aggregation(agg.sortKey(), asc)))
                 .execute().actionGet();

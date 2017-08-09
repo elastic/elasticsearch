@@ -144,4 +144,9 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     public void sendReleaseSearchContext(long contextId, Transport.Connection connection, OriginalIndices originalIndices) {
         releasedSearchContexts.add(contextId);
     }
+
+    @Override
+    public int getNumSkippedShards() {
+        return 0;
+    }
 }

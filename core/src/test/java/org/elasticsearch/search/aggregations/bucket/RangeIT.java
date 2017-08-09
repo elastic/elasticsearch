@@ -746,7 +746,7 @@ public class RangeIT extends ESIntegTestCase {
      */
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped")
+        SearchResponse response = client().prepareSearch("idx_unmapped").setCheckFieldNames(false)
                 .addAggregation(range("range")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .addUnboundedTo(3)

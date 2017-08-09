@@ -125,6 +125,7 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
 
     public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch(UNMAPPED_IDX_NAME)
+                .setCheckFieldNames(false)
                 .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME)
                         .wrapLongitude(false))
                 .execute().actionGet();

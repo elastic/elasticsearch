@@ -122,7 +122,7 @@ public class CombiIT extends ESIntegTestCase {
         ensureSearchable("idx");
 
         SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
-        SearchResponse searchResponse = client().prepareSearch("idx")
+        SearchResponse searchResponse = client().prepareSearch("idx").setCheckFieldNames(false)
                 .addAggregation(histogram("values").field("value1").interval(1)
                         .subAggregation(terms("names").field("name")
                                 .collectMode(aggCollectionMode )))

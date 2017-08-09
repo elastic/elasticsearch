@@ -152,7 +152,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
     public void testUnmapped() throws Exception {
         int sigDigits = randomSignificantDigits();
         SearchResponse searchResponse = client()
-                .prepareSearch("idx_unmapped")
+                .prepareSearch("idx_unmapped").setCheckFieldNames(false)
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         percentiles("percentiles").numberOfSignificantValueDigits(sigDigits).method(PercentilesMethod.HDR).field("value")

@@ -28,6 +28,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
@@ -47,7 +48,7 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 
-public class DocumentMapper implements ToXContent {
+public class DocumentMapper implements ToXContentFragment {
 
     public static class Builder {
 

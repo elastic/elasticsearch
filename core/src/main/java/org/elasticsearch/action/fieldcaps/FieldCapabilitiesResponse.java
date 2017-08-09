@@ -23,7 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import java.util.Map;
 /**
  * Response for {@link FieldCapabilitiesRequest} requests.
  */
-public class FieldCapabilitiesResponse extends ActionResponse implements ToXContent {
+public class FieldCapabilitiesResponse extends ActionResponse implements ToXContentFragment {
     private Map<String, Map<String, FieldCapabilities>> responseMap;
     private List<FieldCapabilitiesIndexResponse> indexResponses;
 

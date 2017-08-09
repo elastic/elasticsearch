@@ -185,7 +185,7 @@ public class VersionUtilsTests extends ESTestCase {
                 .filter(v -> v.major == Version.CURRENT.major || v.major == Version.CURRENT.major - 1)
                 /* Gradle will never include *released* alphas or betas because it will prefer
                  * the unreleased branch head. Gradle is willing to use branch heads that are
-                 * alpha or beta so that we have *something* to test against even though we
+                 * beta or rc so that we have *something* to test against even though we
                  * do not offer backwards compatibility for alphas, betas, or rcs. */
                 .filter(Version::isRelease)
                 .collect(toList());
@@ -199,11 +199,14 @@ public class VersionUtilsTests extends ESTestCase {
                 /* Gradle skips the current version because being backwards compatible
                  * with yourself is implied. Java lists the version because it is useful. */
                 .filter(v -> v != Version.CURRENT)
-                /* Note that gradle does *not* skip alphas, betas, or rcs here even
-                 * though we don't have backwards compatibility for alphas, betas,
-                 * and rcs. Gradle includes them because they represent the head of
-                 * a branch that will one day be released for which we will offer
-                 * backwards compatibility. */
+                /* Note that gradle skips alphas because they don't have any backwards
+                 * compatibility guarantees but keeps the last beta and rc in a branch
+                 * on when there are only betas an RCs in that branch so that we have
+                 * *something* to test that branch against. There is no need to recreate
+                 * that logic here because allUnreleasedVersions already only contains
+                 * the heads of branches so it should be good enough to just keep all
+                 * the non-alphas.*/
+                .filter(v -> false == v.isAlpha())
                 .map(Object::toString)
                 .collect(toCollection(LinkedHashSet::new)));
         assertEquals(unreleasedIndexCompatible, indexCompatible.unreleased);

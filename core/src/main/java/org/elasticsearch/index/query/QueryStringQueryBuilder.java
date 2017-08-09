@@ -222,7 +222,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 }
             }
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             autoGenerateSynonymsPhraseQuery = in.readBoolean();
         }
     }
@@ -277,7 +277,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 out.writeOptionalBoolean(useAllFields);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeBoolean(autoGenerateSynonymsPhraseQuery);
         }
     }

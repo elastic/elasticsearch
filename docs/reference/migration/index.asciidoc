@@ -19,4 +19,5 @@ As a general rule:
 
 See <<setup-upgrade>> for more info.
 --
-include::migrate_6_0.asciidoc[]
+
+include::migrate_7_0.asciidoc[]

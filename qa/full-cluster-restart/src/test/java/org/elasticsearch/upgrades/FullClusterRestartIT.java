@@ -50,6 +50,7 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
@@ -62,7 +63,7 @@ import static org.hamcrest.Matchers.greaterThan;
 public class FullClusterRestartIT extends ESRestTestCase {
     private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
     private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
-    private final boolean supportsLenientBooleans = oldClusterVersion.onOrAfter(Version.V_6_0_0_alpha1);
+    private final boolean supportsLenientBooleans = oldClusterVersion.before(Version.V_6_0_0_alpha1);
     private static final Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");
 
     private String index;
@@ -545,7 +546,11 @@ public class FullClusterRestartIT extends ESRestTestCase {
             int totalBytes = (Integer) indexUpgradeStatus.get("size_in_bytes");
             assertThat(totalBytes, greaterThan(0));
             int toUpgradeBytes = (Integer) indexUpgradeStatus.get("size_to_upgrade_in_bytes");
-            assertThat(toUpgradeBytes, greaterThan(0));
+            if (oldClusterVersion.luceneVersion.equals(Version.CURRENT.luceneVersion)) {
+                assertThat(toUpgradeBytes, equalTo(0));
+            } else {
+                assertThat(toUpgradeBytes, greaterThan(0));
+            }
 
             Response r = client().performRequest("POST", "/" + index + "/_flush");
             assertEquals(200, r.getStatusLine().getStatusCode());
@@ -887,7 +892,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         // Check that the template was restored successfully
         map = toMap(client().performRequest("GET", "/_template/test_template"));
         expected = new HashMap<>();
-        if (runningAgainstOldCluster) {
+        if (runningAgainstOldCluster && oldClusterVersion.before(Version.V_6_0_0_beta1)) {
             expected.put("template", "evil_*");
         } else {
             expected.put("index_patterns", singletonList("evil_*"));

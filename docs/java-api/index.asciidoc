@@ -17,6 +17,14 @@ Additionally, operations on a client may be accumulated and executed in
 Note, all the APIs are exposed through the
 Java API (actually, the Java API is used internally to execute them).
 
+WARNING: Starting from version 5.6.0, a new Java client has been
+released: the {java-rest}/java-rest-high.html[Java High Level REST Client].
+This new client is designed to replace the `TransportClient` in Java
+applications which will be deprecated in future versions of Elasticsearch.
+
+== Javadoc
+
+The javadoc for the transport client can be found at {transport-client-javadoc}/index.html.
 
 == Maven Repository
 

@@ -164,7 +164,7 @@ public class NumberFieldMapper extends FieldMapper {
         HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
             @Override
             Float parse(Object value, boolean coerce) {
-                final Float result;
+                final float result;
 
                 if (value instanceof Number) {
                     result = ((Number) value).floatValue();
@@ -180,7 +180,8 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             Float parse(XContentParser parser, boolean coerce) throws IOException {
-                Float parsed = parser.floatValue(coerce);
+                float parsed = parser.floatValue(coerce);
+
                 validateParsed(parsed);
                 return parsed;
             }
@@ -247,12 +248,8 @@ public class NumberFieldMapper extends FieldMapper {
                 return fields;
             }
 
-            private void validateParsed(Float value) {
-                if (
-                    value.isNaN() || value.isInfinite()
-                        || value > 65504
-                        || !Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value)))
-                    ) {
+            private void validateParsed(float value) {
+                if (!Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value)))) {
                     throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + value + "]");
                 }
             }
@@ -260,7 +257,7 @@ public class NumberFieldMapper extends FieldMapper {
         FLOAT("float", NumericType.FLOAT) {
             @Override
             Float parse(Object value, boolean coerce) {
-                final Float result;
+                final float result;
 
                 if (value instanceof Number) {
                     result = ((Number) value).floatValue();
@@ -276,7 +273,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             Float parse(XContentParser parser, boolean coerce) throws IOException {
-                Float parsed = parser.floatValue(coerce);
+                float parsed = parser.floatValue(coerce);
                 validateParsed(parsed);
                 return parsed;
             }
@@ -341,8 +338,8 @@ public class NumberFieldMapper extends FieldMapper {
                 return fields;
             }
 
-            private void validateParsed(Float value) {
-                if (value.isInfinite() || value.isNaN()) {
+            private void validateParsed(float value) {
+                if (!Float.isFinite(value)) {
                     throw new IllegalArgumentException("[float] supports only finite values, but got [" + value + "]");
                 }
             }
@@ -350,14 +347,14 @@ public class NumberFieldMapper extends FieldMapper {
         DOUBLE("double", NumericType.DOUBLE) {
             @Override
             Double parse(Object value, boolean coerce) {
-                Double parsed = objectToDouble(value);
+                double parsed = objectToDouble(value);
                 validateParsed(parsed);
                 return parsed;
             }
 
             @Override
             Double parse(XContentParser parser, boolean coerce) throws IOException {
-                Double parsed = parser.doubleValue(coerce);
+                double parsed = parser.doubleValue(coerce);
                 validateParsed(parsed);
                 return parsed;
             }
@@ -422,8 +419,8 @@ public class NumberFieldMapper extends FieldMapper {
                 return fields;
             }
 
-            private void validateParsed(Double value) {
-                if (value.isInfinite() || value.isNaN()) {
+            private void validateParsed(double value) {
+                if (!Double.isFinite(value)) {
                     throw new IllegalArgumentException("[double] supports only finite values, but got [" + value + "]");
                 }
             }
@@ -905,7 +902,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder().numericType(type.numericType());
         }

@@ -24,12 +24,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class CompletionStats implements Streamable, ToXContent {
+public class CompletionStats implements Streamable, ToXContentFragment {
 
     private static final String COMPLETION = "completion";
     private static final String SIZE_IN_BYTES = "size_in_bytes";

@@ -32,7 +32,7 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 	)
 )
 
-CALL "%~dp0elasticsearch-env.bat"
+CALL "%~dp0elasticsearch-env.bat" || exit /b 1
 IF ERRORLEVEL 1 (
 	IF NOT DEFINED nopauseonerror (
 		PAUSE

@@ -2,7 +2,7 @@
 
 setlocal enabledelayedexpansion
 
-call "%~dp0elasticsearch-env.bat"
+call "%~dp0elasticsearch-env.bat" || exit /b 1
 
 %JAVA% ^
   %ES_JAVA_OPTS% ^

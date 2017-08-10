@@ -34,6 +34,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -414,6 +415,39 @@ public class NodeEnvironmentTests extends ESTestCase {
         env = newNodeEnvironment(Settings.EMPTY);
         assertThat(env.nodeId(), not(equalTo(nodeID)));
         env.close();
+    }
+
+    public void testExistingTempFiles() throws IOException {
+        String[] paths = tmpPaths();
+        // simulate some previous left over temp files
+        for (String path : randomSubsetOf(randomIntBetween(1, paths.length), paths)) {
+            final Path nodePath = NodeEnvironment.resolveNodePath(PathUtils.get(path), 0);
+            Files.createDirectories(nodePath);
+            Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME));
+            if (randomBoolean()) {
+                Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".tmp"));
+            }
+            if (randomBoolean()) {
+                Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".final"));
+            }
+        }
+        NodeEnvironment env = newNodeEnvironment(paths, Settings.EMPTY);
+        try {
+            env.ensureAtomicMoveSupported();
+        } catch (AtomicMoveNotSupportedException e) {
+            // that's OK :)
+        }
+        env.close();
+        // check we clean up
+        for (String path: paths) {
+            final Path nodePath = NodeEnvironment.resolveNodePath(PathUtils.get(path), 0);
+            final Path tempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME);
+            assertFalse(tempFile + " should have been cleaned", Files.exists(tempFile));
+            final Path srcTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".src");
+            assertFalse(srcTempFile + " should have been cleaned", Files.exists(srcTempFile));
+            final Path targetTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".target");
+            assertFalse(targetTempFile + " should have been cleaned", Files.exists(targetTempFile));
+        }
     }
 
     /** Converts an array of Strings to an array of Paths, adding an additional child if specified */

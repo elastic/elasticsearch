@@ -20,11 +20,14 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -71,5 +74,42 @@ public class InternalBucketMetricValueTests extends InternalAggregationTestCase<
             // cannot differentiate between them. Also we cannot recreate the exact String representation
             assertEquals(parsed.value(), Double.NEGATIVE_INFINITY, 0);
         }
+    }
+
+    @Override
+    protected InternalBucketMetricValue mutateInstance(InternalBucketMetricValue instance) {
+        String name = instance.getName();
+        String[] keys = instance.keys();
+        double value = instance.value();
+        DocValueFormat formatter = instance.formatter();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 3)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            if (Double.isFinite(value)) {
+                value += between(1, 100);
+            } else {
+                value = randomDoubleBetween(0, 100000, true);
+            }
+            break;
+        case 2:
+            keys = Arrays.copyOf(keys, keys.length + 1);
+            keys[keys.length - 1] = randomAlphaOfLengthBetween(1, 20);
+            break;
+        case 3:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalBucketMetricValue(name, keys, value, formatter, pipelineAggregators, metaData);
     }
 }

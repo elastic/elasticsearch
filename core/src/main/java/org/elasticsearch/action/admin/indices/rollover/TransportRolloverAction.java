@@ -43,14 +43,13 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
+import java.io.IOException;
+import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -102,6 +101,12 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     @Override
     protected void masterOperation(final RolloverRequest rolloverRequest, final ClusterState state,
                                    final ActionListener<RolloverResponse> listener) {
+
+        final int cnt = 1;
+
+        final ActionListener<RolloverResponse> aggListener = new AggRolloverResponseActionListener(cnt, listener);
+
+
         final MetaData metaData = state.metaData();
         validate(metaData, rolloverRequest);
         final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(rolloverRequest.getAlias());
@@ -115,52 +120,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
         MetaDataCreateIndexService.validateIndexName(rolloverIndexName, state); // will fail if the index already exists
         client.admin().indices().prepareStats(sourceIndexName).clear().setDocs(true).execute(
-            new ActionListener<IndicesStatsResponse>() {
-                @Override
-                public void onResponse(IndicesStatsResponse statsResponse) {
-                    final Set<Condition.Result> conditionResults = evaluateConditions(rolloverRequest.getConditions(),
-                        metaData.index(sourceIndexName), statsResponse);
-
-                    if (rolloverRequest.isDryRun()) {
-                        listener.onResponse(
-                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, true, false, false, false));
-                        return;
-                    }
-                    if (conditionResults.size() == 0 || conditionResults.stream().anyMatch(result -> result.matched)) {
-                        CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(unresolvedName, rolloverIndexName,
-                            rolloverRequest);
-                        createIndexService.createIndex(updateRequest, ActionListener.wrap(createIndexClusterStateUpdateResponse -> {
-                            // switch the alias to point to the newly created index
-                            indexAliasesService.indicesAliases(
-                                prepareRolloverAliasesUpdateRequest(sourceIndexName, rolloverIndexName,
-                                    rolloverRequest),
-                                ActionListener.wrap(aliasClusterStateUpdateResponse -> {
-                                    if (aliasClusterStateUpdateResponse.isAcknowledged()) {
-                                        activeShardsObserver.waitForActiveShards(rolloverIndexName,
-                                            rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
-                                            rolloverRequest.masterNodeTimeout(),
-                                            isShardsAcked -> listener.onResponse(new RolloverResponse(sourceIndexName, rolloverIndexName,
-                                                                                    conditionResults, false, true, true, isShardsAcked)),
-                                            listener::onFailure);
-                                    } else {
-                                        listener.onResponse(new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults,
-                                                                                    false, true, false, false));
-                                    }
-                                }, listener::onFailure));
-                        }, listener::onFailure));
-                    } else {
-                        // conditions not met
-                        listener.onResponse(
-                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, false, false, false, false)
-                        );
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            }
+            new IndicesStatsResponseActionListener(
+                rolloverRequest, metaData, sourceIndexName, aggListener, rolloverIndexName, unresolvedName,
+                createIndexService, indexAliasesService, activeShardsObserver)
         );
     }
 
@@ -235,4 +197,103 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             .mappings(createIndexRequest.mappings());
     }
 
+    private static class IndicesStatsResponseActionListener implements ActionListener<IndicesStatsResponse> {
+        private final RolloverRequest rolloverRequest;
+        private final MetaData metaData;
+        private final String sourceIndexName;
+        private final ActionListener<RolloverResponse> listener;
+        private final String rolloverIndexName;
+        private final String unresolvedName;
+        private final MetaDataCreateIndexService createIndexService;
+        private final MetaDataIndexAliasesService indexAliasesService;
+        private final ActiveShardsObserver activeShardsObserver;
+
+        IndicesStatsResponseActionListener(RolloverRequest rolloverRequest, MetaData metaData, String sourceIndexName,
+                                                  ActionListener<RolloverResponse> listener, String rolloverIndexName,
+                                                  String unresolvedName, MetaDataCreateIndexService createIndexService,
+                                                  MetaDataIndexAliasesService indexAliasesService,
+                                                  ActiveShardsObserver activeShardsObserver) {
+            this.rolloverRequest = rolloverRequest;
+            this.metaData = metaData;
+            this.sourceIndexName = sourceIndexName;
+            this.listener = listener;
+            this.rolloverIndexName = rolloverIndexName;
+            this.unresolvedName = unresolvedName;
+            this.createIndexService = createIndexService;
+            this.indexAliasesService = indexAliasesService;
+            this.activeShardsObserver = activeShardsObserver;
+        }
+
+        @Override
+        public void onResponse(IndicesStatsResponse statsResponse) {
+            final Set<Condition.Result> conditionResults = evaluateConditions(rolloverRequest.getConditions(),
+                metaData.index(sourceIndexName), statsResponse);
+
+            if (rolloverRequest.isDryRun()) {
+                listener.onResponse(
+                    new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, true, false, false, false));
+                return;
+            }
+            if (conditionResults.size() == 0 || conditionResults.stream().anyMatch(result -> result.matched)) {
+                CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(unresolvedName, rolloverIndexName,
+                    rolloverRequest);
+                createIndexService.createIndex(updateRequest, ActionListener.wrap(createIndexClusterStateUpdateResponse -> {
+                    // switch the alias to point to the newly created index
+                    indexAliasesService.indicesAliases(
+                        prepareRolloverAliasesUpdateRequest(sourceIndexName, rolloverIndexName,
+                            rolloverRequest),
+                        ActionListener.wrap(aliasClusterStateUpdateResponse -> {
+                            if (aliasClusterStateUpdateResponse.isAcknowledged()) {
+                                activeShardsObserver.waitForActiveShards(rolloverIndexName,
+                                    rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
+                                    rolloverRequest.masterNodeTimeout(),
+                                    isShardsAcked -> listener.onResponse(new RolloverResponse(sourceIndexName, rolloverIndexName,
+                                                                            conditionResults, false, true, true, isShardsAcked)),
+                                    listener::onFailure);
+                            } else {
+                                listener.onResponse(new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults,
+                                                                            false, true, false, false));
+                            }
+                        }, listener::onFailure));
+                }, listener::onFailure));
+            } else {
+                // conditions not met
+                listener.onResponse(
+                    new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, false, false, false, false)
+                );
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static class AggRolloverResponseActionListener implements ActionListener<RolloverResponse> {
+
+        private final int size;
+        private final LinkedList<RolloverResponse> responses;
+        private final ActionListener<RolloverResponse> listener;
+
+        AggRolloverResponseActionListener(int cnt, ActionListener<RolloverResponse> listener) {
+            this.listener = listener;
+            size = cnt;
+            responses = new LinkedList<>();
+        }
+
+        @Override
+        public void onResponse(RolloverResponse rolloverResponse) {
+            responses.add(rolloverResponse);
+            if (responses.size() == size) {
+                listener.onResponse(responses.get(0));
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            // should we fail on first error?
+            listener.onFailure(e);
+        }
+    }
 }

@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public final class RolloverResponse extends ActionResponse implements ToXContentObject {
+public class RolloverResponse extends ActionResponse implements ToXContentObject {
 
     private static final String NEW_INDEX = "new_index";
     private static final String OLD_INDEX = "old_index";

@@ -44,8 +44,8 @@ public final class Fuzziness implements ToXContent, Writeable {
     public static final Fuzziness TWO = new Fuzziness(2);
     public static final Fuzziness AUTO = new Fuzziness("AUTO");
     public static final ParseField FIELD = new ParseField(X_FIELD_NAME);
-    private static final int DEFAULT_LOW_DISTANCE = 2;
-    private static final int DEFAULT_HIGH_DISTANCE = 5;
+    private static final int DEFAULT_LOW_DISTANCE = 3;
+    private static final int DEFAULT_HIGH_DISTANCE = 6;
 
     private final String fuzziness;
     private int lowDistance = DEFAULT_LOW_DISTANCE;

@@ -92,7 +92,11 @@ for (String line : versionLines) {
         versions.add(foundVersion)
       } else {
         // Replace the earlier betas with later ones
-        versions.set(versions.size() - 1, foundVersion)
+        Version last = versions.set(versions.size() - 1, foundVersion)
+        if (last.suffix == '') {
+          throw new InvalidUserDataException("Found two equal versions but"
+              + " the first one [$last] wasn't a beta.")
+        }
       }
       if (major == prevMajor && minor > lastPrevMinor) {
         prevMinorIndex = versions.size() - 1

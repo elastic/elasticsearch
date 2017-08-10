@@ -62,7 +62,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         reindex.getSearchRequest().source().slice(new SliceBuilder(0, 4));
         reindex.setSlices(between(2, Integer.MAX_VALUE));
         ActionRequestValidationException e = reindex.validate();
-        assertEquals("Validation Failed: 1: can't set a specific single slice for this request and multiple slices;", e.getMessage());
+        assertEquals("Validation Failed: 1: can't specify both manual and automatic slicing at the same time;", e.getMessage());
     }
 
     @Override

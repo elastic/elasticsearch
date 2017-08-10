@@ -15,7 +15,6 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
@@ -75,7 +74,6 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         return false; // remove security noise from this test
     }
 
-    @TestLogging("org.elasticsearch.test.http:TRACE")
     public void testHttpFields() throws Exception {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
@@ -128,6 +126,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         assertThat(webServer.requests().get(1).getUri().getPath(), is("/webhook/path"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2222")
     public void testExceptionMapping() {
         // delete all history indices to ensure that we start with a fresh mapping
         assertAcked(client().admin().indices().prepareDelete(HistoryStore.INDEX_PREFIX + "*"));

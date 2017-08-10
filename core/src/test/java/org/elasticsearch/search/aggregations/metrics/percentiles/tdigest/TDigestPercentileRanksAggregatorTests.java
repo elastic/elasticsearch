@@ -95,4 +95,17 @@ public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
             }
         }
     }
+
+    public void testNullValues() throws IOException {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new PercentileRanksAggregationBuilder("my_agg", null).field("field").method(PercentilesMethod.TDIGEST));
+        assertThat(e.getMessage(), Matchers.equalTo("[values] must not be null: [my_agg]"));
+    }
+
+    public void testEmptyValues() throws IOException {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new PercentileRanksAggregationBuilder("my_agg", new double[0]).field("field").method(PercentilesMethod.TDIGEST));
+
+        assertThat(e.getMessage(), Matchers.equalTo("[values] must not be an empty array: [my_agg]"));
+    }
 }

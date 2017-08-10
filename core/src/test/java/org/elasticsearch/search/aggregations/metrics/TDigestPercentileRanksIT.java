@@ -151,6 +151,17 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         assertThat(e.getMessage(), equalTo("[values] must not be null: [percentile_ranks]"));
     }
 
+    public void testEmptyValuesField() throws Exception {
+        final double[] pcts = new double[0];
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client()
+            .prepareSearch("idx")
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                percentileRanks("percentile_ranks", pcts).method(PercentilesMethod.TDIGEST).field("value"))
+            .execute().actionGet());
+        assertThat(e.getMessage(), equalTo("[values] must not be an empty array: [percentile_ranks]"));
+    }
+
     @Override
     public void testUnmapped() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx_unmapped")

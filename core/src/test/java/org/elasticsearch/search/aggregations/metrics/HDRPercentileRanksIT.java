@@ -153,7 +153,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                 .prepareSearch("idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        percentileRanks("percentile_ranks", new double[]{0,10,15,100})
+                        percentileRanks("percentile_ranks", new double[]{0, 10, 15, 100})
                             .method(PercentilesMethod.HDR)
                             .numberOfSignificantValueDigits(sigDigits)
                         .field("value"))
@@ -195,10 +195,27 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
             .prepareSearch("idx")
             .setQuery(matchAllQuery())
             .addAggregation(
-                percentileRanks("percentile_ranks", pcts).method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
+                percentileRanks("percentile_ranks", pcts)
+                    .method(PercentilesMethod.HDR)
+                    .numberOfSignificantValueDigits(sigDigits)
                     .field("value"))
             .execute().actionGet());
         assertThat(e.getMessage(), equalTo("[values] must not be null: [percentile_ranks]"));
+    }
+
+    public void testEmptyValuesField() throws Exception {
+        int sigDigits = randomSignificantDigits();
+        final double[] pcts = new double[0];
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client()
+            .prepareSearch("idx")
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                percentileRanks("percentile_ranks", pcts)
+                    .method(PercentilesMethod.HDR)
+                    .numberOfSignificantValueDigits(sigDigits)
+                    .field("value"))
+            .execute().actionGet());
+        assertThat(e.getMessage(), equalTo("[values] must not be an empty array: [percentile_ranks]"));
     }
 
     @Override

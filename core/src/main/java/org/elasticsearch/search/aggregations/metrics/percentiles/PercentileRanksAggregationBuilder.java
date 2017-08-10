@@ -48,6 +48,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+
 public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Numeric, PercentileRanksAggregationBuilder> {
     public static final String NAME = PercentileRanks.TYPE_NAME;
 
@@ -74,12 +76,15 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
                 new ParseField("number_of_significant_value_digits"));
     }
 
+    // The builder requires to parameters for the constructor: aggregation name and values array.  The
+    // agg name is supplied externally via the Parser's context (as a String), while the values array
+    // is parsed from the request and supplied to the ConstructingObjectParser as a ctor argument
     private static final ConstructingObjectParser<PercentileRanksAggregationBuilder, String> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(PercentileRanksAggregationBuilder.NAME, false,
-            (a, context) -> new PercentileRanksAggregationBuilder(context, (List)a[0]));
+            (a, context) -> new PercentileRanksAggregationBuilder(context, (List) a[0]));
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, false, false);
-        PARSER.declareDoubleArray(ConstructingObjectParser.constructorArg(), VALUES_FIELD);
+        PARSER.declareDoubleArray(constructorArg(), VALUES_FIELD);
         PARSER.declareBoolean(PercentileRanksAggregationBuilder::keyed, PercentilesAggregationBuilder.KEYED_FIELD);
 
         PARSER.declareField((b, v) -> {
@@ -98,6 +103,8 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        // the aggregation name is supplied to the parser as a Context, a bit hacky but it works well
+        // in this situation
         return PARSER.parse(parser, aggregationName);
     }
 
@@ -115,6 +122,9 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
         super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         if (values == null) {
             throw new IllegalArgumentException("[values] must not be null: [" + name + "]");
+        }
+        if (values.length == 0) {
+            throw new IllegalArgumentException("[values] must not be an empty array: [" + name + "]");
         }
         double[] sortedValues = Arrays.copyOf(values, values.length);
         Arrays.sort(sortedValues);

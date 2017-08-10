@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,31 +34,31 @@ public final class ValuesSourceParserHelper {
     private ValuesSourceParserHelper() {} // utility class, no instantiation
 
     public static <T> void declareAnyFields(
-            ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource, ?>, T> objectParser,
+            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource, ?>, T> objectParser,
             boolean scriptable, boolean formattable) {
         declareFields(objectParser, scriptable, formattable, false, null);
     }
 
     public static <T> void declareNumericFields(
-            ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, ?>, T> objectParser,
+            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, ?>, T> objectParser,
             boolean scriptable, boolean formattable, boolean timezoneAware) {
         declareFields(objectParser, scriptable, formattable, timezoneAware, ValueType.NUMERIC);
     }
 
     public static <T> void declareBytesFields(
-            ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Bytes, ?>, T> objectParser,
+            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Bytes, ?>, T> objectParser,
             boolean scriptable, boolean formattable) {
         declareFields(objectParser, scriptable, formattable, false, ValueType.STRING);
     }
 
     public static <T> void declareGeoFields(
-            ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, ?>, T> objectParser,
+            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, ?>, T> objectParser,
             boolean scriptable, boolean formattable) {
         declareFields(objectParser, scriptable, formattable, false, ValueType.GEOPOINT);
     }
 
     private static <VS extends ValuesSource, T> void declareFields(
-            ObjectParser<? extends ValuesSourceAggregationBuilder<VS, ?>, T> objectParser,
+            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<VS, ?>, T> objectParser,
             boolean scriptable, boolean formattable, boolean timezoneAware, ValueType targetValueType) {
 
 
@@ -100,72 +101,6 @@ public final class ValuesSourceParserHelper {
         }
     }
 
-    public static <T> void declareAnyFields(
-        ConstructingObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource, ?>, T> objectParser,
-        boolean scriptable, boolean formattable) {
-        declareFields(objectParser, scriptable, formattable, false, null);
-    }
 
-    public static <T> void declareNumericFields(
-        ConstructingObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, ?>, T> objectParser,
-        boolean scriptable, boolean formattable, boolean timezoneAware) {
-        declareFields(objectParser, scriptable, formattable, timezoneAware, ValueType.NUMERIC);
-    }
-
-    public static <T> void declareBytesFields(
-        ConstructingObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Bytes, ?>, T> objectParser,
-        boolean scriptable, boolean formattable) {
-        declareFields(objectParser, scriptable, formattable, false, ValueType.STRING);
-    }
-
-    public static <T> void declareGeoFields(
-        ConstructingObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, ?>, T> objectParser,
-        boolean scriptable, boolean formattable) {
-        declareFields(objectParser, scriptable, formattable, false, ValueType.GEOPOINT);
-    }
-
-    private static <VS extends ValuesSource, T> void declareFields(
-        ConstructingObjectParser<? extends ValuesSourceAggregationBuilder<VS, ?>, T> objectParser,
-        boolean scriptable, boolean formattable, boolean timezoneAware, ValueType targetValueType) {
-
-
-        objectParser.declareField(ValuesSourceAggregationBuilder::field, XContentParser::text,
-            new ParseField("field"), ObjectParser.ValueType.STRING);
-
-        objectParser.declareField(ValuesSourceAggregationBuilder::missing, XContentParser::objectText,
-            new ParseField("missing"), ObjectParser.ValueType.VALUE);
-
-        objectParser.declareField(ValuesSourceAggregationBuilder::valueType, p -> {
-            ValueType valueType = ValueType.resolveForScript(p.text());
-            if (targetValueType != null && valueType.isNotA(targetValueType)) {
-                throw new ParsingException(p.getTokenLocation(),
-                    "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["
-                        + valueType + "]. It can only work on value of type ["
-                        + targetValueType + "]");
-            }
-            return valueType;
-        }, new ParseField("value_type", "valueType"), ObjectParser.ValueType.STRING);
-
-        if (formattable) {
-            objectParser.declareField(ValuesSourceAggregationBuilder::format, XContentParser::text,
-                new ParseField("format"), ObjectParser.ValueType.STRING);
-        }
-
-        if (scriptable) {
-            objectParser.declareField(ValuesSourceAggregationBuilder::script,
-                (parser, context) -> Script.parse(parser),
-                Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
-        }
-
-        if (timezoneAware) {
-            objectParser.declareField(ValuesSourceAggregationBuilder::timeZone, p -> {
-                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return DateTimeZone.forID(p.text());
-                } else {
-                    return DateTimeZone.forOffsetHours(p.intValue());
-                }
-            }, TIME_ZONE, ObjectParser.ValueType.LONG);
-        }
-    }
 
 }

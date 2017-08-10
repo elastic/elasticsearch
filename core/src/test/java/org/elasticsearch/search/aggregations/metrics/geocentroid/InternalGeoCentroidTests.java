@@ -95,15 +95,25 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
             break;
         case 1:
             count += between(1, 100);
+            if (centroid == null) {
+                // if the new count is > 0 then we need to make sure there is a
+                // centroid or the constructor will throw an exception
+                centroid = new GeoPoint(randomDoubleBetween(-90, 90, false), randomDoubleBetween(-180, 180, false));
+            }
             break;
         case 2:
-            GeoPoint newCentroid = new GeoPoint(centroid);
-            if (randomBoolean()) {
-                newCentroid.resetLat(centroid.getLat() / 2.0);
+            if (centroid == null) {
+                centroid = new GeoPoint(randomDoubleBetween(-90, 90, false), randomDoubleBetween(-180, 180, false));
+                count = between(1, 100);
             } else {
-                newCentroid.resetLon(centroid.getLon() / 2.0);
+                GeoPoint newCentroid = new GeoPoint(centroid);
+                if (randomBoolean()) {
+                    newCentroid.resetLat(centroid.getLat() / 2.0);
+                } else {
+                    newCentroid.resetLon(centroid.getLon() / 2.0);
+                }
+                centroid = newCentroid;
             }
-            centroid = newCentroid;
             break;
         case 3:
             if (metaData == null) {

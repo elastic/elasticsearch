@@ -332,7 +332,7 @@ public class Node implements Closeable {
 
             List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool,
-               ClusterModule.getCustomSuppliers(clusterPlugins));
+               ClusterModule.getClusterStateCustomSuppliers(clusterPlugins));
             clusterService.addListener(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
             final IngestService ingestService = new IngestService(settings, threadPool, this.environment,

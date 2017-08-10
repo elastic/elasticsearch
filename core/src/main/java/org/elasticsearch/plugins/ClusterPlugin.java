@@ -71,5 +71,5 @@ public interface ClusterPlugin {
      * This allows custom clusterstate extensions to be always present and prevents invariants where clusterstates are published
      * but customs are not initialized.
      */
-    default Map<String, Supplier<ClusterState.Custom>> getInitialCustomSupplier() { return Collections.emptyMap(); }
+    default Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() { return Collections.emptyMap(); }
 }

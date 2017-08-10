@@ -198,15 +198,15 @@ public class ClusterModuleTests extends ModuleTestCase {
     }
 
     public void testCustomSuppliers() {
-        Map<String, Supplier<ClusterState.Custom>> customSuppliers = ClusterModule.getCustomSuppliers(Collections.emptyList());
+        Map<String, Supplier<ClusterState.Custom>> customSuppliers = ClusterModule.getClusterStateCustomSuppliers(Collections.emptyList());
         assertEquals(3, customSuppliers.size());
         assertTrue(customSuppliers.containsKey(SnapshotsInProgress.TYPE));
         assertTrue(customSuppliers.containsKey(SnapshotDeletionsInProgress.TYPE));
         assertTrue(customSuppliers.containsKey(RestoreInProgress.TYPE));
 
-        customSuppliers = ClusterModule.getCustomSuppliers(Collections.singletonList(new ClusterPlugin() {
+        customSuppliers = ClusterModule.getClusterStateCustomSuppliers(Collections.singletonList(new ClusterPlugin() {
             @Override
-            public Map<String, Supplier<ClusterState.Custom>> getInitialCustomSupplier() {
+            public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
                 return Collections.singletonMap("foo", () -> null);
             }
         }));
@@ -217,23 +217,23 @@ public class ClusterModuleTests extends ModuleTestCase {
         assertTrue(customSuppliers.containsKey("foo"));
 
 
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> ClusterModule.getCustomSuppliers(Collections
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> ClusterModule.getClusterStateCustomSuppliers(Collections
             .singletonList(new ClusterPlugin() {
             @Override
-            public Map<String, Supplier<ClusterState.Custom>> getInitialCustomSupplier() {
+            public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
                 return Collections.singletonMap(SnapshotsInProgress.TYPE, () -> null);
             }
         })));
         assertEquals(ise.getMessage(), "custom supplier key [snapshots] is registered more than once");
 
-        ise = expectThrows(IllegalStateException.class, () -> ClusterModule.getCustomSuppliers(Arrays.asList(new ClusterPlugin() {
+        ise = expectThrows(IllegalStateException.class, () -> ClusterModule.getClusterStateCustomSuppliers(Arrays.asList(new ClusterPlugin() {
             @Override
-            public Map<String, Supplier<ClusterState.Custom>> getInitialCustomSupplier() {
+            public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
                 return Collections.singletonMap("foo", () -> null);
             }
         }, new ClusterPlugin() {
             @Override
-            public Map<String, Supplier<ClusterState.Custom>> getInitialCustomSupplier() {
+            public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
                 return Collections.singletonMap("foo", () -> null);
             }
         })));

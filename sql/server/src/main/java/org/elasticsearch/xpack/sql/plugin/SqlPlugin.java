@@ -39,6 +39,13 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class SqlPlugin implements ActionPlugin {
+
+    private final SqlLicenseChecker sqlLicenseChecker;
+
+    public SqlPlugin(SqlLicenseChecker sqlLicenseChecker) {
+        this.sqlLicenseChecker = sqlLicenseChecker;
+    }
+
     /**
      * Create components used by the sql plugin.
      * @param catalogFilter if non-null it is a filter for the catalog to apply security
@@ -49,6 +56,7 @@ public class SqlPlugin implements ActionPlugin {
         Catalog catalog = catalogFilter == null ? esCatalog : new FilteredCatalog(esCatalog, catalogFilter);
         return Arrays.asList(
                 esCatalog,  // Added as a component so that it can get IndexNameExpressionResolver injected.
+                sqlLicenseChecker,
                 new PlanExecutor(client, catalog));
     }
 

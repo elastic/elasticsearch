@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
+import org.elasticsearch.xpack.sql.plugin.SqlLicenseChecker;
 import org.elasticsearch.xpack.sql.plugin.jdbc.JdbcServer;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 
@@ -26,20 +27,23 @@ import static org.elasticsearch.xpack.sql.util.ActionUtils.chain;
 
 public class TransportJdbcAction extends HandledTransportAction<JdbcRequest, JdbcResponse> {
     private final JdbcServer jdbcServer;
+    private final SqlLicenseChecker sqlLicenseChecker;
 
     @Inject
     public TransportJdbcAction(Settings settings, ThreadPool threadPool,
             TransportService transportService, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver,
             ClusterService clusterService,
-            PlanExecutor planExecutor) {
+            PlanExecutor planExecutor,
+            SqlLicenseChecker sqlLicenseChecker) {
         super(settings, JdbcAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, JdbcRequest::new);
-
+        this.sqlLicenseChecker = sqlLicenseChecker;
         this.jdbcServer = new JdbcServer(planExecutor, clusterService.getClusterName().value(), () -> clusterService.localNode().getName(), Version.CURRENT, Build.CURRENT);
     }
 
     @Override
     protected void doExecute(JdbcRequest jdbcRequest, ActionListener<JdbcResponse> listener) {
+        sqlLicenseChecker.checkIfJdbcAllowed();
         final Request request;
         try {
             request = jdbcRequest.request();

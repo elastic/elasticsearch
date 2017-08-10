@@ -53,12 +53,20 @@ public class XPackLicenseStateTests extends ESTestCase {
         return randomFrom(OperationMode.values());
     }
 
-    static OperationMode randomTrialStandardGoldOrPlatinumMode() {
+    public static OperationMode randomTrialStandardGoldOrPlatinumMode() {
         return randomFrom(TRIAL, STANDARD, GOLD, PLATINUM);
     }
 
-    static OperationMode randomTrialOrPlatinumMode() {
+    public static OperationMode randomTrialOrPlatinumMode() {
         return randomFrom(TRIAL, PLATINUM);
+    }
+
+    public static OperationMode randomTrialBasicStandardGoldOrPlatinumMode() {
+        return randomFrom(TRIAL, BASIC, STANDARD, GOLD, PLATINUM);
+    }
+
+    public static OperationMode randomBasicStandardOrGold() {
+        return randomFrom(BASIC, STANDARD, GOLD);
     }
 
     public void testSecurityDefaults() {
@@ -310,4 +318,83 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertAllowed(PLATINUM, false, XPackLicenseState::isLogstashAllowed, false);
         assertAllowed(STANDARD, false, XPackLicenseState::isLogstashAllowed, false);
     }
+
+    public void testSqlDefaults() {
+        XPackLicenseState licenseState = new XPackLicenseState();
+        assertThat(licenseState.isSqlAllowed(), is(true));
+        assertThat(licenseState.isJdbcAllowed(), is(true));
+    }
+
+    public void testSqlBasic() {
+        XPackLicenseState licenseState = new XPackLicenseState();
+        licenseState.update(BASIC, true);
+
+        assertThat(licenseState.isSqlAllowed(), is(true));
+        assertThat(licenseState.isJdbcAllowed(), is(false));
+    }
+
+    public void testSqlBasicExpired() {
+        XPackLicenseState licenseState = new XPackLicenseState();
+        licenseState.update(BASIC, false);
+
+        assertThat(licenseState.isSqlAllowed(), is(false));
+        assertThat(licenseState.isJdbcAllowed(), is(false));
+    }
+
+    public void testSqlStandard() {
+        XPackLicenseState licenseState = new XPackLicenseState();
+        licenseState.update(STANDARD, true);
+
+        assertThat(licenseState.isSqlAllowed(), is(true));
+        assertThat(licenseState.isJdbcAllowed(), is(false));
+    }
+
+    public void testSqlStandardExpired() {
+        XPackLicenseState licenseState = new XPackLicenseState();
+        licenseState.update(STANDARD, false);
+
+        assertThat(licenseState.isSqlAllowed(), is(false));
+        assertThat(licenseState.isJdbcAllowed(), is(false));
+    }
+
+    public void testSqlGold() {
+        XPackLicenseState licenseState = new XPackLicenseState();
+        licenseState.update(GOLD, true);
+
+        assertThat(licenseState.isSqlAllowed(), is(true));
+        assertThat(licenseState.isJdbcAllowed(), is(false));
+    }
+
+    public void testSqlGoldExpired() {
+        XPackLicenseState licenseState = new XPackLicenseState();
+        licenseState.update(GOLD, false);
+
+        assertThat(licenseState.isSqlAllowed(), is(false));
+        assertThat(licenseState.isJdbcAllowed(), is(false));
+    }
+
+    public void testSqlPlatinum() {
+        XPackLicenseState licenseState = new XPackLicenseState();
+        licenseState.update(PLATINUM, true);
+
+        assertThat(licenseState.isSqlAllowed(), is(true));
+        assertThat(licenseState.isJdbcAllowed(), is(true));
+    }
+
+    public void testSqlPlatinumExpired() {
+        XPackLicenseState licenseState = new XPackLicenseState();
+        licenseState.update(PLATINUM, false);
+
+        assertThat(licenseState.isSqlAllowed(), is(false));
+        assertThat(licenseState.isJdbcAllowed(), is(false));
+    }
+
+    public void testSqlAckAnyToTrialOrPlatinum() {
+        assertAckMesssages(XPackPlugin.SQL, randomMode(), randomTrialOrPlatinumMode(), 0);
+    }
+
+    public void testSqlAckTrialOrPlatinumToNotTrialOrPlatinum() {
+        assertAckMesssages(XPackPlugin.SQL, randomTrialOrPlatinumMode(), randomBasicStandardOrGold(), 1);
+    }
+
 }

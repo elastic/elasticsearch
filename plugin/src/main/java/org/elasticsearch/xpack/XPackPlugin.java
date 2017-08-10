@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -101,6 +102,7 @@ import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.sql.analysis.catalog.FilteredCatalog;
 import org.elasticsearch.xpack.sql.plugin.SecurityCatalogFilter;
+import org.elasticsearch.xpack.sql.plugin.SqlLicenseChecker;
 import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.ssl.SSLService;
@@ -160,6 +162,9 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
     /** Name constant for the upgrade feature. */
     public static final String UPGRADE = "upgrade";
+
+    /** Name constant for the sql feature. */
+    public static final String SQL = "sql";
 
     // inside of YAML settings we still use xpack do not having handle issues with dashes
     private static final String SETTINGS_NAME = "xpack";
@@ -234,7 +239,19 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         this.logstash = new Logstash(settings);
         this.deprecation = new Deprecation();
         this.upgrade = new Upgrade(settings);
-        this.sql = new SqlPlugin();
+        // sql projects don't depend on x-pack and as a result we cannot pass XPackLicenseState object to SqlPlugin directly here
+        this.sql = new SqlPlugin(new SqlLicenseChecker(
+                () -> {
+                    if (!licenseState.isSqlAllowed()) {
+                        throw LicenseUtils.newComplianceException(XPackPlugin.SQL);
+                    }
+                },
+                () -> {
+                    if (!licenseState.isJdbcAllowed()) {
+                        throw LicenseUtils.newComplianceException("jdbc");
+                    }
+                })
+        );
         // Check if the node is a transport client.
         if (transportClientMode == false) {
             this.extensionsService = new XPackExtensionsService(settings, resolveXPackExtensionsFile(env), getExtensions());

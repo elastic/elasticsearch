@@ -20,6 +20,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
+import org.elasticsearch.xpack.sql.plugin.SqlLicenseChecker;
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
 
 import java.util.ArrayList;
@@ -41,20 +42,24 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
 
     private final Supplier<String> ephemeralId;
     private final PlanExecutor planExecutor;
+    private final SqlLicenseChecker sqlLicenseChecker;
 
     @Inject
     public TransportSqlAction(Settings settings, ThreadPool threadPool,
                               TransportService transportService, ActionFilters actionFilters,
                               IndexNameExpressionResolver indexNameExpressionResolver,
-                              PlanExecutor planExecutor) {
+                              PlanExecutor planExecutor,
+                              SqlLicenseChecker sqlLicenseChecker) {
         super(settings, SqlAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SqlRequest::new);
 
         this.planExecutor = planExecutor;
+        this.sqlLicenseChecker = sqlLicenseChecker;
         ephemeralId = () -> transportService.getLocalNode().getEphemeralId();
     }
 
     @Override
     protected void doExecute(SqlRequest request, ActionListener<SqlResponse> listener) {
+        sqlLicenseChecker.checkIfSqlAllowed();
         String sessionId = request.sessionId();
         String query = request.query();
 

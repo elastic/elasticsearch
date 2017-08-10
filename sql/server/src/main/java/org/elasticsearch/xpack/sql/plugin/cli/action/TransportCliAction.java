@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
+import org.elasticsearch.xpack.sql.plugin.SqlLicenseChecker;
 import org.elasticsearch.xpack.sql.plugin.cli.CliServer;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 
@@ -26,20 +27,23 @@ import static org.elasticsearch.xpack.sql.util.ActionUtils.chain;
 
 public class TransportCliAction extends HandledTransportAction<CliRequest, CliResponse> {
     private final CliServer cliServer;
+    private final SqlLicenseChecker sqlLicenseChecker;
 
     @Inject
     public TransportCliAction(Settings settings, ThreadPool threadPool,
                               TransportService transportService, ActionFilters actionFilters,
                               IndexNameExpressionResolver indexNameExpressionResolver,
                               ClusterService clusterService,
-                              PlanExecutor planExecutor) {
+                              PlanExecutor planExecutor,
+                              SqlLicenseChecker sqlLicenseChecker) {
         super(settings, CliAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, CliRequest::new);
-
+        this.sqlLicenseChecker = sqlLicenseChecker;
         this.cliServer = new CliServer(planExecutor, clusterService.getClusterName().value(), () -> clusterService.localNode().getName(), Version.CURRENT, Build.CURRENT);
     }
 
     @Override
     protected void doExecute(CliRequest cliRequest, ActionListener<CliResponse> listener) {
+        sqlLicenseChecker.checkIfSqlAllowed();
         final Request request;
         try {
             request = cliRequest.request();

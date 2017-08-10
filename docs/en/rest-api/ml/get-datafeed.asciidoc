@@ -71,7 +71,7 @@ The API returns the following results:
       "job_id": "it-ops-kpi",
       "query_delay": "60s",
       "frequency": "150s",
-      "indexes": [
+      "indices": [
         "it_ops_metrics"
       ],
       "types": [
@@ -84,36 +84,9 @@ The API returns the following results:
           "boost": 1
         }
       },
-      "aggregations": {
-        "buckets": {
-          "date_histogram": {
-            "field": "@timestamp",
-            "interval": 30000,
-            "offset": 0,
-            "order": {
-              "_key": "asc"
-            },
-            "keyed": false,
-            "min_doc_count": 0
-          },
-          "aggregations": {
-            "events_per_min": {
-              "sum": {
-                "field": "events_per_min"
-              }
-            },
-            "@timestamp": {
-              "max": {
-                "field": "@timestamp"
-              }
-            }
-          }
-        }
-      },
       "scroll_size": 1000,
       "chunking_config": {
-        "mode": "manual",
-        "time_span": "30000000ms"
+        "mode": "auto"
       }
     }
   ]

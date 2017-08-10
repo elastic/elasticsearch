@@ -90,5 +90,5 @@ class ZoneOffsetTransitionRule.TimeDefinition -> java.time.zone.ZoneOffsetTransi
 #### Exceptions
 
 class ZoneRulesException -> java.time.zone.ZoneRulesException extends DateTimeException,RuntimeException,Exception,Object {
-  ZoneRulesException <init>(String)
+  (String)
 }

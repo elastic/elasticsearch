@@ -49,20 +49,20 @@ import java.util.Spliterator;
 public final class Definition {
 
     private static final List<String> DEFINITION_FILES = Collections.unmodifiableList(
-        Arrays.asList("org.elasticsearch.w.txt",
-            "java.lang.w.txt",
-            "java.math.w.txt",
-            "java.text.w.txt",
-            "java.time.w.txt",
-            "java.time.chrono.w.txt",
-            "java.time.format.w.txt",
-            "java.time.temporal.w.txt",
-            "java.time.zone.w.txt",
-            "java.util.w.txt",
-            "java.util.function.w.txt",
-            "java.util.regex.w.txt",
-            "java.util.stream.w.txt",
-            "joda.time.w.txt"));
+        Arrays.asList("org.elasticsearch.txt",
+            "java.lang.txt",
+            "java.math.txt",
+            "java.text.txt",
+            "java.time.txt",
+            "java.time.chrono.txt",
+            "java.time.format.txt",
+            "java.time.temporal.txt",
+            "java.time.zone.txt",
+            "java.util.txt",
+            "java.util.function.txt",
+            "java.util.regex.txt",
+            "java.util.stream.txt",
+            "joda.time.txt"));
 
     private static final Map<Class<?>, List<String>> WHITELIST_RESOURCES = Collections.singletonMap(Definition.class, DEFINITION_FILES);
 

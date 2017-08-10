@@ -36,8 +36,8 @@ class CharSequence -> java.lang.CharSequence {
   IntStream chars()
   IntStream codePoints()
   int length()
-  String org.elasticsearch.painless.api.Augmentation.replaceAll(Pattern,Function)
-  String org.elasticsearch.painless.api.Augmentation.replaceFirst(Pattern,Function)
+  String org.elasticsearch.painless.api.Augmentation replaceAll(Pattern,Function)
+  String org.elasticsearch.painless.api.Augmentation replaceFirst(Pattern,Function)
   CharSequence subSequence(int,int)
   String toString()
 }
@@ -52,18 +52,18 @@ class Iterable -> java.lang.Iterable {
   void forEach(Consumer)
   Iterator iterator()
   Spliterator spliterator()
-  # some adaptations of groovy methods
-  boolean org.elasticsearch.painless.api.Augmentation.any(Predicate)
-  Collection org.elasticsearch.painless.api.Augmentation.asCollection()
-  List org.elasticsearch.painless.api.Augmentation.asList()
-  def org.elasticsearch.painless.api.Augmentation.each(Consumer)
-  def org.elasticsearch.painless.api.Augmentation.eachWithIndex(ObjIntConsumer)
-  boolean org.elasticsearch.painless.api.Augmentation.every(Predicate)
-  List org.elasticsearch.painless.api.Augmentation.findResults(Function)
-  Map org.elasticsearch.painless.api.Augmentation.groupBy(Function)
-  String org.elasticsearch.painless.api.Augmentation.join(String)
-  double org.elasticsearch.painless.api.Augmentation.sum()
-  double org.elasticsearch.painless.api.Augmentation.sum(ToDoubleFunction)
+  # some adaptations of groovy wmethods
+  boolean org.elasticsearch.painless.api.Augmentation any(Predicate)
+  Collection org.elasticsearch.painless.api.Augmentation asCollection()
+  List org.elasticsearch.painless.api.Augmentation asList()
+  def org.elasticsearch.painless.api.Augmentation each(Consumer)
+  def org.elasticsearch.painless.api.Augmentation eachWithIndex(ObjIntConsumer)
+  boolean org.elasticsearch.painless.api.Augmentation every(Predicate)
+  List org.elasticsearch.painless.api.Augmentation findResults(Function)
+  Map org.elasticsearch.painless.api.Augmentation groupBy(Function)
+  String org.elasticsearch.painless.api.Augmentation join(String)
+  double org.elasticsearch.painless.api.Augmentation sum()
+  double org.elasticsearch.painless.api.Augmentation sum(ToDoubleFunction)
 }
 
 # Readable: i/o
@@ -492,8 +492,8 @@ class Double -> java.lang.Double extends Number,Comparable,Object {
 
 class Enum -> java.lang.Enum extends Comparable,Object {
   int compareTo(Enum)
-  String name();
-  int ordinal();
+  String name()
+  int ordinal()
 }
 
 class Float -> java.lang.Float extends Number,Comparable,Object {
@@ -694,7 +694,7 @@ class Short -> java.lang.Short extends Number,Comparable,Object {
 }
 
 class StackTraceElement -> java.lang.StackTraceElement extends Object {
-  StackTraceElement <init>(String,String,String,int)
+  (String,String,String,int)
   String getClassName()
   String getFileName()
   int getLineNumber()
@@ -745,7 +745,7 @@ class StrictMath -> java.lang.StrictMath extends Object {
 }
 
 class String -> java.lang.String extends CharSequence,Comparable,Object {
-  String <init>()
+  ()
   int codePointAt(int)
   int codePointBefore(int)
   int codePointCount(int,int)
@@ -756,8 +756,8 @@ class String -> java.lang.String extends CharSequence,Comparable,Object {
   boolean contentEquals(CharSequence)
   String copyValueOf(char[])
   String copyValueOf(char[],int,int)
-  String org.elasticsearch.painless.api.Augmentation.decodeBase64()
-  String org.elasticsearch.painless.api.Augmentation.encodeBase64()
+  String org.elasticsearch.painless.api.Augmentation decodeBase64()
+  String org.elasticsearch.painless.api.Augmentation encodeBase64()
   boolean endsWith(String)
   boolean equalsIgnoreCase(String)
   String format(Locale,String,def[])
@@ -787,8 +787,8 @@ class String -> java.lang.String extends CharSequence,Comparable,Object {
 }
 
 class StringBuffer -> java.lang.StringBuffer extends CharSequence,Appendable,Object {
-  StringBuffer <init>()
-  StringBuffer <init>(CharSequence)
+  ()
+  (CharSequence)
   StringBuffer append(def)
   StringBuffer append(CharSequence,int,int)
   StringBuffer appendCodePoint(int)
@@ -814,8 +814,8 @@ class StringBuffer -> java.lang.StringBuffer extends CharSequence,Appendable,Obj
 }
 
 class StringBuilder -> java.lang.StringBuilder extends CharSequence,Appendable,Object {
-  StringBuilder <init>()
-  StringBuilder <init>(CharSequence)
+  ()
+  (CharSequence)
   StringBuilder append(def)
   StringBuilder append(CharSequence,int,int)
   StringBuilder appendCodePoint(int)
@@ -969,33 +969,33 @@ class Character.UnicodeScript -> java.lang.Character$UnicodeScript extends Enum,
 #### Exceptions
 
 class ArithmeticException -> java.lang.ArithmeticException extends RuntimeException,Exception,Object {
-  ArithmeticException <init>()
-  ArithmeticException <init>(String)
+  ()
+  (String)
 }
 
 class ArrayIndexOutOfBoundsException -> java.lang.ArrayIndexOutOfBoundsException extends IndexOutOfBoundsException,RuntimeException,Exception,Object {
-  ArrayIndexOutOfBoundsException <init>()
-  ArrayIndexOutOfBoundsException <init>(String)
+  ()
+  (String)
 }
 
 class ArrayStoreException -> java.lang.ArrayStoreException extends RuntimeException,Exception,Object {
-  ArrayStoreException <init>()
-  ArrayStoreException <init>(String)
+  ()
+  (String)
 }
 
 class ClassCastException -> java.lang.ClassCastException extends RuntimeException,Exception,Object {
-  ClassCastException <init>()
-  ClassCastException <init>(String)
+  ()
+  (String)
 }
 
 class ClassNotFoundException -> java.lang.ClassNotFoundException extends ReflectiveOperationException,Exception,Object {
-  ClassNotFoundException <init>()
-  ClassNotFoundException <init>(String)
+  ()
+  (String)
 }
 
 class CloneNotSupportedException -> java.lang.CloneNotSupportedException extends Exception,Object {
-  CloneNotSupportedException <init>()
-  CloneNotSupportedException <init>(String)
+  ()
+  (String)
 }
 
 class EnumConstantNotPresentException -> java.lang.EnumConstantNotPresentException extends RuntimeException,Exception,Object {
@@ -1003,96 +1003,96 @@ class EnumConstantNotPresentException -> java.lang.EnumConstantNotPresentExcepti
 }
 
 class Exception -> java.lang.Exception extends Object {
-  Exception <init>()
-  Exception <init>(String)
+  ()
+  (String)
   String getLocalizedMessage()
   String getMessage()
   StackTraceElement[] getStackTrace()
 }
 
 class IllegalAccessException -> java.lang.IllegalAccessException extends ReflectiveOperationException,Exception,Object {
-  IllegalAccessException <init>()
-  IllegalAccessException <init>(String)
+  ()
+  (String)
 }
 
 class IllegalArgumentException -> java.lang.IllegalArgumentException extends RuntimeException,Exception,Object {
-  IllegalArgumentException <init>()
-  IllegalArgumentException <init>(String)
+  ()
+  (String)
 }
 
 class IllegalMonitorStateException -> java.lang.IllegalMonitorStateException extends RuntimeException,Exception,Object {
-  IllegalMonitorStateException <init>()
-  IllegalMonitorStateException <init>(String)
+  ()
+  (String)
 }
 
 class IllegalStateException -> java.lang.IllegalStateException extends RuntimeException,Exception,Object {
-  IllegalStateException <init>()
-  IllegalStateException <init>(String)
+  ()
+  (String)
 }
 
 class IllegalThreadStateException -> java.lang.IllegalThreadStateException extends IllegalArgumentException,RuntimeException,Exception,Object {
-  IllegalThreadStateException <init>()
-  IllegalThreadStateException <init>(String)
+  ()
+  (String)
 }
 
 class IndexOutOfBoundsException -> java.lang.IndexOutOfBoundsException extends RuntimeException,Exception,Object {
-  IndexOutOfBoundsException <init>()
-  IndexOutOfBoundsException <init>(String)
+  ()
+  (String)
 }
 
 class InstantiationException -> java.lang.InstantiationException extends ReflectiveOperationException,Exception,Object {
-  InstantiationException <init>()
-  InstantiationException <init>(String)
+  ()
+  (String)
 }
 
 class InterruptedException -> java.lang.InterruptedException extends Exception,Object {
-  InterruptedException <init>()
-  InterruptedException <init>(String)
+  ()
+  (String)
 }
 
 class NegativeArraySizeException -> java.lang.NegativeArraySizeException extends RuntimeException,Exception,Object {
-  NegativeArraySizeException <init>()
-  NegativeArraySizeException <init>(String)
+  ()
+  (String)
 }
 
 class NoSuchFieldException -> java.lang.NoSuchFieldException extends ReflectiveOperationException,Exception,Object {
-  NoSuchFieldException <init>()
-  NoSuchFieldException <init>(String)
+  ()
+  (String)
 }
 
 class NoSuchMethodException -> java.lang.NoSuchMethodException extends ReflectiveOperationException,Exception,Object {
-  NoSuchMethodException <init>()
-  NoSuchMethodException <init>(String)
+  ()
+  (String)
 }
 
 class NullPointerException -> java.lang.NullPointerException extends RuntimeException,Exception,Object {
-  NullPointerException <init>()
-  NullPointerException <init>(String)
+  ()
+  (String)
 }
 
 class NumberFormatException -> java.lang.NumberFormatException extends RuntimeException,Exception,Object {
-  NumberFormatException <init>()
-  NumberFormatException <init>(String)
+  ()
+  (String)
 }
 
 class ReflectiveOperationException -> java.lang.ReflectiveOperationException extends Exception,Object {
-  ReflectiveOperationException <init>()
-  ReflectiveOperationException <init>(String)
+  ()
+  (String)
 }
 
 class RuntimeException -> java.lang.RuntimeException extends Exception,Object {
-  RuntimeException <init>()
-  RuntimeException <init>(String)
+  ()
+  (String)
 }
 
 class SecurityException -> java.lang.SecurityException extends RuntimeException,Exception,Object {
-  SecurityException <init>()
-  SecurityException <init>(String)
+  ()
+  (String)
 }
 
 class StringIndexOutOfBoundsException -> java.lang.StringIndexOutOfBoundsException extends IndexOutOfBoundsException,RuntimeException,Exception,Object {
-  StringIndexOutOfBoundsException <init>()
-  StringIndexOutOfBoundsException <init>(String)
+  ()
+  (String)
 }
 
 class TypeNotPresentException -> java.lang.TypeNotPresentException extends RuntimeException,Exception,Object {
@@ -1100,6 +1100,6 @@ class TypeNotPresentException -> java.lang.TypeNotPresentException extends Runti
 }
 
 class UnsupportedOperationException -> java.lang.UnsupportedOperationException extends RuntimeException,Exception,Object {
-  UnsupportedOperationException <init>()
-  UnsupportedOperationException <init>(String)
+  ()
+  (String)
 }

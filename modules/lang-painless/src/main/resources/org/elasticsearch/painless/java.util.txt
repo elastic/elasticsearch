@@ -40,14 +40,14 @@ class Collection -> java.util.Collection extends Iterable {
   def[] toArray()
   def[] toArray(def[])
 
-  # some adaptations of groovy methods
-  List org.elasticsearch.painless.api.Augmentation.collect(Function)
-  def org.elasticsearch.painless.api.Augmentation.collect(Collection,Function)
-  def org.elasticsearch.painless.api.Augmentation.find(Predicate)
-  List org.elasticsearch.painless.api.Augmentation.findAll(Predicate)
-  def org.elasticsearch.painless.api.Augmentation.findResult(Function)
-  def org.elasticsearch.painless.api.Augmentation.findResult(def,Function)
-  List org.elasticsearch.painless.api.Augmentation.split(Predicate)
+  # some adaptations of groovy wmethods
+  List org.elasticsearch.painless.api.Augmentation collect(Function)
+  def org.elasticsearch.painless.api.Augmentation collect(Collection,Function)
+  def org.elasticsearch.painless.api.Augmentation find(Predicate)
+  List org.elasticsearch.painless.api.Augmentation findAll(Predicate)
+  def org.elasticsearch.painless.api.Augmentation findResult(Function)
+  def org.elasticsearch.painless.api.Augmentation findResult(def,Function)
+  List org.elasticsearch.painless.api.Augmentation split(Predicate)
 }
 
 class Comparator -> java.util.Comparator {
@@ -123,7 +123,7 @@ class List -> java.util.List extends Collection,Iterable {
   def remove(int)
   void replaceAll(UnaryOperator)
   def set(int,def)
-  int org.elasticsearch.painless.api.Augmentation.getLength()
+  int org.elasticsearch.painless.api.Augmentation getLength()
   void sort(Comparator)
   List subList(int,int)
 }
@@ -162,18 +162,18 @@ class Map -> java.util.Map {
   int size()
   Collection values()
 
-  # some adaptations of groovy methods
-  List org.elasticsearch.painless.api.Augmentation.collect(BiFunction)
-  def org.elasticsearch.painless.api.Augmentation.collect(Collection,BiFunction)
-  int org.elasticsearch.painless.api.Augmentation.count(BiPredicate)
-  def org.elasticsearch.painless.api.Augmentation.each(BiConsumer)
-  boolean org.elasticsearch.painless.api.Augmentation.every(BiPredicate)
-  Map.Entry org.elasticsearch.painless.api.Augmentation.find(BiPredicate)
-  Map org.elasticsearch.painless.api.Augmentation.findAll(BiPredicate)
-  def org.elasticsearch.painless.api.Augmentation.findResult(BiFunction)
-  def org.elasticsearch.painless.api.Augmentation.findResult(def,BiFunction)
-  List org.elasticsearch.painless.api.Augmentation.findResults(BiFunction)
-  Map org.elasticsearch.painless.api.Augmentation.groupBy(BiFunction)
+  # some adaptations of groovy wmethods
+  List org.elasticsearch.painless.api.Augmentation collect(BiFunction)
+  def org.elasticsearch.painless.api.Augmentation collect(Collection,BiFunction)
+  int org.elasticsearch.painless.api.Augmentation count(BiPredicate)
+  def org.elasticsearch.painless.api.Augmentation each(BiConsumer)
+  boolean org.elasticsearch.painless.api.Augmentation every(BiPredicate)
+  Map.Entry org.elasticsearch.painless.api.Augmentation find(BiPredicate)
+  Map org.elasticsearch.painless.api.Augmentation findAll(BiPredicate)
+  def org.elasticsearch.painless.api.Augmentation findResult(BiFunction)
+  def org.elasticsearch.painless.api.Augmentation findResult(def,BiFunction)
+  List org.elasticsearch.painless.api.Augmentation findResults(BiFunction)
+  Map org.elasticsearch.painless.api.Augmentation groupBy(BiFunction)
 }
 
 class Map.Entry -> java.util.Map$Entry {
@@ -329,13 +329,13 @@ class AbstractMap -> java.util.AbstractMap extends Map,Object {
 }
 
 class AbstractMap.SimpleEntry -> java.util.AbstractMap$SimpleEntry extends Map.Entry,Object {
-  AbstractMap.SimpleEntry <init>(def,def)
-  AbstractMap.SimpleEntry <init>(Map.Entry)
+  (def,def)
+  (Map.Entry)
 }
 
 class AbstractMap.SimpleImmutableEntry -> java.util.AbstractMap$SimpleImmutableEntry extends Map.Entry,Object {
-  AbstractMap.SimpleImmutableEntry <init>(def,def)
-  AbstractMap.SimpleImmutableEntry <init>(Map.Entry)
+  (def,def)
+  (Map.Entry)
 }
 
 class AbstractQueue -> java.util.AbstractQueue extends AbstractCollection,Queue,Collection,Iterable,Object {
@@ -348,14 +348,14 @@ class AbstractSet -> java.util.AbstractSet extends AbstractCollection,Set,Collec
 }
 
 class ArrayDeque -> java.util.ArrayDeque extends AbstractCollection,Deque,Queue,Collection,Iterable,Object {
-  ArrayDeque <init>()
-  ArrayDeque <init>(Collection)
+  ()
+  (Collection)
   ArrayDeque clone()
 }
 
 class ArrayList -> java.util.ArrayList extends AbstractList,AbstractCollection,List,RandomAccess,Collection,Iterable,Object {
-  ArrayList <init>()
-  ArrayList <init>(Collection)
+  ()
+  (Collection)
   def clone()
   void trimToSize()
 }
@@ -389,8 +389,8 @@ class Base64.Encoder -> java.util.Base64$Encoder extends Object {
 }
 
 class BitSet -> java.util.BitSet extends Object {
-  BitSet <init>()
-  BitSet <init>(int)
+  ()
+  (int)
   void and(BitSet)
   void andNot(BitSet)
   int cardinality()
@@ -517,7 +517,7 @@ class Calendar -> java.util.Calendar extends Comparable,Object {
 }
 
 class Calendar.Builder -> java.util.Calendar$Builder extends Object {
-  Calendar.Builder <init>()
+  ()
   Calendar build()
   Calendar.Builder set(int,int)
   Calendar.Builder setCalendarType(String)
@@ -601,8 +601,8 @@ class Currency -> java.util.Currency extends Object {
 }
 
 class Date -> java.util.Date extends Comparable,Object {
-  Date <init>()
-  Date <init>(long)
+  ()
+  (long)
   boolean after(Date)
   boolean before(Date)
   def clone()
@@ -623,7 +623,7 @@ class Dictionary -> java.util.Dictionary extends Object {
 }
 
 class DoubleSummaryStatistics -> java.util.DoubleSummaryStatistics extends DoubleConsumer,Object {
-  DoubleSummaryStatistics <init>()
+  ()
   void combine(DoubleSummaryStatistics)
   double getAverage()
   long getCount()
@@ -637,7 +637,7 @@ class EventListenerProxy -> java.util.EventListenerProxy extends EventListener,O
 }
 
 class EventObject -> java.util.EventObject extends Object {
-  EventObject <init>(Object)
+  (Object)
   Object getSource()
 }
 
@@ -648,9 +648,9 @@ class FormattableFlags -> java.util.FormattableFlags extends Object {
 }
 
 class Formatter -> java.util.Formatter extends Object {
-  Formatter <init>()
-  Formatter <init>(Appendable)
-  Formatter <init>(Appendable,Locale)
+  ()
+  (Appendable)
+  (Appendable,Locale)
   Formatter format(Locale,String,def[])
   Formatter format(String,def[])
   Locale locale()
@@ -660,12 +660,12 @@ class Formatter -> java.util.Formatter extends Object {
 class GregorianCalendar -> java.util.GregorianCalendar extends Calendar,Comparable,Object {
   int AD
   int BC
-  GregorianCalendar <init>()
-  GregorianCalendar <init>(int,int,int)
-  GregorianCalendar <init>(int,int,int,int,int)
-  GregorianCalendar <init>(int,int,int,int,int,int)
-  GregorianCalendar <init>(TimeZone)
-  GregorianCalendar <init>(TimeZone,Locale)
+  ()
+  (int,int,int)
+  (int,int,int,int,int)
+  (int,int,int,int,int,int)
+  (TimeZone)
+  (TimeZone,Locale)
   GregorianCalendar from(ZonedDateTime)
   Date getGregorianChange()
   boolean isLeapYear(int)
@@ -674,31 +674,31 @@ class GregorianCalendar -> java.util.GregorianCalendar extends Calendar,Comparab
 }
 
 class HashMap -> java.util.HashMap extends AbstractMap,Map,Object {
-  HashMap <init>()
-  HashMap <init>(Map)
+  ()
+  (Map)
   def clone()
 }
 
 class HashSet -> java.util.HashSet extends AbstractSet,Set,Collection,Iterable,Object {
-  HashSet <init>()
-  HashSet <init>(Collection)
+  ()
+  (Collection)
   def clone()
 }
 
 class Hashtable -> java.util.Hashtable extends Dictionary,Map,Object {
-  Hashtable <init>()
-  Hashtable <init>(Map)
+  ()
+  (Map)
   def clone()
 }
 
 class IdentityHashMap -> java.util.IdentityHashMap extends AbstractMap,Map,Object {
-  IdentityHashMap <init>()
-  IdentityHashMap <init>(Map)
+  ()
+  (Map)
   def clone()
 }
 
 class IntSummaryStatistics -> java.util.IntSummaryStatistics extends IntConsumer,Object {
-  IntSummaryStatistics <init>()
+  ()
   void combine(IntSummaryStatistics)
   double getAverage()
   long getCount()
@@ -708,18 +708,18 @@ class IntSummaryStatistics -> java.util.IntSummaryStatistics extends IntConsumer
 }
 
 class LinkedHashMap -> java.util.LinkedHashMap extends HashMap,AbstractMap,Map,Object {
-  LinkedHashMap <init>()
-  LinkedHashMap <init>(Map)
+  ()
+  (Map)
 }
 
 class LinkedHashSet -> java.util.LinkedHashSet extends HashSet,AbstractSet,Set,AbstractCollection,Collection,Iterable,Object {
-  LinkedHashSet <init>()
-  LinkedHashSet <init>(Collection)
+  ()
+  (Collection)
 }
 
 class LinkedList -> java.util.LinkedList extends AbstractSequentialList,AbstractList,List,Deque,Queue,AbstractCollection,Collection,Iterable,Object {
-  LinkedList <init>()
-  LinkedList <init>(Collection)
+  ()
+  (Collection)
   def clone()
 }
 
@@ -748,9 +748,9 @@ class Locale -> java.util.Locale extends Object {
   Locale UK
   char UNICODE_LOCALE_EXTENSION
   Locale US
-  Locale <init>(String)
-  Locale <init>(String,String)
-  Locale <init>(String,String,String)
+  (String)
+  (String,String)
+  (String,String,String)
   def clone()
   List filter(List,Collection)
   List filterTags(List,Collection)
@@ -789,7 +789,7 @@ class Locale -> java.util.Locale extends Object {
 }
 
 class Locale.Builder -> java.util.Locale$Builder extends Object {
-  Locale.Builder <init>()
+  ()
   Locale.Builder addUnicodeLocaleAttribute(String)
   Locale build()
   Locale.Builder clear()
@@ -808,8 +808,8 @@ class Locale.Builder -> java.util.Locale$Builder extends Object {
 class Locale.LanguageRange -> java.util.Locale$LanguageRange extends Object {
   double MAX_WEIGHT
   double MIN_WEIGHT
-  Locale.LanguageRange <init>(String)
-  Locale.LanguageRange <init>(String,double)
+  (String)
+  (String,double)
   String getRange()
   double getWeight()
   List mapEquivalents(List,Map)
@@ -818,7 +818,7 @@ class Locale.LanguageRange -> java.util.Locale$LanguageRange extends Object {
 }
 
 class LongSummaryStatistics -> java.util.LongSummaryStatistics extends LongConsumer,Object {
-  LongSummaryStatistics <init>()
+  ()
   void combine(LongSummaryStatistics)
   double getAverage()
   long getCount()
@@ -842,7 +842,7 @@ class Objects -> java.util.Objects extends Object {
 }
 
 class Observable -> java.util.Observable extends Object {
-  Observable <init>()
+  ()
   void addObserver(Observer)
   int countObservers()
   void deleteObserver(Observer)
@@ -901,13 +901,13 @@ class OptionalLong -> java.util.OptionalLong extends Object {
 }
 
 class PriorityQueue -> java.util.PriorityQueue extends AbstractQueue,Queue,AbstractCollection,Collection,Iterable,Object {
-  PriorityQueue <init>()
-  PriorityQueue <init>(Comparator)
+  ()
+  (Comparator)
 }
 
 class Random -> java.util.Random extends Object {
-  Random <init>()
-  Random <init>(long)
+  ()
+  (long)
   DoubleStream doubles(long)
   DoubleStream doubles(long,double,double)
   IntStream ints(long)
@@ -929,10 +929,10 @@ class SimpleTimeZone -> java.util.SimpleTimeZone extends TimeZone,Object {
   int STANDARD_TIME
   int UTC_TIME
   int WALL_TIME
-  SimpleTimeZone <init>(int,String)
-  SimpleTimeZone <init>(int,String,int,int,int,int,int,int,int,int)
-  SimpleTimeZone <init>(int,String,int,int,int,int,int,int,int,int,int)
-  SimpleTimeZone <init>(int,String,int,int,int,int,int,int,int,int,int,int,int)
+  (int,String)
+  (int,String,int,int,int,int,int,int,int,int)
+  (int,String,int,int,int,int,int,int,int,int,int)
+  (int,String,int,int,int,int,int,int,int,int,int,int,int)
   int getDSTSavings()
   void setDSTSavings(int)
   void setEndRule(int,int,int)
@@ -956,7 +956,7 @@ class Spliterators -> java.util.Spliterators extends Object {
 }
 
 class Stack -> java.util.Stack extends Vector,AbstractList,List,AbstractCollection,Collection,Iterable,RandomAccess,Object {
-  Stack <init>()
+  ()
   def push(def)
   def pop()
   def peek()
@@ -965,8 +965,8 @@ class Stack -> java.util.Stack extends Vector,AbstractList,List,AbstractCollecti
 }
 
 class StringJoiner -> java.util.StringJoiner extends Object {
-  StringJoiner <init>(CharSequence)
-  StringJoiner <init>(CharSequence,CharSequence,CharSequence)
+  (CharSequence)
+  (CharSequence,CharSequence,CharSequence)
   StringJoiner add(CharSequence)
   int length()
   StringJoiner merge(StringJoiner)
@@ -974,9 +974,9 @@ class StringJoiner -> java.util.StringJoiner extends Object {
 }
 
 class StringTokenizer -> java.util.StringTokenizer extends Enumeration,Object {
-  StringTokenizer <init>(String)
-  StringTokenizer <init>(String,String)
-  StringTokenizer <init>(String,String,boolean)
+  (String)
+  (String,String)
+  (String,String,boolean)
   int countTokens()
   boolean hasMoreTokens()
   String nextToken()
@@ -1009,19 +1009,19 @@ class TimeZone -> java.util.TimeZone extends Object {
 }
 
 class TreeMap -> java.util.TreeMap extends AbstractMap,NavigableMap,SortedMap,Map,Object {
-  TreeMap <init>()
-  TreeMap <init>(Comparator)
+  ()
+  (Comparator)
   def clone()
 }
 
 class TreeSet -> java.util.TreeSet extends AbstractSet,NavigableSet,SortedSet,Set,AbstractCollection,Collection,Iterable,Object {
-  TreeSet <init>()
-  TreeSet <init>(Comparator)
+  ()
+  (Comparator)
   def clone()
 }
 
 class UUID -> java.util.UUID extends Comparable,Object {
-  UUID <init>(long,long)
+  (long,long)
   int compareTo(UUID)
   int clockSequence()
   UUID fromString(String)
@@ -1035,8 +1035,8 @@ class UUID -> java.util.UUID extends Comparable,Object {
 }
 
 class Vector -> java.util.Vector extends AbstractList,List,AbstractCollection,Collection,Iterable,RandomAccess,Object {
-  Vector <init>()
-  Vector <init>(Collection)
+  ()
+  (Collection)
   void addElement(def)
   void copyInto(Object[])
   def elementAt(int)
@@ -1079,31 +1079,31 @@ class Locale.FilteringMode -> java.util.Locale$FilteringMode extends Enum,Compar
 #### Exceptions
 
 class ConcurrentModificationException -> java.util.ConcurrentModificationException extends RuntimeException,Exception,Object {
-  ConcurrentModificationException <init>()
-  ConcurrentModificationException <init>(String)
+  ()
+  (String)
 }
 
 class DuplicateFormatFlagsException -> java.util.DuplicateFormatFlagsException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
-  DuplicateFormatFlagsException <init>(String)
+  (String)
   String getFlags()
 }
 
 class EmptyStackException -> java.util.EmptyStackException extends RuntimeException,Exception,Object {
-  EmptyStackException <init>()
+  ()
 }
 
 class FormatFlagsConversionMismatchException -> java.util.FormatFlagsConversionMismatchException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
-  FormatFlagsConversionMismatchException <init>(String,char)
+  (String,char)
   char getConversion()
   String getFlags()
 }
 
 class FormatterClosedException -> java.util.FormatterClosedException extends IllegalStateException,RuntimeException,Exception,Object {
-  FormatterClosedException <init>()
+  ()
 }
 
 class IllegalFormatCodePointException -> java.util.IllegalFormatCodePointException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
-  IllegalFormatCodePointException <init>(int)
+  (int)
   int getCodePoint()
 }
 
@@ -1115,64 +1115,64 @@ class IllegalFormatException -> java.util.IllegalFormatException extends Illegal
 }
 
 class IllegalFormatFlagsException -> java.util.IllegalFormatFlagsException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
-  IllegalFormatFlagsException <init>(String)
+  (String)
   String getFlags()
 }
 
 class IllegalFormatPrecisionException -> java.util.IllegalFormatPrecisionException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
-  IllegalFormatPrecisionException <init>(int)
+  (int)
   int getPrecision()
 }
 
 class IllegalFormatWidthException -> java.util.IllegalFormatWidthException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
-  IllegalFormatWidthException <init>(int)
+  (int)
   int getWidth()
 }
 
 class IllformedLocaleException -> java.util.IllformedLocaleException extends RuntimeException,Exception,Object {
-  IllformedLocaleException <init>()
-  IllformedLocaleException <init>(String)
-  IllformedLocaleException <init>(String,int)
+  ()
+  (String)
+  (String,int)
   int getErrorIndex()
 }
 
 class InputMismatchException -> java.util.InputMismatchException extends NoSuchElementException,RuntimeException,Exception,Object {
-  InputMismatchException <init>()
-  InputMismatchException <init>(String)
+  ()
+  (String)
 }
 
 class MissingFormatArgumentException -> java.util.MissingFormatArgumentException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
-  MissingFormatArgumentException <init>(String)
+  (String)
   String getFormatSpecifier()
 }
 
 class MissingFormatWidthException -> java.util.MissingFormatWidthException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
-  MissingFormatWidthException <init>(String)
+  (String)
   String getFormatSpecifier()
 }
 
 class MissingResourceException -> java.util.MissingResourceException extends RuntimeException,Exception,Object {
-  MissingResourceException <init>(String,String,String)
+  (String,String,String)
   String getClassName()
   String getKey()
 }
 
 class NoSuchElementException -> java.util.NoSuchElementException extends RuntimeException,Exception,Object {
-  NoSuchElementException <init>()
-  NoSuchElementException <init>(String)
+  ()
+  (String)
 }
 
 class TooManyListenersException -> java.util.TooManyListenersException extends Exception,Object {
-  TooManyListenersException <init>()
-  TooManyListenersException <init>(String)
+  ()
+  (String)
 }
 
 class UnknownFormatConversionException -> java.util.UnknownFormatConversionException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
-  UnknownFormatConversionException <init>(String)
+  (String)
   String getConversion()
 }
 
 class UnknownFormatFlagsException -> java.util.UnknownFormatFlagsException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
-  UnknownFormatFlagsException <init>(String)
+  (String)
   String getFlags()
 }

@@ -28,8 +28,8 @@ class BigDecimal -> java.math.BigDecimal extends Number,Comparable,Object {
   BigDecimal ONE
   BigDecimal TEN
   BigDecimal ZERO
-  BigDecimal <init>(String)
-  BigDecimal <init>(String,MathContext)
+  (String)
+  (String,MathContext)
   BigDecimal abs()
   BigDecimal abs(MathContext)
   BigDecimal add(BigDecimal)
@@ -81,8 +81,8 @@ class BigInteger -> java.math.BigInteger extends Number,Comparable,Object {
   BigInteger ONE
   BigInteger TEN
   BigInteger ZERO
-  BigInteger <init>(String)
-  BigInteger <init>(String,int)
+  (String)
+  (String,int)
   BigInteger abs()
   BigInteger add(BigInteger)
   BigInteger and(BigInteger)
@@ -128,8 +128,8 @@ class MathContext -> java.math.MathContext extends Object {
   MathContext DECIMAL32
   MathContext DECIMAL64
   MathContext UNLIMITED
-  MathContext <init>(int)
-  MathContext <init>(int,RoundingMode)
+  (int)
+  (int,RoundingMode)
   int getPrecision()
   RoundingMode getRoundingMode()
 }

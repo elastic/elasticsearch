@@ -1,7 +1,7 @@
 [[authorization]]
 == Configuring Role-based Access Control
 
-{security} introduces the concept of _authorization_ to Elasticsearch.
+{security} introduces the concept of _authorization_ to {es}.
 Authorization is the process of determining whether the user behind an incoming
 request is allowed to execute it. This process takes place once a request is
 successfully authenticated and the user behind the request is identified.
@@ -14,7 +14,7 @@ The authorization process revolves around the following 5 constructs:
 
 _Secured Resource_::
 A resource to which access is restricted. Indices/aliases, documents, fields,
-users and the Elasticsearch cluster itself are all examples of secured objects.
+users and the {es} cluster itself are all examples of secured objects.
 
 _Privilege_::
 A named group representing one or more actions that a user may execute against a
@@ -38,7 +38,7 @@ A named sets of permissions
 _User_::
 The authenticated user.
 
-A secure Elasticsearch cluster manages the privileges of users through _roles_.
+A secure {es} cluster manages the privileges of users through _roles_.
 A role has a unique name and identifies a set of permissions that translate to
 privileges on resources. A user can be associated with an arbitrary number of
 roles. The total set of permissions that a user has is therefore defined by
@@ -66,20 +66,21 @@ NOTE: This role does *not* provide the ability to create indices; those privileg
 must be defined in a separate role.
 
 [[built-in-roles-kibana-system]] `kibana_system` ::
-Grants access necessary for the <<kibana, Kibana system user>>
-to read from and write to the Kibana indices and check the availability of the
-Elasticsearch cluster.
+Grants access necessary for the {kib} system user
+to read from and write to the {kib} indices and check the availability of the
+{es} cluster. For more information, see
+{kibana-ref}/using-kibana-with-security.html[Configuring Security in {kib}]
 +
 NOTE: This role should not be assigned to users as the granted permissions may
 change between releases.
 
 [[built-in-roles-kibana-user]] `kibana_user`::
-Grants the minimum privileges required for any user of Kibana. This role grants
-access to the Kibana indices and grants  monitoring privileges for the cluster.
+Grants the minimum privileges required for any user of {kib}. This role grants
+access to the {kib} indices and grants  monitoring privileges for the cluster.
 
 [[built-in-roles-logstash-system]] `logstash_system` ::
 Grants access necessary for the <<ls-monitoring-user, Logstash system user>>
-to send system-level data (such as monitoring) to Elasticsearch.
+to send system-level data (such as monitoring) to {es}.
 +
 NOTE: This role should not be assigned to users as the granted permissions may
 change between releases.
@@ -97,8 +98,8 @@ read access to the `.ml-notifications` and `.ml-anomalies*` indices,
 which store {ml} results.
 
 [[built-in-roles-monitoring-user]] `monitoring_user`::
-Grants the minimum privileges required for any user of Monitoring other than those
-required to use Kibana. This role grants access to the monitoring indices.
+Grants the minimum privileges required for any user of {monitoring} other than those
+required to use {kib}. This role grants access to the monitoring indices.
 Monitoring users should also be assigned the `kibana_user` role.
 
 [[built-in-roles-remote-monitoring-agent]] `remote_monitoring_agent`::
@@ -106,8 +107,8 @@ Grants the minimum privileges required for a remote monitoring agent to write da
 into this cluster.
 
 [[built-in-roles-reporting-user]] `reporting_user`::
-Grants the specific privileges required for users of Reporting other than those
-required to use Kibana. This role grants access to the reporting indices. Reporting
+Grants the specific privileges required for users of {reporting} other than those
+required to use {kib}. This role grants access to the reporting indices. Reporting
 users should also be assigned the `kibana_user` role and a role that grants them
 access to the data that will be used to generate reports with.
 
@@ -239,7 +240,7 @@ The following snippet shows an example definition of a `clicks_admin` role:
 Based on the above definition, users owning the `clicks_admin` role can:
 
   * Impersonate the `clicks_watcher_1` user and execute requests on its behalf.
-  * Monitor the Elasticsearch cluster
+  * Monitor the {es} cluster
   * Read data from all indices prefixed with `events-`
   * Within these indices, only read the events of the `click` category
   * Within these document, only read the `category`, `@timestamp` and `message`
@@ -248,7 +249,7 @@ Based on the above definition, users owning the `clicks_admin` role can:
 TIP:  For a complete list of available <<security-privileges, cluster and indices privileges>>
 
 There are two available mechanisms to define roles: using the _Role Management APIs_
-or in local files on the Elasticsearch nodes.  {security} also supports implementing
+or in local files on the {es} nodes.  {security} also supports implementing
 custom roles providers.  If you need to integrate with another system to retrieve
 user roles, you can build a custom roles provider plugin. For more information,
 see <<custom-roles-provider, Custom Roles Provider Extension>>.
@@ -257,9 +258,10 @@ see <<custom-roles-provider, Custom Roles Provider Extension>>.
 [[roles-management-ui]]
 === Role Management UI
 
-If you are a Kibana user, make sure to <<installing-xpack, install {xpack} in Kibana>>.
-This enables you to easily manage users and roles from within Kibana. To manage roles,
-log in to Kibana and go to *Management / Elasticsearch / Roles*.
+If you are a {kib} user, make sure to
+<<installing-xpack, install {xpack} in {kib}>>.
+This enables you to easily manage users and roles from within {kib}. To manage roles,
+log in to {kib} and go to *Management / Elasticsearch / Roles*.
 
 [float]
 [[roles-management-api]]
@@ -267,7 +269,7 @@ log in to Kibana and go to *Management / Elasticsearch / Roles*.
 
 The _Role Management APIs_ enable you to add, update, remove and retrieve roles
 dynamically. When you use the APIs to manage roles in the `native` realm, the
-roles are stored in an internal Elasticsearch index.
+roles are stored in an internal {es} index.
 
 [[roles-api-add]]
 ==== Adding a Role
@@ -376,7 +378,7 @@ _Role Management APIs_, the role found in the file will be used.
 
 While the _Role Management APIs_ is the preferred mechanism to define roles,
 using the `roles.yml` file becomes useful if you want to define fixed roles that
-no one (beside an administrator having physical access to the Elasticsearch nodes)
+no one (beside an administrator having physical access to the {es} nodes)
 would be able to change.
 
 [IMPORTANT]

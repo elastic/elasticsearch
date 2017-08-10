@@ -2,31 +2,32 @@
 === Monitoring and Security
 
 <<xpack-monitoring, {monitoring}>> consists of two components: an agent
-that you install on on each Elasticsearch and Logstash node, and a Monitoring UI
-in Kibana. The monitoring agent collects and indexes metrics from the nodes
-and you visualize the data through the Monitoring dashboards in Kibana. The agent
-can index data on the same Elasticsearch cluster, or send it to an external
+that you install on on each {es} and Logstash node, and a Monitoring UI
+in {kib}. The monitoring agent collects and indexes metrics from the nodes
+and you visualize the data through the Monitoring dashboards in {kib}. The agent
+can index data on the same {es} cluster, or send it to an external
 monitoring cluster.
 
 To use {monitoring} with {security} enabled, you need to
-<<kibana, set up Kibana to work with {security}>> and create at least one user
-for the Monitoring UI. If you are using an external monitoring cluster, you also
-need to configure a user for the monitoring agent and configure the agent to use
-the appropriate credentials when communicating with the monitoring cluster.
+{kibana-ref}/using-kibana-with-security.html[set up {kib} to work with {security}]
+and create at least one user for the Monitoring UI. If you are using an external
+monitoring cluster, you also need to configure a user for the monitoring agent
+and configure the agent to use the appropriate credentials when communicating
+with the monitoring cluster.
 
 [float]
 [[monitoring-ui-users]]
 ==== Setting Up Monitoring UI Users
 
-When {security} is enabled, Kibana users are prompted to log in when they access
-the UI. To use the Monitoring UI, a user must have access to the Kibana indices
+When {security} is enabled, {kib} users are prompted to log in when they access
+the UI. To use the Monitoring UI, a user must have access to the {kib} indices
 and permission to read from the monitoring indices.
 
 You set up Monitoring UI users on the cluster where the monitoring data is being
 stored. To grant all of the necessary permissions, assign the user the
 `monitoring_user` and `kibana_user` roles:
 
-* If you're using the `native` realm, you can assign roles through Kibana or
+* If you're using the `native` realm, you can assign roles through {kib} or
 with the <<managing-native-users, User Management API>>. For example, the following
 command creates a user named `jacknich` and assigns him the `kibana_user` and
 `monitoring_user` roles:
@@ -76,7 +77,7 @@ POST /_xpack/security/user/agent-user
 +
 
 . On each node in the cluster being monitored, configure a Monitoring HTTP exporter
-in `elasticsearch.yml` and restart Elasticsearch. In the exporter configuration,
+in `elasticsearch.yml` and restart {es}. In the exporter configuration,
 you need to:
 +
 --
@@ -103,7 +104,7 @@ If SSL/TLS is enabled on the monitoring cluster:
 .. Include the CA certificate in each node's trusted certificates in order to verify
    the identities of the nodes in the monitoring cluster.
 
-To add a CA certificate to an Elasticsearch node's trusted certificates, you
+To add a CA certificate to an {es} node's trusted certificates, you
 can specify the location of the PEM encoded certificate with the
 `certificate_authorities` setting:
 

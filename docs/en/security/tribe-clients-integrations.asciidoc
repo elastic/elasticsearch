@@ -22,7 +22,7 @@ or at least communicate with the cluster in a secured way:
 
 * <<hadoop, Apache Hadoop>>
 * <<logstash, Logstash>>
-* <<kibana, Kibana>>
+* {kibana-ref}/using-kibana-with-security.html[{kib}]
 * <<secure-monitoring, Monitoring>>
 * {kibana-ref}/secure-reporting.html[Reporting]
 
@@ -39,7 +39,5 @@ include::tribe-clients-integrations/hadoop.asciidoc[]
 include::tribe-clients-integrations/logstash.asciidoc[]
 
 include::tribe-clients-integrations/beats.asciidoc[]
-
-include::tribe-clients-integrations/kibana.asciidoc[]
 
 include::tribe-clients-integrations/monitoring.asciidoc[]

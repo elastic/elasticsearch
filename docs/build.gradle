@@ -92,7 +92,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/rest-api/security/authenticate.asciidoc',
         'en/rest-api/watcher/stats.asciidoc',
         'en/security/authorization.asciidoc',
-        'en/security/tribe-clients-integrations/logstash.asciidoc',
         'en/watcher/actions.asciidoc',
         'en/watcher/example-watches/watching-time-series-data.asciidoc',
 ]

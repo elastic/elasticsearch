@@ -21,7 +21,7 @@ the stack are connected to the cluster and therefore need to be secured as well,
 or at least communicate with the cluster in a secured way:
 
 * <<hadoop, Apache Hadoop>>
-* <<logstash, Logstash>>
+* {logstash-ref}/ls-security.html[Logstash]
 * {kibana-ref}/using-kibana-with-security.html[{kib}]
 * <<secure-monitoring, Monitoring>>
 * {kibana-ref}/secure-reporting.html[Reporting]
@@ -35,8 +35,6 @@ include::tribe-clients-integrations/java.asciidoc[]
 include::tribe-clients-integrations/http.asciidoc[]
 
 include::tribe-clients-integrations/hadoop.asciidoc[]
-
-include::tribe-clients-integrations/logstash.asciidoc[]
 
 include::tribe-clients-integrations/beats.asciidoc[]
 

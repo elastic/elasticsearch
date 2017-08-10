@@ -260,26 +260,10 @@ public class SimpleJodaTests extends ESTestCase {
         } else {
             assertThat(dateTime.getMillisOfSecond(), is(0));
         }
-    }
 
-    public void testThatFloatEpochsCanBeParsed() {
-
-        long millisFromEpoch = randomNonNegativeLong();
-
-        String epochFloatValue = String.format(Locale.US, "%d.%d", millisFromEpoch, randomNonNegativeLong());
-        FormatDateTimeFormatter formatter = Joda.forPattern("epoch_millis");
-
-        DateTime dateTime = formatter.parser().parseDateTime(epochFloatValue);
-
-        assertEquals(dateTime.getMillis(), millisFromEpoch);
-
-
-        epochFloatValue = String.format(Locale.US, "%d.%d", millisFromEpoch / 1000, randomNonNegativeLong());
-        formatter = Joda.forPattern("epoch_second");
-
-        dateTime = formatter.parser().parseDateTime(epochFloatValue);
-
-        assertEquals(dateTime.getMillis(), millisFromEpoch / 1000 * 1000);
+        // test floats get truncated
+        String epochFloatValue = String.format(Locale.US, "%d.%d", dateTime.getMillis() / (parseMilliSeconds ? 1L : 1000L), randomNonNegativeLong());
+        assertThat(formatter.parser().parseDateTime(epochFloatValue).getMillis(), is(dateTime.getMillis()));
     }
 
     public void testThatNegativeEpochsCanBeParsed() {
@@ -301,16 +285,26 @@ public class SimpleJodaTests extends ESTestCase {
             assertThat(dateTime.getSecondOfMinute(), is(20));
         }
 
+        // test floats get truncated
+        String epochFloatValue = String.format(Locale.US, "%d.%d", dateTime.getMillis() / (parseMilliSeconds ? 1L : 1000L), randomNonNegativeLong());
+        assertThat(formatter.parser().parseDateTime(epochFloatValue).getMillis(), is(dateTime.getMillis()));
+
         // every negative epoch must be parsed, no matter if exact the size or bigger
         if (parseMilliSeconds) {
             formatter.parser().parseDateTime("-100000000");
             formatter.parser().parseDateTime("-999999999999");
             formatter.parser().parseDateTime("-1234567890123");
             formatter.parser().parseDateTime("-1234567890123456789");
+
+            formatter.parser().parseDateTime("-1234567890123.9999");
+            formatter.parser().parseDateTime("-1234567890123456789.9999");
         } else {
             formatter.parser().parseDateTime("-100000000");
             formatter.parser().parseDateTime("-1234567890");
             formatter.parser().parseDateTime("-1234567890123456");
+
+            formatter.parser().parseDateTime("-1234567890.9999");
+            formatter.parser().parseDateTime("-1234567890123456.9999");
         }
     }
 

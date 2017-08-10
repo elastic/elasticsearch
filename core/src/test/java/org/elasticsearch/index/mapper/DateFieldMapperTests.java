@@ -225,8 +225,8 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        long millisFromEpoch = randomNonNegativeLong();
-        String epochFloatValue = String.format(Locale.US, "%d.%d", millisFromEpoch, randomNonNegativeLong());
+        double epochFloatMillisFromEpoch = (randomDouble() * 2 - 1) * 1000000;
+        String epochFloatValue = String.format(Locale.US, "%f", epochFloatMillisFromEpoch);
 
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -238,7 +238,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(millisFromEpoch, pointField.numericValue().longValue());
+        assertEquals((long)epochFloatMillisFromEpoch, pointField.numericValue().longValue());
     }
 
     public void testChangeLocale() throws IOException {

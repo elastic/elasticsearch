@@ -332,7 +332,7 @@ public class Joda {
         @Override
         public int parseInto(DateTimeParserBucket bucket, String text, int position) {
             boolean isPositive = text.startsWith("-") == false;
-            int firstDotIndex = text.indexOf((int)'.');
+            int firstDotIndex = text.indexOf('.');
             boolean isTooLong = (firstDotIndex == -1 ? text.length() : firstDotIndex) > estimateParsedLength();
 
             if (bucket.getZone() != DateTimeZone.UTC) {

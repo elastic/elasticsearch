@@ -151,8 +151,10 @@ bootstrap password is only intended to be a transient password that is used to
 help you set all the built-in user passwords.
 --
 
-.. If you have more than one node, you must configure SSL/TLS for inter-node
-communication. For more information, see
+.. If you have more than one node or a single node that listens on an external
+interface, you must configure SSL/TLS for inter-node communication. Single-node
+instances that use a loopback interface do not have this requirement.  For more
+information, see
 {xpack-ref}/encrypting-communications.html[Encrypting Communications].
 ... Generate node certificates. For example, you can use the `certgen` command
 line tool to generate a certificate authority and signed certificates for your
@@ -191,7 +193,7 @@ the `node.name` configuration setting, you must specify the full path to the
 node key file.
 <2> Alternatively, specify the full path to the node certificate.
 <3> Alternatively specify the full path to the CA certificate.
-<4> Disables the built-in token service. 
+<4> Disables the built-in token service.
 --
 
 .. Start {es}.

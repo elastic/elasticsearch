@@ -39,4 +39,8 @@ public interface ClusterApplier {
      * @param listener callback that is invoked after cluster state is applied
      */
     void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterStateTaskListener listener);
+
+
+    ClusterState.Builder newClusterStateBuilder();
+
 }

@@ -157,7 +157,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertNotNull(clusterStateResponse.getState().custom(RestoreInProgress.TYPE));
         assertNotNull(clusterStateResponse.getState().custom(SnapshotDeletionsInProgress.TYPE));
         internalCluster().ensureAtLeastNumDataNodes(2);
-        if (randomBoolean() || true) {
+        if (randomBoolean()) {
             internalCluster().fullRestart();
         } else {
             internalCluster().rollingRestart();

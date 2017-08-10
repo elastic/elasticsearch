@@ -776,7 +776,10 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         private ExecutableScript executable;
         private Map<String, Object> context;
 
-        public ScriptApplier(WorkerBulkByScrollTaskState taskWorker, ScriptService scriptService, Script script, Map<String, Object> params) {
+        public ScriptApplier(WorkerBulkByScrollTaskState taskWorker,
+                             ScriptService scriptService,
+                             Script script,
+                             Map<String, Object> params) {
             this.taskWorker = taskWorker;
             this.scriptService = scriptService;
             this.script = script;

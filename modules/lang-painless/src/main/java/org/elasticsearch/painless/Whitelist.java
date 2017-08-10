@@ -362,7 +362,7 @@ public final class Whitelist {
                             pDynamicTypeNames.add(pDynamicTypeName);
 
                         // Handle the case where Painless primitive/complex type names are listed.
-                        // Expects the following format: 'class' ID -> ID ( 'extends' ID ( ',' ID )* )? '{'
+                        // Expects the following format: 'class' ID -> ID ( 'extends' ID ( ',' ID )* )? '{' '\n'
                         } else if (line.startsWith("class ")) {
                             // Ensure the final token of the line is '{'.
                             if (line.endsWith("{") == false) {
@@ -545,7 +545,7 @@ public final class Whitelist {
 
                         // Handle a new Painless struct by resetting all the variables necessary to
                         // construct a new WStruct for the white-list.
-                        // Expects the following format: 'class' ID -> ID ( 'extends' ID ( ',' ID )* )? '{'
+                        // Expects the following format: 'class' ID -> ID ( 'extends' ID ( ',' ID )* )? '{' '\n'
                         if (line.startsWith("class ")) {
                             int extendsIndex = line.indexOf(" extends ");
                             String[] tokens =
@@ -567,6 +567,7 @@ public final class Whitelist {
 
                         // Handle the end of a Painless struct, by creating a new WStruct with all the previously gathered
                         // constructors, methods, augmented methods, and fields, and adding it the list of white-listed structs.
+                            // Expects the following format: '}' '\n'
                         } else if (line.equals("}")) {
                             if (pTypeName == null) {
                                 throw new IllegalArgumentException("invalid struct definition: extraneous closing bracket");
@@ -606,144 +607,169 @@ public final class Whitelist {
                                 throw new IllegalArgumentException("invalid object definition: expected a class name [" + line + "]");
                             }
 
-
+                            // Handle the case for a constructor definition.
+                            // // Expects the following format: '(' ( ID ( ',' ID )* )? ')' '\n'
                             if (line.startsWith("(")) {
+                                // Ensure the final token of the line is ')'.
                                 if (line.endsWith(")") == false) {
                                     throw new IllegalArgumentException(
                                         "invalid constructor definition: expected a closing parenthesis [" + line + "]");
                                 }
 
-                                String[] elements = line.substring(1, line.length() - 1).replaceAll("\\s+", "").split(",");
+                                String[] tokens = line.substring(1, line.length() - 1).replaceAll("\\s+", "").split(",");
 
-                                if ("".equals(elements[0])) {
-                                    elements = new String[0];
+                                // Handle the case for a constructor with no parameters.
+                                if ("".equals(tokens[0])) {
+                                    tokens = new String[0];
                                 }
 
-                                Class<?>[] jparameters = new Class<?>[elements.length];
+                                Class<?>[] jParameterClasses = new Class<?>[tokens.length];
 
-                                for (int parameter = 0; parameter < jparameters.length; ++parameter) {
+                                // Look up the Java class for each constructor parameter.
+                                for (int parameterCount = 0; parameterCount < jParameterClasses.length; ++parameterCount) {
                                     try {
-                                        jparameters[parameter] = getJClassFromPTypeName.apply(elements[parameter]);
+                                        jParameterClasses[parameterCount] = getJClassFromPTypeName.apply(tokens[parameterCount]);
                                     } catch (IllegalArgumentException iae) {
                                         throw new IllegalArgumentException(
-                                            "invalid constructor definition: invalid parameter [" + elements[parameter] + "]", iae);
+                                            "invalid constructor definition: invalid parameter [" + tokens[parameterCount] + "]", iae);
                                     }
                                 }
 
-                                Constructor<?> jconstructor;
+                                Constructor<?> jConstructor;
 
+                                // Look up the Java constructor using the specified constructor parameters.
                                 try {
-                                    jconstructor = jClass.getConstructor(jparameters);
+                                    jConstructor = jClass.getConstructor(jParameterClasses);
                                 } catch (NoSuchMethodException nsme) {
                                     throw new IllegalArgumentException(
                                         "invalid constructor definition: failed to look up constructor [" + line + "]", nsme);
                                 }
 
-                                wConstructors.add(new WConstructor(jconstructor, Arrays.asList(elements)));
+                                wConstructors.add(new WConstructor(jConstructor, Arrays.asList(tokens)));
+
+                            // Handle the case for a method or augmented method definition.
+                            // Expects the following format: ID ID? ID '(' ( ID ( ',' ID )* )? ')' '\n'
                             } else if (line.contains("(")) {
+                                // Ensure the final token of the line is ')'.
                                 if (line.endsWith(")") == false) {
                                     throw new IllegalArgumentException(
                                         "invalid method definition: expected a closing parenthesis [" + line + "]");
                                 }
 
-                                int index = line.indexOf('(');
-                                String[] elements = line.substring(0, index).split("\\s+");
-                                String methodname;
-                                Class<?> augmented;
+                                // Parse the tokens prior to the method parameters.
+                                int parameterIndex = line.indexOf('(');
+                                String[] tokens = line.substring(0, parameterIndex).split("\\s+");
 
-                                if (elements.length == 2) {
-                                    methodname = elements[1];
-                                    augmented = null;
-                                } else if (elements.length == 3) {
-                                    methodname = elements[2];
+                                String jMethodName;
+                                Class<?> jAugmentedClass;
+
+                                // Based on the number of tokens, look up the Java method name and if provided the Java augmented class.
+                                if (tokens.length == 2) {
+                                    jMethodName = tokens[1];
+                                    jAugmentedClass = null;
+                                } else if (tokens.length == 3) {
+                                    jMethodName = tokens[2];
 
                                     try {
-                                        augmented = Class.forName(elements[1], true, resource.getClassLoader());
+                                        jAugmentedClass = Class.forName(tokens[1], true, resource.getClassLoader());
                                     } catch (ClassNotFoundException cnfe) {
                                         throw new IllegalArgumentException(
-                                            "invalid method definition: augmented class [" + elements[1] + "] does not exist", cnfe);
+                                            "invalid method definition: augmented class [" + tokens[1] + "] does not exist", cnfe);
                                     }
                                 } else {
                                     throw new IllegalArgumentException("invalid method definition: unexpected format [" + line + "]");
                                 }
 
-                                String preturn = elements[0];
+                                String pReturnTypeName = tokens[0];
 
+                                // Look up the Java class for the method return type.
                                 try {
-                                    getJClassFromPTypeName.apply(preturn);
+                                    getJClassFromPTypeName.apply(pReturnTypeName);
                                 } catch (IllegalArgumentException iae) {
-                                    throw new IllegalArgumentException("invalid method definition: invalid return [" + preturn + "]", iae);
+                                    throw new IllegalArgumentException(
+                                        "invalid method definition: invalid return [" + pReturnTypeName + "]", iae);
                                 }
 
-                                elements = line.substring(index + 1, line.length() - 1).replaceAll("\\s+", "").split(",");
-                                Class<?>[] jparameters;
+                                // Parse the method parameters.
+                                tokens = line.substring(parameterIndex + 1, line.length() - 1).replaceAll("\\s+", "").split(",");
+                                Class<?>[] jParameterClasses;
 
-                                if ("".equals(elements[0])) {
-                                    elements = new String[0];
+                                // Handle the case for a method with no parameters.
+                                if ("".equals(tokens[0])) {
+                                    tokens = new String[0];
                                 }
 
-                                if (augmented == null) {
-                                    jparameters = new Class<?>[elements.length];
+                                // Look up the Java class for each method parameter.
+                                if (jAugmentedClass == null) {
+                                    jParameterClasses = new Class<?>[tokens.length];
 
-                                    for (int parameter = 0; parameter < jparameters.length; ++parameter) {
+                                    for (int parameterCount = 0; parameterCount < jParameterClasses.length; ++parameterCount) {
                                         try {
-                                            jparameters[parameter] = getJClassFromPTypeName.apply(elements[parameter]);
+                                            jParameterClasses[parameterCount] = getJClassFromPTypeName.apply(tokens[parameterCount]);
                                         } catch (IllegalArgumentException iae) {
                                             throw new IllegalArgumentException(
-                                                "invalid method definition: invalid parameter [" + elements[parameter] + "]", iae);
+                                                "invalid method definition: invalid parameter [" + tokens[parameterCount] + "]", iae);
                                         }
                                     }
                                 } else {
-                                    jparameters = new Class<?>[1 + elements.length];
-                                    jparameters[0] = jClass;
+                                    jParameterClasses = new Class<?>[1 + tokens.length];
+                                    jParameterClasses[0] = jClass;
 
-                                    for (int parameter = 1; parameter < jparameters.length; ++parameter) {
+                                    for (int parameterCount = 1; parameterCount < jParameterClasses.length; ++parameterCount) {
                                         try {
-                                            jparameters[parameter] = getJClassFromPTypeName.apply(elements[parameter - 1]);
+                                            jParameterClasses[parameterCount] = getJClassFromPTypeName.apply(tokens[parameterCount - 1]);
                                         } catch (IllegalArgumentException iae) {
                                             throw new IllegalArgumentException(
-                                                "invalid method definition: invalid parameter [" + elements[parameter - 1] + "]", iae);
+                                                "invalid method definition: invalid parameter [" + tokens[parameterCount - 1] + "]", iae);
                                         }
                                     }
                                 }
 
                                 Method jmethod;
 
+                                // Look up the Java method using the specified method return type, method name and method parameters.
                                 try {
-                                    jmethod = (augmented == null ? jClass : augmented).getMethod(methodname, jparameters);
+                                    jmethod =
+                                        (jAugmentedClass == null ? jClass : jAugmentedClass).getMethod(jMethodName, jParameterClasses);
                                 } catch (NoSuchMethodException nsme) {
                                     throw new IllegalArgumentException(
                                         "invalid method definition: failed to look up method [" + line + "]", nsme);
                                 }
 
-                                wMethods.add(new WMethod(jmethod, augmented, preturn, Arrays.asList(elements)));
+                                wMethods.add(new WMethod(jmethod, jAugmentedClass, pReturnTypeName, Arrays.asList(tokens)));
+                            // Handle the case for a field definition.
+                            // Expects the following format: ID ID '\n'
                             } else {
-                                String[] elements = line.split("\\s+");
+                                String[] tokens = line.split("\\s+");
 
-                                if (elements.length != 2) {
+                                // Ensure the correct number of tokens.
+                                if (tokens.length != 2) {
                                     throw new IllegalArgumentException("invalid field definition: unexpected format [" + line + "]");
                                 }
 
+                                // Look up the Java class for the field.
                                 try {
-                                    getJClassFromPTypeName.apply(elements[0]);
+                                    getJClassFromPTypeName.apply(tokens[0]);
                                 } catch (IllegalArgumentException iae) {
-                                    throw new IllegalArgumentException("invalid field definition: invalid type [" + elements[0] + "]", iae);
+                                    throw new IllegalArgumentException("invalid field definition: invalid type [" + tokens[0] + "]", iae);
                                 }
 
-                                Field jfield;
+                                Field jField;
 
+                                // Look up the Java field.
                                 try {
-                                    jfield = jClass.getField(elements[1]);
+                                    jField = jClass.getField(tokens[1]);
                                 } catch (NoSuchFieldException nsfe) {
                                     throw new IllegalArgumentException(
-                                        "invalid field definition: field [" + elements[0] + "] does not exist", nsfe);
+                                        "invalid field definition: field [" + tokens[0] + "] does not exist", nsfe);
                                 }
 
-                                wFields.add(new WField(jfield, elements[0]));
+                                wFields.add(new WField(jField, tokens[0]));
                             }
                         }
                     }
 
+                    // Ensure all structs end with a '}' token before the end of the file.
                     if (pTypeName != null) {
                         throw new IllegalArgumentException("invalid struct definition: expected closing bracket");
                     }
@@ -756,9 +782,13 @@ public final class Whitelist {
         return new Whitelist(pDynamicTypeNames, wStructs.values());
     }
 
+    /** The {@link List} of all the white-listed Painless dynamic type names. */
     final Set<String> pDynamicTypeNames;
+
+    /** The {@link Collection} of all the white-listed Painless structs. */
     final Collection<WStruct> wStructs;
 
+    /** Standard constructor. All values must be not {@code null}. */
     private Whitelist(Set<String> pDynamicTypeNames, Collection<WStruct> wStructs) {
         this.pDynamicTypeNames = Collections.unmodifiableSet(Objects.requireNonNull(pDynamicTypeNames));
         this.wStructs = Collections.unmodifiableCollection(Objects.requireNonNull(wStructs));

@@ -76,7 +76,7 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
                 new ParseField("number_of_significant_value_digits"));
     }
 
-    // The builder requires to parameters for the constructor: aggregation name and values array.  The
+    // The builder requires two parameters for the constructor: aggregation name and values array.  The
     // agg name is supplied externally via the Parser's context (as a String), while the values array
     // is parsed from the request and supplied to the ConstructingObjectParser as a ctor argument
     private static final ConstructingObjectParser<PercentileRanksAggregationBuilder, String> PARSER;
@@ -103,8 +103,7 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        // the aggregation name is supplied to the parser as a Context, a bit hacky but it works well
-        // in this situation
+        // the aggregation name is supplied to the parser as a Context. See note at top of Parser for more details
         return PARSER.parse(parser, aggregationName);
     }
 

@@ -137,7 +137,7 @@ public class QueryStringQueryParser extends XQueryParser {
      */
     public QueryStringQueryParser(QueryShardContext context, boolean lenient) {
         this(context, "*",
-            resolveMappingField(context, "*", 1.0f, false, false, false, null),
+            resolveMappingField(context, "*", 1.0f, false, false),
             lenient, context.getMapperService().searchAnalyzer());
     }
 
@@ -255,7 +255,7 @@ public class QueryStringQueryParser extends XQueryParser {
             boolean multiFields = Regex.isSimpleMatchPattern(field);
             // Filters unsupported fields if a pattern is requested
             // Filters metadata fields if all fields are requested
-            return resolveMappingField(context, field, 1.0f, !allFields, !multiFields, quoted, quoteFieldSuffix);
+            return resolveMappingField(context, field, 1.0f, !allFields, !multiFields, quoted ? quoteFieldSuffix : null);
         } else {
             return fieldsAndWeights;
         }

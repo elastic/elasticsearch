@@ -38,6 +38,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Helpers to extract and expand field names from a mapping
+ */
 public final class QueryParserHelper {
     // Mapping types the "all-ish" query can be executed against
     private static final Set<String> ALLOWED_QUERY_MAPPER_TYPES;
@@ -56,6 +59,11 @@ public final class QueryParserHelper {
 
     private QueryParserHelper() {}
 
+    /**
+     * Get a {@link FieldMapper} associated with a field name or null.
+     * @param mapperService The mapper service where to find the mapping.
+     * @param field The field name to search.
+     */
     public static FieldMapper getFieldMapper(MapperService mapperService, String field) {
         for (DocumentMapper mapper : mapperService.docMappers(true)) {
             FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper(field);
@@ -68,38 +76,70 @@ public final class QueryParserHelper {
 
     public static Map<String, Float> resolveMappingFields(QueryShardContext context,
                                                           Map<String, Float> fieldsAndWeights) {
-        return resolveMappingFields(context, fieldsAndWeights, false, null);
+        return resolveMappingFields(context, fieldsAndWeights, null);
     }
 
+    /**
+     * Resolve all the field names and patterns present in the provided map with the
+     * {@link QueryShardContext} and returns a new map containing all the expanded fields with their original boost.
+     * @param context The context of the query.
+     * @param fieldsAndWeights The map of fields and weights to expand.
+     * @param fieldSuffix The suffix name to add to the expanded field names if a mapping exists for that name.
+     *                    The original name of the field is kept if adding the suffix to the field name does not point to a valid field
+     *                    in the mapping.
+     */
     public static Map<String, Float> resolveMappingFields(QueryShardContext context,
                                                           Map<String, Float> fieldsAndWeights,
-                                                          boolean quoted,
-                                                          String quoteFieldSuffix) {
+                                                          String fieldSuffix) {
         Map<String, Float> resolvedFields = new HashMap<>();
         for (Map.Entry<String, Float> fieldEntry : fieldsAndWeights.entrySet()) {
             boolean allField = Regex.isMatchAllPattern(fieldEntry.getKey());
             boolean multiField = Regex.isSimpleMatchPattern(fieldEntry.getKey());
             float weight = fieldEntry.getValue() == null ? 1.0f : fieldEntry.getValue();
             Map<String, Float> fieldMap = resolveMappingField(context, fieldEntry.getKey(), weight,
-                !multiField, !allField, quoted, quoteFieldSuffix);
+                !multiField, !allField, fieldSuffix);
             resolvedFields.putAll(fieldMap);
         }
         return resolvedFields;
     }
 
+    /**
+     * Resolves the provided pattern or field name from the {@link QueryShardContext} and return a map of
+     * the expanded fields with their original boost.
+     * @param context The context of the query
+     * @param fieldOrPattern The field name or the pattern to resolve
+     * @param weight The weight for the field
+     * @param acceptAllTypes Whether all field type should be added when a pattern is expanded.
+     *                       If false, only {@link #ALLOWED_QUERY_MAPPER_TYPES} are accepted and other field types
+     *                       are discarded from the query.
+     * @param acceptMetadataField Whether metadata fields should be added when a pattern is expanded.
+     */
     public static Map<String, Float> resolveMappingField(QueryShardContext context, String fieldOrPattern, float weight,
                                                          boolean acceptAllTypes, boolean acceptMetadataField) {
-        return resolveMappingField(context, fieldOrPattern, weight, acceptAllTypes, acceptMetadataField, false, null);
+        return resolveMappingField(context, fieldOrPattern, weight, acceptAllTypes, acceptMetadataField, null);
     }
 
+    /**
+     * Resolves the provided pattern or field name from the {@link QueryShardContext} and return a map of
+     * the expanded fields with their original boost.
+     * @param context The context of the query
+     * @param fieldOrPattern The field name or the pattern to resolve
+     * @param weight The weight for the field
+     * @param acceptAllTypes Whether all field type should be added when a pattern is expanded.
+     *                       If false, only {@link #ALLOWED_QUERY_MAPPER_TYPES} are accepted and other field types
+     *                       are discarded from the query.
+     * @param acceptMetadataField Whether metadata fields should be added when a pattern is expanded.
+     * @param fieldSuffix The suffix name to add to the expanded field names if a mapping exists for that name.
+     *                    The original name of the field is kept if adding the suffix to the field name does not point to a valid field
+     *                    in the mapping.
+     */
     public static Map<String, Float> resolveMappingField(QueryShardContext context, String fieldOrPattern, float weight,
-                                                         boolean acceptAllTypes, boolean acceptMetadataField,
-                                                         boolean quoted, String quoteFieldSuffix) {
+                                                         boolean acceptAllTypes, boolean acceptMetadataField, String fieldSuffix) {
         Collection<String> allFields = context.simpleMatchToIndexNames(fieldOrPattern);
         Map<String, Float> fields = new HashMap<>();
         for (String fieldName : allFields) {
-            if (quoted && quoteFieldSuffix != null && context.fieldMapper(fieldName + quoteFieldSuffix) != null) {
-                fieldName = fieldName + quoteFieldSuffix;
+            if (fieldSuffix != null && context.fieldMapper(fieldName + fieldSuffix) != null) {
+                fieldName = fieldName + fieldSuffix;
             }
             FieldMapper mapper = getFieldMapper(context.getMapperService(), fieldName);
             if (mapper == null) {

@@ -172,7 +172,10 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
             settings.quoteFieldSuffix(in.readOptionalString());
             if (in.getVersion().before(Version.V_6_0_0_beta2)) {
-                in.readOptionalBoolean();
+                Boolean useAllFields = in.readOptionalBoolean();
+                if (useAllFields != null && useAllFields) {
+                    useAllFields(true);
+                }
             }
         }
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
@@ -206,7 +209,11 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
             out.writeOptionalString(settings.quoteFieldSuffix());
             if (out.getVersion().before(Version.V_6_0_0_beta2)) {
-                out.writeOptionalBoolean(null);
+                if (useAllFields()) {
+                    out.writeOptionalBoolean(true);
+                } else {
+                    out.writeOptionalBoolean(null);
+                }
             }
         }
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {

@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queryparser.simple.SimpleQueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -52,7 +53,7 @@ import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQue
  * Wrapper class for Lucene's SimpleQueryStringQueryParser that allows us to redefine
  * different types of queries.
  */
-public class SimpleQueryStringQueryParser extends org.apache.lucene.queryparser.simple.SimpleQueryParser {
+public class SimpleQueryStringQueryParser extends SimpleQueryParser {
 
     private final Settings settings;
     private QueryShardContext context;
@@ -150,7 +151,7 @@ public class SimpleQueryStringQueryParser extends org.apache.lucene.queryparser.
             queryBuilder.setPhraseSlop(slop);
             Map<String, Float> phraseWeights;
             if (settings.quoteFieldSuffix() != null) {
-                phraseWeights = QueryParserHelper.resolveMappingFields(context, weights, true, settings.quoteFieldSuffix());
+                phraseWeights = QueryParserHelper.resolveMappingFields(context, weights, settings.quoteFieldSuffix());
             } else {
                 phraseWeights = weights;
             }

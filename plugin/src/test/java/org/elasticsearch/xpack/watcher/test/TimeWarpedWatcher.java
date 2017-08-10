@@ -26,10 +26,9 @@ import java.util.stream.Stream;
 
 public class TimeWarpedWatcher extends Watcher {
 
-    private static final Logger logger = Loggers.getLogger(TimeWarpedWatcher.class);
-
     public TimeWarpedWatcher(Settings settings) {
         super(settings);
+        Logger logger = Loggers.getLogger(TimeWarpedWatcher.class, settings);
         logger.info("using time warped watchers plugin");
     }
 

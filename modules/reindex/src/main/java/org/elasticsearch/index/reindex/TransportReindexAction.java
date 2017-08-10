@@ -121,8 +121,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             () -> {
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
                     bulkByScrollTask);
-                return new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, request, scriptService, state,
-                    listener);
+                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, request, scriptService, state,
+                    listener).start();
             }
         );
     }

@@ -134,11 +134,13 @@ public abstract class AbstractBaseReindexRestHandler<
         try {
             slices = Integer.parseInt(slicesString);
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("[slices] must be a positive integer or the string \"auto\"", e);
+            throw new IllegalArgumentException(
+                "[slices] must be a positive integer or the string \"auto\", but was [" + slicesString + "]", e);
         }
 
         if (slices < 1) {
-            throw new IllegalArgumentException("[slices] must be a positive integer or the string \"auto\"");
+            throw new IllegalArgumentException(
+                "[slices] must be a positive integer or the string \"auto\", but was [" + slicesString + "]");
         }
 
         return slices;

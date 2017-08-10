@@ -58,8 +58,8 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                 ClusterState state = clusterService.state();
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
                     bulkByScrollTask);
-                return new AsyncDeleteByQueryAction(bulkByScrollTask, logger, assigningClient, threadPool, request, scriptService, state,
-                    listener);
+                new AsyncDeleteByQueryAction(bulkByScrollTask, logger, assigningClient, threadPool, request, scriptService, state,
+                    listener).start();
             }
         );
     }

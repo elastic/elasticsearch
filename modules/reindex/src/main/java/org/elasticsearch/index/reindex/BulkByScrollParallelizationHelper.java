@@ -37,7 +37,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -52,9 +51,9 @@ class BulkByScrollParallelizationHelper {
     /**
      * Takes an action created by a {@link BulkByScrollTask} and runs it with regard to whether the request is sliced or not.
      *
-     * If the request is not sliced (i.e. the number of slices is 1), the action from the given {@link Supplier} will be started on the
-     * local node. If the request is sliced (i.e. the number of slices is more than 1), then a subrequest will be created for each slice
-     * and sent.
+     * If the request is not sliced (i.e. the number of slices is 1), the worker action in the given {@link Runnable} will be started on
+     * the local node. If the request is sliced (i.e. the number of slices is more than 1), then a subrequest will be created for each
+     * slice and sent.
      *
      * If slices are set as {@code "auto"}, this class will resolve that to a specific number based on characteristics of the source
      * indices. A request with {@code "auto"} slices may end up being sliced or unsliced.
@@ -66,7 +65,7 @@ class BulkByScrollParallelizationHelper {
             ActionListener<BulkByScrollResponse> listener,
             Client client,
             DiscoveryNode node,
-            Supplier<AbstractAsyncBulkByScrollAction<Request>> taskSupplier) {
+            Runnable workerAction) {
 
         if (request.getSlices() == AbstractBulkByScrollRequest.AUTO_SLICES) {
             ClusterSearchShardsRequest shardsRequest = new ClusterSearchShardsRequest();
@@ -74,12 +73,12 @@ class BulkByScrollParallelizationHelper {
             client.admin().cluster().searchShards(shardsRequest, ActionListener.wrap(
                 response -> {
                     int actualNumSlices = countSlicesBasedOnShards(response);
-                    sliceConditionally(request, task, action, listener, client, node, taskSupplier, actualNumSlices);
+                    sliceConditionally(request, task, action, listener, client, node, workerAction, actualNumSlices);
                 },
                 listener::onFailure
             ));
         } else {
-            sliceConditionally(request, task, action, listener, client, node, taskSupplier, request.getSlices());
+            sliceConditionally(request, task, action, listener, client, node, workerAction, request.getSlices());
         }
     }
 
@@ -90,7 +89,7 @@ class BulkByScrollParallelizationHelper {
             ActionListener<BulkByScrollResponse> listener,
             Client client,
             DiscoveryNode node,
-            Supplier<AbstractAsyncBulkByScrollAction<Request>> taskSupplier,
+            Runnable workerAction,
             int slices) {
 
         if (slices > 1) {
@@ -102,7 +101,7 @@ class BulkByScrollParallelizationHelper {
                 ? null
                 : sliceBuilder.getId();
             task.setWorker(request.getRequestsPerSecond(), sliceId);
-            taskSupplier.get().start();
+            workerAction.run();
         }
     }
 

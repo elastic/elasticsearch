@@ -346,7 +346,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     public Self setSlices(int slices) {
         if (slices < 0) {
-            throw new IllegalArgumentException("[slices] must be at least 0");
+            throw new IllegalArgumentException("[slices] must be at least 0 but was [" + slices + "]");
         }
         this.slices = slices;
         return self();
@@ -369,7 +369,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     protected Self doForSlice(Self request, TaskId slicingTask, int totalSlices) {
         if (totalSlices < 1) {
-            throw new IllegalArgumentException("Number of total slices must be at least one");
+            throw new IllegalArgumentException("Number of total slices must be at least 1 but was [" + totalSlices + "]");
         }
 
         request.setAbortOnVersionConflict(abortOnVersionConflict).setRefresh(refresh).setTimeout(timeout)

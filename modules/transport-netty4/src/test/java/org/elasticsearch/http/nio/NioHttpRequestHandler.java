@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.netty4.Netty4HttpRequest;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
+import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
 public class NioHttpRequestHandler {
 
@@ -51,7 +52,7 @@ public class NioHttpRequestHandler {
         this.resetCookies = resetCookies;
     }
 
-    public void handleMessage(Channel nettyChannel, Object msg) {
+    public void handleMessage(NioSocketChannel channel, Channel nettyChannel, Object msg) {
         final FullHttpRequest request;
         final HttpPipelinedRequest pipelinedRequest;
         if (this.httpPipeliningEnabled && msg instanceof HttpPipelinedRequest) {
@@ -71,14 +72,14 @@ public class NioHttpRequestHandler {
                 request.headers(),
                 request.trailingHeaders());
         final Netty4HttpRequest httpRequest = new Netty4HttpRequest(xContentRegistry, copy, nettyChannel);
-        final NioHttpChannel channel = new NioHttpChannel(httpRequest, pipelinedRequest, detailedErrorsEnabled, threadContext, corsConfig,
+        final NioHttpChannel httpChannel = new NioHttpChannel(httpRequest, pipelinedRequest, detailedErrorsEnabled, threadContext, corsConfig,
             resetCookies);
 
         if (request.decoderResult().isSuccess()) {
-            transport.dispatchRequest(httpRequest, channel);
+            transport.dispatchRequest(httpRequest, httpChannel);
         } else {
             assert request.decoderResult().isFailure();
-            transport.dispatchBadRequest(httpRequest, channel, request.decoderResult().cause());
+            transport.dispatchBadRequest(httpRequest, httpChannel, request.decoderResult().cause());
         }
     }
 }

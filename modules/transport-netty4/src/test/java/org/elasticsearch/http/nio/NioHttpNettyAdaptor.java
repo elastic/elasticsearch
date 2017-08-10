@@ -24,6 +24,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.channel.ChannelConfig;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
@@ -64,7 +65,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
 import static org.elasticsearch.http.netty4.Netty4HttpServerTransport.SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS;
 
-public class NioHttpNettyAdaptorFactory {
+public class NioHttpNettyAdaptor {
 
     private final BiConsumer<NioSocketChannel, Throwable> exceptionHandler;
     private final Netty4CorsConfig corsConfig;
@@ -78,8 +79,8 @@ public class NioHttpNettyAdaptorFactory {
     private final int maxInitialLineLength;
     private final int maxCompositeBufferComponents;
 
-    protected NioHttpNettyAdaptorFactory(Settings settings, BiConsumer<NioSocketChannel, Throwable> exceptionHandler,
-                                         Netty4CorsConfig config, int maxContentLength) {
+    protected NioHttpNettyAdaptor(Settings settings, BiConsumer<NioSocketChannel, Throwable> exceptionHandler,
+                                  Netty4CorsConfig config, int maxContentLength) {
         this.exceptionHandler = exceptionHandler;
         this.maxContentLength = maxContentLength;
         this.corsConfig = config;

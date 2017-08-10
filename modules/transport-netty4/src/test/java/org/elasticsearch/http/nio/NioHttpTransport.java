@@ -43,7 +43,6 @@ import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
-import org.elasticsearch.http.netty4.Netty4HttpChannel;
 import org.elasticsearch.http.netty4.Netty4HttpRequest;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -58,6 +57,7 @@ import org.elasticsearch.transport.nio.SocketSelector;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
+import org.elasticsearch.transport.nio.channel.TcpWriteContext;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -66,6 +66,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
@@ -83,10 +84,8 @@ public class NioHttpTransport extends AbstractLifecycleComponent implements Http
         new Setting<>("transport.nio.http.worker_count",
             (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
             (s) -> Setting.parseInt(s, 1, "transport.nio.worker_count"), Setting.Property.NodeScope);
-
     public static final Setting<Integer> NIO_HTTP_ACCEPTOR_COUNT =
         intSetting("transport.nio.http.acceptor_count", 1, 1, Setting.Property.NodeScope);
-
     public static final Setting<Boolean> SETTING_HTTP_TCP_NO_DELAY =
         boolSetting("http.tcp_no_delay", NetworkService.TCP_NO_DELAY, Setting.Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_TCP_KEEP_ALIVE =
@@ -98,8 +97,6 @@ public class NioHttpTransport extends AbstractLifecycleComponent implements Http
     public static final Setting<ByteSizeValue> SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE =
         Setting.byteSizeSetting("http.tcp.receive_buffer_size", NetworkService.TCP_RECEIVE_BUFFER_SIZE, Setting.Property.NodeScope);
 
-
-
     private final PortsRange port;
     private final NetworkService networkService;
     private final BigArrays bigArrays;
@@ -108,11 +105,17 @@ public class NioHttpTransport extends AbstractLifecycleComponent implements Http
     private final Dispatcher dispatcher;
     private final String[] publishHosts;
     private final String bindHosts[];
-    private OpenChannels openChannels;
+    private final Consumer<NioSocketChannel> contextSetter;
     private final ByteSizeValue maxContentLength;
+    private OpenChannels openChannels;
     private ArrayList<SocketSelector> socketSelectors;
     private ArrayList<AcceptingSelector> acceptors;
     private BoundTransportAddress boundAddress;
+    private final boolean tcpNoDelay;
+    private final boolean tcpKeepAlive;
+    private final boolean tcpReuseAddress;
+    private final int tcpSendBufferSize;
+    private final int tcpReceiveBufferSize;
     private int acceptorNumber;
 
     public NioHttpTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
@@ -132,6 +135,13 @@ public class NioHttpTransport extends AbstractLifecycleComponent implements Http
         this.publishHosts = (httpPublishHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings) : httpPublishHost)
             .toArray(Strings.EMPTY_ARRAY);
         maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
+
+        contextSetter = (c) -> c.setContexts(new HttpReadContext(c, null, null), new TcpWriteContext(c));
+        tcpNoDelay = SETTING_HTTP_TCP_NO_DELAY.get(settings);
+        tcpKeepAlive = SETTING_HTTP_TCP_KEEP_ALIVE.get(settings);
+        tcpReuseAddress = SETTING_HTTP_TCP_REUSE_ADDRESS.get(settings);
+        tcpSendBufferSize = Math.toIntExact(SETTING_HTTP_TCP_SEND_BUFFER_SIZE.get(settings).getBytes());
+        tcpReceiveBufferSize = Math.toIntExact(SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE.get(settings).getBytes());
     }
 
     @Override
@@ -141,10 +151,10 @@ public class NioHttpTransport extends AbstractLifecycleComponent implements Http
             this.openChannels = new OpenChannels(logger);
 
             socketSelectors = NioSelectors.socketSelectors(settings, () -> new SocketEventHandler(logger, this::exceptionCaught),
-                NioTransport.NIO_WORKER_COUNT.get(settings), TRANSPORT_WORKER_THREAD_NAME_PREFIX);
+                NIO_HTTP_WORKER_COUNT.get(settings), TRANSPORT_WORKER_THREAD_NAME_PREFIX);
 
             acceptors = NioSelectors.acceptingSelectors(logger, settings, openChannels, socketSelectors,
-                NioTransport.NIO_ACCEPTOR_COUNT.get(settings), TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX);
+                NIO_HTTP_ACCEPTOR_COUNT.get(settings), TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX);
 
             this.boundAddress = createBoundHttpAddress();
             if (logger.isInfoEnabled()) {
@@ -298,7 +308,10 @@ public class NioHttpTransport extends AbstractLifecycleComponent implements Http
                 synchronized (this) {
                     AcceptingSelector selector = acceptors.get(++acceptorNumber % NioTransport.NIO_ACCEPTOR_COUNT.get(settings));
                     InetSocketAddress address = new InetSocketAddress(hostAddress, portNumber);
-                    ChannelFactory channelFactory = new ChannelFactory(null, null);
+
+                    ChannelFactory.RawChannelFactory rawChannelFactory = new ChannelFactory.RawChannelFactory(tcpNoDelay, tcpKeepAlive,
+                        tcpReuseAddress, tcpSendBufferSize, tcpReceiveBufferSize);
+                    ChannelFactory channelFactory = new ChannelFactory(rawChannelFactory, contextSetter);
                     NioServerSocketChannel serverChannel = channelFactory.openNioServerSocketChannel("http-server", address, selector);
                     selector.scheduleForRegistration(serverChannel);
                     boundSocket.set(serverChannel.getLocalAddress());

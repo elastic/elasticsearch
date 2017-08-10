@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -41,14 +40,14 @@ import org.elasticsearch.transport.nio.channel.CloseFuture;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
+import org.elasticsearch.transport.nio.channel.TcpReadContext;
+import org.elasticsearch.transport.nio.channel.TcpWriteContext;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ThreadFactory;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -69,7 +68,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
     public static final Setting<Integer> NIO_ACCEPTOR_COUNT =
         intSetting("transport.nio.acceptor_count", 1, 1, Setting.Property.NodeScope);
 
-    private final TcpReadHandler tcpReadHandler = new TcpReadHandler(this);
+    private final Consumer<NioSocketChannel> contextSetter;
     private final ConcurrentMap<String, ChannelFactory> profileToChannelFactory = newConcurrentMap();
     private final OpenChannels openChannels = new OpenChannels(logger);
     private ArrayList<AcceptingSelector> acceptors;
@@ -80,6 +79,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
     public NioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                         NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super("nio", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+        contextSetter = (c) -> c.setContexts(new TcpReadContext(c, new TcpReadHandler(this)), new TcpWriteContext(c));
     }
 
     @Override
@@ -176,7 +176,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
 
                 // loop through all profiles and start them up, special handling for default one
                 for (ProfileSettings profileSettings : profileSettings) {
-                    profileToChannelFactory.putIfAbsent(profileSettings.profileName, new ChannelFactory(profileSettings, tcpReadHandler));
+                    profileToChannelFactory.putIfAbsent(profileSettings.profileName, new ChannelFactory(profileSettings, contextSetter));
                     bindServer(profileSettings);
                 }
             } else {
@@ -213,7 +213,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
 
     private NioClient createClient() {
         Supplier<SocketSelector> selectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
-        ChannelFactory channelFactory = new ChannelFactory(new ProfileSettings(settings, "default"), tcpReadHandler);
+        ChannelFactory channelFactory = new ChannelFactory(new ProfileSettings(settings, "default"), contextSetter);
         return new NioClient(logger, openChannels, selectorSupplier, defaultConnectionProfile.getConnectTimeout(), channelFactory);
     }
 

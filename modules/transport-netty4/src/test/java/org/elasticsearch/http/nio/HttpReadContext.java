@@ -38,7 +38,7 @@ public class HttpReadContext implements ReadContext {
     private final LinkedList<NetworkBytesReference> references = new LinkedList<>();
     private final NioHttpRequestHandler requestHandler;
 
-    public HttpReadContext(NioSocketChannel channel, NioHttpNettyAdaptorFactory adaptor, NioHttpRequestHandler requestHandler) {
+    public HttpReadContext(NioSocketChannel channel, NioHttpNettyAdaptor adaptor, NioHttpRequestHandler requestHandler) {
         this.channel = channel;
         this.requestHandler = requestHandler;
         this.nettyPipelineAdaptor = adaptor.getAdaptor(channel);
@@ -65,7 +65,7 @@ public class HttpReadContext implements ReadContext {
 
         Object msg;
         while ((msg = nettyPipelineAdaptor.readInbound()) != null) {
-            requestHandler.handleMessage(nettyPipelineAdaptor, msg);
+            requestHandler.handleMessage(channel, nettyPipelineAdaptor, msg);
         }
 
         return bytesRead;
@@ -77,7 +77,7 @@ public class HttpReadContext implements ReadContext {
         } else {
             CompositeByteBuf byteBuf = Unpooled.compositeBuffer(size);
             for (NetworkBytesReference reference : references) {
-                byteBuf.addComponent(Unpooled.wrappedBuffer(reference.getReadByteBuffer()));
+                byteBuf.addComponent(true, Unpooled.wrappedBuffer(reference.getReadByteBuffer()));
             }
             return byteBuf;
         }

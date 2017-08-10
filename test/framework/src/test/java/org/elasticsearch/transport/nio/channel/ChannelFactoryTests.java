@@ -55,7 +55,7 @@ public class ChannelFactoryTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void setupFactory() throws IOException {
         rawChannelFactory = mock(ChannelFactory.RawChannelFactory.class);
-        channelFactory = new ChannelFactory(rawChannelFactory, mock(TcpReadHandler.class));
+        channelFactory = new ChannelFactory(rawChannelFactory, mock(Consumer.class));
         listener = mock(Consumer.class);
         socketSelector = mock(SocketSelector.class);
         acceptingSelector = mock(AcceptingSelector.class);

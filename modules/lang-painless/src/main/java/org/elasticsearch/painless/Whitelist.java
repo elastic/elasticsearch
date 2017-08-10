@@ -25,7 +25,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -81,25 +80,25 @@ public final class Whitelist {
         /** The {@link List} of Painless structs, as names, this struct extends. */
         final List<String> pSuperTypeNames;
 
-        /** The {@link List} of white-listed constructors ({@link WConstructor}s) available to this struct. */
-        final List<WConstructor> wConstructors;
+        /** The {@link Set} of white-listed constructors ({@link WConstructor}s) available to this struct. */
+        final Set<WConstructor> wConstructors;
 
-        /** The {@link List} of white-listed methods ({@link WMethod}s) available to this struct. */
-        final List<WMethod> wMethods;
+        /** The {@link Set} of white-listed methods ({@link WMethod}s) available to this struct. */
+        final Set<WMethod> wMethods;
 
-        /** The {@link List} of white-listed fields ({@link WField}s) available to this struct. */
-        final List<WField> wFields;
+        /** The {@link Set} of white-listed fields ({@link WField}s) available to this struct. */
+        final Set<WField> wFields;
 
         /** Standard constructor. All values must be not {@code null}. */
         private WStruct(String pTypeName, Class<?> jClass, List<String> pSuperTypeNames,
-                       List<WConstructor> wConstructors, List<WMethod> wMethods, List<WField> wFields) {
+                       Set<WConstructor> wConstructors, Set<WMethod> wMethods, Set<WField> wFields) {
             this.pTypeName = Objects.requireNonNull(pTypeName);
             this.jClass = Objects.requireNonNull(jClass);
             this.pSuperTypeNames = Collections.unmodifiableList(Objects.requireNonNull(pSuperTypeNames));
 
-            this.wConstructors = Collections.unmodifiableList(Objects.requireNonNull(wConstructors));
-            this.wMethods = Collections.unmodifiableList(Objects.requireNonNull(wMethods));
-            this.wFields = Collections.unmodifiableList(Objects.requireNonNull(wFields));
+            this.wConstructors = Collections.unmodifiableSet(Objects.requireNonNull(wConstructors));
+            this.wMethods = Collections.unmodifiableSet(Objects.requireNonNull(wMethods));
+            this.wFields = Collections.unmodifiableSet(Objects.requireNonNull(wFields));
         }
     }
 
@@ -121,6 +120,21 @@ public final class Whitelist {
         private WConstructor(Constructor<?> jConstructor, List<String> pParameterTypeNames) {
             this.jConstructor = Objects.requireNonNull(jConstructor);
             this.pParameterTypeNames = Collections.unmodifiableList(Objects.requireNonNull(pParameterTypeNames));
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            WConstructor that = (WConstructor)o;
+
+            return jConstructor.equals(that.jConstructor);
+        }
+
+        @Override
+        public int hashCode() {
+            return jConstructor.hashCode();
         }
     }
 
@@ -160,6 +174,21 @@ public final class Whitelist {
             this.pReturnTypeName = Objects.requireNonNull(pReturnTypeName);
             this.pParameterTypeNames = Collections.unmodifiableList(Objects.requireNonNull(pParameterTypeNames));
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            WMethod wMethod = (WMethod)o;
+
+            return jMethod.equals(wMethod.jMethod);
+        }
+
+        @Override
+        public int hashCode() {
+            return jMethod.hashCode();
+        }
     }
 
     /**
@@ -179,6 +208,21 @@ public final class Whitelist {
         private WField(Field jField, String pTypeName) {
             this.jField = Objects.requireNonNull(jField);
             this.pTypeName = Objects.requireNonNull(pTypeName);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            WField wField = (WField)o;
+
+            return jField.equals(wField.jField);
+        }
+
+        @Override
+        public int hashCode() {
+            return jField.hashCode();
         }
     }
 
@@ -337,125 +381,142 @@ public final class Whitelist {
                             }
 
                             String pTypeName = tokens[0];
-                            String jTypeName = tokens.length == 2 ? tokens[1] : pTypeName;
-                            Class<?> jClass;
-
-
-                            if ("void".equals(jTypeName)) {
-                                jClass = void.class;
-                            } else if ("boolean".equals(jTypeName)) {
-                                jClass = boolean.class;
-                            } else if ("byte".equals(jTypeName)) {
-                                jClass = byte.class;
-                            } else if ("short".equals(jTypeName)) {
-                                jClass = short.class;
-                            } else if ("char".equals(jTypeName)) {
-                                jClass = char.class;
-                            } else if ("int".equals(jTypeName)) {
-                                jClass = int.class;
-                            } else if ("long".equals(jTypeName)) {
-                                jClass = long.class;
-                            } else if ("float".equals(jTypeName)) {
-                                jClass = float.class;
-                            } else if ("double".equals(jTypeName)) {
-                                jClass = double.class;
-                            } else {
-                                jClass = Class.forName(jTypeName, true, resource.getClassLoader());
-                            }
 
                             if (pDynamicTypeNames.contains(pTypeName)) {
                                 throw new IllegalArgumentException(
-                                    "invalid struct definition: name [" + elements[1] + "] already defined as a dynamic");
+                                    "invalid struct definition: [" + pTypeName + "] already defined as a dynamic type name");
                             }
 
-                            Class<?> jduplicate = pTypeNamesToJClasses.get(pTypeName);
+                            String jClassName = tokens.length == 2 ? tokens[1] : pTypeName;
+                            Class<?> jClass;
 
-                            if (jduplicate != null && jduplicate.equals(jClass) == false) {
-                                throw new IllegalArgumentException("invalid struct definition: name [" + pTypeName + "]" +
-                                    " has been defined to be at least two different classes [" + jduplicate + "] and [" + jClass + "]");
+                            // Retrieve the Java class from the Java class name using the ClassLoader from
+                            // the current resource class to ensure the Java class exists.
+                            if ("void".equals(jClassName)) {
+                                jClass = void.class;
+                            } else if ("boolean".equals(jClassName)) {
+                                jClass = boolean.class;
+                            } else if ("byte".equals(jClassName)) {
+                                jClass = byte.class;
+                            } else if ("short".equals(jClassName)) {
+                                jClass = short.class;
+                            } else if ("char".equals(jClassName)) {
+                                jClass = char.class;
+                            } else if ("int".equals(jClassName)) {
+                                jClass = int.class;
+                            } else if ("long".equals(jClassName)) {
+                                jClass = long.class;
+                            } else if ("float".equals(jClassName)) {
+                                jClass = float.class;
+                            } else if ("double".equals(jClassName)) {
+                                jClass = double.class;
+                            } else {
+                                jClass = Class.forName(jClassName, true, resource.getClassLoader());
+                            }
+
+                            Class<?> jDuplicateClass = pTypeNamesToJClasses.get(pTypeName);
+
+                            // Ensure that if a Java class has already been associated with a Painless type name,
+                            // the same association is made if there are duplicate definitions.
+                            if (jDuplicateClass != null && jDuplicateClass.equals(jClass) == false) {
+                                throw new IllegalArgumentException("invalid struct definition: name [" + pTypeName + "] has been defined" +
+                                    " to be at least two different classes [" + jDuplicateClass + "] and [" + jClass + "]");
                             }
 
                             pTypeNamesToJClasses.put(pTypeName, jClass);
                         }
                     }
                 } catch (Exception exception) {
-                    throw new RuntimeException("error in [" + file + "] at line [" + number + "]", exception);
+                    throw new RuntimeException("error in [" + filepath + "] at line [" + number + "]", exception);
                 }
             }
         }
 
-        Map<String, WStruct> wstructs = new HashMap<>();
+        Map<String, WStruct> wStructs = new HashMap<>();
 
+        // Execute a second-pass through the white-list text files.  This will gather all the
+        // constructors, methods, augmented methods, and fields for each white-listed struct.
+        // Previously gathered data from the first-pass is used to ensure that all the type names
+        // specified for both Painless and Java are valid.
         for (Entry<Class<?>, List<String>> resourceToFiles : resourcesToFiles.entrySet()) {
             Class<?> resource = resourceToFiles.getKey();
             List<String> files = resourceToFiles.getValue();
 
-            Function<String, Class<?>> getClassFromName = pname -> {
-                int dimensions = 0;
-                int index = pname.indexOf('[');
-                String pnonarray = pname;
+            // Function to retrieve a Java class from a Painless type name with support
+            // for array-types using the ClassLoader from the current resource class to
+            // ensure the Java class exists.
+            Function<String, Class<?>> getJClassFromPTypeName = pTypeName -> {
+                int arrayDimensions = 0;
+                int firstBraceIndex = pTypeName.indexOf('[');
+                String pNonArrayTypeName = pTypeName;
 
-                if (index != -1) {
-                    int length = pname.length();
+                // Count the number of dimensions for a possible array type, and set the appropriate non-array type.
+                if (firstBraceIndex != -1) {
+                    int length = pTypeName.length();
 
-                    while (index < length) {
-                        if (pname.charAt(index) == '[' && ++index < length && pname.charAt(index++) == ']') {
-                            ++dimensions;
+                    while (firstBraceIndex < length) {
+                        if (pTypeName.charAt(firstBraceIndex) == '[' && ++firstBraceIndex < length &&
+                                pTypeName.charAt(firstBraceIndex++) == ']') {
+                            ++arrayDimensions;
                         } else {
-                            throw new IllegalArgumentException("invalid struct/dynamic name [" + pname + "]");
+                            throw new IllegalArgumentException("invalid struct/dynamic name [" + pTypeName + "]");
                         }
                     }
 
-                    pnonarray = pname.substring(0, pname.length() - dimensions*2);
+                    pNonArrayTypeName = pTypeName.substring(0, pTypeName.length() - arrayDimensions*2);
                 }
 
-                Class<?> clazz = pDynamicTypeNames.contains(pnonarray) ? Object.class : pTypeNamesToJClasses.get(pnonarray);
+                // Look up the non-array class using Object if the type is a dynamic.
+                Class<?> jClass =
+                    pDynamicTypeNames.contains(pNonArrayTypeName) ? Object.class : pTypeNamesToJClasses.get(pNonArrayTypeName);
 
-                if (clazz == null) {
-                    throw new IllegalArgumentException("invalid struct/dynamic name [" + pname + "]");
+                // Ensure the class has been white-listed.
+                if (jClass == null) {
+                    throw new IllegalArgumentException("invalid struct/dynamic name [" + pTypeName + "]");
                 }
 
-                if (dimensions > 0) {
-                    pnonarray = clazz.getName();
+                // If the Painless type name is an array type, look up the Java class for the array type.
+                if (arrayDimensions > 0) {
+                    String jNonArrayTypeName = jClass.getName();
 
-                    if ("boolean".equals(pnonarray)) {
-                        pnonarray = "Z";
-                    } else if ("byte".equals(pnonarray)) {
-                        pnonarray = "B";
-                    } else if ("short".equals(pnonarray)) {
-                        pnonarray = "S";
-                    } else if ("char".equals(pnonarray)) {
-                        pnonarray = "C";
-                    } else if ("int".equals(pnonarray)) {
-                        pnonarray = "I";
-                    } else if ("long".equals(pnonarray)) {
-                        pnonarray = "J";
-                    } else if ("float".equals(pnonarray)) {
-                        pnonarray = "F";
-                    } else if ("double".equals(pnonarray)) {
-                        pnonarray = "D";
-                    } else if ("void".equals(pnonarray)) {
-                        pnonarray = "V";
+                    if ("boolean".equals(jNonArrayTypeName)) {
+                        jNonArrayTypeName = "Z";
+                    } else if ("byte".equals(jNonArrayTypeName)) {
+                        jNonArrayTypeName = "B";
+                    } else if ("short".equals(jNonArrayTypeName)) {
+                        jNonArrayTypeName = "S";
+                    } else if ("char".equals(jNonArrayTypeName)) {
+                        jNonArrayTypeName = "C";
+                    } else if ("int".equals(jNonArrayTypeName)) {
+                        jNonArrayTypeName = "I";
+                    } else if ("long".equals(jNonArrayTypeName)) {
+                        jNonArrayTypeName = "J";
+                    } else if ("float".equals(jNonArrayTypeName)) {
+                        jNonArrayTypeName = "F";
+                    } else if ("double".equals(jNonArrayTypeName)) {
+                        jNonArrayTypeName = "D";
+                    } else if ("void".equals(jNonArrayTypeName)) {
+                        jNonArrayTypeName = "V";
                     } else {
-                        pnonarray = "L" + pnonarray + ";";
+                        jNonArrayTypeName = "L" + jNonArrayTypeName + ";";
                     }
 
-                    StringBuilder jarray = new StringBuilder();
+                    StringBuilder jArrayTypeName = new StringBuilder();
 
-                    for (int dimension = 0; dimension < dimensions; ++dimension) {
-                        jarray.append('[');
+                    for (int dimension = 0; dimension < arrayDimensions; ++dimension) {
+                        jArrayTypeName.append('[');
                     }
 
-                    jarray.append(pnonarray);
+                    jArrayTypeName.append(jNonArrayTypeName);
 
                     try {
-                        clazz = Class.forName(jarray.toString(), true, resource.getClassLoader());
+                        jClass = Class.forName(jArrayTypeName.toString(), true, resource.getClassLoader());
                     } catch (ClassNotFoundException cnfe) {
-                        throw new IllegalArgumentException("invalid struct/dynamic name [" + pname + "]", cnfe);
+                        throw new IllegalArgumentException("invalid struct/dynamic name [" + pTypeName + "]", cnfe);
                     }
                 }
 
-                return clazz;
+                return jClass;
             };
 
             for (String file : files) {
@@ -465,67 +526,86 @@ public final class Whitelist {
                 try (LineNumberReader reader = new LineNumberReader(
                     new InputStreamReader(resource.getResourceAsStream(file), StandardCharsets.UTF_8))) {
 
-                    String pname = null;
-                    Class<?> jclass = null;
-                    List<String> wsupers = null;
-                    List<WConstructor> wconstructors = null;
-                    List<WMethod> wmethods = null;
-                    List<WField> wfields = null;
+                    String pTypeName = null;
+                    Class<?> jClass = null;
+                    List<String> pSuperTypeNames = null;
+                    Set<WConstructor> wConstructors = null;
+                    Set<WMethod> wMethods = null;
+                    Set<WField> wFields = null;
 
                     while ((line = reader.readLine()) != null) {
                         number = reader.getLineNumber();
                         line = line.trim();
 
+                        // Skip any lines that are either blank or comments.  Also skip any dynamic headers
+                        // as there is no more useful information to gather from them in a second-pass.
                         if (line.length() == 0 || line.charAt(0) == '#' || line.startsWith("dynamic ")) {
                             continue;
                         }
 
+                        // Handle a new Painless struct by resetting all the variables necessary to
+                        // construct a new WStruct for the white-list.
+                        // Expects the following format: 'class' ID -> ID ( 'extends' ID ( ',' ID )* )? '{'
                         if (line.startsWith("class ")) {
-                            int index = line.indexOf(" extends ");
-                            String[] elements =
-                                line.substring(5, index == -1 ? line.length() - 1 : index).replaceAll("\\s+", "").split("->");
+                            int extendsIndex = line.indexOf(" extends ");
+                            String[] tokens =
+                                line.substring(5, extendsIndex == -1 ? line.length() - 1 : extendsIndex).replaceAll("\\s+", "").split("->");
 
-                            pname = elements[0];
-                            jclass = pTypeNamesToJClasses.get(pname);
-                            wsupers = Collections.emptyList();
-                            wconstructors = new ArrayList<>();
-                            wmethods = new ArrayList<>();
-                            wfields = new ArrayList<>();
+                            // Reset all the variables to support a new struct.
+                            pTypeName = tokens[0];
+                            jClass = pTypeNamesToJClasses.get(pTypeName);
+                            pSuperTypeNames = Collections.emptyList();
+                            wConstructors = new HashSet<>();
+                            wMethods = new HashSet<>();
+                            wFields = new HashSet<>();
 
-                            if (index != -1) {
-                                elements = line.substring(index + 9, line.length() - 1).replaceAll("\\s+", "").split(",");
-                                wsupers = Arrays.asList(elements);
+                            // If the Painless type extends other Painless types, parse the list of type names and store them.
+                            if (extendsIndex != -1) {
+                                tokens = line.substring(extendsIndex + 9, line.length() - 1).replaceAll("\\s+", "").split(",");
+                                pSuperTypeNames = Arrays.asList(tokens);
                             }
+
+                        // Handle the end of a Painless struct, by creating a new WStruct with all the previously gathered
+                        // constructors, methods, augmented methods, and fields, and adding it the list of white-listed structs.
                         } else if (line.equals("}")) {
-                            if (pname == null) {
+                            if (pTypeName == null) {
                                 throw new IllegalArgumentException("invalid struct definition: extraneous closing bracket");
                             }
 
-                            WStruct wStruct = wstructs.get(pname);
+                            WStruct wStruct = wStructs.get(pTypeName);
 
+                            // If this Painless struct has already been defined, merge the new constructors, methods, augmented
+                            // methods, and fields with the previous ones.
                             if (wStruct != null) {
-                                if (wsupers.equals(wStruct.pSuperTypeNames) == false) {
+                                // Ensure the super types are identical between the new struct and the old struct or merging
+                                // cannot be completed.
+                                if (pSuperTypeNames.equals(wStruct.pSuperTypeNames) == false) {
                                     throw new IllegalArgumentException("invalid struct definition: when attempting to merge " +
-                                        "type [" + pname + "] from multiple files, super types do not match");
+                                        "type [" + pTypeName + "] from multiple files, super types do not match");
                                 }
 
-                                wconstructors.addAll(wStruct.wConstructors);
-                                wmethods.addAll(wStruct.wMethods);
-                                wfields.addAll(wStruct.wFields);
+                                wConstructors.addAll(wStruct.wConstructors);
+                                wMethods.addAll(wStruct.wMethods);
+                                wFields.addAll(wStruct.wFields);
                             }
 
-                            wstructs.put(pname, new WStruct(pname, jclass, wsupers, wconstructors, wmethods, wfields));
+                            wStructs.put(pTypeName, new WStruct(pTypeName, jClass, pSuperTypeNames, wConstructors, wMethods, wFields));
 
-                            pname = null;
-                            jclass = null;
-                            wsupers = null;
-                            wconstructors = null;
-                            wmethods = null;
-                            wfields = null;
+                            // Set all the variables to null to ensure a new struct definition is found before other parsable values.
+                            pTypeName = null;
+                            jClass = null;
+                            pSuperTypeNames = null;
+                            wConstructors = null;
+                            wMethods = null;
+                            wFields = null;
+
+                        // Handle all other valid cases.
                         } else {
-                            if (pname == null) {
+                            // Ensure we have a defined struct before adding any constructors, methods, augmented methods, or fields.
+                            if (pTypeName == null) {
                                 throw new IllegalArgumentException("invalid object definition: expected a class name [" + line + "]");
                             }
+
 
                             if (line.startsWith("(")) {
                                 if (line.endsWith(")") == false) {
@@ -543,7 +623,7 @@ public final class Whitelist {
 
                                 for (int parameter = 0; parameter < jparameters.length; ++parameter) {
                                     try {
-                                        jparameters[parameter] = getClassFromName.apply(elements[parameter]);
+                                        jparameters[parameter] = getJClassFromPTypeName.apply(elements[parameter]);
                                     } catch (IllegalArgumentException iae) {
                                         throw new IllegalArgumentException(
                                             "invalid constructor definition: invalid parameter [" + elements[parameter] + "]", iae);
@@ -553,13 +633,13 @@ public final class Whitelist {
                                 Constructor<?> jconstructor;
 
                                 try {
-                                    jconstructor = jclass.getConstructor(jparameters);
+                                    jconstructor = jClass.getConstructor(jparameters);
                                 } catch (NoSuchMethodException nsme) {
                                     throw new IllegalArgumentException(
                                         "invalid constructor definition: failed to look up constructor [" + line + "]", nsme);
                                 }
 
-                                wconstructors.add(new WConstructor(jconstructor, Arrays.asList(elements)));
+                                wConstructors.add(new WConstructor(jconstructor, Arrays.asList(elements)));
                             } else if (line.contains("(")) {
                                 if (line.endsWith(")") == false) {
                                     throw new IllegalArgumentException(
@@ -590,7 +670,7 @@ public final class Whitelist {
                                 String preturn = elements[0];
 
                                 try {
-                                    getClassFromName.apply(preturn);
+                                    getJClassFromPTypeName.apply(preturn);
                                 } catch (IllegalArgumentException iae) {
                                     throw new IllegalArgumentException("invalid method definition: invalid return [" + preturn + "]", iae);
                                 }
@@ -607,7 +687,7 @@ public final class Whitelist {
 
                                     for (int parameter = 0; parameter < jparameters.length; ++parameter) {
                                         try {
-                                            jparameters[parameter] = getClassFromName.apply(elements[parameter]);
+                                            jparameters[parameter] = getJClassFromPTypeName.apply(elements[parameter]);
                                         } catch (IllegalArgumentException iae) {
                                             throw new IllegalArgumentException(
                                                 "invalid method definition: invalid parameter [" + elements[parameter] + "]", iae);
@@ -615,11 +695,11 @@ public final class Whitelist {
                                     }
                                 } else {
                                     jparameters = new Class<?>[1 + elements.length];
-                                    jparameters[0] = jclass;
+                                    jparameters[0] = jClass;
 
                                     for (int parameter = 1; parameter < jparameters.length; ++parameter) {
                                         try {
-                                            jparameters[parameter] = getClassFromName.apply(elements[parameter - 1]);
+                                            jparameters[parameter] = getJClassFromPTypeName.apply(elements[parameter - 1]);
                                         } catch (IllegalArgumentException iae) {
                                             throw new IllegalArgumentException(
                                                 "invalid method definition: invalid parameter [" + elements[parameter - 1] + "]", iae);
@@ -630,13 +710,13 @@ public final class Whitelist {
                                 Method jmethod;
 
                                 try {
-                                    jmethod = (augmented == null ? jclass : augmented).getMethod(methodname, jparameters);
+                                    jmethod = (augmented == null ? jClass : augmented).getMethod(methodname, jparameters);
                                 } catch (NoSuchMethodException nsme) {
                                     throw new IllegalArgumentException(
                                         "invalid method definition: failed to look up method [" + line + "]", nsme);
                                 }
 
-                                wmethods.add(new WMethod(jmethod, augmented, preturn, Arrays.asList(elements)));
+                                wMethods.add(new WMethod(jmethod, augmented, preturn, Arrays.asList(elements)));
                             } else {
                                 String[] elements = line.split("\\s+");
 
@@ -645,7 +725,7 @@ public final class Whitelist {
                                 }
 
                                 try {
-                                    getClassFromName.apply(elements[0]);
+                                    getJClassFromPTypeName.apply(elements[0]);
                                 } catch (IllegalArgumentException iae) {
                                     throw new IllegalArgumentException("invalid field definition: invalid type [" + elements[0] + "]", iae);
                                 }
@@ -653,18 +733,18 @@ public final class Whitelist {
                                 Field jfield;
 
                                 try {
-                                    jfield = jclass.getField(elements[1]);
+                                    jfield = jClass.getField(elements[1]);
                                 } catch (NoSuchFieldException nsfe) {
                                     throw new IllegalArgumentException(
                                         "invalid field definition: field [" + elements[0] + "] does not exist", nsfe);
                                 }
 
-                                wfields.add(new WField(jfield, elements[0]));
+                                wFields.add(new WField(jfield, elements[0]));
                             }
                         }
                     }
 
-                    if (pname != null) {
+                    if (pTypeName != null) {
                         throw new IllegalArgumentException("invalid struct definition: expected closing bracket");
                     }
                 } catch (Exception exception) {
@@ -673,7 +753,7 @@ public final class Whitelist {
             }
         }
 
-        return new Whitelist(pDynamicTypeNames, wstructs.values());
+        return new Whitelist(pDynamicTypeNames, wStructs.values());
     }
 
     final Set<String> pDynamicTypeNames;

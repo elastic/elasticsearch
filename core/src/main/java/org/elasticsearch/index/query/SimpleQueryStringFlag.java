@@ -19,6 +19,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 
 import java.util.Locale;
 
@@ -28,18 +29,18 @@ import java.util.Locale;
 public enum SimpleQueryStringFlag {
     ALL(-1),
     NONE(0),
-    AND(SimpleQueryParser.AND_OPERATOR),
-    NOT(SimpleQueryParser.NOT_OPERATOR),
-    OR(SimpleQueryParser.OR_OPERATOR),
-    PREFIX(SimpleQueryParser.PREFIX_OPERATOR),
-    PHRASE(SimpleQueryParser.PHRASE_OPERATOR),
-    PRECEDENCE(SimpleQueryParser.PRECEDENCE_OPERATORS),
-    ESCAPE(SimpleQueryParser.ESCAPE_OPERATOR),
-    WHITESPACE(SimpleQueryParser.WHITESPACE_OPERATOR),
-    FUZZY(SimpleQueryParser.FUZZY_OPERATOR),
+    AND(SimpleQueryStringQueryParser.AND_OPERATOR),
+    NOT(SimpleQueryStringQueryParser.NOT_OPERATOR),
+    OR(SimpleQueryStringQueryParser.OR_OPERATOR),
+    PREFIX(SimpleQueryStringQueryParser.PREFIX_OPERATOR),
+    PHRASE(SimpleQueryStringQueryParser.PHRASE_OPERATOR),
+    PRECEDENCE(SimpleQueryStringQueryParser.PRECEDENCE_OPERATORS),
+    ESCAPE(SimpleQueryStringQueryParser.ESCAPE_OPERATOR),
+    WHITESPACE(SimpleQueryStringQueryParser.WHITESPACE_OPERATOR),
+    FUZZY(SimpleQueryStringQueryParser.FUZZY_OPERATOR),
     // NEAR and SLOP are synonymous, since "slop" is a more familiar term than "near"
-    NEAR(SimpleQueryParser.NEAR_OPERATOR),
-    SLOP(SimpleQueryParser.NEAR_OPERATOR);
+    NEAR(SimpleQueryStringQueryParser.NEAR_OPERATOR),
+    SLOP(SimpleQueryStringQueryParser.NEAR_OPERATOR);
 
     final int value;
 

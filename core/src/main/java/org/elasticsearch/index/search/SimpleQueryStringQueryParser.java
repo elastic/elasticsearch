@@ -16,10 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.query;
+package org.elasticsearch.index.search;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
@@ -29,35 +28,61 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.List;
 import java.util.ArrayList;
 
+import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
+
 /**
- * Wrapper class for Lucene's SimpleQueryParser that allows us to redefine
+ * Wrapper class for Lucene's SimpleQueryStringQueryParser that allows us to redefine
  * different types of queries.
  */
-public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.SimpleQueryParser {
+public class SimpleQueryStringQueryParser extends org.apache.lucene.queryparser.simple.SimpleQueryParser {
 
     private final Settings settings;
     private QueryShardContext context;
+    private final MultiMatchQuery queryBuilder;
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
-    public SimpleQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags,
-                             Settings settings, QueryShardContext context) {
+    public SimpleQueryStringQueryParser(Map<String, Float> weights, int flags,
+                                        Settings settings, QueryShardContext context) {
+        this(null, weights, flags, settings, context);
+    }
+
+    /** Creates a new parser with custom flags used to enable/disable certain features. */
+    public SimpleQueryStringQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags,
+                                        Settings settings, QueryShardContext context) {
         super(analyzer, weights, flags);
         this.settings = settings;
         this.context = context;
+        this.queryBuilder = new MultiMatchQuery(context);
+        this.queryBuilder.setAutoGenerateSynonymsPhraseQuery(settings.autoGenerateSynonymsPhraseQuery());
+        this.queryBuilder.setLenient(settings.lenient());
+        if (analyzer != null) {
+            this.queryBuilder.setAnalyzer(analyzer);
+        }
+    }
+
+    private Analyzer getAnalyzer(MappedFieldType ft) {
+        if (getAnalyzer() != null) {
+            return analyzer;
+        }
+        return ft.searchAnalyzer();
     }
 
     /**
@@ -71,45 +96,43 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
     }
 
     @Override
+    public void setDefaultOperator(BooleanClause.Occur operator) {
+        super.setDefaultOperator(operator);
+        queryBuilder.setOccur(operator);
+    }
+
+    @Override
     protected Query newTermQuery(Term term) {
-        MappedFieldType currentFieldType = context.fieldMapper(term.field());
-        if (currentFieldType == null || currentFieldType.tokenized()) {
-            return super.newTermQuery(term);
+        MappedFieldType ft = context.fieldMapper(term.field());
+        if (ft == null) {
+            return newUnmappedFieldQuery(term.field());
         }
-        return currentFieldType.termQuery(term.bytes(), context);
+        return ft.termQuery(term.bytes(), context);
     }
 
     @Override
     public Query newDefaultQuery(String text) {
-        List<Query> disjuncts = new ArrayList<>();
-        for (Map.Entry<String,Float> entry : weights.entrySet()) {
-            try {
-                Query q = createBooleanQuery(entry.getKey(), text, super.getDefaultOperator());
-                if (q != null) {
-                    disjuncts.add(wrapWithBoost(q, entry.getValue()));
-                }
-            } catch (RuntimeException e) {
-                rethrowUnlessLenient(e);
-            }
+        try {
+            return queryBuilder.parse(MultiMatchQueryBuilder.Type.MOST_FIELDS, weights, text, null);
+        } catch (IOException e) {
+            return rethrowUnlessLenient(new IllegalArgumentException(e.getMessage()));
         }
-        if (disjuncts.size() == 1) {
-            return disjuncts.get(0);
-        }
-        return new DisjunctionMaxQuery(disjuncts, 1.0f);
     }
 
-    /**
-     * Dispatches to Lucene's SimpleQueryParser's newFuzzyQuery, optionally
-     * lowercasing the term first
-     */
     @Override
     public Query newFuzzyQuery(String text, int fuzziness) {
         List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
+            final MappedFieldType ft = context.fieldMapper(fieldName);
+            if (ft == null) {
+                disjuncts.add(newUnmappedFieldQuery(fieldName));
+                continue;
+            }
             try {
-                final BytesRef term = getAnalyzer().normalize(fieldName, text);
-                Query query = new FuzzyQuery(new Term(fieldName, term), fuzziness);
+                final BytesRef term = getAnalyzer(ft).normalize(fieldName, text);
+                Query query = ft.fuzzyQuery(term, Fuzziness.fromEdits(fuzziness), FuzzyQuery.defaultPrefixLength,
+                    FuzzyQuery.defaultMaxExpansions, FuzzyQuery.defaultTranspositions);
                 disjuncts.add(wrapWithBoost(query, entry.getValue()));
             } catch (RuntimeException e) {
                 rethrowUnlessLenient(e);
@@ -123,50 +146,41 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
 
     @Override
     public Query newPhraseQuery(String text, int slop) {
-        List<Query> disjuncts = new ArrayList<>();
-        for (Map.Entry<String,Float> entry : weights.entrySet()) {
-            try {
-                String field = entry.getKey();
-                if (settings.quoteFieldSuffix() != null) {
-                    String quoteField = field + settings.quoteFieldSuffix();
-                    MappedFieldType quotedFieldType = context.fieldMapper(quoteField);
-                    if (quotedFieldType != null) {
-                        field = quoteField;
-                    }
-                }
-                Float boost = entry.getValue();
-                Query q = createPhraseQuery(field, text, slop);
-                if (q != null) {
-                    disjuncts.add(wrapWithBoost(q, boost));
-                }
-            } catch (RuntimeException e) {
-                rethrowUnlessLenient(e);
+        try {
+            queryBuilder.setPhraseSlop(slop);
+            Map<String, Float> phraseWeights;
+            if (settings.quoteFieldSuffix() != null) {
+                phraseWeights = QueryParserHelper.resolveMappingFields(context, weights, true, settings.quoteFieldSuffix());
+            } else {
+                phraseWeights = weights;
             }
+            return queryBuilder.parse(MultiMatchQueryBuilder.Type.PHRASE, phraseWeights, text, null);
+        } catch (IOException e) {
+            return rethrowUnlessLenient(new IllegalArgumentException(e.getMessage()));
+        } finally {
+            queryBuilder.setPhraseSlop(0);
         }
-        if (disjuncts.size() == 1) {
-            return disjuncts.get(0);
-        }
-        return new DisjunctionMaxQuery(disjuncts, 1.0f);
     }
 
-    /**
-     * Dispatches to Lucene's SimpleQueryParser's newPrefixQuery, optionally
-     * lowercasing the term first or trying to analyze terms
-     */
     @Override
     public Query newPrefixQuery(String text) {
         List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
+            final MappedFieldType ft = context.fieldMapper(fieldName);
+            if (ft == null) {
+                disjuncts.add(newUnmappedFieldQuery(fieldName));
+                continue;
+            }
             try {
                 if (settings.analyzeWildcard()) {
-                    Query analyzedQuery = newPossiblyAnalyzedQuery(fieldName, text);
+                    Query analyzedQuery = newPossiblyAnalyzedQuery(fieldName, text, getAnalyzer(ft));
                     if (analyzedQuery != null) {
                         disjuncts.add(wrapWithBoost(analyzedQuery, entry.getValue()));
                     }
                 } else {
-                    Term term = new Term(fieldName, getAnalyzer().normalize(fieldName, text));
-                    Query query = new PrefixQuery(term);
+                    BytesRef term = getAnalyzer(ft).normalize(fieldName, text);
+                    Query query = ft.prefixQuery(term.utf8ToString(), null, context);
                     disjuncts.add(wrapWithBoost(query, entry.getValue()));
                 }
             } catch (RuntimeException e) {
@@ -179,33 +193,10 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         return new DisjunctionMaxQuery(disjuncts, 1.0f);
     }
 
-    /**
-     * Checks if graph analysis should be enabled for the field depending
-     * on the provided {@link Analyzer}
-     */
-    protected Query createFieldQuery(Analyzer analyzer, BooleanClause.Occur operator, String field,
-                                     String queryText, boolean quoted, int phraseSlop) {
-        assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;
-
-        // Use the analyzer to get all the tokens, and then build an appropriate
-        // query based on the analysis chain.
-        try (TokenStream source = analyzer.tokenStream(field, queryText)) {
-            if (source.hasAttribute(DisableGraphAttribute.class)) {
-                /**
-                 * A {@link TokenFilter} in this {@link TokenStream} disabled the graph analysis to avoid
-                 * paths explosion. See {@link ShingleTokenFilterFactory} for details.
-                 */
-                setEnableGraphQueries(false);
-            }
-            Query query = super.createFieldQuery(source, operator, field, quoted, phraseSlop);
-            setEnableGraphQueries(true);
-            return query;
-        } catch (IOException e) {
-            throw new RuntimeException("Error analyzing query text", e);
-        }
-    }
-
     private static Query wrapWithBoost(Query query, float boost) {
+        if (query instanceof MatchNoDocsQuery) {
+            return query;
+        }
         if (boost != AbstractQueryBuilder.DEFAULT_BOOST) {
             return new BoostQuery(query, boost);
         }
@@ -217,10 +208,9 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      * {@code PrefixQuery} or a {@code BooleanQuery} made up
      * of {@code TermQuery}s and {@code PrefixQuery}s
      */
-    private Query newPossiblyAnalyzedQuery(String field, String termStr) {
+    private Query newPossiblyAnalyzedQuery(String field, String termStr, Analyzer analyzer) {
         List<List<BytesRef>> tlist = new ArrayList<> ();
-        // get Analyzer from superclass and tokenize the term
-        try (TokenStream source = getAnalyzer().tokenStream(field, termStr)) {
+        try (TokenStream source = analyzer.tokenStream(field, termStr)) {
             source.reset();
             List<BytesRef> currentPos = new ArrayList<>();
             CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
@@ -233,7 +223,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                         tlist.add(currentPos);
                         currentPos = new ArrayList<>();
                     }
-                    final BytesRef term = getAnalyzer().normalize(field, termAtt.toString());
+                    final BytesRef term = analyzer.normalize(field, termAtt.toString());
                     currentPos.add(term);
                     hasMoreTokens = source.incrementToken();
                 }
@@ -293,7 +283,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      * Class encapsulating the settings for the SimpleQueryString query, with
      * their default values
      */
-    static class Settings {
+    public static class Settings {
         /** Specifies whether lenient query parsing should be used. */
         private boolean lenient = SimpleQueryStringBuilder.DEFAULT_LENIENT;
         /** Specifies whether wildcards should be analyzed. */
@@ -307,10 +297,10 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
          * Generates default {@link Settings} object (uses ROOT locale, does
          * lowercase terms, no lenient parsing, no wildcard analysis).
          * */
-        Settings() {
+        public Settings() {
         }
 
-        Settings(Settings other) {
+        public Settings(Settings other) {
             this.lenient = other.lenient;
             this.analyzeWildcard = other.analyzeWildcard;
             this.quoteFieldSuffix = other.quoteFieldSuffix;

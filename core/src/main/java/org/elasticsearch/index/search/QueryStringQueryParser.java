@@ -21,7 +21,6 @@ package org.elasticsearch.index.search;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.Term;
@@ -49,18 +48,10 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.IpFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ScaledFloatFieldMapper;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -69,17 +60,14 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
 import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
+import static org.elasticsearch.index.search.QueryParserHelper.resolveMappingField;
 
 /**
  * A {@link XQueryParser} that uses the {@link MapperService} in order to build smarter
@@ -88,21 +76,7 @@ import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQue
  * to assemble the result logically.
  */
 public class QueryStringQueryParser extends XQueryParser {
-    // Mapping types the "all-ish" query can be executed against
-    private static final Set<String> ALLOWED_QUERY_MAPPER_TYPES;
     private static final String EXISTS_FIELD = "_exists_";
-
-    static {
-        ALLOWED_QUERY_MAPPER_TYPES = new HashSet<>();
-        ALLOWED_QUERY_MAPPER_TYPES.add(DateFieldMapper.CONTENT_TYPE);
-        ALLOWED_QUERY_MAPPER_TYPES.add(IpFieldMapper.CONTENT_TYPE);
-        ALLOWED_QUERY_MAPPER_TYPES.add(KeywordFieldMapper.CONTENT_TYPE);
-        for (NumberFieldMapper.NumberType nt : NumberFieldMapper.NumberType.values()) {
-            ALLOWED_QUERY_MAPPER_TYPES.add(nt.typeName());
-        }
-        ALLOWED_QUERY_MAPPER_TYPES.add(ScaledFloatFieldMapper.CONTENT_TYPE);
-        ALLOWED_QUERY_MAPPER_TYPES.add(TextFieldMapper.CONTENT_TYPE);
-    }
 
     private final QueryShardContext context;
     private final Map<String, Float> fieldsAndWeights;
@@ -162,8 +136,9 @@ public class QueryStringQueryParser extends XQueryParser {
      * @param lenient If set to `true` will cause format based failures (like providing text to a numeric field) to be ignored.
      */
     public QueryStringQueryParser(QueryShardContext context, boolean lenient) {
-        this(context, "*", resolveMappingField(context, "*", 1.0f, false, false),
-                lenient, context.getMapperService().searchAnalyzer());
+        this(context, "*",
+            resolveMappingField(context, "*", 1.0f, false, false, false, null),
+            lenient, context.getMapperService().searchAnalyzer());
     }
 
     private QueryStringQueryParser(QueryShardContext context, String defaultField,
@@ -175,69 +150,6 @@ public class QueryStringQueryParser extends XQueryParser {
         this.queryBuilder = new MultiMatchQuery(context);
         queryBuilder.setLenient(lenient);
         this.lenient = lenient;
-    }
-
-
-    private static FieldMapper getFieldMapper(MapperService mapperService, String field) {
-        for (DocumentMapper mapper : mapperService.docMappers(true)) {
-            FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper(field);
-            if (fieldMapper != null) {
-                return fieldMapper;
-            }
-        }
-        return null;
-    }
-
-    public static Map<String, Float> resolveMappingFields(QueryShardContext context, Map<String, Float> fieldsAndWeights) {
-        Map<String, Float> resolvedFields = new HashMap<>();
-        for (Map.Entry<String, Float> fieldEntry : fieldsAndWeights.entrySet()) {
-            boolean allField = Regex.isMatchAllPattern(fieldEntry.getKey());
-            boolean multiField = Regex.isSimpleMatchPattern(fieldEntry.getKey());
-            float weight = fieldEntry.getValue() == null ? 1.0f : fieldEntry.getValue();
-            Map<String, Float> fieldMap = resolveMappingField(context, fieldEntry.getKey(), weight,  !multiField, !allField);
-            resolvedFields.putAll(fieldMap);
-        }
-        return resolvedFields;
-    }
-
-    public static Map<String, Float> resolveMappingField(QueryShardContext context, String field, float weight,
-                                                         boolean acceptMetadataField, boolean acceptAllTypes) {
-        return resolveMappingField(context, field, weight, acceptMetadataField, acceptAllTypes, false, null);
-    }
-
-    /**
-     * Given a shard context, return a map of all fields in the mappings that
-     * can be queried. The map will be field name to a float of 1.0f.
-     */
-    private static Map<String, Float> resolveMappingField(QueryShardContext context, String field, float weight,
-                                                          boolean acceptAllTypes, boolean acceptMetadataField,
-                                                          boolean quoted, String quoteFieldSuffix) {
-        Collection<String> allFields = context.simpleMatchToIndexNames(field);
-        Map<String, Float> fields = new HashMap<>();
-        for (String fieldName : allFields) {
-            if (quoted && quoteFieldSuffix != null && context.fieldMapper(fieldName + quoteFieldSuffix) != null) {
-                fieldName = fieldName + quoteFieldSuffix;
-            }
-            FieldMapper mapper = getFieldMapper(context.getMapperService(), fieldName);
-            if (mapper == null) {
-                // Unmapped fields are not ignored
-                fields.put(field, weight);
-                continue;
-            }
-            if (acceptMetadataField == false && mapper instanceof MetadataFieldMapper) {
-                // Ignore metadata fields
-                continue;
-            }
-            // Ignore fields that are not in the allowed mapper types. Some
-            // types do not support term queries, and thus we cannot generate
-            // a special query for them.
-            String mappingType = mapper.fieldType().typeName();
-            if (acceptAllTypes == false && ALLOWED_QUERY_MAPPER_TYPES.contains(mappingType) == false) {
-                continue;
-            }
-            fields.put(fieldName, weight);
-        }
-        return fields;
     }
 
     @Override
@@ -577,22 +489,20 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     private Query getPrefixQuerySingle(String field, String termStr) throws ParseException {
-        currentFieldType = null;
         Analyzer oldAnalyzer = getAnalyzer();
         try {
             currentFieldType = context.fieldMapper(field);
-            if (currentFieldType != null) {
-                setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
-                Query query = null;
-                if (currentFieldType instanceof StringFieldType == false) {
-                    query = currentFieldType.prefixQuery(termStr, getMultiTermRewriteMethod(), context);
-                }
-                if (query == null) {
-                    query = getPossiblyAnalyzedPrefixQuery(currentFieldType.name(), termStr);
-                }
-                return query;
+            if (currentFieldType == null) {
+                return newUnmappedFieldQuery(field);
             }
-            return getPossiblyAnalyzedPrefixQuery(field, termStr);
+            setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
+            Query query = null;
+            if (currentFieldType instanceof StringFieldType == false) {
+                query = currentFieldType.prefixQuery(termStr, getMultiTermRewriteMethod(), context);
+            } else {
+                query = getPossiblyAnalyzedPrefixQuery(currentFieldType.name(), termStr);
+            }
+            return query;
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);
@@ -784,12 +694,12 @@ public class QueryStringQueryParser extends XQueryParser {
         Analyzer oldAnalyzer = getAnalyzer();
         try {
             currentFieldType = queryBuilder.context.fieldMapper(field);
-            if (currentFieldType != null) {
-                setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
-                Query query = super.getRegexpQuery(field, termStr);
-                return query;
+            if (currentFieldType == null) {
+                return newUnmappedFieldQuery(field);
             }
-            return super.getRegexpQuery(field, termStr);
+            setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
+            Query query = super.getRegexpQuery(field, termStr);
+            return query;
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);
@@ -862,31 +772,5 @@ public class QueryStringQueryParser extends XQueryParser {
             return queryBuilder.zeroTermsQuery();
         }
         return super.parse(query);
-    }
-
-    /**
-     * Checks if graph analysis should be enabled for the field depending
-     * on the provided {@link Analyzer}
-     */
-    protected Query createFieldQuery(Analyzer analyzer, BooleanClause.Occur operator, String field,
-                                     String queryText, boolean quoted, int phraseSlop) {
-        assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;
-
-        // Use the analyzer to get all the tokens, and then build an appropriate
-        // query based on the analysis chain.
-        try (TokenStream source = analyzer.tokenStream(field, queryText)) {
-            if (source.hasAttribute(DisableGraphAttribute.class)) {
-                /**
-                 * A {@link TokenFilter} in this {@link TokenStream} disabled the graph analysis to avoid
-                 * paths explosion. See {@link ShingleTokenFilterFactory} for details.
-                 */
-                setEnableGraphQueries(false);
-            }
-            Query query = super.createFieldQuery(source, operator, field, quoted, phraseSlop);
-            setEnableGraphQueries(true);
-            return query;
-        } catch (IOException e) {
-            throw new RuntimeException("Error analyzing query text", e);
-        }
     }
 }

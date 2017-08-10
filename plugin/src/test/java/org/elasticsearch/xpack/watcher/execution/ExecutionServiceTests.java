@@ -10,6 +10,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -18,6 +21,10 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
@@ -36,16 +43,18 @@ import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.input.Input;
+import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
+import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.transform.Transform;
+import org.elasticsearch.xpack.watcher.trigger.manual.ManualTrigger;
 import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -53,8 +62,10 @@ import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
@@ -67,6 +78,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.joda.time.DateTime.now;
+import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -496,7 +508,7 @@ public class ExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteInner() throws Exception {
-        DateTime now = now(DateTimeZone.UTC);
+        DateTime now = now(UTC);
         Watch watch = mock(Watch.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
@@ -571,7 +583,7 @@ public class ExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteInnerThrottled() throws Exception {
-        DateTime now = now(DateTimeZone.UTC);
+        DateTime now = now(UTC);
         Watch watch = mock(Watch.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
@@ -622,7 +634,7 @@ public class ExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteInnerConditionNotMet() throws Exception {
-        DateTime now = now(DateTimeZone.UTC);
+        DateTime now = now(UTC);
         Watch watch = mock(Watch.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
@@ -683,7 +695,7 @@ public class ExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteInnerConditionNotMetDueToException() throws Exception {
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        DateTime now = DateTime.now(UTC);
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn(getTestName());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
@@ -738,7 +750,7 @@ public class ExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteConditionNotMet() throws Exception {
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        DateTime now = DateTime.now(UTC);
         Watch watch = mock(Watch.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
@@ -911,6 +923,32 @@ public class ExecutionServiceTests extends ESTestCase {
 
         WatchRecord watchRecord = executionService.execute(ctx);
         assertThat(watchRecord.state(), is(ExecutionState.EXECUTION_NOT_NEEDED));
+    }
+
+    public void testUpdateWatchStatusDoesNotUpdateState() throws Exception {
+        WatchStatus status = new WatchStatus(DateTime.now(UTC), Collections.emptyMap());
+        Watch watch = new Watch("_id", new ManualTrigger(), new ExecutableNoneInput(logger), AlwaysCondition.INSTANCE, null, null,
+                Collections.emptyList(), null, status);
+
+        final AtomicBoolean assertionsTriggered = new AtomicBoolean(false);
+        doAnswer(invocation -> {
+            UpdateRequest request = (UpdateRequest) invocation.getArguments()[0];
+            try (XContentParser parser =
+                         XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, request.doc().source())) {
+                Map<String, Object> map = parser.map();
+                Map<String, String> state = ObjectPath.eval("status.state", map);
+                assertThat(state, is(nullValue()));
+                assertionsTriggered.set(true);
+            }
+
+            PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
+            future.onResponse(new UpdateResponse());
+            return future;
+        }).when(client).update(any());
+
+        executionService.updateWatchStatus(watch);
+
+        assertThat(assertionsTriggered.get(), is(true));
     }
 
     private Tuple<Condition, Condition.Result> whenCondition(final WatchExecutionContext context) {

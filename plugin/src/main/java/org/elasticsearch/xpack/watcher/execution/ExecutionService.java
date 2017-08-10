@@ -19,6 +19,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
@@ -338,7 +340,12 @@ public class ExecutionService extends AbstractComponent {
     public void updateWatchStatus(Watch watch) throws IOException {
         // at the moment we store the status together with the watch,
         // so we just need to update the watch itself
-        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(Watch.INCLUDE_STATUS_KEY, "true"));
+        // we do not want to update the status.state field, as it might have been deactivated inbetween
+        Map<String, String> parameters = MapBuilder.<String, String>newMapBuilder()
+                .put(Watch.INCLUDE_STATUS_KEY, "true")
+                .put(WatchStatus.INCLUDE_STATE, "false")
+                .immutableMap();
+        ToXContent.MapParams params = new ToXContent.MapParams(parameters);
         XContentBuilder source = JsonXContent.contentBuilder().
                 startObject()
                 .field(Watch.Field.STATUS.getPreferredName(), watch.status(), params)

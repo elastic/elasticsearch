@@ -56,7 +56,7 @@ The aggregations are defined in the {dfeed} as follows:
 PUT _xpack/ml/datafeeds/datafeed-farequote
 {
   "job_id":"farequote",
-  "indexes": ["farequote"],
+  "indices": ["farequote"],
   "types": ["response"],
   "aggregations": {
     "buckets": {

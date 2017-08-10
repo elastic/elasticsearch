@@ -54,6 +54,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
@@ -640,5 +641,29 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertNoFailures(response);
         assertHitCount(response, 2);
         assertSearchHits(response, "1", "3");
+    }
+
+    public void testInnerHitsInsideIndicesQuery() throws Exception {
+        assertAcked(prepareCreate("index1").addMapping("message", "comments", "type=nested"));
+        client().prepareIndex("index1", "message", "1").setSource(jsonBuilder().startObject()
+            .field("message", "quick brown fox")
+            .startArray("comments")
+            .startObject().field("message", "fox eat quick").endObject()
+            .startObject().field("message", "fox ate rabbit x y z").endObject()
+            .startObject().field("message", "rabbit got away").endObject()
+            .endArray()
+            .endObject()).get();
+        refresh();
+
+        SearchResponse response = client().prepareSearch()
+            .setQuery(indicesQuery(nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.None)
+                .innerHit(new InnerHitBuilder()), "index1"))
+            .get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits(), equalTo(2L));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).getNestedIdentity().getOffset(), equalTo(1));
     }
 }

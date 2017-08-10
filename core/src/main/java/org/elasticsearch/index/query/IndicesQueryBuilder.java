@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -230,6 +231,12 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
             return innerQuery.toQuery(context);
         }
         return noMatchQuery.toQuery(context);
+    }
+
+    @Override
+    protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
+        InnerHitContextBuilder.extractInnerHits(innerQuery, innerHits);
+        InnerHitContextBuilder.extractInnerHits(noMatchQuery, innerHits);
     }
 
     @Override

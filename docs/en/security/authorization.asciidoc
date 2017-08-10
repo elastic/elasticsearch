@@ -79,8 +79,9 @@ Grants the minimum privileges required for any user of {kib}. This role grants
 access to the {kib} indices and grants  monitoring privileges for the cluster.
 
 [[built-in-roles-logstash-system]] `logstash_system` ::
-Grants access necessary for the <<ls-monitoring-user, Logstash system user>>
-to send system-level data (such as monitoring) to {es}.
+Grants access necessary for the Logstash system user to send system-level data
+(such as monitoring) to {es}. For more information, see
+{logstash-ref}/ls-security.html[Configuring Security in Logstash].
 +
 NOTE: This role should not be assigned to users as the granted permissions may
 change between releases.

@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -40,7 +40,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.parseTypedKe
 /**
  * Represents a set of {@link Aggregation}s
  */
-public class Aggregations implements Iterable<Aggregation>, ToXContent {
+public class Aggregations implements Iterable<Aggregation>, ToXContentFragment {
 
     public static final String AGGREGATIONS_FIELD = "aggregations";
 

@@ -28,6 +28,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.ShardId;
@@ -552,7 +554,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
     }
 
-    public static class File implements ToXContent, Streamable {
+    public static class File implements ToXContentObject, Streamable {
         private String name;
         private long length;
         private long recovered;
@@ -663,7 +665,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
     }
 
-    public static class Index extends Timer implements ToXContent, Streamable {
+    public static class Index extends Timer implements ToXContentFragment, Streamable {
 
         private Map<String, File> fileDetails = new HashMap<>();
 

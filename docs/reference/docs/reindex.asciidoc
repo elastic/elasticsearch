@@ -440,6 +440,10 @@ version.
 To enable queries sent to older versions of Elasticsearch the `query` parameter
 is sent directly to the remote host without validation or modification.
 
+NOTE: Reindexing from remote clusters does not support
+<<docs-reindex-manual-slice, manual>> or
+<<docs-reindex-automatic-slice, automatic slicing>>.
+
 Reindexing from a remote server uses an on-heap buffer that defaults to a
 maximum size of 100mb. If the remote index includes very large documents you'll
 need to use a smaller batch size. The example below sets the batch size `10`

@@ -350,6 +350,11 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             OutOfRangeSpec.of(NumberType.INTEGER, "2147483648", "is out of range for an integer"),
             OutOfRangeSpec.of(NumberType.LONG, "9223372036854775808", "out of range for a long"),
 
+            OutOfRangeSpec.of(NumberType.BYTE, "-129", "is out of range for a byte"),
+            OutOfRangeSpec.of(NumberType.SHORT, "-32769", "is out of range for a short"),
+            OutOfRangeSpec.of(NumberType.INTEGER, "-2147483649", "is out of range for an integer"),
+            OutOfRangeSpec.of(NumberType.LONG, "-9223372036854775809", "out of range for a long"),
+
             OutOfRangeSpec.of(NumberType.HALF_FLOAT, "65520", "[half_float] supports only finite values"),
             OutOfRangeSpec.of(NumberType.FLOAT, "3.4028235E39", "[float] supports only finite values"),
             OutOfRangeSpec.of(NumberType.DOUBLE, "1.7976931348623157E309", "[double] supports only finite values"),

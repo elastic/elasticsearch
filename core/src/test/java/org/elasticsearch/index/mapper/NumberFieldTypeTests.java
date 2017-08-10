@@ -394,17 +394,19 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         final List<OutOfRangeSpec<Object>> inputs = Arrays.asList(
             OutOfRangeSpec.of(NumberType.BYTE, "128", "out of range for a byte"),
             OutOfRangeSpec.of(NumberType.BYTE, 128, "is out of range for a byte"),
+            OutOfRangeSpec.of(NumberType.BYTE, -129, "is out of range for a byte"),
 
             OutOfRangeSpec.of(NumberType.SHORT, "32768", "out of range for a short"),
-            OutOfRangeSpec.of(NumberType.SHORT, 327684, "is out of range for a short"),
+            OutOfRangeSpec.of(NumberType.SHORT, 32768, "is out of range for a short"),
+            OutOfRangeSpec.of(NumberType.SHORT, -32769, "is out of range for a short"),
 
             OutOfRangeSpec.of(NumberType.INTEGER, "2147483648", "out of range for an integer"),
             OutOfRangeSpec.of(NumberType.INTEGER, 2147483648L, "is out of range for an integer"),
+            OutOfRangeSpec.of(NumberType.INTEGER, -2147483649L, "is out of range for an integer"),
 
             OutOfRangeSpec.of(NumberType.LONG, "9223372036854775808", "out of range for a long"),
             OutOfRangeSpec.of(NumberType.LONG, new BigInteger("9223372036854775808"), " is out of range for a long"),
-            // lost precision, value is intended to be below Long.MAX_VALUE
-            OutOfRangeSpec.of(NumberType.LONG, 9223372036854775806d, "out of range for a long"),
+            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("-9223372036854775809"), " is out of range for a long"),
 
             OutOfRangeSpec.of(NumberType.HALF_FLOAT, "65520", "[half_float] supports only finite values"),
             OutOfRangeSpec.of(NumberType.FLOAT, "3.4028235E39", "[float] supports only finite values"),
@@ -440,23 +442,6 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                     e.getMessage(), containsString(item.message));
             }
         }
-    }
-
-    public void testBorderValues() {
-        final Map<NumberType, Object> inputs = new HashMap<>();
-        inputs.put(NumberType.BYTE, "127");
-        inputs.put(NumberType.BYTE, BigInteger.valueOf(127));
-        inputs.put(NumberType.SHORT, "32767");
-        inputs.put(NumberType.SHORT, BigInteger.valueOf(32767));
-        inputs.put(NumberType.INTEGER, "2147483647");
-        inputs.put(NumberType.INTEGER, BigInteger.valueOf(2147483647));
-        inputs.put(NumberType.LONG, "9223372036854775806");
-        inputs.put(NumberType.LONG, BigInteger.valueOf(9223372036854775806L));
-
-        inputs.forEach((type, value) -> {
-            Number result = type.parse(value, false);
-            assertEquals(value.toString(), result.toString());
-        });
     }
 
     static class OutOfRangeSpec<V> {

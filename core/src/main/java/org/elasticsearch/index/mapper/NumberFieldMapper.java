@@ -181,7 +181,6 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             Float parse(XContentParser parser, boolean coerce) throws IOException {
                 float parsed = parser.floatValue(coerce);
-
                 validateParsed(parsed);
                 return parsed;
             }

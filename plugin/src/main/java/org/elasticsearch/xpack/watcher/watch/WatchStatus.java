@@ -38,6 +38,8 @@ import static org.joda.time.DateTimeZone.UTC;
 
 public class WatchStatus implements ToXContentObject, Streamable {
 
+    public static final String INCLUDE_STATE = "include_state";
+
     private State state;
 
     @Nullable private DateTime lastChecked;
@@ -209,7 +211,9 @@ public class WatchStatus implements ToXContentObject, Streamable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Field.STATE.getPreferredName(), state, params);
+        if (params.paramAsBoolean(INCLUDE_STATE, true)) {
+            builder.field(Field.STATE.getPreferredName(), state, params);
+        }
         if (lastChecked != null) {
             builder.field(Field.LAST_CHECKED.getPreferredName(), lastChecked);
         }

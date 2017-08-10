@@ -10,12 +10,19 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
@@ -33,10 +40,13 @@ import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.input.Input;
+import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
+import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
+import org.elasticsearch.xpack.watcher.trigger.manual.ManualTrigger;
 import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Payload;
@@ -53,7 +63,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
@@ -939,6 +951,32 @@ public class ExecutionServiceTests extends ESTestCase {
         assertThat(queuedWatches, hasSize(queuedWatchCount));
         assertThat(queuedWatches.get(0).watchId(), is("_id" + (queuedWatchCount-1)));
         assertThat(queuedWatches.get(queuedWatches.size() - 1).watchId(), is("_id0"));
+    }
+
+    public void testUpdateWatchStatusDoesNotUpdateState() throws Exception {
+        WatchStatus status = new WatchStatus(DateTime.now(UTC), Collections.emptyMap());
+        Watch watch = new Watch("_id", new ManualTrigger(), new ExecutableNoneInput(logger), AlwaysCondition.INSTANCE, null, null,
+                Collections.emptyList(), null, status);
+
+        final AtomicBoolean assertionsTriggered = new AtomicBoolean(false);
+        doAnswer(invocation -> {
+            UpdateRequest request = (UpdateRequest) invocation.getArguments()[0];
+            try (XContentParser parser =
+                         XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, request.doc().source())) {
+                Map<String, Object> map = parser.map();
+                Map<String, String> state = ObjectPath.eval("status.state", map);
+                assertThat(state, is(nullValue()));
+                assertionsTriggered.set(true);
+            }
+
+            PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
+            future.onResponse(new UpdateResponse());
+            return future;
+        }).when(client).update(any());
+
+        executionService.updateWatchStatus(watch);
+
+        assertThat(assertionsTriggered.get(), is(true));
     }
 
     private WatchExecutionContext createMockWatchExecutionContext(String watchId, DateTime executionTime) {

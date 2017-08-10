@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.DayOfWeek;
@@ -357,7 +357,7 @@ public abstract class ScheduleTestCase extends ESTestCase {
         return randomBoolean() ? randomIntBetween(24, 40) : randomIntBetween(-60, -1);
     }
 
-    static class HourAndMinute implements ToXContent {
+    static class HourAndMinute implements ToXContentObject {
 
         int hour;
         int minute;

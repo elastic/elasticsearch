@@ -7,18 +7,29 @@ The get {dfeeds} API enables you to retrieve configuration information for
 
 ==== Request
 
+
+`GET _xpack/ml/datafeeds/<feed_id>` +
+
+`GET _xpack/ml/datafeeds/<feed_id>,<feed_id>` +
+
 `GET _xpack/ml/datafeeds/` +
 
-`GET _xpack/ml/datafeeds/<feed_id>`
+`GET _xpack/ml/datafeeds/_all` +
 
-//===== Description
+
+===== Description
+
+You can get information for multiple {dfeeds} in a single API request by using a
+comma-separated list of {dfeeds} or a wildcard expression. You can get
+information for all {dfeeds} by using `_all`, by specifying `*` as the
+`<feed_id>`, or by omitting the `<feed_id>`.
 
 ==== Path Parameters
 
 `feed_id`::
-  (string) Identifier for the {dfeed}.
-  This parameter does not support wildcards, but you can specify `_all` or
-  omit the `feed_id` to get information about all {dfeeds}.
+  (string) Identifier for the {dfeed}. It can be a {dfeed} identifier or a
+  wildcard expression. If you do not specify one of these options, the API
+  returns information about all {dfeeds}.
 
 
 ==== Results
@@ -35,7 +46,6 @@ The API returns the following information:
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API. For more information, see
 {xpack-ref}/security-privileges.html[Security Privileges].
-//<<privileges-list-cluster>>.
 
 
 ==== Examples
@@ -61,7 +71,7 @@ The API returns the following results:
       "job_id": "it-ops-kpi",
       "query_delay": "60s",
       "frequency": "150s",
-      "indexes": [
+      "indices": [
         "it_ops_metrics"
       ],
       "types": [
@@ -74,36 +84,9 @@ The API returns the following results:
           "boost": 1
         }
       },
-      "aggregations": {
-        "buckets": {
-          "date_histogram": {
-            "field": "@timestamp",
-            "interval": 30000,
-            "offset": 0,
-            "order": {
-              "_key": "asc"
-            },
-            "keyed": false,
-            "min_doc_count": 0
-          },
-          "aggregations": {
-            "events_per_min": {
-              "sum": {
-                "field": "events_per_min"
-              }
-            },
-            "@timestamp": {
-              "max": {
-                "field": "@timestamp"
-              }
-            }
-          }
-        }
-      },
       "scroll_size": 1000,
       "chunking_config": {
-        "mode": "manual",
-        "time_span": "30000000ms"
+        "mode": "auto"
       }
     }
   ]

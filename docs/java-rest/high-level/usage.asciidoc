@@ -66,7 +66,7 @@ dependencies {
 ==== Lucene Snapshot repository
 
 The very first releases of any major version (like a beta), might have been built on top of a Lucene Snapshot version.
-In such a case, you will need to define the Lucene Snapshot repository within your project.
+In such a case you will be unable to resolve the Lucene dependencies of the client.
 
 For example, if you want to use the `6.0.0-beta1` version which depends on Lucene `7.0.0-snapshot-00142c9`, you must
 define the following repository.

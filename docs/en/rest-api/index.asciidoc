@@ -8,7 +8,7 @@
 directly to configure and access {xpack} features.
 
 * <<info-api, Info API>>
-* Graph <<graph-explore-api, Explore API>>
+* <<graph-explore-api, Graph Explore API>>
 * <<ml-apis, Machine Learning APIs>>
 * <<security-api,Security APIs>>
 * <<watcher-api, Watcher APIs>>

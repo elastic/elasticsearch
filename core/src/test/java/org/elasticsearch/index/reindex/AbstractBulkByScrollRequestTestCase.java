@@ -45,16 +45,11 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
             original.setSize(between(0, Integer.MAX_VALUE));
         }
 
+        // it's not important how many slices there are, we just need a number for forSlice
         int actualSlices = between(2, 1000);
-        if (randomBoolean()) {
-            original.setSlices(actualSlices);
-        } else {
-            /*
-             * In this case we pretend that the true number of slices will be randomSlices, since we're just verifying the request
-             * behavior and not the slicing itself
-             */
-            original.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
-        }
+        original.setSlices(randomBoolean()
+            ? actualSlices
+            : AbstractBulkByScrollRequest.AUTO_SLICES);
 
         TaskId slicingTask = new TaskId(randomAlphaOfLength(5), randomLong());
         SearchRequest sliceRequest = new SearchRequest();

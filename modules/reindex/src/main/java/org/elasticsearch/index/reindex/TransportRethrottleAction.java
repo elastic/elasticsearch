@@ -60,12 +60,12 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
     static void rethrottle(Logger logger, String localNodeId, Client client, BulkByScrollTask task, float newRequestsPerSecond,
             ActionListener<TaskInfo> listener) {
 
-        if (task.isSliceChild()) {
+        if (task.isWorker()) {
             rethrottleChildTask(logger, localNodeId, task, newRequestsPerSecond, listener);
             return;
         }
 
-        if (task.isSlicesParent()) {
+        if (task.isLeader()) {
             rethrottleParentTask(logger, localNodeId, client, task, newRequestsPerSecond, listener);
             return;
         }
@@ -75,8 +75,8 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
 
     private static void rethrottleParentTask(Logger logger, String localNodeId, Client client, BulkByScrollTask task,
                                              float newRequestsPerSecond, ActionListener<TaskInfo> listener) {
-        final ParentBulkByScrollWorker parentWorker = task.getSlicesParentWorker();
-        final int runningSubtasks = parentWorker.runningSliceSubTasks();
+        final LeaderBulkByScrollTaskState leaderState = task.getLeaderState();
+        final int runningSubtasks = leaderState.runningSliceSubTasks();
 
         if (runningSubtasks > 0) {
             RethrottleRequest subRequest = new RethrottleRequest();
@@ -87,7 +87,7 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
             client.execute(RethrottleAction.INSTANCE, subRequest, ActionListener.wrap(
                 r -> {
                     r.rethrowFailures("Rethrottle");
-                    listener.onResponse(parentWorker.getStatusGivenSlicesTaskInfo(localNodeId, r.getTasks()));
+                    listener.onResponse(task.taskInfoGivenSubtaskInfo(localNodeId, r.getTasks()));
                 },
                 listener::onFailure));
         } else {
@@ -99,7 +99,7 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
     private static void rethrottleChildTask(Logger logger, String localNodeId, BulkByScrollTask task, float newRequestsPerSecond,
                                             ActionListener<TaskInfo> listener) {
         logger.debug("rethrottling local task [{}] to [{}] requests per second", task.getId(), newRequestsPerSecond);
-        task.getSliceChildWorker().rethrottle(newRequestsPerSecond);
+        task.getWorkerState().rethrottle(newRequestsPerSecond);
         listener.onResponse(task.taskInfo(localNodeId, true));
     }
 

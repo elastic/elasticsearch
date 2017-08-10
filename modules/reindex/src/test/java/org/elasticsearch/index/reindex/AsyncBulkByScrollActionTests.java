@@ -125,7 +125,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private String scrollId;
     private TaskManager taskManager;
     private BulkByScrollTask testTask;
-    private ChildBulkByScrollWorker worker;
+    private WorkerBulkByScrollTaskState worker;
     private Map<String, String> expectedHeaders = new HashMap<>();
     private DiscoveryNode localNode;
     private TaskId taskId;
@@ -143,8 +143,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         scrollId = null;
         taskManager = new TaskManager(Settings.EMPTY);
         testTask = (BulkByScrollTask) taskManager.register("don'tcare", "hereeither", testRequest);
-        testTask.setSliceChild(testRequest.getRequestsPerSecond());
-        worker = testTask.getSliceChildWorker();
+        testTask.setWorker(testRequest.getRequestsPerSecond(), null);
+        worker = testTask.getWorkerState();
 
         localNode = new DiscoveryNode("thenode", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         taskId = new TaskId(localNode.getId(), testTask.getId());

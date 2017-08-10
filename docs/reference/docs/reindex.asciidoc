@@ -926,8 +926,9 @@ though these are all taken at approximately the same time.
 [[docs-reindex-picking-slices]]
 ===== Picking the number of slices
 
-If slicing automatically, setting `slices` to `auto` will choose a good number
-for most indices.
+If slicing automatically, setting `slices` to `auto` will choose a reasonable
+number for most indices. If you're slicing manually or otherwise tuning
+automatic slicing, use these guidelines.
 
 Query performance is most efficient when the number of `slices` is equal to the
 number of shards in the index. If that number is large, (for example,

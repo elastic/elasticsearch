@@ -33,7 +33,7 @@ import static java.util.Collections.unmodifiableList;
 /**
  * Tracks the state of sliced subtasks and provides unified status information for a sliced BulkByScrollRequest.
  */
-public class ParentBulkByScrollWorker {
+public class LeaderBulkByScrollTaskState {
 
     private final BulkByScrollTask task;
 
@@ -47,7 +47,7 @@ public class ParentBulkByScrollWorker {
      */
     private final AtomicInteger runningSubtasks;
 
-    public ParentBulkByScrollWorker(BulkByScrollTask task, int slices) {
+    public LeaderBulkByScrollTaskState(BulkByScrollTask task, int slices) {
         this.task = task;
         this.slices = slices;
         results = new AtomicArray<>(slices);
@@ -61,11 +61,23 @@ public class ParentBulkByScrollWorker {
         return slices;
     }
 
-    public BulkByScrollTask.Status getStatus() {
+    /**
+     * Get the combined statuses of slice subtasks, merged with the given list of statuses
+     */
+    public BulkByScrollTask.Status getStatus(List<BulkByScrollTask.StatusOrException> statuses) {
         // We only have access to the statuses of requests that have finished so we return them
-        List<BulkByScrollTask.StatusOrException> statuses = Arrays.asList(new BulkByScrollTask.StatusOrException[results.length()]);
+        if (statuses.size() != results.length()) {
+            throw new IllegalArgumentException("Given number of statuses does not match amount of expected results");
+        }
         addResultsToList(statuses);
         return new BulkByScrollTask.Status(unmodifiableList(statuses), task.getReasonCancelled());
+    }
+
+    /**
+     * Get the combined statuses of sliced subtasks
+     */
+    public BulkByScrollTask.Status getStatus() {
+        return getStatus(Arrays.asList(new BulkByScrollTask.StatusOrException[results.length()]));
     }
 
     /**
@@ -73,22 +85,6 @@ public class ParentBulkByScrollWorker {
      */
     public int runningSliceSubTasks() {
         return runningSubtasks.get();
-    }
-
-    /**
-     * Build the status for this task given a snapshot of the information of running slices.
-     */
-    public TaskInfo getStatusGivenSlicesTaskInfo(String localNodeId, List<TaskInfo> sliceInfo) {
-        /* Merge the list of finished sub requests with the provided info. If a slice is both finished and in the list then we prefer the
-         * finished status because we don't expect them to change after the task is finished. */
-        List<BulkByScrollTask.StatusOrException> sliceStatuses = Arrays.asList(new BulkByScrollTask.StatusOrException[results.length()]);
-        for (TaskInfo t : sliceInfo) {
-            BulkByScrollTask.Status status = (BulkByScrollTask.Status) t.getStatus();
-            sliceStatuses.set(status.getSliceId(), new BulkByScrollTask.StatusOrException(status));
-        }
-        addResultsToList(sliceStatuses);
-        BulkByScrollTask.Status status = new BulkByScrollTask.Status(sliceStatuses, task.getReasonCancelled());
-        return task.taskInfo(localNodeId, task.getDescription(), status);
     }
 
     private void addResultsToList(List<BulkByScrollTask.StatusOrException> sliceStatuses) {

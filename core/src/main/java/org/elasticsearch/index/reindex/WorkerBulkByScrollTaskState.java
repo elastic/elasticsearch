@@ -40,9 +40,9 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 /**
  * Task behavior for {@link BulkByScrollTask} that does the actual work of querying and indexing
  */
-public class ChildBulkByScrollWorker implements SuccessfullyProcessed {
+public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
 
-    private static final Logger logger = Loggers.getLogger(ChildBulkByScrollWorker.class);
+    private static final Logger logger = Loggers.getLogger(WorkerBulkByScrollTaskState.class);
 
     private final BulkByScrollTask task;
 
@@ -77,7 +77,7 @@ public class ChildBulkByScrollWorker implements SuccessfullyProcessed {
      */
     private final AtomicReference<DelayedPrepareBulkRequest> delayedPrepareBulkRequestReference = new AtomicReference<>();
 
-    public ChildBulkByScrollWorker(BulkByScrollTask task, Integer sliceId, float requestsPerSecond) {
+    public WorkerBulkByScrollTaskState(BulkByScrollTask task, Integer sliceId, float requestsPerSecond) {
         this.task = task;
         this.sliceId = sliceId;
         setRequestsPerSecond(requestsPerSecond);

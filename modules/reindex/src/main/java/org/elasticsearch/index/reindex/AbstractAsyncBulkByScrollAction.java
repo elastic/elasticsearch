@@ -88,7 +88,7 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>> {
     protected final Logger logger;
     protected final BulkByScrollTask task;
-    protected final ChildBulkByScrollWorker worker;
+    protected final WorkerBulkByScrollTaskState worker;
     protected final ThreadPool threadPool;
     protected final ScriptService scriptService;
     protected final ClusterState clusterState;
@@ -126,10 +126,10 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             ActionListener<BulkByScrollResponse> listener, Settings settings) {
 
         this.task = task;
-        if (!task.isSliceChild()) {
+        if (!task.isWorker()) {
             throw new IllegalArgumentException("Given task [" + task.getId() + "] must have a child worker");
         }
-        this.worker = task.getSliceChildWorker();
+        this.worker = task.getWorkerState();
 
         this.logger = logger;
         this.client = client;
@@ -768,7 +768,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      */
     public abstract static class ScriptApplier implements BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> {
 
-        private final ChildBulkByScrollWorker taskWorker;
+        private final WorkerBulkByScrollTaskState taskWorker;
         private final ScriptService scriptService;
         private final Script script;
         private final Map<String, Object> params;
@@ -776,7 +776,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         private ExecutableScript executable;
         private Map<String, Object> context;
 
-        public ScriptApplier(ChildBulkByScrollWorker taskWorker, ScriptService scriptService, Script script, Map<String, Object> params) {
+        public ScriptApplier(WorkerBulkByScrollTaskState taskWorker, ScriptService scriptService, Script script, Map<String, Object> params) {
             this.taskWorker = taskWorker;
             this.scriptService = scriptService;
             this.script = script;

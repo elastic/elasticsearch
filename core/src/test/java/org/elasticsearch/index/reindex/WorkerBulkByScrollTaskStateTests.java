@@ -46,15 +46,15 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class ChildBulkByScrollWorkerTests extends ESTestCase {
+public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
     private BulkByScrollTask task;
-    private ChildBulkByScrollWorker worker;
+    private WorkerBulkByScrollTaskState workerState;
 
     @Before
     public void createTask() {
         task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID);
-        task.setSliceChild(Float.POSITIVE_INFINITY);
-        worker = task.getSliceChildWorker();
+        task.setWorker(Float.POSITIVE_INFINITY, null);
+        workerState = task.getWorkerState();
     }
 
     public void testBasicData() {
@@ -81,7 +81,7 @@ public class ChildBulkByScrollWorkerTests extends ESTestCase {
         assertEquals(noops, status.getNoops());
 
         long totalHits = randomIntBetween(10, 1000);
-        worker.setTotal(totalHits);
+        workerState.setTotal(totalHits);
         for (long p = 0; p < totalHits; p++) {
             status = task.getStatus();
             assertEquals(totalHits, status.getTotal());
@@ -94,28 +94,28 @@ public class ChildBulkByScrollWorkerTests extends ESTestCase {
 
             if (randomBoolean()) {
                 created++;
-                worker.countCreated();
+                workerState.countCreated();
             } else if (randomBoolean()) {
                 updated++;
-                worker.countUpdated();
+                workerState.countUpdated();
             } else {
                 deleted++;
-                worker.countDeleted();
+                workerState.countDeleted();
             }
 
             if (rarely()) {
                 versionConflicts++;
-                worker.countVersionConflict();
+                workerState.countVersionConflict();
             }
 
             if (rarely()) {
                 batch++;
-                worker.countBatch();
+                workerState.countBatch();
             }
 
             if (rarely()) {
                 noops++;
-                worker.countNoop();
+                workerState.countNoop();
             }
         }
         status = task.getStatus();
@@ -142,7 +142,7 @@ public class ChildBulkByScrollWorkerTests extends ESTestCase {
          * each time.
          */
         float originalRequestsPerSecond = (float) randomDoubleBetween(1, 10000, true);
-        worker.rethrottle(originalRequestsPerSecond);
+        workerState.rethrottle(originalRequestsPerSecond);
         TimeValue maxDelay = timeValueSeconds(between(1, 5));
         assertThat(maxDelay.nanos(), greaterThanOrEqualTo(0L));
         int batchSizeForMaxDelay = (int) (maxDelay.seconds() * originalRequestsPerSecond);
@@ -154,7 +154,7 @@ public class ChildBulkByScrollWorkerTests extends ESTestCase {
             }
         };
         try {
-            worker.delayPrepareBulkRequest(threadPool, timeValueNanos(System.nanoTime()), batchSizeForMaxDelay, new AbstractRunnable() {
+            workerState.delayPrepareBulkRequest(threadPool, timeValueNanos(System.nanoTime()), batchSizeForMaxDelay, new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
                     boolean oldValue = done.getAndSet(true);
@@ -175,7 +175,7 @@ public class ChildBulkByScrollWorkerTests extends ESTestCase {
                     int rethrottles = 0;
                     while (false == done.get()) {
                         float requestsPerSecond = (float) randomDoubleBetween(0, originalRequestsPerSecond * 2, true);
-                        worker.rethrottle(requestsPerSecond);
+                        workerState.rethrottle(requestsPerSecond);
                         rethrottles += 1;
                     }
                     logger.info("Rethrottled [{}] times", rethrottles);
@@ -240,7 +240,7 @@ public class ChildBulkByScrollWorkerTests extends ESTestCase {
         };
         try {
             // Have the task use the thread pool to delay a task that does nothing
-            worker.delayPrepareBulkRequest(threadPool, timeValueSeconds(0), 1, new AbstractRunnable() {
+            workerState.delayPrepareBulkRequest(threadPool, timeValueSeconds(0), 1, new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
                 }
@@ -257,12 +257,12 @@ public class ChildBulkByScrollWorkerTests extends ESTestCase {
     }
 
     public void testPerfectlyThrottledBatchTime() {
-        worker.rethrottle(Float.POSITIVE_INFINITY);
-        assertThat((double) worker.perfectlyThrottledBatchTime(randomInt()), closeTo(0f, 0f));
+        workerState.rethrottle(Float.POSITIVE_INFINITY);
+        assertThat((double) workerState.perfectlyThrottledBatchTime(randomInt()), closeTo(0f, 0f));
 
         int total = between(0, 1000000);
-        worker.rethrottle(1);
-        assertThat((double) worker.perfectlyThrottledBatchTime(total),
+        workerState.rethrottle(1);
+        assertThat((double) workerState.perfectlyThrottledBatchTime(total),
                 closeTo(TimeUnit.SECONDS.toNanos(total), TimeUnit.SECONDS.toNanos(1)));
     }
 }

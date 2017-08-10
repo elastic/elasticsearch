@@ -157,7 +157,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
                     e);
         }
         if (searchRequest.source().slice() != null && slices != DEFAULT_SLICES) {
-            e = addValidationError("can't set a specific single slice for this request and multiple slices", e);
+            e = addValidationError("can't specify both manual and automatic slicing at the same time", e);
         }
         return e;
     }
@@ -345,6 +345,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
      */
     public Self setSlices(int slices) {
+        if (slices < 0) {
+            throw new IllegalArgumentException("[slices] must be at least 0");
+        }
         this.slices = slices;
         return self();
     }
@@ -365,6 +368,10 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Setup a clone of this request with the information needed to process a slice of it.
      */
     protected Self doForSlice(Self request, TaskId slicingTask, int totalSlices) {
+        if (totalSlices < 1) {
+            throw new IllegalArgumentException("Number of total slices must be at least one");
+        }
+
         request.setAbortOnVersionConflict(abortOnVersionConflict).setRefresh(refresh).setTimeout(timeout)
                 .setWaitForActiveShards(activeShardCount).setRetryBackoffInitialTime(retryBackoffInitialTime).setMaxRetries(maxRetries)
                 // Parent task will store result
@@ -417,15 +424,11 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         retryBackoffInitialTime.writeTo(out);
         out.writeVInt(maxRetries);
         out.writeFloat(requestsPerSecond);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeVInt(slices);
+        if (out.getVersion().before(Version.V_6_1_0) && slices == AUTO_SLICES) {
+            throw new IllegalArgumentException("Slices set as \"auto\" are not supported before version [" + Version.V_6_1_0 + "]. " +
+                "Found version [" + out.getVersion() + "]");
         } else {
-            if (slices == AUTO_SLICES) {
-                throw new IllegalArgumentException("Slices set as \"auto\" are not supported before version [" + Version.V_6_1_0 + "]. " +
-                    "Found version [" + out.getVersion() + "]");
-            } else {
-                out.writeVInt(slices);
-            }
+            out.writeVInt(slices);
         }
     }
 

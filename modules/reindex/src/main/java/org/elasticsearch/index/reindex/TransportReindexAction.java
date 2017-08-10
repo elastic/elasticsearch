@@ -389,8 +389,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
         class ReindexScriptApplier extends ScriptApplier {
 
-            ReindexScriptApplier(ChildBulkByScrollWorker taskWorker, ScriptService scriptService, Script script,
-                                        Map<String, Object> params) {
+            ReindexScriptApplier(WorkerBulkByScrollTaskState taskWorker, ScriptService scriptService, Script script,
+                                 Map<String, Object> params) {
                 super(taskWorker, scriptService, script, params);
             }
 

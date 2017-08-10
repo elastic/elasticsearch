@@ -34,17 +34,17 @@ import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class ParentBulkByScrollWorkerTests extends ESTestCase {
+public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
     private int slices;
     private BulkByScrollTask task;
-    private ParentBulkByScrollWorker worker;
+    private LeaderBulkByScrollTaskState taskState;
 
     @Before
     public void createTask() {
         slices = between(2, 50);
         task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID);
-        task.setSliceChildren(slices);
-        worker = task.getSlicesParentWorker();
+        task.setWorkerCount(slices);
+        taskState = task.getLeaderState();
     }
 
     public void testBasicData() {
@@ -94,7 +94,7 @@ public class ParentBulkByScrollWorkerTests extends ESTestCase {
 
             @SuppressWarnings("unchecked")
             ActionListener<BulkByScrollResponse> listener = slice < slices - 1 ? neverCalled() : mock(ActionListener.class);
-            worker.onSliceResponse(listener, slice,
+            taskState.onSliceResponse(listener, slice,
                     new BulkByScrollResponse(timeValueMillis(10), sliceStatus, emptyList(), emptyList(), false));
 
             status = task.getStatus();

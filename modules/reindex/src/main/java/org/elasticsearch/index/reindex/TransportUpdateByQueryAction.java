@@ -131,7 +131,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
         class UpdateByQueryScriptApplier extends ScriptApplier {
 
-            UpdateByQueryScriptApplier(ChildBulkByScrollWorker taskWorker, ScriptService scriptService, Script script,
+            UpdateByQueryScriptApplier(WorkerBulkByScrollTaskState taskWorker, ScriptService scriptService, Script script,
                                        Map<String, Object> params) {
                 super(taskWorker, scriptService, script, params);
             }

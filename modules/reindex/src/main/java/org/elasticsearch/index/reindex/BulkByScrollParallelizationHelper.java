@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
@@ -51,24 +52,26 @@ class BulkByScrollParallelizationHelper {
     /**
      * Takes an action created by a {@link BulkByScrollTask} and runs it with regard to whether the request is sliced or not.
      *
-     * If the request is not sliced (e.g. the number of slices is 1), the action from the given {@link Supplier} will be started on the
-     * local node. If the request is sliced (e.g. the number of slices is more than 1), then a subrequest will be created for each slice
+     * If the request is not sliced (i.e. the number of slices is 1), the action from the given {@link Supplier} will be started on the
+     * local node. If the request is sliced (i.e. the number of slices is more than 1), then a subrequest will be created for each slice
      * and sent.
      *
      * If slices are set as {@code "auto"}, this class will resolve that to a specific number based on characteristics of the source
      * indices. A request with {@code "auto"} slices may end up being sliced or unsliced.
      */
     static <Request extends AbstractBulkByScrollRequest<Request>> void startSlicedAction(
-        Request request,
-        BulkByScrollTask task,
-        Action<Request, BulkByScrollResponse, ?> action,
-        ActionListener<BulkByScrollResponse> listener,
-        Client client,
-        DiscoveryNode node,
-        Supplier<AbstractAsyncBulkByScrollAction<Request>> taskSupplier) {
+            Request request,
+            BulkByScrollTask task,
+            Action<Request, BulkByScrollResponse, ?> action,
+            ActionListener<BulkByScrollResponse> listener,
+            Client client,
+            DiscoveryNode node,
+            Supplier<AbstractAsyncBulkByScrollAction<Request>> taskSupplier) {
 
         if (request.getSlices() == AbstractBulkByScrollRequest.AUTO_SLICES) {
-            client.admin().cluster().prepareSearchShards(request.getSearchRequest().indices()).execute(ActionListener.wrap(
+            ClusterSearchShardsRequest shardsRequest = new ClusterSearchShardsRequest();
+            shardsRequest.indices(request.getSearchRequest().indices());
+            client.admin().cluster().searchShards(shardsRequest, ActionListener.wrap(
                 response -> {
                     int actualNumSlices = countSlicesBasedOnShards(response);
                     sliceConditionally(request, task, action, listener, client, node, taskSupplier, actualNumSlices);
@@ -81,23 +84,24 @@ class BulkByScrollParallelizationHelper {
     }
 
     private static <Request extends AbstractBulkByScrollRequest<Request>> void sliceConditionally(
-        Request request,
-        BulkByScrollTask task,
-        Action<Request, BulkByScrollResponse, ?> action,
-        ActionListener<BulkByScrollResponse> listener,
-        Client client,
-        DiscoveryNode node,
-        Supplier<AbstractAsyncBulkByScrollAction<Request>> taskSupplier,
-        int slices) {
+            Request request,
+            BulkByScrollTask task,
+            Action<Request, BulkByScrollResponse, ?> action,
+            ActionListener<BulkByScrollResponse> listener,
+            Client client,
+            DiscoveryNode node,
+            Supplier<AbstractAsyncBulkByScrollAction<Request>> taskSupplier,
+            int slices) {
 
         if (slices > 1) {
-            task.setSliceChildren(slices);
+            task.setWorkerCount(slices);
             sendSubRequests(client, action, node.getId(), task, request, listener);
         } else {
-            Integer sliceId = request.getSearchRequest().source().slice() == null
+            SliceBuilder sliceBuilder = request.getSearchRequest().source().slice();
+            Integer sliceId = sliceBuilder == null
                 ? null
-                : request.getSearchRequest().source().slice().getId();
-            task.setSliceChild(request.getRequestsPerSecond(), sliceId);
+                : sliceBuilder.getId();
+            task.setWorker(request.getRequestsPerSecond(), sliceId);
             taskSupplier.get().start();
         }
     }
@@ -105,7 +109,7 @@ class BulkByScrollParallelizationHelper {
     private static int countSlicesBasedOnShards(ClusterSearchShardsResponse response) {
         Map<Index, Integer> countsByIndex = Arrays.stream(response.getGroups()).collect(Collectors.toMap(
             group -> group.getShardId().getIndex(),
-            __ -> 1,
+            group -> 1,
             (sum, term) -> sum + term
         ));
         Set<Integer> counts = new HashSet<>(countsByIndex.values());
@@ -114,14 +118,14 @@ class BulkByScrollParallelizationHelper {
     }
 
     private static <Request extends AbstractBulkByScrollRequest<Request>> void sendSubRequests(
-        Client client,
-        Action<Request, BulkByScrollResponse, ?> action,
-        String localNodeId,
-        BulkByScrollTask task,
-        Request request,
-        ActionListener<BulkByScrollResponse> listener) {
+            Client client,
+            Action<Request, BulkByScrollResponse, ?> action,
+            String localNodeId,
+            BulkByScrollTask task,
+            Request request,
+            ActionListener<BulkByScrollResponse> listener) {
 
-        ParentBulkByScrollWorker worker = task.getSlicesParentWorker();
+        LeaderBulkByScrollTaskState worker = task.getLeaderState();
         int totalSlices = worker.getSlices();
         TaskId parentTaskId = new TaskId(localNodeId, task.getId());
         for (final SearchRequest slice : sliceIntoSubRequests(request.getSearchRequest(), UidFieldMapper.NAME, totalSlices)) {

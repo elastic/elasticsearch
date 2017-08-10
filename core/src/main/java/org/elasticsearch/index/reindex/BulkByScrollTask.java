@@ -31,8 +31,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -46,18 +48,18 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
  *
  * When the request is not sliced, this task is the only task created, and starts an action to perform search requests.
  *
- * When the request is sliced, this task can either represent a parent coordinating task (using
- * {@link BulkByScrollTask#setSliceChildren(int)}) or a child task that performs search queries (using
- * {@link BulkByScrollTask#setSliceChild(float, Integer)}).
+ * When the request is sliced, this task can either represent a coordinating task (using
+ * {@link BulkByScrollTask#setWorkerCount(int)}) or a worker task that performs search queries (using
+ * {@link BulkByScrollTask#setWorker(float, Integer)}).
  *
- * We don't always know if this task will be a parent or child task when it's created, because if slices is set to "auto" it may
+ * We don't always know if this task will be a leader or worker task when it's created, because if slices is set to "auto" it may
  * be either depending on the number of shards in the source indices. We figure that out when the request is handled and set it on this
- * class with {@link #setSliceChildren(int)} or {@link #setSliceChild(float, Integer)}.
+ * class with {@link #setWorkerCount(int)} or {@link #setWorker(float, Integer)}.
  */
 public class BulkByScrollTask extends CancellableTask {
 
-    private ParentBulkByScrollWorker parentWorker;
-    private ChildBulkByScrollWorker childWorker;
+    private LeaderBulkByScrollTaskState leaderState;
+    private WorkerBulkByScrollTaskState workerState;
 
     public BulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId) {
         super(id, type, action, description, parentTaskId);
@@ -65,15 +67,34 @@ public class BulkByScrollTask extends CancellableTask {
 
     @Override
     public BulkByScrollTask.Status getStatus() {
-        if (isSlicesParent()) {
-            return parentWorker.getStatus();
+        if (isLeader()) {
+            return leaderState.getStatus();
         }
 
-        if (isSliceChild()) {
-            return childWorker.getStatus();
+        if (isWorker()) {
+            return workerState.getStatus();
         }
 
         return emptyStatus();
+    }
+
+    /**
+     * Build the status for this task given a snapshot of the information of running slices. This is only supported if the task is
+     * set as a leader for slice subtasks
+     */
+    public TaskInfo taskInfoGivenSubtaskInfo(String localNodeId, List<TaskInfo> sliceInfo) {
+        if (isLeader() == false) {
+            throw new IllegalStateException("This task is not set to be a leader of other slice subtasks");
+        }
+
+        List<BulkByScrollTask.StatusOrException> sliceStatuses = Arrays.asList(
+            new BulkByScrollTask.StatusOrException[leaderState.getSlices()]);
+        for (TaskInfo t : sliceInfo) {
+            BulkByScrollTask.Status status = (BulkByScrollTask.Status) t.getStatus();
+            sliceStatuses.set(status.getSliceId(), new BulkByScrollTask.StatusOrException(status));
+        }
+        Status status = leaderState.getStatus(sliceStatuses);
+        return taskInfo(localNodeId, getDescription(), status);
     }
 
     private BulkByScrollTask.Status emptyStatus() {
@@ -81,85 +102,77 @@ public class BulkByScrollTask extends CancellableTask {
     }
 
     /**
-     * Returns true if this task is a parent of other sliced tasks. False otherwise
+     * Returns true if this task is a leader for other slice subtasks
      */
-    public boolean isSlicesParent() {
-        return parentWorker != null;
+    public boolean isLeader() {
+        return leaderState != null;
     }
 
     /**
-     * Sets this task to be a parent task for {@code slices} sliced subtasks
+     * Sets this task to be a leader task for {@code slices} sliced subtasks
      */
-    public void setSliceChildren(int slices) {
-        if (isSlicesParent()) {
-            throw new IllegalStateException("Parent worker is already set");
+    public void setWorkerCount(int slices) {
+        if (isLeader()) {
+            throw new IllegalStateException("This task is already a leader for other slice subtasks");
         }
-        if (isSliceChild()) {
-            throw new IllegalStateException("Worker is already set as child");
+        if (isWorker()) {
+            throw new IllegalStateException("This task is already a worker");
         }
 
-        parentWorker = new ParentBulkByScrollWorker(this, slices);
+        leaderState = new LeaderBulkByScrollTaskState(this, slices);
     }
 
     /**
-     * Returns the worker object that tracks the state of sliced subtasks. Throws IllegalStateException if this task is not set to be
-     * a parent task.
+     * Returns the object that tracks the state of sliced subtasks. Throws IllegalStateException if this task is not set to be
+     * a leader task.
      */
-    public ParentBulkByScrollWorker getSlicesParentWorker() {
-        if (!isSlicesParent()) {
-            throw new IllegalStateException("This task is not set as a parent worker");
+    public LeaderBulkByScrollTaskState getLeaderState() {
+        if (!isLeader()) {
+            throw new IllegalStateException("This task is not set to be a leader for other slice subtasks");
         }
-        return parentWorker;
+        return leaderState;
     }
 
     /**
-     * Returns true if this task is a child task that performs search requests. False otherwise
+     * Returns true if this task is a worker task that performs search requests. False otherwise
      */
-    public boolean isSliceChild() {
-        return childWorker != null;
+    public boolean isWorker() {
+        return workerState != null;
     }
 
     /**
-     * Sets this task to be a child task that performs search requests, when the request is not sliced.
+     * Sets this task to be a worker task that performs search requests
      * @param requestsPerSecond How many search requests per second this task should make
+     * @param sliceId If this is is a sliced task, which slice number this task corresponds to. Null if not sliced.
      */
-    public void setSliceChild(float requestsPerSecond) {
-        setSliceChild(requestsPerSecond, null);
+    public void setWorker(float requestsPerSecond, @Nullable Integer sliceId) {
+        if (isWorker()) {
+            throw new IllegalStateException("This task is already a worker");
+        }
+        if (isLeader()) {
+            throw new IllegalStateException("This task is already a leader for other slice subtasks");
+        }
+
+        workerState = new WorkerBulkByScrollTaskState(this, sliceId, requestsPerSecond);
     }
 
     /**
-     * Sets this task to be a slice child task that performs search requests
-     * @param requestsPerSecond How many search requests per second this task should make
-     * @param sliceId If this is is a sliced task, which slice number this task corresponds to
+     * Returns the object that manages sending search requests. Throws IllegalStateException if this task is not set to be a
+     * worker task.
      */
-    public void setSliceChild(float requestsPerSecond, Integer sliceId) {
-        if (isSliceChild()) {
-            throw new IllegalStateException("Child worker is already set");
+    public WorkerBulkByScrollTaskState getWorkerState() {
+        if (!isWorker()) {
+            throw new IllegalStateException("This task is not set to be a worker");
         }
-        if (isSlicesParent()) {
-            throw new IllegalStateException("Worker is already set as child");
-        }
-
-        childWorker = new ChildBulkByScrollWorker(this, sliceId, requestsPerSecond);
-    }
-
-    /**
-     * Returns the worker object that manages sending search requests. Throws IllegalStateException if this task is not set to be a
-     * child task.
-     */
-    public ChildBulkByScrollWorker getSliceChildWorker() {
-        if (!isSliceChild()) {
-            throw new IllegalStateException("This task is not set as a child worker");
-        }
-        return childWorker;
+        return workerState;
     }
 
     @Override
     public void onCancelled() {
-        if (isSlicesParent()) {
+        if (isLeader()) {
             // The task cancellation task automatically finds children and cancels them, nothing extra to do
-        } else if (isSliceChild()) {
-            childWorker.handleCancel();
+        } else if (isWorker()) {
+            workerState.handleCancel();
         } else {
             throw new IllegalStateException("This task has not had its sliced state initialized and doesn't know how to cancel itself");
         }

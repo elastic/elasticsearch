@@ -75,6 +75,6 @@ public class RemoveSettingKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertFalse(settings.contains("foo"));
         assertFalse(settings.contains("baz"));
         assertTrue(settings.contains("bar"));
-        assertEquals(1, settings.size());
+        assertEquals(2, settings.size()); // account for bootstrap.seed too
     }
 }

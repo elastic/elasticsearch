@@ -19,6 +19,9 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 
@@ -37,5 +40,7 @@ public final class BootstrapSettings {
         Setting.boolSetting("bootstrap.system_call_filter", true, Property.NodeScope);
     public static final Setting<Boolean> CTRLHANDLER_SETTING =
         Setting.boolSetting("bootstrap.ctrlhandler", true, Property.NodeScope);
+    public static final Setting<SecureString> SEED_SETTING =
+        SecureSetting.secureString("bootstrap.seed", null);
 
 }

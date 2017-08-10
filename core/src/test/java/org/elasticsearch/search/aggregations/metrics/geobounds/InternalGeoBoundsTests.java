@@ -121,7 +121,11 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
             name += randomAlphaOfLength(5);
             break;
         case 1:
-            top += between(1, 20);
+            if (Double.isFinite(top)) {
+                top += between(1, 20);
+            } else {
+                top = randomDouble();
+            }
             break;
         case 2:
             bottom += between(1, 20);

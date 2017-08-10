@@ -25,7 +25,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 /**
  * Response used for actions that index many documents using a scroll request.
  */
-public class BulkByScrollResponse extends ActionResponse implements ToXContent {
+public class BulkByScrollResponse extends ActionResponse implements ToXContentFragment {
     private TimeValue took;
     private BulkByScrollTask.Status status;
     private List<Failure> bulkFailures;

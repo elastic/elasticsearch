@@ -136,3 +136,8 @@ The `unified` highlighter outputs the same highlighting when `index_options` is 
 ==== `fielddata_fields`
 
 The deprecated `fielddata_fields` have now been removed. `docvalue_fields` should be used instead.
+
+==== Inner hits
+
+The source inside a hit of inner hits keeps its full path with respect to the entire source.
+In prior versions the source field names were relative to the inner hit.

@@ -44,7 +44,7 @@ For example, you can define the latest version in your `pom.xml` file:
 --------------------------------------------------
 
 [[java-transport-usage-maven-lucene]]
-==== Lucene Snapshot repository
+=== Lucene Snapshot repository
 
 The very first releases of any major version (like a beta), might have been built on top of a Lucene Snapshot version.
 In such a case you will be unable to resolve the Lucene dependencies of the client.

@@ -315,7 +315,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
         assertEquals(-8, parsed.mineral);
     }
 
-    private static class HasCtorArguments implements ToXContent {
+    private static class HasCtorArguments implements ToXContentObject {
         @Nullable
         final String animal;
         @Nullable

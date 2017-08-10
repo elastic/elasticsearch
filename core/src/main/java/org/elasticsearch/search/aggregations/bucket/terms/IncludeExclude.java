@@ -41,7 +41,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
@@ -57,7 +57,7 @@ import java.util.TreeSet;
  * Defines the include/exclude regular expression filtering for string terms aggregation. In this filtering logic,
  * exclusion has precedence, where the {@code include} is evaluated first and then the {@code exclude}.
  */
-public class IncludeExclude implements Writeable, ToXContent {
+public class IncludeExclude implements Writeable, ToXContentFragment {
     public static final ParseField INCLUDE_FIELD = new ParseField("include");
     public static final ParseField EXCLUDE_FIELD = new ParseField("exclude");
     public static final ParseField PARTITION_FIELD = new ParseField("partition");

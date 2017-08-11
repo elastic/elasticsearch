@@ -90,13 +90,12 @@ class BuildPlugin implements Plugin<Project> {
             Closure depJavadocClosure = { dep ->
                 if (dep.group != null && dep.group.startsWith('org.elasticsearch')) {
                     String substitution = project.ext.projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
-                    if (substitution == null) {
-                        throw new IllegalStateException("No project substitution found for ${dep.group}:${dep.name}:${dep.version}")
+                    if (substitution != null) {
+                        project.javadoc.dependsOn substitution + ':javadoc'
+                        String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
+                        String projectPath = substitution.replaceAll(':', '/')
+                        project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${project.rootDir}${projectPath}/build/docs/javadoc/"
                     }
-                    project.javadoc.dependsOn substitution + ':javadoc'
-                    String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
-                    String projectPath = substitution.replaceAll(':', '/')
-                    project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${project.rootDir}${projectPath}/build/docs/javadoc/"
                 }
             }
             project.configurations.compile.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)

@@ -203,7 +203,8 @@ public class OsProbeTests extends ESTestCase {
             @Override
             String readSysFsCgroupMemoryLimitInBytes(String controlGroup) {
                 assertThat(controlGroup, equalTo("/" + hierarchy));
-                return "4294967296";
+                // This is the highest value that can be stored in an unsigned 64 bit number, hence too big for long
+                return "18446744073709551615";
             }
 
             @Override
@@ -231,7 +232,7 @@ public class OsProbeTests extends ESTestCase {
             assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(17992L));
             assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(1311L));
             assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(139298645489L));
-            assertThat(cgroup.getMemoryLimitInBytes(), equalTo(4294967296L));
+            assertThat(cgroup.getMemoryLimitInBytes(), equalTo(Long.MAX_VALUE));
             assertThat(cgroup.getMemoryUsageInBytes(), equalTo(4796416L));
         } else {
             assertNull(cgroup);

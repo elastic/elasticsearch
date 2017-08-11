@@ -31,6 +31,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -387,7 +388,10 @@ public class OsProbe {
      * @throws IOException if an I/O exception occurs reading {@code memory.limit_in_bytes} for the control group
      */
     private long getCgroupMemoryLimitInBytes(final String controlGroup) throws IOException {
-        return Long.parseLong(readSysFsCgroupMemoryLimitInBytes(controlGroup));
+        // If there is no limit then some Linux versions return the maximum value that can be stored in an
+        // unsigned 64 bit number, and this will overflow a long.  Just return the maximum long in this case.
+        BigInteger limitInBytes = new BigInteger(readSysFsCgroupMemoryLimitInBytes(controlGroup));
+        return limitInBytes.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0 ? Long.MAX_VALUE : limitInBytes.longValue();
     }
 
     /**
@@ -411,7 +415,10 @@ public class OsProbe {
      * @throws IOException if an I/O exception occurs reading {@code memory.limit_in_bytes} for the control group
      */
     private long getCgroupMemoryUsageInBytes(final String controlGroup) throws IOException {
-        return Long.parseLong(readSysFsCgroupMemoryUsageInBytes(controlGroup));
+        // If there is no limit then some Linux versions return the maximum value that can be stored in an
+        // unsigned 64 bit number, and this will overflow a long.  Just return the maximum long in this case.
+        BigInteger usageInBytes = new BigInteger(readSysFsCgroupMemoryUsageInBytes(controlGroup));
+        return usageInBytes.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0 ? Long.MAX_VALUE : usageInBytes.longValue();
     }
 
     /**

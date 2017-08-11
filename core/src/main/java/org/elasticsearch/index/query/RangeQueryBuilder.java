@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -483,6 +485,20 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        if (from == null && to == null) {
+            /**
+             * Open bounds on both side, we can rewrite to an exists query
+             * if the {@link FieldNamesFieldMapper} is enabled.
+             */
+            final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
+                (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
+            if (fieldNamesFieldType == null) {
+                return new MatchNoDocsQuery("No mappings yet");
+            }
+            if (fieldNamesFieldType.isEnabled()) {
+                return ExistsQueryBuilder.newFilter(context, fieldName);
+            }
+        }
         Query query = null;
         MappedFieldType mapper = context.fieldMapper(this.fieldName);
         if (mapper != null) {

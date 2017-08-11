@@ -64,7 +64,7 @@ GET hockey/_search
 ----------------------------------------------------------------
 // CONSOLE
 
-Alternatively, you could do the same thing using a script field instead of a function score:
+Alternatively, you can do the same thing using a script field instead of a function score:
 
 [source,js]
 ----------------------------------------------------------------

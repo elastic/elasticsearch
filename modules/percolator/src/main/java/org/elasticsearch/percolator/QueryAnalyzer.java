@@ -45,6 +45,7 @@ import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
@@ -361,6 +362,13 @@ final class QueryAnalyzer {
 
             byte[] lowerPoint = pointRangeQuery.getLowerPoint();
             byte[] upperPoint = pointRangeQuery.getUpperPoint();
+
+            // Need to check whether upper is not smaller than lower, otherwise NumericUtils.subtract(...) fails IAE
+            // If upper is really smaller than lower then we deal with like MatchNoDocsQuery. (verified and no extractions)
+            if (new BytesRef(lowerPoint).compareTo(new BytesRef(upperPoint)) > 0) {
+                return new Result(true, Collections.emptySet());
+            }
+
             byte[] interval = new byte[16];
             NumericUtils.subtract(16, 0, prepad(upperPoint), prepad(lowerPoint), interval);
             return new Result(false, Collections.singleton(new QueryExtraction(
@@ -453,6 +461,12 @@ final class QueryAnalyzer {
             if (onlyRangeBasedExtractions) {
                 BytesRef extraction1SmallestRange = smallestRange(filtered1);
                 BytesRef extraction2SmallestRange = smallestRange(filtered2);
+                if (extraction1SmallestRange == null) {
+                    return extractions2;
+                } else if (extraction2SmallestRange == null) {
+                    return extractions1;
+                }
+
                 // Keep the clause with smallest range, this is likely to be the rarest.
                 if (extraction1SmallestRange.compareTo(extraction2SmallestRange) <= 0) {
                     return extractions1;
@@ -500,10 +514,10 @@ final class QueryAnalyzer {
     }
 
     private static BytesRef smallestRange(Set<QueryExtraction> terms) {
-        BytesRef min = terms.iterator().next().range.interval;
+        BytesRef min = null;
         for (QueryExtraction qt : terms) {
             if (qt.range != null) {
-                if (qt.range.interval.compareTo(min) < 0) {
+                if (min == null || qt.range.interval.compareTo(min) < 0) {
                     min = qt.range.interval;
                 }
             }

@@ -253,6 +253,14 @@ the operating system:
     The total amount of time (in nanoseconds) for which all tasks in
     the same cgroup as the Elasticsearch process have been throttled.
 
+`os.cgroup.memory.limit_in_bytes` (Linux only)::
+    The maximum amount of user memory (including file cache) allowed
+    for all tasks in the same cgroup as the Elasticsearch process
+
+`os.cgroup.memory.usage_in_bytes` (Linux only)::
+    The total current memory usage by processes in the cgroup (in bytes)
+    by all tasks in the same cgroup as the Elasticsearch process
+
 NOTE: For the cgroup stats to be visible, cgroups must be compiled into
 the kernal, the `cpu` and `cpuacct` cgroup subsystems must be
 configured and stats must be readable from `/sys/fs/cgroup/cpu`

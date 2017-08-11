@@ -96,6 +96,12 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(
                         nodeStats.getOs().getCgroup().getCpuStat().getTimeThrottledNanos(),
                         deserializedNodeStats.getOs().getCgroup().getCpuStat().getTimeThrottledNanos());
+                    assertEquals(
+                        nodeStats.getOs().getCgroup().getMemoryLimitInBytes(),
+                        deserializedNodeStats.getOs().getCgroup().getMemoryLimitInBytes());
+                    assertEquals(
+                        nodeStats.getOs().getCgroup().getMemoryUsageInBytes(),
+                        deserializedNodeStats.getOs().getCgroup().getMemoryUsageInBytes());
                     assertArrayEquals(nodeStats.getOs().getCpu().getLoadAverage(),
                             deserializedNodeStats.getOs().getCpu().getLoadAverage(), 0);
                 }
@@ -294,7 +300,9 @@ public class NodeStatsTests extends ESTestCase {
                         randomAlphaOfLength(8),
                         randomNonNegativeLong(),
                         randomNonNegativeLong(),
-                        new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())));
+                        new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong()));
         }
         ProcessStats processStats = frequently() ?
             new ProcessStats(

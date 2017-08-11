@@ -296,6 +296,9 @@ public class OsStats implements Writeable, ToXContent {
         private final long cpuCfsPeriodMicros;
         private final long cpuCfsQuotaMicros;
         private final CpuStat cpuStat;
+        // These will be null for nodes running versions prior to 6.1.0
+        private final Long memoryLimitInBytes;
+        private final Long memoryUsageInBytes;
 
         /**
          * The control group for the {@code cpuacct} subsystem.
@@ -357,19 +360,41 @@ public class OsStats implements Writeable, ToXContent {
             return cpuStat;
         }
 
+        /**
+         * The maximum amount of user memory (including file cache).
+         *
+         * @return the maximum amount of user memory (including file cache).
+         */
+        public Long getMemoryLimitInBytes() {
+            return memoryLimitInBytes;
+        }
+
+        /**
+         * The total current memory usage by processes in the cgroup (in bytes).
+         *
+         * @return the total current memory usage by processes in the cgroup (in bytes).
+         */
+        public Long getMemoryUsageInBytes() {
+            return memoryUsageInBytes;
+        }
+
         public Cgroup(
             final String cpuAcctControlGroup,
             final long cpuAcctUsageNanos,
             final String cpuControlGroup,
             final long cpuCfsPeriodMicros,
             final long cpuCfsQuotaMicros,
-            final CpuStat cpuStat) {
+            final CpuStat cpuStat,
+            final long memoryLimitInBytes,
+            final long memoryUsageInBytes) {
             this.cpuAcctControlGroup = Objects.requireNonNull(cpuAcctControlGroup);
             this.cpuAcctUsageNanos = cpuAcctUsageNanos;
             this.cpuControlGroup = Objects.requireNonNull(cpuControlGroup);
             this.cpuCfsPeriodMicros = cpuCfsPeriodMicros;
             this.cpuCfsQuotaMicros = cpuCfsQuotaMicros;
             this.cpuStat = Objects.requireNonNull(cpuStat);
+            this.memoryLimitInBytes = memoryLimitInBytes;
+            this.memoryUsageInBytes = memoryUsageInBytes;
         }
 
         Cgroup(final StreamInput in) throws IOException {
@@ -379,6 +404,13 @@ public class OsStats implements Writeable, ToXContent {
             cpuCfsPeriodMicros = in.readLong();
             cpuCfsQuotaMicros = in.readLong();
             cpuStat = new CpuStat(in);
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                memoryLimitInBytes = in.readOptionalLong();
+                memoryUsageInBytes = in.readOptionalLong();
+            } else {
+                memoryLimitInBytes = null;
+                memoryUsageInBytes = null;
+            }
         }
 
         @Override
@@ -389,6 +421,10 @@ public class OsStats implements Writeable, ToXContent {
             out.writeLong(cpuCfsPeriodMicros);
             out.writeLong(cpuCfsQuotaMicros);
             cpuStat.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+                out.writeOptionalLong(memoryLimitInBytes);
+                out.writeOptionalLong(memoryUsageInBytes);
+            }
         }
 
         @Override
@@ -409,6 +445,16 @@ public class OsStats implements Writeable, ToXContent {
                     cpuStat.toXContent(builder, params);
                 }
                 builder.endObject();
+                if (memoryLimitInBytes != null || memoryUsageInBytes != null) {
+                    builder.startObject("memory");
+                    if (memoryLimitInBytes != null) {
+                        builder.field("limit_in_bytes", memoryLimitInBytes);
+                    }
+                    if (memoryUsageInBytes != null) {
+                        builder.field("usage_in_bytes", memoryUsageInBytes);
+                    }
+                    builder.endObject();
+                }
             }
             builder.endObject();
             return builder;
@@ -483,7 +529,6 @@ public class OsStats implements Writeable, ToXContent {
                 builder.endObject();
                 return builder;
             }
-
         }
 
     }

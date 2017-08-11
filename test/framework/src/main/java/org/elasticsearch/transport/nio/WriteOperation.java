@@ -16,7 +16,6 @@ public abstract class WriteOperation {
         this.listener = listener;
     }
 
-    public abstract NetworkBytesReference[] getByteReferences();
 
     public ActionListener<NioChannel> getListener() {
         return listener;
@@ -24,14 +23,5 @@ public abstract class WriteOperation {
 
     public NioSocketChannel getChannel() {
         return channel;
-    }
-
-    public boolean isFullyFlushed() {
-        NetworkBytesReference[] references = getByteReferences();
-        return references[references.length - 1].hasReadRemaining() == false;
-    }
-
-    public int flush() throws IOException {
-        return channel.write(getByteReferences());
     }
 }

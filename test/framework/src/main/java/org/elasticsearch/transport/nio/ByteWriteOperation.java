@@ -39,9 +39,17 @@ public class ByteWriteOperation extends WriteOperation {
         this.references = toArray(bytesReference);
     }
 
-    @Override
     public NetworkBytesReference[] getByteReferences() {
         return references;
+    }
+
+    public boolean isFullyFlushed() {
+        NetworkBytesReference[] references = getByteReferences();
+        return references[references.length - 1].hasReadRemaining() == false;
+    }
+
+    public int flush() throws IOException {
+        return channel.write(getByteReferences());
     }
 
     public static NetworkBytesReference[] toArray(BytesReference reference) {

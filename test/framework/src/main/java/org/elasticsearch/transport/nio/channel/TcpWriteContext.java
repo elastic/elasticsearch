@@ -32,7 +32,7 @@ import java.util.LinkedList;
 public class TcpWriteContext implements WriteContext {
 
     private final NioSocketChannel channel;
-    private final LinkedList<WriteOperation> queued = new LinkedList<>();
+    private final LinkedList<ByteWriteOperation> queued = new LinkedList<>();
 
     public TcpWriteContext(NioSocketChannel channel) {
         this.channel = channel;
@@ -60,7 +60,7 @@ public class TcpWriteContext implements WriteContext {
     @Override
     public void queueWriteOperations(WriteOperation writeOperation) {
         assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to queue writes";
-        queued.add(writeOperation);
+        queued.add((ByteWriteOperation) writeOperation);
     }
 
     @Override
@@ -89,7 +89,7 @@ public class TcpWriteContext implements WriteContext {
         queued.clear();
     }
 
-    private void singleFlush(WriteOperation headOp) throws IOException {
+    private void singleFlush(ByteWriteOperation headOp) throws IOException {
         try {
             headOp.flush();
         } catch (IOException e) {
@@ -107,7 +107,7 @@ public class TcpWriteContext implements WriteContext {
     private void multiFlush() throws IOException {
         boolean lastOpCompleted = true;
         while (lastOpCompleted && queued.isEmpty() == false) {
-            WriteOperation op = queued.pop();
+            ByteWriteOperation op = queued.pop();
             singleFlush(op);
             lastOpCompleted = op.isFullyFlushed();
         }

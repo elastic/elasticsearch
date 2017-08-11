@@ -57,4 +57,12 @@ public class ESEmbeddedChannel extends EmbeddedChannel {
     public Tuple<BytesReference, ChannelPromise> getMessage() {
         return messages.pollFirst();
     }
+
+    public boolean hasMessages() {
+        return messages.size() > 0;
+    }
+
+    public LinkedList<Tuple<BytesReference, ChannelPromise>> getMessages() {
+        return messages;
+    }
 }

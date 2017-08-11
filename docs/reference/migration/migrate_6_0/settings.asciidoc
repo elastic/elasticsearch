@@ -70,6 +70,9 @@ The previously unused settings `transport.netty.max_cumulation_buffer_capacity`,
 `transport.netty.max_composite_buffer_components` and
 `http.netty.max_cumulation_buffer_capacity` have been removed.
 
+Also, the settings `http.netty.receive_predictor_min` and
+`http.netty.receive_predictor_max` have been removed.
+
 ==== Similarity settings
 
 The `base` similarity is now ignored as coords and query normalization have

@@ -1,6 +1,8 @@
 [[release-notes-5.5.2]]
 == 5.5.2 Release Notes
 
+See https://www.elastic.co/blog/multi-data-path-bug-in-elasticsearch-5-3-0[Multi data path bug in Elasticsearch 5.3.0].
+
 Also see <<breaking-changes-5.5>>.
 
 [[bug-5.5.2]]
@@ -14,7 +16,11 @@ Core::
 * Release operation permit on thread-pool rejection {pull}25930[#25930] (issue: {issue}25863[#25863])
 
 Inner Hits::
+* Fix inner hits to work with queries wrapped in an indices query {pull}26138[#26138] (issue: {issue}26133[#26133])
 * When fetching nested inner hits only access stored fields when needed {pull}25864[#25864] (issue: {issue}6[#6])
 
 Logging::
 * Declare XContent deprecation logger as static {pull}25881[#25881] (issue: {issue}25879[#25879])
+
+Query DSL::
+* Parse "*" in query_string_query as MatchAllDocsQuery {pull}25872[#25872] (issues: {issue}25556[#25556], {issue}25726[#25726])

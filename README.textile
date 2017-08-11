@@ -80,6 +80,7 @@ curl -XGET 'http://localhost:9200/twitter/doc/3?pretty=true'
 </pre>
 
 Just so everything is clear:
+
 @twitter@ is your Index (can be named anything)
 @doc@ is your Log Type (can also be named anything)
 @1@, @2@, and @3@ are your Index IDs.

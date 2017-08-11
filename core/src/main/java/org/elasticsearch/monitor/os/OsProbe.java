@@ -400,7 +400,7 @@ public class OsProbe {
      */
     @SuppressForbidden(reason = "access /sys/fs/cgroup/memory")
     String readSysFsCgroupMemoryLimitInBytes(final String controlGroup) throws IOException {
-        return readSingleLine(PathUtils.get("/sys/fs/cgroup/cpu", controlGroup, "memory.limit_in_bytes"));
+        return readSingleLine(PathUtils.get("/sys/fs/cgroup/memory", controlGroup, "memory.limit_in_bytes"));
     }
 
     /**
@@ -424,7 +424,7 @@ public class OsProbe {
      */
     @SuppressForbidden(reason = "access /sys/fs/cgroup/memory")
     String readSysFsCgroupMemoryUsageInBytes(final String controlGroup) throws IOException {
-        return readSingleLine(PathUtils.get("/sys/fs/cgroup/cpu", controlGroup, "memory.limit_in_bytes"));
+        return readSingleLine(PathUtils.get("/sys/fs/cgroup/memory", controlGroup, "memory.usage_in_bytes"));
     }
 
     /**

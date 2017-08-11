@@ -122,6 +122,37 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         }).when(jobProvider).getAutodetectParams(any(), any(), any());
     }
 
+    public void testMaxOpenJobsSetting_givenDefault() {
+        int maxOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(Settings.EMPTY);
+        assertEquals(10, maxOpenJobs);
+    }
+
+    public void testMaxOpenJobsSetting_givenNewSettingOnly() {
+        Settings.Builder settings = Settings.builder();
+        settings.put(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), 7);
+        int maxOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings.build());
+        assertEquals(7, maxOpenJobs);
+    }
+
+    public void testMaxOpenJobsSetting_givenOldSettingOnly() {
+        Settings.Builder settings = Settings.builder();
+        settings.put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), 9);
+        int maxOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings.build());
+        assertEquals(9, maxOpenJobs);
+        assertWarnings("[max_running_jobs] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version.");
+    }
+
+    public void testMaxOpenJobsSetting_givenOldAndNewSettings() {
+        Settings.Builder settings = Settings.builder();
+        settings.put(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), 7);
+        settings.put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), 9);
+        int maxOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings.build());
+        assertEquals(7, maxOpenJobs);
+        assertWarnings("[max_running_jobs] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version.");
+    }
+
     public void testOpenJob_withoutVersion() {
         Client client = mock(Client.class);
         AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
@@ -137,7 +168,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(jobTask.getJobId()).thenReturn(job.getId());
 
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
-        manager.openJob(jobTask, e -> errorHolder.set(e));
+        manager.openJob(jobTask, errorHolder::set);
 
         Exception error = errorHolder.get();
         assertThat(error, is(notNullValue()));
@@ -180,7 +211,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcessFactory autodetectProcessFactory =
                 (j, modelSnapshot, quantiles, filters, e, onProcessCrash) -> autodetectProcess;
         Settings.Builder settings = Settings.builder();
-        settings.put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), 3);
+        settings.put(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), 3);
         AutodetectProcessManager manager = spy(new AutodetectProcessManager(settings.build(), client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, new NamedXContentRegistry(Collections.emptyList()), auditor));
@@ -245,6 +276,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         InputStream inputStream = createInputStream("");
         XContentType xContentType = randomFrom(XContentType.values());
         doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
             BiConsumer<DataCounts, Exception> handler = (BiConsumer<DataCounts, Exception>) invocationOnMock.getArguments()[3];
             handler.accept(null, new IOException("blah"));
             return null;
@@ -354,6 +386,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         FlushJobParams params = FlushJobParams.builder().build();
         doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
             BiConsumer<Void, Exception> handler = (BiConsumer<Void, Exception>) invocationOnMock.getArguments()[1];
             handler.accept(null, new IOException("blah"));
             return null;
@@ -455,9 +488,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         InputStream inputStream = createInputStream("");
         DataCounts[] dataCounts = new DataCounts[1];
         manager.processData(jobTask, inputStream,
-                randomFrom(XContentType.values()), mock(DataLoadParams.class), (dataCounts1, e) -> {
-            dataCounts[0] = dataCounts1;
-        });
+                randomFrom(XContentType.values()), mock(DataLoadParams.class), (dataCounts1, e) -> dataCounts[0] = dataCounts1);
 
         assertThat(dataCounts[0], equalTo(new DataCounts("foo")));
     }

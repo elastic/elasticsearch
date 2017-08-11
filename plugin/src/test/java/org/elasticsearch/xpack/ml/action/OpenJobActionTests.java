@@ -151,7 +151,7 @@ public class OpenJobActionTests extends ESTestCase {
         Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, maxRunningJobsPerNode, logger);
         assertNull(result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because this node is full. Number of opened jobs [" + maxRunningJobsPerNode
-                + "], max_running_jobs [" + maxRunningJobsPerNode + "]"));
+                + "], xpack.ml.max_open_jobs [" + maxRunningJobsPerNode + "]"));
     }
 
     public void testSelectLeastLoadedMlNode_noMlNodes() {

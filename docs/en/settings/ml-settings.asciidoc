@@ -1,6 +1,10 @@
 [role="xpack"]
 [[ml-settings]]
-=== Machine Learning Settings
+=== Machine Learning Settings in Elasticsearch
+++++
+<titleabbrev>Machine Learning Settings</titleabbrev>
+++++
+
 You do not need to configure any settings to use {ml}. It is enabled by default.
 
 [float]

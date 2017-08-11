@@ -190,7 +190,8 @@ public class MachineLearning implements ActionPlugin {
                         ProcessCtrl.MAX_ANOMALY_RECORDS_SETTING,
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING,
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING,
-                        AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE));
+                        AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE,
+                        AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE));
     }
 
     public Settings additionalSettings() {
@@ -204,7 +205,7 @@ public class MachineLearning implements ActionPlugin {
             // TODO: the simple true/false flag will not be required once all supported versions have the number - consider removing in 7.0
             additionalSettings.put("node.attr." + ML_ENABLED_NODE_ATTR, "true");
             additionalSettings.put("node.attr." + MAX_OPEN_JOBS_NODE_ATTR,
-                    AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.get(settings));
+                    AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings));
         }
         return additionalSettings.build();
     }
@@ -434,7 +435,7 @@ public class MachineLearning implements ActionPlugin {
         if (false == enabled || tribeNode || tribeNodeClient || transportClientMode) {
             return emptyList();
         }
-        int maxNumberOfJobs = AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.get(settings);
+        int maxNumberOfJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings);
         // 4 threads per job: for cpp logging, result processing, state processing and
         // AutodetectProcessManager worker thread:
         FixedExecutorBuilder autoDetect = new FixedExecutorBuilder(settings, AUTODETECT_THREAD_POOL_NAME,

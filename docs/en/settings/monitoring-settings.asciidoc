@@ -1,6 +1,9 @@
 [role="xpack"]
 [[monitoring-settings]]
-===  Monitoring Settings
+===  Monitoring Settings in Elasticsearch
+++++
+<titleabbrev>Monitoring Settings</titleabbrev>
+++++
 
 Monitoring is enabled by default when you install {xpack}. You can configure
 these monitoring settings in the `elasticsearch.yml` file.

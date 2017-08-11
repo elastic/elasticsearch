@@ -67,7 +67,7 @@ search shards, templates, validate).
 `view_index_metadata`::
 Read-only access to index metadata (aliases, aliases exists, get index, exists, field mappings,
 mappings, search shards, type exists, validate, warmers, settings). This
-privilege is primarily available for use by <<kibana-roles, Kibana users>>.
+privilege is primarily available for use by {kib} users.
 
 `read`::
 Read only access to actions (count, explain, get, mget, get indexed scripts,

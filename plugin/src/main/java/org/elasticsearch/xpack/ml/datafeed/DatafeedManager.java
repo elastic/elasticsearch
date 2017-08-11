@@ -145,7 +145,10 @@ public class DatafeedManager extends AbstractComponent {
     }
 
     public void isolateDatafeed(long allocationId) {
-        runningDatafeedsOnThisNode.get(allocationId).isolateDatafeed();
+        Holder holder = runningDatafeedsOnThisNode.get(allocationId);
+        if (holder != null) {
+            holder.isolateDatafeed();
+        }
     }
 
     // Important: Holder must be created and assigned to DatafeedTask before setting state to started,

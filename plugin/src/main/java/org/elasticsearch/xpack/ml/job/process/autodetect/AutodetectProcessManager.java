@@ -74,19 +74,24 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.common.settings.Setting.Property;
+
 public class AutodetectProcessManager extends AbstractComponent {
 
-    // TODO: Ideally this setting shouldn't need to exist
     // We should be able from the job config to estimate the memory/cpu a job needs to have,
     // and if we know that then we can prior to assigning a job to a node fail based on the
     // available resources on that node: https://github.com/elastic/x-pack-elasticsearch/issues/546
-    // Note: on small instances on cloud, this setting will be set to: 1
+    // However, it is useful to also be able to apply a hard limit.
 
-    // WARNING: This setting cannot be made DYNAMIC, because it is tied to several threadpools
+    // WARNING: These settings cannot be made DYNAMIC, because they are tied to several threadpools
     // and a threadpool's size can't be changed at runtime.
     // See MachineLearning#getExecutorBuilders(...)
+    // TODO: Remove the deprecated setting in 7.0 and move the default value to the replacement setting
+    @Deprecated
     public static final Setting<Integer> MAX_RUNNING_JOBS_PER_NODE =
-            Setting.intSetting("max_running_jobs", 10, 1, 512, Setting.Property.NodeScope);
+            Setting.intSetting("max_running_jobs", 10, 1, 512, Property.NodeScope, Property.Deprecated);
+    public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
+            Setting.intSetting("xpack.ml.max_open_jobs", MAX_RUNNING_JOBS_PER_NODE, 1, Property.NodeScope);
 
     private final Client client;
     private final ThreadPool threadPool;
@@ -116,7 +121,7 @@ public class AutodetectProcessManager extends AbstractComponent {
         this.client = client;
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
-        this.maxAllowedRunningJobs = MAX_RUNNING_JOBS_PER_NODE.get(settings);
+        this.maxAllowedRunningJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
         this.autodetectProcessFactory = autodetectProcessFactory;
         this.normalizerFactory = normalizerFactory;
         this.jobManager = jobManager;

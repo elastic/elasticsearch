@@ -88,7 +88,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
             } catch (ElasticsearchStatusException e) {
                 assertTrue(e.getMessage(), e.getMessage().startsWith("Could not open job because no suitable nodes were found, allocation explanation"));
                 assertTrue(e.getMessage(), e.getMessage().endsWith("because this node is full. Number of opened jobs [" + maxNumberOfJobsPerNode +
-                        "], max_running_jobs [" + maxNumberOfJobsPerNode + "]]"));
+                        "], xpack.ml.max_open_jobs [" + maxNumberOfJobsPerNode + "]]"));
                 logger.info("good news everybody --> reached maximum number of allowed opened jobs, after trying to open the {}th job", i);
 
                 // close the first job and check if the latest job gets opened:
@@ -111,12 +111,12 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
     }
 
     private void startMlCluster(int numNodes, int maxNumberOfJobsPerNode) throws Exception {
-        // clear all nodes, so that we can set max_running_jobs setting:
+        // clear all nodes, so that we can set xpack.ml.max_open_jobs setting:
         internalCluster().ensureAtMostNumDataNodes(0);
-        logger.info("[{}] is [{}]", AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode);
+        logger.info("[{}] is [{}]", AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode);
         for (int i = 0; i < numNodes; i++) {
             internalCluster().startNode(Settings.builder()
-                    .put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode));
+                    .put(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode));
         }
         logger.info("Started [{}] nodes", numNodes);
         ensureStableCluster(numNodes);

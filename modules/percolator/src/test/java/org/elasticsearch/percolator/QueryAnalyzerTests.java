@@ -589,6 +589,21 @@ public class QueryAnalyzerTests extends ESTestCase {
         queryTerms2 = terms(new int[]{2, 3, 4}, "1", "456");
         result = selectBestExtraction(Collections.emptyMap(), queryTerms1, queryTerms2);
         assertSame("Ignoring ranges, so then prefer queryTerms1, because it has the longest shortest term", queryTerms1, result);
+
+        queryTerms1 = terms(new int[]{});
+        queryTerms2 = terms(new int[]{});
+        result = selectBestExtraction(Collections.emptyMap(), queryTerms1, queryTerms2);
+        assertSame("In case query extractions are empty", queryTerms2, result);
+
+        queryTerms1 = terms(new int[]{1});
+        queryTerms2 = terms(new int[]{});
+        result = selectBestExtraction(Collections.emptyMap(), queryTerms1, queryTerms2);
+        assertSame("In case query a single extraction is empty", queryTerms1, result);
+
+        queryTerms1 = terms(new int[]{});
+        queryTerms2 = terms(new int[]{1});
+        result = selectBestExtraction(Collections.emptyMap(), queryTerms1, queryTerms2);
+        assertSame("In case query a single extraction is empty", queryTerms2, result);
     }
 
     public void testSelectBestExtraction_boostFields() {
@@ -751,6 +766,13 @@ public class QueryAnalyzerTests extends ESTestCase {
 
         Query query2 = LongPoint.newRangeQuery("_field", new long[]{0, 0, 0}, new long[]{1, 1, 1});
         expectThrows(UnsupportedQueryException.class, () -> analyze(query2, Collections.emptyMap()));
+    }
+
+    public void testPointRangeQuery_lowerUpperReversed() {
+        Query query = IntPoint.newRangeQuery("_field", 20, 10);
+        Result result = analyze(query, Collections.emptyMap());
+        assertTrue(result.verified);
+        assertThat(result.extractions.size(), equalTo(0));
     }
 
     public void testIndexOrDocValuesQuery() {

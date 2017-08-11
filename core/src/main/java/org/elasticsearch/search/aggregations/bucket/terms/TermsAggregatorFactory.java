@@ -264,13 +264,18 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                 final long maxOrd = getMaxOrd(valuesSource, context.searcher());
                 assert maxOrd != -1;
                 final double ratio = maxOrd / ((double) context.searcher().getIndexReader().numDocs());
-                if (includeExclude == null &&
+                if (factories == AggregatorFactories.EMPTY &&
+                        includeExclude == null &&
                         Aggregator.descendsFromBucketAggregator(parent) == false &&
                         ratio <= 0.5 && maxOrd <= 2048) {
-                    // 0.5: At least we reduce the number of global
-                    // ordinals look-ups by half
-                    // 2048: LOW_CARDINALITY has additional memory usage,
-                    // which directly linked to maxOrd, so we need to limit.
+                    /**
+                     * We can use the low cardinality execution mode iff this aggregator:
+                     *  - has no sub-aggregator AND
+                     *  - is not a child of a bucket aggregator AND
+                     *  - At least we reduce the number of global ordinals look-ups by half (ration <= 0.5) AND
+                     *  - the maximum global ordinal is less than 2048 (LOW_CARDINALITY has additional memory usage,
+                     *  which directly linked to maxOrd, so we need to limit).
+                     */
                     return new GlobalOrdinalsStringTermsAggregator.LowCardinality(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, order,
                         format, bucketCountThresholds, context, parent, false, subAggCollectMode, showTermDocCountError,
                         pipelineAggregators, metaData);

@@ -69,7 +69,7 @@ public class PainlessDocGenerator {
             emitGeneratedWarning(indexStream);
             List<Type> types = Definition.allSimpleTypes().stream().sorted(comparing(t -> t.name)).collect(toList());
             for (Type type : types) {
-                if (type.sort.primitive) {
+                if (type.clazz.isPrimitive()) {
                     // Primitives don't have methods to reference
                     continue;
                 }

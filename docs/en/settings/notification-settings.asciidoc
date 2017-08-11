@@ -1,6 +1,9 @@
 [role="xpack"]
 [[notification-settings]]
-=== {watcher} Settings
+=== {watcher} Settings in Elasticsearch
+++++
+<titleabbrev>{watcher} Settings</titleabbrev>
+++++
 
 You configure `xpack.notification` settings in `elasticsearch.yml` to
 send set up {watcher} and send notifications via <<email-notification-settings, email>>,

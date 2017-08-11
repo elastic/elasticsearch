@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-settings]]
-=== Security Settings
+=== Security Settings in Elasticsearch
+++++
+<titleabbrev>Security Settings</titleabbrev>
+++++
 
 You configure `xpack.security` settings  to
 <<anonymous-access-settings, enable anonymous access>>

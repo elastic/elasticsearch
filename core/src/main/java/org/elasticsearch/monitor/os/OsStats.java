@@ -297,6 +297,7 @@ public class OsStats implements Writeable, ToXContent {
         private final long cpuCfsQuotaMicros;
         private final CpuStat cpuStat;
         // These will be null for nodes running versions prior to 6.1.0
+        private final String memoryControlGroup;
         private final Long memoryLimitInBytes;
         private final Long memoryUsageInBytes;
 
@@ -361,6 +362,15 @@ public class OsStats implements Writeable, ToXContent {
         }
 
         /**
+         * The control group for the {@code memory} subsystem.
+         *
+         * @return the control group
+         */
+        public String getMemoryControlGroup() {
+            return memoryControlGroup;
+        }
+
+        /**
          * The maximum amount of user memory (including file cache).
          *
          * @return the maximum amount of user memory (including file cache).
@@ -385,6 +395,7 @@ public class OsStats implements Writeable, ToXContent {
             final long cpuCfsPeriodMicros,
             final long cpuCfsQuotaMicros,
             final CpuStat cpuStat,
+            final String memoryControlGroup,
             final long memoryLimitInBytes,
             final long memoryUsageInBytes) {
             this.cpuAcctControlGroup = Objects.requireNonNull(cpuAcctControlGroup);
@@ -393,6 +404,7 @@ public class OsStats implements Writeable, ToXContent {
             this.cpuCfsPeriodMicros = cpuCfsPeriodMicros;
             this.cpuCfsQuotaMicros = cpuCfsQuotaMicros;
             this.cpuStat = Objects.requireNonNull(cpuStat);
+            this.memoryControlGroup = memoryControlGroup;
             this.memoryLimitInBytes = memoryLimitInBytes;
             this.memoryUsageInBytes = memoryUsageInBytes;
         }
@@ -405,9 +417,11 @@ public class OsStats implements Writeable, ToXContent {
             cpuCfsQuotaMicros = in.readLong();
             cpuStat = new CpuStat(in);
             if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                memoryControlGroup = in.readOptionalString();
                 memoryLimitInBytes = in.readOptionalLong();
                 memoryUsageInBytes = in.readOptionalLong();
             } else {
+                memoryControlGroup = null;
                 memoryLimitInBytes = null;
                 memoryUsageInBytes = null;
             }
@@ -422,6 +436,7 @@ public class OsStats implements Writeable, ToXContent {
             out.writeLong(cpuCfsQuotaMicros);
             cpuStat.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+                out.writeOptionalString(memoryControlGroup);
                 out.writeOptionalLong(memoryLimitInBytes);
                 out.writeOptionalLong(memoryUsageInBytes);
             }
@@ -445,13 +460,16 @@ public class OsStats implements Writeable, ToXContent {
                     cpuStat.toXContent(builder, params);
                 }
                 builder.endObject();
-                if (memoryLimitInBytes != null || memoryUsageInBytes != null) {
+                if (memoryControlGroup != null) {
                     builder.startObject("memory");
-                    if (memoryLimitInBytes != null) {
-                        builder.field("limit_in_bytes", memoryLimitInBytes);
-                    }
-                    if (memoryUsageInBytes != null) {
-                        builder.field("usage_in_bytes", memoryUsageInBytes);
+                    {
+                        builder.field("control_group", memoryControlGroup);
+                        if (memoryLimitInBytes != null) {
+                            builder.field("limit_in_bytes", memoryLimitInBytes);
+                        }
+                        if (memoryUsageInBytes != null) {
+                            builder.field("usage_in_bytes", memoryUsageInBytes);
+                        }
                     }
                     builder.endObject();
                 }

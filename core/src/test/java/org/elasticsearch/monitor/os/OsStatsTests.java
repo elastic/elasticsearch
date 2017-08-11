@@ -43,6 +43,7 @@ public class OsStatsTests extends ESTestCase {
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
+            randomAlphaOfLength(8),
             randomNonNegativeLong(),
             randomNonNegativeLong());
         OsStats osStats = new OsStats(System.currentTimeMillis(), cpu, mem, swap, cgroup);

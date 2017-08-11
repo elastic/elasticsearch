@@ -301,6 +301,7 @@ public class NodeStatsTests extends ESTestCase {
                         randomNonNegativeLong(),
                         randomNonNegativeLong(),
                         new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
+                        randomAlphaOfLength(8),
                         randomNonNegativeLong(),
                         randomNonNegativeLong()));
         }

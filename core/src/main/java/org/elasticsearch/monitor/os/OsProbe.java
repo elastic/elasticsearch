@@ -485,6 +485,7 @@ public class OsProbe {
                     cgroupCpuAcctCpuCfsPeriodMicros,
                     cgroupCpuAcctCpuCfsQuotaMicros,
                     cpuStat,
+                    memoryControlGroup,
                     cgroupMemoryLimitInBytes,
                     cgroupMemoryUsageInBytes);
             }

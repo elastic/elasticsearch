@@ -562,13 +562,13 @@ public class TransportService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Return a map of nodeId to pending number of requests for the given action name
+     * Return a map of nodeId to pending number of requests for the given action name prefix
      */
-    public Map<String, Long> getPendingRequests(final String actionName) {
+    public Map<String, Long> getPendingRequests(final String actionNamePrefix) {
         Map<String, Long> nodeCounts = new HashMap<>();
         for (Map.Entry<Long, RequestHolder> entry : clientHandlers.entrySet()) {
             RequestHolder reqHolder = entry.getValue();
-            if (actionName.equals(reqHolder.action())) {
+            if (reqHolder.action().startsWith(actionNamePrefix)) {
                 String nodeId = reqHolder.connection().getNode().getId();
                 nodeCounts.put(nodeId, nodeCounts.getOrDefault(nodeId, 0L) + 1);
             }

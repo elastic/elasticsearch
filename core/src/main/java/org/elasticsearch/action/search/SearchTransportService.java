@@ -195,10 +195,10 @@ public class SearchTransportService extends AbstractComponent {
     }
 
     /**
-     * Return a map of nodeId to pending number of requests for the given action name
+     * Return a map of nodeId to pending number of requests for the given action name prefix
      */
-    public Map<String, Long> getPendingRequests(final String actionName) {
-        return transportService.getPendingRequests(actionName);
+    public Map<String, Long> getPendingRequests(final String actionNamePrefix) {
+        return transportService.getPendingRequests(actionNamePrefix);
     }
 
     static class ScrollFreeContextRequest extends TransportRequest {

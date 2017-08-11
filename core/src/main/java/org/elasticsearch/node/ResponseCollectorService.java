@@ -134,9 +134,9 @@ public final class ResponseCollectorService extends AbstractComponent implements
             // to the node times the number of clients in the system
             double concurrencyCompensation = outstandingRequests * clientNum;
 
-            // Cubic queue adjustment. The paper goes for 3 but we need queue to
-            // weigh heavier, so this increases to 4.
-            int queueAdjustmentFactor = 4;
+            // Cubic queue adjustment factor. The paper chose 3 though we could
+            // potentially make this configurable if desired.
+            int queueAdjustmentFactor = 3;
 
             // EWMA of queue size
             double qBar = queueSize;

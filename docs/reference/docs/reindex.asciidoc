@@ -917,19 +917,17 @@ though these are all taken at approximately the same time.
 [[docs-reindex-picking-slices]]
 === Picking the number of slices
 
-At this point we have a few recommendations around the number of `slices` to
-use (the `max` parameter in the slice API if manually parallelizing):
+Query performance is most efficient when the number of `slices` is equal to the
+number of shards in the index. If that number is large, (for example,
+500) choose a lower number as too many `slices` will hurt performance. Setting
+`slices` higher than the number of shards generally does not improve efficiency
+and adds overhead.
 
-* Don't use large numbers. `500` creates fairly massive CPU thrash.
-* It is more efficient from a query performance standpoint to use some multiple
-of the number of shards in the source index.
-* Using exactly as many shards as are in the source index is the most efficient
-from a query performance standpoint.
-* Indexing performance should scale linearly across available resources with
-the number of `slices`.
-* Whether indexing or query performance dominates that process depends on lots
-of factors like the documents being reindexed and the cluster doing the
-reindexing.
+Indexing performance scales linearly across available resources with the
+number of slices.
+
+Whether query or indexing performance dominates the runtime depends on the
+documents being reindexed and cluster resources.
 
 [float]
 === Reindex daily indices

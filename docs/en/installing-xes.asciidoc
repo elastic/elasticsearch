@@ -1,6 +1,9 @@
 [role="xpack"]
 [[installing-xpack-es]]
-== Installing X-Pack
+== Installing X-Pack in Elasticsearch
+++++
+<titleabbrev>Installing {xpack}</titleabbrev>
+++++
 
 After you install {es}, you can optionally obtain and install {xpack}.
 For more information about how to obtain {xpack},

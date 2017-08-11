@@ -100,8 +100,3 @@ thirdPartyAudit.excludes = [
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener'
 ]
-
-javadoc {
-  dependsOn ':client:rest:javadoc'
-  options.linksOffline project.artifacts_host + "/javadoc/org/elasticsearch/client/elasticsearch-rest-client/${version}", "../rest/build/docs/javadoc/"
-}

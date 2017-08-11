@@ -22,19 +22,8 @@ import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import nebula.plugin.extraconfigurations.ProvidedBasePlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.gradle.api.GradleException
-import org.gradle.api.InvalidUserDataException
-import org.gradle.api.JavaVersion
-import org.gradle.api.Plugin
-import org.gradle.api.Project
-import org.gradle.api.Task
-import org.gradle.api.XmlProvider
-import org.gradle.api.artifacts.Configuration
-import org.gradle.api.artifacts.Dependency
-import org.gradle.api.artifacts.ModuleDependency
-import org.gradle.api.artifacts.ModuleVersionIdentifier
-import org.gradle.api.artifacts.ProjectDependency
-import org.gradle.api.artifacts.ResolvedArtifact
+import org.gradle.api.*
+import org.gradle.api.artifacts.*
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
@@ -48,7 +37,6 @@ import org.gradle.util.GradleVersion
 
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
-
 /**
  * Encapsulates build configuration for elasticsearch projects.
  */
@@ -78,8 +66,32 @@ class BuildPlugin implements Plugin<Project> {
         configureRepositories(project)
         configureConfigurations(project)
         project.ext.versions = VersionProperties.versions
-        project.ext.artifacts_host = project.ext.versions.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
         configureCompile(project)
+
+        String artifactsHost = project.ext.versions.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
+
+        project.afterEvaluate {
+            /*
+             * Order matters, the linksOffline for org.elasticsearch:elasticsearch must be the last one
+             * or all the links for the other packages (e.g org.elasticsearch.client) will point to core rather than their own artifacts
+             */
+            Closure sortClosure = { a, b -> b.group <=> a.group };
+            Closure depJavadocClosure = { dep ->
+                if (dep.group != null && dep.group.startsWith('org.elasticsearch')) {
+                    String substitution = project.ext.projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
+                    if (substitution == null) {
+                        throw new IllegalStateException("No project substitution found for ${dep.group}:${dep.name}:${dep.version}")
+                    }
+                    project.javadoc.dependsOn substitution + ':javadoc'
+                    String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
+                    String projectPath = substitution.replaceAll(':', '/')
+                    project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${project.rootDir}${projectPath}/build/docs/javadoc/"
+                }
+            }
+            project.configurations.compile.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
+            project.configurations.provided.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
+        }
+
         configureJavadocJar(project)
         configureSourcesJar(project)
         configurePomGeneration(project)
@@ -474,7 +486,7 @@ class BuildPlugin implements Plugin<Project> {
         project.assemble.dependsOn(sourcesJarTask)
     }
 
-    /** Adds additional manifest info to jars, and adds source and javadoc jars */
+    /** Adds additional manifest info to jars */
     static void configureJars(Project project) {
         project.tasks.withType(Jar) { Jar jarTask ->
             // we put all our distributable files under distributions

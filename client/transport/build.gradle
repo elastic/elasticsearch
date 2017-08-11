@@ -55,9 +55,3 @@ namingConventions {
   //we don't have integration tests
   skipIntegTestInDisguise = true
 }
-
-
-javadoc {
-  dependsOn ':core:javadoc'
-  options.linksOffline project.artifacts_host + "/javadoc/org/elasticsearch/elasticsearch/${version}", "../../core/build/docs/javadoc/"
-}

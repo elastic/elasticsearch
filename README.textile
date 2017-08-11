@@ -79,6 +79,12 @@ curl -XGET 'http://localhost:9200/twitter/doc/2?pretty=true'
 curl -XGET 'http://localhost:9200/twitter/doc/3?pretty=true'
 </pre>
 
+Just to be clear,
+@twitter@ is your Index (can be named anything)
+@doc@ is the Log Type (can also be named anything)
+@1@, @2@, and @3@ are your Index IDs.
+
+
 h3. Searching
 
 Mmm search..., shouldn't it be elastic?

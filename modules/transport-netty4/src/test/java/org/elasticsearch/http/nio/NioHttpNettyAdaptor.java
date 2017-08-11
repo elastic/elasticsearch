@@ -95,8 +95,8 @@ public class NioHttpNettyAdaptor {
         this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
     }
 
-    protected EmbeddedChannel getAdaptor(NioSocketChannel channel) {
-        EmbeddedChannel ch = new EmbeddedChannel();
+    protected ESEmbeddedChannel getAdaptor(NioSocketChannel channel) {
+        ESEmbeddedChannel ch = new ESEmbeddedChannel();
         // TODO: Implement Netty allocator that allocates our byte references
         ch.config().setAllocator(UnpooledByteBufAllocator.DEFAULT);
 
@@ -104,34 +104,6 @@ public class NioHttpNettyAdaptor {
         decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
 
         ch.pipeline().addLast(decoder);
-        ch.pipeline().addLast("writer", new ChannelOutboundHandlerAdapter() {
-
-            @Override
-            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-                channel.getWriteContext().sendMessage(Netty4Utils.toBytesReference((ByteBuf) msg), new ActionListener<NioChannel>() {
-                    @Override
-                    public void onResponse(NioChannel nioChannel) {
-                        promise.setSuccess();
-                        // We should only be using unpooled buffers. So releasing only removes them to ensure they can
-                        // be GCed.
-                        ch.releaseOutbound();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        promise.setFailure(e);
-                        // We should only be using unpooled buffers. So releasing only removes them to ensure they can
-                        // be GCed.
-                        ch.releaseOutbound();
-                    }
-                });
-
-                // This is a little tricky. The embedded channel will complete the promise once it writes the message
-                // to its outbound buffer. We do not want to complete the promise until the message is sent. So we
-                // intercept the promise and pass a different promise back to the rest of the pipeline.
-                ctx.write(msg, ch.newPromise());
-            }
-        });
         ch.pipeline().addLast(new HttpContentDecompressor());
         ch.pipeline().addLast(new HttpResponseEncoder());
         final HttpObjectAggregator aggregator = new HttpObjectAggregator(maxContentLength);

@@ -17,25 +17,39 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio.channel;
+package org.elasticsearch.http.nio;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.transport.nio.ByteWriteOperation;
 import org.elasticsearch.transport.nio.WriteOperation;
+import org.elasticsearch.transport.nio.channel.NioChannel;
+import org.elasticsearch.transport.nio.channel.WriteContext;
 
 import java.io.IOException;
 
-public interface WriteContext {
+public class HttpWriteContext implements WriteContext {
 
-    void sendMessage(Object message, ActionListener<NioChannel> listener);
+    @Override
+    public void sendMessage(Object message, ActionListener<NioChannel> listener) {
 
-    void queueWriteOperations(WriteOperation writeOperation);
+    }
 
-    void flushChannel() throws IOException;
+    @Override
+    public void queueWriteOperations(WriteOperation writeOperation) {
 
-    boolean hasQueuedWriteOps();
+    }
 
-    void clearQueuedWriteOps(Exception e);
+    @Override
+    public void flushChannel() throws IOException {
 
+    }
+
+    @Override
+    public boolean hasQueuedWriteOps() {
+        return false;
+    }
+
+    @Override
+    public void clearQueuedWriteOps(Exception e) {
+
+    }
 }

@@ -20,7 +20,6 @@
 package org.elasticsearch.http.nio;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
@@ -38,7 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.nio.WriteOperation;
+import org.elasticsearch.transport.nio.ByteWriteOperation;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.WriteContext;
 import org.junit.Before;
@@ -47,7 +46,6 @@ import org.mockito.ArgumentCaptor;
 import java.util.function.BiConsumer;
 
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -57,7 +55,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
     private NioHttpNettyAdaptor adaptor;
     private NioSocketChannel nioSocketChannel;
     private WriteContext writeContext;
-    private ArgumentCaptor<WriteOperation> writeOperation;
+    private ArgumentCaptor<ByteWriteOperation> writeOperation;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -66,7 +64,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
         adaptor = new NioHttpNettyAdaptor(Settings.EMPTY, exceptionHandler, Netty4CorsConfigBuilder.forAnyOrigin().build(), 1024);
         nioSocketChannel = mock(NioSocketChannel.class);
         writeContext = mock(WriteContext.class);
-        writeOperation = ArgumentCaptor.forClass(WriteOperation.class);
+        writeOperation = ArgumentCaptor.forClass(ByteWriteOperation.class);
 
         when(nioSocketChannel.getWriteContext()).thenReturn(writeContext);
     }
@@ -146,7 +144,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
             Netty4CorsConfigBuilder.forAnyOrigin().build(), 1024);
         NioSocketChannel nioSocketChannel = mock(NioSocketChannel.class);
         when(nioSocketChannel.getWriteContext()).thenReturn(mock(WriteContext.class));
-        EmbeddedChannel adaptor = nioHttpNettyAdaptor.getAdaptor(nioSocketChannel);
+        ESEmbeddedChannel adaptor = nioHttpNettyAdaptor.getAdaptor(nioSocketChannel);
 
         // Must send a request through pipeline inorder to handle response
         HttpRequest defaultFullHttpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "localhost:9090/got/got");

@@ -40,7 +40,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class SocketSelector extends ESSelector {
 
     private final ConcurrentLinkedQueue<NioSocketChannel> newChannels = new ConcurrentLinkedQueue<>();
-    private final ConcurrentLinkedQueue<WriteOperation> queuedWrites = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<ByteWriteOperation> queuedWrites = new ConcurrentLinkedQueue<>();
     private final SocketEventHandler eventHandler;
 
     public SocketSelector(SocketEventHandler eventHandler) throws IOException {
@@ -67,7 +67,7 @@ public class SocketSelector extends ESSelector {
 
     @Override
     void cleanup() {
-        WriteOperation op;
+        ByteWriteOperation op;
         while ((op = queuedWrites.poll()) != null) {
             op.getListener().onFailure(new ClosedSelectorException());
         }
@@ -92,7 +92,7 @@ public class SocketSelector extends ESSelector {
      *
      * @param writeOperation to be queued
      */
-    public void queueWrite(WriteOperation writeOperation) {
+    public void queueWrite(ByteWriteOperation writeOperation) {
         queuedWrites.offer(writeOperation);
         if (isOpen() == false) {
             boolean wasRemoved = queuedWrites.remove(writeOperation);
@@ -110,7 +110,7 @@ public class SocketSelector extends ESSelector {
      *
      * @param writeOperation to be queued in a channel's buffer
      */
-    public void queueWriteInChannelBuffer(WriteOperation writeOperation) {
+    public void queueWriteInChannelBuffer(ByteWriteOperation writeOperation) {
         assert isOnCurrentThread() : "Must be on selector thread";
         NioSocketChannel channel = writeOperation.getChannel();
         WriteContext context = channel.getWriteContext();
@@ -171,7 +171,7 @@ public class SocketSelector extends ESSelector {
     }
 
     private void handleQueuedWrites() {
-        WriteOperation writeOperation;
+        ByteWriteOperation writeOperation;
         while ((writeOperation = queuedWrites.poll()) != null) {
             if (writeOperation.getChannel().isWritable()) {
                 queueWriteInChannelBuffer(writeOperation);

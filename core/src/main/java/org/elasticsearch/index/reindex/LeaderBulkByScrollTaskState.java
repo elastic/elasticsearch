@@ -20,9 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 
 import java.util.ArrayList;
@@ -33,60 +31,68 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static java.util.Collections.unmodifiableList;
 
 /**
- * Task for parent bulk by scroll requests that have sub-workers.
+ * Tracks the state of sliced subtasks and provides unified status information for a sliced BulkByScrollRequest.
  */
-public class ParentBulkByScrollTask extends BulkByScrollTask {
+public class LeaderBulkByScrollTaskState {
+
+    private final BulkByScrollTask task;
+
+    private final int slices;
     /**
-     * Holds the responses as they come back. This uses {@link Tuple} as an "Either" style holder where only the response or the exception
-     * is set.
+     * Holds the responses of slice workers as they come in
      */
     private final AtomicArray<Result> results;
-    private final AtomicInteger counter;
+    /**
+     * How many subtasks are still running
+     */
+    private final AtomicInteger runningSubtasks;
 
-    public ParentBulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId, int slices) {
-        super(id, type, action, description, parentTaskId);
-        this.results = new AtomicArray<>(slices);
-        this.counter  = new AtomicInteger(slices);
+    public LeaderBulkByScrollTaskState(BulkByScrollTask task, int slices) {
+        this.task = task;
+        this.slices = slices;
+        results = new AtomicArray<>(slices);
+        runningSubtasks = new AtomicInteger(slices);
     }
 
-    @Override
-    public void rethrottle(float newRequestsPerSecond) {
-        // Nothing to do because all rethrottling is done on slice sub tasks.
+    /**
+     * Returns the number of slices this BulkByScrollRequest will use
+     */
+    public int getSlices() {
+        return slices;
     }
 
-    @Override
-    public Status getStatus() {
+    /**
+     * Get the combined statuses of slice subtasks, merged with the given list of statuses
+     */
+    public BulkByScrollTask.Status getStatus(List<BulkByScrollTask.StatusOrException> statuses) {
         // We only have access to the statuses of requests that have finished so we return them
-        List<StatusOrException> statuses = Arrays.asList(new StatusOrException[results.length()]);
-        addResultsToList(statuses);
-        return new Status(unmodifiableList(statuses), getReasonCancelled());
-    }
-
-    @Override
-    public int runningSliceSubTasks() {
-        return counter.get();
-    }
-
-    @Override
-    public TaskInfo getInfoGivenSliceInfo(String localNodeId, List<TaskInfo> sliceInfo) {
-        /* Merge the list of finished sub requests with the provided info. If a slice is both finished and in the list then we prefer the
-         * finished status because we don't expect them to change after the task is finished. */
-        List<StatusOrException> sliceStatuses = Arrays.asList(new StatusOrException[results.length()]);
-        for (TaskInfo t : sliceInfo) {
-            Status status = (Status) t.getStatus();
-            sliceStatuses.set(status.getSliceId(), new StatusOrException(status));
+        if (statuses.size() != results.length()) {
+            throw new IllegalArgumentException("Given number of statuses does not match amount of expected results");
         }
-        addResultsToList(sliceStatuses);
-        Status status = new Status(sliceStatuses, getReasonCancelled());
-        return taskInfo(localNodeId, getDescription(), status);
+        addResultsToList(statuses);
+        return new BulkByScrollTask.Status(unmodifiableList(statuses), task.getReasonCancelled());
     }
 
-    private void addResultsToList(List<StatusOrException> sliceStatuses) {
+    /**
+     * Get the combined statuses of sliced subtasks
+     */
+    public BulkByScrollTask.Status getStatus() {
+        return getStatus(Arrays.asList(new BulkByScrollTask.StatusOrException[results.length()]));
+    }
+
+    /**
+     * The number of sliced subtasks that are still running
+     */
+    public int runningSliceSubTasks() {
+        return runningSubtasks.get();
+    }
+
+    private void addResultsToList(List<BulkByScrollTask.StatusOrException> sliceStatuses) {
         for (Result t : results.asList()) {
             if (t.response != null) {
-                sliceStatuses.set(t.sliceId, new StatusOrException(t.response.getStatus()));
+                sliceStatuses.set(t.sliceId, new BulkByScrollTask.StatusOrException(t.response.getStatus()));
             } else {
-                sliceStatuses.set(t.sliceId, new StatusOrException(t.failure));
+                sliceStatuses.set(t.sliceId, new BulkByScrollTask.StatusOrException(t.failure));
             }
         }
     }
@@ -111,7 +117,7 @@ public class ParentBulkByScrollTask extends BulkByScrollTask {
     }
 
     private void recordSliceCompletionAndRespondIfAllDone(ActionListener<BulkByScrollResponse> listener) {
-        if (counter.decrementAndGet() != 0) {
+        if (runningSubtasks.decrementAndGet() != 0) {
             return;
         }
         List<BulkByScrollResponse> responses = new ArrayList<>(results.length());
@@ -130,7 +136,7 @@ public class ParentBulkByScrollTask extends BulkByScrollTask {
             }
         }
         if (exception == null) {
-            listener.onResponse(new BulkByScrollResponse(responses, getReasonCancelled()));
+            listener.onResponse(new BulkByScrollResponse(responses, task.getReasonCancelled()));
         } else {
             listener.onFailure(exception);
         }

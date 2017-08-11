@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -33,14 +34,17 @@ import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class ParentBulkByScrollTaskTests extends ESTestCase {
+public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
     private int slices;
-    private ParentBulkByScrollTask task;
+    private BulkByScrollTask task;
+    private LeaderBulkByScrollTaskState taskState;
 
     @Before
     public void createTask() {
         slices = between(2, 50);
-        task = new ParentBulkByScrollTask(1, "test_type", "test_action", "test", null, slices);
+        task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID);
+        task.setWorkerCount(slices);
+        taskState = task.getLeaderState();
     }
 
     public void testBasicData() {
@@ -90,7 +94,7 @@ public class ParentBulkByScrollTaskTests extends ESTestCase {
 
             @SuppressWarnings("unchecked")
             ActionListener<BulkByScrollResponse> listener = slice < slices - 1 ? neverCalled() : mock(ActionListener.class);
-            task.onSliceResponse(listener, slice,
+            taskState.onSliceResponse(listener, slice,
                     new BulkByScrollResponse(timeValueMillis(10), sliceStatus, emptyList(), emptyList(), false));
 
             status = task.getStatus();

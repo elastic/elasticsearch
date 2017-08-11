@@ -529,6 +529,7 @@ public class OsStats implements Writeable, ToXContent {
                 builder.endObject();
                 return builder;
             }
+
         }
 
     }

@@ -1,7 +1,7 @@
 [[release-notes-5.6.0]]
 == 5.6.0 Release Notes
 
-Also see <<breaking-changes-5.6>>.
+Also see <<breaking-changes-5.5>>.
 
 [[breaking-java-5.6.0]]
 [float]
@@ -185,6 +185,7 @@ Ingest::
 * Sort Processor does not have proper behavior with targetField {pull}25237[#25237] (issue: {issue}24133[#24133])
 
 Inner Hits::
+* Fix inner hits to work with queries wrapped in an indices query {pull}26138[#26138] (issue: {issue}26133[#26133])
 * When fetching nested inner hits only access stored fields when needed {pull}25864[#25864] (issue: {issue}6[#6])
 
 Internal::
@@ -224,6 +225,7 @@ Plugin Repository HDFS::
 * Upgrading HDFS Repository Plugin to use HDFS 2.8.1 Client {pull}25497[#25497] (issue: {issue}25450[#25450])
 
 Query DSL::
+* Parse "*" in query_string_query as MatchAllDocsQuery {pull}25872[#25872] (issues: {issue}25556[#25556], {issue}25726[#25726])
 * SpanNearQueryBuilder should return the inner clause when a single clause is provided {pull}25856[#25856] (issue: {issue}25630[#25630])
 * WrapperQueryBuilder should also rewrite the parsed query {pull}25480[#25480]
 

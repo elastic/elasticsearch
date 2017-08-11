@@ -122,6 +122,11 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
     }
 
     @Override
+    protected boolean preserveTemplatesUponCompletion() {
+        return true;
+    }
+
+    @Override
     protected Settings restClientSettings() {
         String token = "Basic " + Base64.getEncoder()
                 .encodeToString(("test_user:x-pack-test-password").getBytes(StandardCharsets.UTF_8));

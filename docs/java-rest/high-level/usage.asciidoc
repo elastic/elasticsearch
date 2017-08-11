@@ -118,15 +118,35 @@ transitive dependencies:
 [[java-rest-high-usage-initialization]]
 === Initialization
 
-A `RestHighLevelClient` instance needs a <<java-rest-low-usage-initialization,REST low-level client>>
-to be built as follows:
+A `RestHighLevelClient` instance can be created by providing the host that it
+needs to communicate with as follows. In such case a new instance of the
+low-level Rest Client will be automatically created:
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-RestHighLevelClient client =
-    new RestHighLevelClient(lowLevelRestClient); <1>
+include-tagged::{doc-tests}/MainDocumentationIT.java[rest-high-level-client-init-hosts]
 --------------------------------------------------
-<1> We pass the <<java-rest-low-usage-initialization,REST low-level client>> instance
+
+Another way to create a `RestHighLevelClient` instance is by  providing a
+<<java-rest-low-usage-initialization,REST low-level client>> instance. This is
+needed when the connections settings (e.g. timeouts, authentication) need to be
+configured, which can only be done by creating a custom low-level client instance
+and providing it at `RestHighLevelClient` initialization:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MainDocumentationIT.java[rest-high-level-client-init-client]
+--------------------------------------------------
+
+The high-level client instance needs to be closed when no longer needed so that
+all the resources used by it get properly released, as well as the underlying
+http client instance and its threads. This can be done through the `close`
+method, which will close the internal `RestClient` instance.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MainDocumentationIT.java[rest-high-level-client-close]
+--------------------------------------------------
 
 In the rest of this documentation about the Java High Level Client, the `RestHighLevelClient` instance
 will be referenced as `client`.

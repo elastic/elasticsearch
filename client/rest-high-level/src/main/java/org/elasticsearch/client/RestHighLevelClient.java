@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.client.http.Header;
-import org.elasticsearch.client.http.HttpEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -43,6 +41,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.HttpHost;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ContextParser;
@@ -138,6 +139,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -157,14 +159,24 @@ import static java.util.stream.Collectors.toList;
 
 /**
  * High level REST client that wraps an instance of the low level {@link RestClient} and allows to build requests and read responses.
- * The provided {@link RestClient} is externally built and closed.
+ * The provided {@link RestClient} is externally built but it gets closed automatically when closing the {@link RestHighLevelClient}
+ * instance that wraps it.
  * Can be sub-classed to expose additional client methods that make use of endpoints added to Elasticsearch through plugins, or to
  * add support for custom response sections, again added to Elasticsearch through plugins.
  */
-public class RestHighLevelClient {
+public class RestHighLevelClient implements Closeable {
 
     private final RestClient client;
     private final NamedXContentRegistry registry;
+
+    /**
+     * Creates a {@link RestHighLevelClient} given the hosts that the client will send requests to.
+     * Internally creates a new {@link RestClient} instance with default options, by passing in
+     * the provided hosts to the low-level client constructor.
+     */
+    public RestHighLevelClient(HttpHost... httpHosts) {
+        this(RestClient.builder(httpHosts).build());
+    }
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests.
@@ -182,6 +194,11 @@ public class RestHighLevelClient {
         this.registry = new NamedXContentRegistry(
                 Stream.of(getDefaultNamedXContents().stream(), getProvidedNamedXContents().stream(), namedXContentEntries.stream())
                     .flatMap(Function.identity()).collect(toList()));
+    }
+
+    @Override
+    public void close() throws IOException {
+        client.close();
     }
 
     /**

@@ -23,7 +23,9 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.http.HttpHost;
 import org.elasticsearch.cluster.ClusterName;
 
 import java.io.IOException;
@@ -64,5 +66,29 @@ public class MainDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(version);
             assertNotNull(build);
         }
+    }
+
+    public void testInitializationFromHosts() throws IOException {
+        //tag::rest-high-level-client-init-hosts
+        RestHighLevelClient restHighLevelClient = new RestHighLevelClient(
+                new HttpHost("localhost", 9200, "http"),
+                new HttpHost("localhost", 9201, "http"));
+        //end::rest-high-level-client-init-hosts
+
+        //tag::rest-high-level-client-close
+        restHighLevelClient.close();
+        //end::rest-high-level-client-close
+    }
+
+    public void testInitializationFromClient() throws IOException {
+        //tag::rest-high-level-client-init-client
+        RestClient lowLevelClient = RestClient.builder(new HttpHost("localhost", 9200))
+                .setRequestConfigCallback(
+                        requestConfigBuilder -> requestConfigBuilder.setConnectTimeout(5000).setSocketTimeout(60000))
+                .setMaxRetryTimeoutMillis(60000).build();
+        RestHighLevelClient restHighLevelClient = new RestHighLevelClient(lowLevelClient);
+        //end::rest-high-level-client-init-client
+
+        restHighLevelClient.close();
     }
 }

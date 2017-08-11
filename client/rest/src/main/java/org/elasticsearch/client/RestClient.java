@@ -112,6 +112,7 @@ public class RestClient implements Closeable {
 
     /**
      * Returns a new {@link RestClientBuilder} to help with {@link RestClient} creation.
+     * Creates a new builder instance and sets the hosts that the client will send requests to.
      */
     public static RestClientBuilder builder(HttpHost... hosts) {
         return new RestClientBuilder(hosts);

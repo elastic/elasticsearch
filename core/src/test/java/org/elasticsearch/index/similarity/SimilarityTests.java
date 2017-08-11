@@ -74,6 +74,31 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         assertThat(legacySimilarityService.getSimilarity("classic").get(), instanceOf(ClassicSimilarity.class));
     }
 
+    public void testResolveSimilaritiesFromMapping_classic() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
+            .endObject()
+            .endObject().endObject().string();
+
+        Settings indexSettings = Settings.builder()
+            .put("index.similarity.my_similarity.type", "classic")
+            .put("index.similarity.my_similarity.discount_overlaps", false)
+            .build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createIndex("foo", indexSettings));
+        assertThat(e.getMessage(), Matchers.containsString("The [classic] similarity is disallowed"));
+
+        Settings legacyIndexSettings = Settings.builder()
+                .put(indexSettings)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_6_0).build();
+        IndexService indexService = createIndex("foo", legacyIndexSettings);
+        DocumentMapper documentMapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity(), instanceOf(ClassicSimilarityProvider.class));
+
+        ClassicSimilarity similarity = (ClassicSimilarity) documentMapper.mappers().getMapper("field1").fieldType().similarity().get();
+        assertThat(similarity.getDiscountOverlaps(), equalTo(false));
+    }
+
     public void testResolveSimilaritiesFromMapping_bm25() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties")

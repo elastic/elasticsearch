@@ -106,7 +106,7 @@ curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -H 'Content-Type:
 }'
 </pre>
 
-We can also do range search (the @postDate@ was automatically identified as date)
+We can also do range search (the @post_date@ was automatically identified as date)
 
 <pre>
 curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -H 'Content-Type: application/json' -d '

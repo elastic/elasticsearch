@@ -79,30 +79,7 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.versions = VersionProperties.versions
         configureCompile(project)
 
-        String artifactsHost = project.ext.versions.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
-
-        project.afterEvaluate {
-            /*
-             * Order matters, the linksOffline for org.elasticsearch:elasticsearch must be the last one
-             * or all the links for the other packages (e.g org.elasticsearch.client) will point to core rather than their own artifacts
-             */
-            Closure sortClosure = { a, b -> b.group <=> a.group };
-            Closure depJavadocClosure = { dep ->
-                if (dep.group != null && dep.group.startsWith('org.elasticsearch')) {
-                    String substitution = project.ext.projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
-                    if (substitution != null) {
-                        project.javadoc.dependsOn substitution + ':javadoc'
-                        String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
-                        String projectPath = substitution.replaceAll(':', '/')
-                        project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${project.rootDir}${projectPath}/build/docs/javadoc/"
-                    }
-                }
-            }
-            project.configurations.compile.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
-            project.configurations.provided.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
-        }
-
-        configureJavadocJar(project)
+        configureJavadoc(project)
         configureSourcesJar(project)
         configurePomGeneration(project)
 
@@ -475,6 +452,30 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
         }
+    }
+
+    static void configureJavadoc(Project project) {
+        String artifactsHost = VersionProperties.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
+        project.afterEvaluate {
+            /*
+             * Order matters, the linksOffline for org.elasticsearch:elasticsearch must be the last one
+             * or all the links for the other packages (e.g org.elasticsearch.client) will point to core rather than their own artifacts
+             */
+            Closure sortClosure = { a, b -> b.group <=> a.group };
+            Closure depJavadocClosure = { dep ->
+                if (dep.group != null && dep.group.startsWith('org.elasticsearch')) {
+                    String substitution = project.ext.projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
+                    if (substitution != null) {
+                        project.javadoc.dependsOn substitution + ':javadoc'
+                        String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
+                        project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${project.project(substitution).buildDir}/docs/javadoc/"
+                    }
+                }
+            }
+            project.configurations.compile.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
+            project.configurations.provided.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
+        }
+        configureJavadocJar(project)
     }
 
     /** Adds a javadocJar task to generate a jar containing javadocs. */

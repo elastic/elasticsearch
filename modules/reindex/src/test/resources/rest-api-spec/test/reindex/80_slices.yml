@@ -43,6 +43,7 @@
   - gte: { took: 0 }
   - is_false: task
   - is_false: deleted
+  - length: {slices: 5}
   - match: {slices.0.updated: 0}
   - match: {slices.0.version_conflicts: 0}
   - match: {slices.0.throttled_millis: 0}
@@ -127,6 +128,7 @@
   - gte: { response.took: 0 }
   - is_false: response.task
   - is_false: response.deleted
+  - length: {response.slices: 5}
   - match: {response.slices.0.updated: 0}
   - match: {response.slices.0.version_conflicts: 0}
   - match: {response.slices.0.throttled_millis: 0}
@@ -147,6 +149,7 @@
   - match: {task.status.updated: 0}
   - match: {task.status.version_conflicts: 0}
   - match: {task.status.throttled_millis: 0}
+  - length: {task.status.slices: 5}
   - match: {task.status.slices.0.updated: 0}
   - match: {task.status.slices.0.version_conflicts: 0}
   - match: {task.status.slices.0.throttled_millis: 0}
@@ -260,6 +263,7 @@
   - gte: { response.took: 0 }
   - is_false: response.task
   - is_false: response.deleted
+  - length: {response.slices: 2}
   - match: {response.slices.0.updated: 0}
   - match: {response.slices.0.version_conflicts: 0}
   - match: {response.slices.0.throttled_millis: 0}
@@ -271,6 +275,7 @@
   - match: {task.status.updated: 0}
   - match: {task.status.version_conflicts: 0}
   - match: {task.status.throttled_millis: 0}
+  - length: {task.status.slices: 2}
   - match: {task.status.slices.0.updated: 0}
   - match: {task.status.slices.0.version_conflicts: 0}
   - match: {task.status.slices.0.throttled_millis: 0}
@@ -285,3 +290,67 @@
       search:
         index: .tasks
   - match: { hits.total: 1 }
+
+
+---
+"Multiple slices with auto slice":
+  - do:
+      indices.create:
+        index: source
+        body:
+          settings:
+            index:
+              number_of_shards: 3
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      2
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      3
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      4
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        slices: auto
+        body:
+          source:
+            index: source
+          dest:
+            index: dest
+  - match: {created: 4}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+  - length: {slices: 3}
+  - match: {slices.0.updated: 0}
+  - match: {slices.0.version_conflicts: 0}
+  - match: {slices.0.throttled_millis: 0}
+  - match: {slices.1.updated: 0}
+  - match: {slices.1.version_conflicts: 0}
+  - match: {slices.1.throttled_millis: 0}
+  - match: {slices.2.updated: 0}
+  - match: {slices.2.version_conflicts: 0}
+  - match: {slices.2.throttled_millis: 0}

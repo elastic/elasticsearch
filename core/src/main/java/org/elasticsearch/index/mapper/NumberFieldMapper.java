@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -51,8 +52,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -501,8 +500,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             Short parse(XContentParser parser, boolean coerce) throws IOException {
-                parser.shortValue(coerce); // keep initial validation
-                return parse(parser.objectText().toString(), coerce);
+                return parser.shortValue(coerce);
             }
 
             @Override
@@ -554,8 +552,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             Integer parse(XContentParser parser, boolean coerce) throws IOException {
-                parser.intValue(coerce); // keep initial validation
-                return parse(parser.objectText().toString(), coerce);
+                return parser.intValue(coerce);
             }
 
             @Override
@@ -646,34 +643,35 @@ public class NumberFieldMapper extends FieldMapper {
             }
         },
         LONG("long", NumericType.LONG) {
-
-            private final BigInteger MIN_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
-            private final BigInteger MAX_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
-
             @Override
             Long parse(Object value, boolean coerce) {
+                if (value instanceof Long) {
+                    return (Long)value;
+                }
+
+                double doubleValue = objectToDouble(value);
+                // this check does not guarantee that value is inside MIN_VALUE/MAX_VALUE because values up to 9223372036854776832 will
+                // be equal to Long.MAX_VALUE after conversion to double. More checks ahead.
+                if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
+                    throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
+                }
+                if (!coerce && doubleValue % 1 != 0) {
+                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                }
+
                 // longs need special handling so we don't lose precision while parsing
                 String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
 
-                BigDecimal bigDecimalValue = new BigDecimal(stringValue);
-                final BigInteger bigIntegerValue;
-
                 try {
-                    bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
-                } catch (ArithmeticException e) {
-                    throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");
+                    return Long.parseLong(stringValue);
+                } catch (NumberFormatException e) {
+                    return AbstractXContentParser.preciseLongValue(stringValue, coerce);
                 }
-
-                if (bigIntegerValue.compareTo(MAX_VALUE) == 1 || bigIntegerValue.compareTo(MIN_VALUE) == -1) {
-                    throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
-                }
-                return bigIntegerValue.longValue();
             }
 
             @Override
             Long parse(XContentParser parser, boolean coerce) throws IOException {
-                parser.longValue(coerce); // validation in parser
-                return parse(parser.objectText().toString(), coerce);
+                return parser.longValue(coerce);
             }
 
             @Override
@@ -840,7 +838,6 @@ public class NumberFieldMapper extends FieldMapper {
 
             return doubleValue;
         }
-
     }
 
     public static final class NumberFieldType extends MappedFieldType {

@@ -26,6 +26,8 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -41,6 +43,9 @@ public abstract class AbstractXContentParser implements XContentParser {
     // references to this policy decision throughout the codebase and find
     // and change any code that needs to apply an alternative policy.
     public static final boolean DEFAULT_NUMBER_COERCE_POLICY = true;
+
+    private static final BigInteger MIN_LONG_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
+    private static final BigInteger MAX_LONG_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
 
     private static void checkCoerceString(boolean coerce, Class<? extends Number> clazz) {
         if (!coerce) {
@@ -133,7 +138,14 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Short.class);
-            return (short) Double.parseDouble(text());
+
+            double doubleValue = Double.parseDouble(text());
+
+            if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
+                throw new IllegalArgumentException("Value [" + text() + "] is out of range for a short");
+            }
+
+            return (short) doubleValue;
         }
         short result = doShortValue();
         ensureNumberConversion(coerce, result, Short.class);
@@ -152,7 +164,13 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Integer.class);
-            return (int) Double.parseDouble(text());
+            double doubleValue = Double.parseDouble(text());
+
+            if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException("Value [" + text() + "] is out of range for an integer");
+            }
+
+            return (int) doubleValue;
         }
         int result = doIntValue();
         ensureNumberConversion(coerce, result, Integer.class);
@@ -176,12 +194,27 @@ public abstract class AbstractXContentParser implements XContentParser {
             try {
                 return Long.parseLong(stringValue);
             } catch (NumberFormatException e) {
-                return (long) Double.parseDouble(stringValue);
+                return preciseLongValue(stringValue, coerce);
             }
         }
         long result = doLongValue();
         ensureNumberConversion(coerce, result, Long.class);
         return result;
+    }
+
+    public static long preciseLongValue(String stringValue, boolean coerce) {
+        BigDecimal bigDecimalValue = new BigDecimal(stringValue);
+        final BigInteger bigIntegerValue;
+
+        try {
+            bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");
+        }
+        if (bigIntegerValue.compareTo(MAX_LONG_VALUE) > 0 || bigIntegerValue.compareTo(MIN_LONG_VALUE) < 0) {
+            throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for a long");
+        }
+        return bigIntegerValue.longValue();
     }
 
     protected abstract long doLongValue() throws IOException;

@@ -236,6 +236,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                 .bytes(),
                 XContentType.JSON));
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+
         assertThat(e.getCause().getMessage(), containsString("For input string: \"a\""));
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -359,12 +360,12 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
             OutOfRangeSpec.of(NumberType.BYTE, 128, "is out of range for a byte"),
             OutOfRangeSpec.of(NumberType.SHORT, 32768, "out of range of Java short"),
-            OutOfRangeSpec.of(NumberType.INTEGER, 2147483648l, " out of range of int"),
+            OutOfRangeSpec.of(NumberType.INTEGER, 2147483648L, " out of range of int"),
             OutOfRangeSpec.of(NumberType.LONG, new BigInteger("9223372036854775808"), "out of range of long"),
 
             OutOfRangeSpec.of(NumberType.BYTE, -129, "is out of range for a byte"),
             OutOfRangeSpec.of(NumberType.SHORT, -32769, "out of range of Java short"),
-            OutOfRangeSpec.of(NumberType.INTEGER, -2147483649l, " out of range of int"),
+            OutOfRangeSpec.of(NumberType.INTEGER, -2147483649L, " out of range of int"),
             OutOfRangeSpec.of(NumberType.LONG, new BigInteger("-9223372036854775809"), "out of range of long"),
 
             OutOfRangeSpec.of(NumberType.HALF_FLOAT, "65520", "[half_float] supports only finite values"),

@@ -59,7 +59,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             new ParseField("aliases"), ObjectParser.ValueType.OBJECT);
     }
 
-    private String alias;
+    private String[] aliases;
     private String newIndexName;
     private boolean dryRun;
     private Set<Condition> conditions = new HashSet<>(2);
@@ -68,14 +68,19 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     RolloverRequest() {}
 
     public RolloverRequest(String alias, String newIndexName) {
-        this.alias = alias;
+        this.aliases = new String[]{alias};
+        this.newIndexName = newIndexName;
+    }
+
+    public RolloverRequest(String[] aliases, String newIndexName) {
+        this.aliases = aliases;
         this.newIndexName = newIndexName;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = createIndexRequest == null ? null : createIndexRequest.validate();
-        if (alias == null) {
+        if (aliases.length == 0 || aliases[0] == null) {
             validationException = addValidationError("index alias is missing", validationException);
         }
         if (createIndexRequest == null) {
@@ -87,7 +92,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        alias = in.readString();
+        aliases = new String[]{in.readString()};
         newIndexName = in.readOptionalString();
         dryRun = in.readBoolean();
         int size = in.readVInt();
@@ -101,7 +106,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(alias);
+        out.writeString(aliases[0]);
         out.writeOptionalString(newIndexName);
         out.writeBoolean(dryRun);
         out.writeVInt(conditions.size());
@@ -113,7 +118,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     @Override
     public String[] indices() {
-        return new String[] {alias};
+        return aliases;
     }
 
     @Override
@@ -125,7 +130,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
      * Sets the alias to rollover to another index
      */
     public void setAlias(String alias) {
-        this.alias = alias;
+        this.aliases[0] = alias;
     }
 
     /**
@@ -172,7 +177,11 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     String getAlias() {
-        return alias;
+        return aliases[0];
+    }
+
+    String[] getAliases() {
+        return aliases;
     }
 
     String getNewIndexName() {

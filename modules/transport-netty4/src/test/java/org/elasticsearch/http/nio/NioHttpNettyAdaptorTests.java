@@ -20,6 +20,7 @@
 package org.elasticsearch.http.nio;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
@@ -27,16 +28,21 @@ import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpRequestEncoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http.LastHttpContent;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.transport.nio.ByteWriteOperation;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.WriteContext;
@@ -57,10 +63,14 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
     private WriteContext writeContext;
     private ArgumentCaptor<ByteWriteOperation> writeOperation;
 
+    private final EmbeddedChannel requestEncoder = new EmbeddedChannel(new HttpRequestEncoder());
+    private final EmbeddedChannel responseDecoder = new EmbeddedChannel(new HttpResponseDecoder());
+
     @Before
     @SuppressWarnings("unchecked")
     public void setMocks() {
         exceptionHandler = mock(BiConsumer.class);
+
         adaptor = new NioHttpNettyAdaptor(Settings.EMPTY, exceptionHandler, Netty4CorsConfigBuilder.forAnyOrigin().build(), 1024);
         nioSocketChannel = mock(NioSocketChannel.class);
         writeContext = mock(WriteContext.class);
@@ -146,24 +156,34 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
         when(nioSocketChannel.getWriteContext()).thenReturn(mock(WriteContext.class));
         ESEmbeddedChannel adaptor = nioHttpNettyAdaptor.getAdaptor(nioSocketChannel);
 
-        // Must send a request through pipeline inorder to handle response
-        HttpRequest defaultFullHttpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "localhost:9090/got/got");
-        EmbeddedChannel encodingChannel = new EmbeddedChannel(new HttpRequestEncoder());
-        encodingChannel.writeOutbound(defaultFullHttpRequest);
-        ByteBuf buf = encodingChannel.readOutbound();
-        adaptor.writeInbound(buf);
-
+        prepareAdaptorForResponse(adaptor);
 
         HttpResponse defaultFullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
 
         adaptor.writeOutbound(defaultFullHttpResponse);
-        ByteBuf encodedResponse = adaptor.readOutbound();
+        Tuple<BytesReference, ChannelPromise> encodedMessage = adaptor.getMessage();
 
-        EmbeddedChannel decodingChannel = new EmbeddedChannel(new HttpResponseDecoder());
-        decodingChannel.writeInbound(encodedResponse);
-        HttpResponse response = decodingChannel.readInbound();
+        responseDecoder.writeInbound(Netty4Utils.toByteBuf(encodedMessage.v1()));
+        HttpResponse response = responseDecoder.readInbound();
 
         assertEquals(HttpResponseStatus.OK, response.status());
         assertEquals(HttpVersion.HTTP_1_1, response.protocolVersion());
+    }
+
+    private void prepareAdaptorForResponse(ESEmbeddedChannel adaptor) {
+        HttpMethod method = HttpMethod.GET;
+        HttpVersion version = HttpVersion.HTTP_1_1;
+        String uri = "http://localhost:9090/" + randomAlphaOfLength(8);
+
+        HttpRequest request = new DefaultFullHttpRequest(version, method, uri);
+        requestEncoder.writeOutbound(request);
+        ByteBuf buf = requestEncoder.readOutbound();
+        adaptor.writeInbound(buf);
+        HttpPipelinedRequest pipelinedRequest = adaptor.readInbound();
+        FullHttpRequest requestParsed = (FullHttpRequest) pipelinedRequest.last();
+        assertNotNull(requestParsed);
+        assertEquals(requestParsed.method(), method);
+        assertEquals(requestParsed.protocolVersion(), version);
+        assertEquals(requestParsed.uri(), uri);
     }
 }

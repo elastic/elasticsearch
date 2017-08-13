@@ -38,4 +38,20 @@ public interface WriteContext {
 
     void clearQueuedWriteOps(Exception e);
 
+    static boolean flushOperation(NioSocketChannel channel, ByteWriteOperation headOp) throws IOException {
+        try {
+            headOp.flush();
+        } catch (IOException e) {
+            headOp.getListener().onFailure(e);
+            throw e;
+        }
+
+        if (headOp.isFullyFlushed()) {
+            headOp.getListener().onResponse(channel);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
 }

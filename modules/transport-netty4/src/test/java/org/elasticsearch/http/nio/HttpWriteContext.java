@@ -42,6 +42,7 @@ public class HttpWriteContext implements WriteContext {
 
     private final NioSocketChannel channel;
     private final ESEmbeddedChannel adaptor;
+    private ByteWriteOperation partiallyFlushed;
 
     public HttpWriteContext(NioSocketChannel channel, ESEmbeddedChannel adaptor) {
         this.channel = channel;
@@ -80,6 +81,33 @@ public class HttpWriteContext implements WriteContext {
     public void flushChannel() throws IOException {
         assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to access queued writes";
 
+        if (partiallyFlushed != null) {
+            if (WriteContext.flushOperation(channel, partiallyFlushed)) {
+                partiallyFlushed = null;
+            } else {
+                return;
+            }
+        }
+
+        LinkedList<Tuple<BytesReference, ChannelPromise>> messages = adaptor.getMessages();
+
+        Tuple<BytesReference, ChannelPromise> message;
+        boolean lastMessageFullyFlushed = true;
+        while ((message = messages.pop()) != null && lastMessageFullyFlushed) {
+            ChannelPromise promise = message.v2();
+            ESChannelPromise listener;
+            if (promise instanceof ESChannelPromise) {
+                listener = (ESChannelPromise) promise;
+            } else {
+                listener = new ESChannelPromise(promise);
+            }
+            ByteWriteOperation writeOperation = new ByteWriteOperation(channel, message.v1(), listener);
+
+            if (WriteContext.flushOperation(channel, writeOperation) == false) {
+                partiallyFlushed = writeOperation;
+                lastMessageFullyFlushed = false;
+            }
+        }
     }
 
     @Override
@@ -98,5 +126,7 @@ public class HttpWriteContext implements WriteContext {
                 Releasables.close((Releasable) bytes);
             }
         }
+
+        adaptor.close().syncUninterruptibly();
     }
 }

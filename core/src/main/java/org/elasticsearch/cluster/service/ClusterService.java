@@ -42,6 +42,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class ClusterService extends AbstractLifecycleComponent {
 
@@ -58,16 +59,30 @@ public class ClusterService extends AbstractLifecycleComponent {
     private final OperationRouting operationRouting;
 
     private final ClusterSettings clusterSettings;
+    private final Map<String, Supplier<ClusterState.Custom>> initialClusterStateCustoms;
 
-    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
+                          Map<String, Supplier<ClusterState.Custom>> initialClusterStateCustoms) {
         super(settings);
-        this.clusterApplierService = new ClusterApplierService(settings, clusterSettings, threadPool);
         this.masterService = new MasterService(settings, threadPool);
         this.operationRouting = new OperationRouting(settings, clusterSettings);
         this.clusterSettings = clusterSettings;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
             this::setSlowTaskLoggingThreshold);
+        this.initialClusterStateCustoms = initialClusterStateCustoms;
+        this.clusterApplierService = new ClusterApplierService(settings, clusterSettings, threadPool, this::newClusterStateBuilder);
+    }
+
+    /**
+     * Creates a new cluster state builder that is initialized with the cluster name and all initial cluster state customs.
+     */
+    public ClusterState.Builder newClusterStateBuilder() {
+        ClusterState.Builder builder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings));
+        for (Map.Entry<String, Supplier<ClusterState.Custom>> entry : initialClusterStateCustoms.entrySet()) {
+            builder.putCustom(entry.getKey(), entry.getValue().get());
+        }
+        return builder;
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {

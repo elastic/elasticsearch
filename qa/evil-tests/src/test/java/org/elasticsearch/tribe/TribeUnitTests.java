@@ -19,12 +19,6 @@
 
 package org.elasticsearch.tribe;
 
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.List;
-import java.util.function.Function;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,9 +35,14 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -64,12 +63,12 @@ public class TribeUnitTests extends ESTestCase {
     public static void createTribes() throws NodeValidationException {
         Settings baseSettings = Settings.builder()
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-            .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
+            .put("transport.type", getTestTransportType())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
             .build();
 
-        classpathPlugins = Arrays.asList(TribeAwareTestZenDiscoveryPlugin.class, MockTribePlugin.class, MockTcpTransportPlugin.class);
+        classpathPlugins = Arrays.asList(TribeAwareTestZenDiscoveryPlugin.class, MockTribePlugin.class, getTestTransportPlugin());
 
         tribe1 = new MockNode(
             Settings.builder()
@@ -131,9 +130,9 @@ public class TribeUnitTests extends ESTestCase {
     private static void assertTribeNodeSuccessfullyCreated(Path configPath) throws Exception {
         // the tribe clients do need it to make sure they can find their corresponding tribes using the proper transport
         Settings settings = Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).put("node.name", "tribe_node")
-                .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
-                .put("tribe.t1.transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
-                .put("tribe.t2.transport.type",MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
+                .put("transport.type", getTestTransportType())
+                .put("tribe.t1.transport.type", getTestTransportType())
+                .put("tribe.t2.transport.type", getTestTransportType())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
 

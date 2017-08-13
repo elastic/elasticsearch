@@ -35,6 +35,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
@@ -43,11 +44,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -188,6 +189,32 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fields.size(), equalTo(2));
         assertThat(fields.get(0).binaryValue().utf8ToString(), equalTo("field\u0000term1"));
         assertThat(fields.get(1).binaryValue().utf8ToString(), equalTo("field\u0000term2"));
+    }
+
+    public void testExtractRanges() throws Exception {
+        addQueryFieldMappings();
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
+        Query rangeQuery1 = mapperService.documentMapper("doc").mappers().getMapper("number_field1").fieldType()
+            .rangeQuery(10, 20, true, true, null);
+        bq.add(rangeQuery1, Occur.MUST);
+        Query rangeQuery2 = mapperService.documentMapper("doc").mappers().getMapper("number_field1").fieldType()
+            .rangeQuery(15, 20, true, true, null);
+        bq.add(rangeQuery2, Occur.MUST);
+
+        DocumentMapper documentMapper = mapperService.documentMapper("doc");
+        PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
+        ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(Settings.EMPTY,
+            mapperService.documentMapperParser(), documentMapper, null, null);
+        fieldMapper.processQuery(bq.build(), parseContext);
+        ParseContext.Document document = parseContext.doc();
+
+        PercolatorFieldMapper.FieldType fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
+        List<IndexableField> fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.rangeField.name())));
+        fields.sort(Comparator.comparing(IndexableField::binaryValue));
+        assertThat(fields.size(), equalTo(1));
+        assertThat(IntPoint.decodeDimension(fields.get(0).binaryValue().bytes, 12), equalTo(15));
+        assertThat(IntPoint.decodeDimension(fields.get(0).binaryValue().bytes, 28), equalTo(20));
     }
 
     public void testExtractTermsAndRanges_failed() throws Exception {
@@ -712,6 +739,90 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
     private static byte[] subByteArray(byte[] source, int offset, int length) {
         return Arrays.copyOfRange(source, offset, offset + length);
+    }
+
+    public void testBoostFields() throws Exception {
+        IndexService indexService = createIndex("another_index");
+        MapperService mapperService = indexService.mapperService();
+
+        String mapper = XContentFactory.jsonBuilder().startObject().startObject("doc")
+            .startObject("_field_names").field("enabled", false).endObject() // makes testing easier
+            .startObject("properties")
+            .startObject("status").field("type", "keyword").endObject()
+            .startObject("update_field").field("type", "keyword").endObject()
+            .startObject("price").field("type", "long").endObject()
+            .startObject("query1").field("type", "percolator")
+                .startObject("boost_fields").field("status", 0).field("updated_field", 2).endObject()
+            .endObject()
+            .startObject("query2").field("type", "percolator").endObject()
+            .endObject().endObject().endObject().string();
+        mapperService.merge("doc", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE, false);
+        DocumentMapper documentMapper = mapperService.documentMapper("doc");
+
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
+        bq.add(new TermQuery(new Term("status", "updated")), Occur.FILTER);
+        bq.add(LongPoint.newRangeQuery("price", 5, 10), Occur.FILTER);
+
+        // Boost fields will ignore status_field:
+        PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper("query1");
+        ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(Settings.EMPTY,
+            mapperService.documentMapperParser(), documentMapper, null, null);
+        fieldMapper.processQuery(bq.build(), parseContext);
+        ParseContext.Document document = parseContext.doc();
+        PercolatorFieldMapper.FieldType fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
+        assertThat(document.getFields(fieldType.queryTermsField.name()).length, equalTo(0));
+        List<IndexableField> fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.rangeField.name())));
+        assertThat(fields.size(), equalTo(1));
+        assertThat(LongPoint.decodeDimension(subByteArray(fields.get(0).binaryValue().bytes, 8, 8), 0), equalTo(5L));
+        assertThat(LongPoint.decodeDimension(subByteArray(fields.get(0).binaryValue().bytes, 24, 8), 0), equalTo(10L));
+
+        // No boost fields, so default extraction logic:
+        fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper("query2");
+        parseContext = new ParseContext.InternalParseContext(Settings.EMPTY, mapperService.documentMapperParser(),
+            documentMapper, null, null);
+        fieldMapper.processQuery(bq.build(), parseContext);
+        document = parseContext.doc();
+        fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
+        assertThat(document.getFields(fieldType.rangeField.name()).length, equalTo(0));
+        fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.queryTermsField.name())));
+        assertThat(fields.size(), equalTo(1));
+        assertThat(fields.get(0).binaryValue().utf8ToString(), equalTo("status\0updated"));
+
+        // Second clause is extracted, because it is boosted by 2:
+        bq = new BooleanQuery.Builder();
+        bq.add(new TermQuery(new Term("status", "updated")), Occur.FILTER);
+        bq.add(new TermQuery(new Term("updated_field", "done")), Occur.FILTER);
+
+        fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper("query1");
+        parseContext = new ParseContext.InternalParseContext(Settings.EMPTY, mapperService.documentMapperParser(),
+            documentMapper, null, null);
+        fieldMapper.processQuery(bq.build(), parseContext);
+        document = parseContext.doc();
+        fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
+        assertThat(document.getFields(fieldType.rangeField.name()).length, equalTo(0));
+        fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.queryTermsField.name())));
+        assertThat(fields.size(), equalTo(1));
+        assertThat(fields.get(0).binaryValue().utf8ToString(), equalTo("updated_field\0done"));
+
+        // First clause is extracted, because default logic:
+        bq = new BooleanQuery.Builder();
+        bq.add(new TermQuery(new Term("status", "updated")), Occur.FILTER);
+        bq.add(new TermQuery(new Term("updated_field", "done")), Occur.FILTER);
+
+        fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper("query2");
+        parseContext = new ParseContext.InternalParseContext(Settings.EMPTY, mapperService.documentMapperParser(),
+            documentMapper, null, null);
+        fieldMapper.processQuery(bq.build(), parseContext);
+        document = parseContext.doc();
+        fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
+        assertThat(document.getFields(fieldType.rangeField.name()).length, equalTo(0));
+        fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.queryTermsField.name())));
+        assertThat(fields.size(), equalTo(1));
+        assertThat(fields.get(0).binaryValue().utf8ToString(), equalTo("status\0updated"));
     }
 
     // Just so that we store scripts in percolator queries, but not really execute these scripts.

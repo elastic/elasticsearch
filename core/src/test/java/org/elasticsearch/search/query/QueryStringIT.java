@@ -316,6 +316,7 @@ public class QueryStringIT extends ESIntegTestCase {
             QueryBuilders.queryStringQuery("say what the fudge")
                 .defaultField("field")
                 .defaultOperator(Operator.AND)
+                .autoGenerateSynonymsPhraseQuery(false)
                 .analyzer("lower_graphsyns")).get();
 
         assertHitCount(searchResponse, 1L);
@@ -326,6 +327,7 @@ public class QueryStringIT extends ESIntegTestCase {
             QueryBuilders.queryStringQuery("three what the fudge foo")
                 .defaultField("field")
                 .defaultOperator(Operator.OR)
+                .autoGenerateSynonymsPhraseQuery(false)
                 .analyzer("lower_graphsyns")).get();
 
         assertHitCount(searchResponse, 6L);
@@ -336,11 +338,22 @@ public class QueryStringIT extends ESIntegTestCase {
             QueryBuilders.queryStringQuery("three what the fudge foo")
                 .defaultField("field")
                 .defaultOperator(Operator.OR)
+                .autoGenerateSynonymsPhraseQuery(false)
                 .analyzer("lower_graphsyns")
                 .minimumShouldMatch("80%")).get();
 
         assertHitCount(searchResponse, 3L);
         assertSearchHits(searchResponse, "1", "2", "6");
+
+        // multi terms synonyms phrase
+        searchResponse = client().prepareSearch(index).setQuery(
+            QueryBuilders.queryStringQuery("what the fudge")
+                .defaultField("field")
+                .defaultOperator(Operator.AND)
+                .analyzer("lower_graphsyns"))
+            .get();
+        assertHitCount(searchResponse, 3L);
+        assertSearchHits(searchResponse,  "1", "2", "3");
     }
 
     private void assertHits(SearchHits hits, String... ids) {

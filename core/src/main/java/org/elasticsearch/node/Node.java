@@ -277,7 +277,7 @@ public class Node implements Closeable {
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
                 "version[{}], pid[{}], build[{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
-                displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot()),
+                Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot()),
                 jvmInfo.pid(),
                 Build.CURRENT.shortHash(),
                 Build.CURRENT.date(),
@@ -329,7 +329,10 @@ public class Node implements Closeable {
             resourcesToClose.add(resourceWatcherService);
             final NetworkService networkService = new NetworkService(
                 getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class)));
-            final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
+
+            List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
+            final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool,
+               ClusterModule.getClusterStateCustomSuppliers(clusterPlugins));
             clusterService.addListener(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
             final IngestService ingestService = new IngestService(settings, threadPool, this.environment,
@@ -346,8 +349,7 @@ public class Node implements Closeable {
                 modules.add(pluginModule);
             }
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool, clusterInfoService);
-            ClusterModule clusterModule = new ClusterModule(settings, clusterService,
-                pluginsService.filterPlugins(ClusterPlugin.class), clusterInfoService);
+            ClusterModule clusterModule = new ClusterModule(settings, clusterService, clusterPlugins, clusterInfoService);
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             modules.add(indicesModule);
@@ -515,17 +517,12 @@ public class Node implements Closeable {
         }
     }
 
-    // visible for testing
     static void warnIfPreRelease(final Version version, final boolean isSnapshot, final Logger logger) {
         if (!version.isRelease() || isSnapshot) {
             logger.warn(
                 "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
-                displayVersion(version, isSnapshot));
+                Version.displayVersion(version, isSnapshot));
         }
-    }
-
-    private static String displayVersion(final Version version, final boolean isSnapshot) {
-        return version + (isSnapshot ? "-SNAPSHOT" : "");
     }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,

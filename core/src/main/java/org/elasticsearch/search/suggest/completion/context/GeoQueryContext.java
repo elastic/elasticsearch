@@ -24,7 +24,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -41,7 +41,7 @@ import static org.elasticsearch.search.suggest.completion.context.GeoContextMapp
 /**
  * Defines the query context for {@link GeoContextMapping}
  */
-public final class GeoQueryContext implements ToXContent {
+public final class GeoQueryContext implements ToXContentObject {
     public static final String NAME = "geo";
 
     private final GeoPoint geoPoint;

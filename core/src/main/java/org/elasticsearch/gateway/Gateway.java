@@ -155,7 +155,7 @@ public class Gateway extends AbstractComponent implements ClusterStateApplier {
                 metaDataBuilder.transientSettings(),
                 e -> logUnknownSetting("transient", e),
                 (e, ex) -> logInvalidSetting("transient", e, ex)));
-        ClusterState.Builder builder = ClusterState.builder(clusterService.getClusterName());
+        ClusterState.Builder builder = clusterService.newClusterStateBuilder();
         builder.metaData(metaDataBuilder);
         listener.onSuccess(builder.build());
     }

@@ -67,7 +67,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
@@ -83,7 +82,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -120,7 +118,6 @@ import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
@@ -138,7 +135,6 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.OldIndexUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
@@ -146,10 +142,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -161,7 +155,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -280,6 +273,12 @@ public class InternalEngineTests extends ESTestCase {
     @After
     public void tearDown() throws Exception {
         super.tearDown();
+        if (engine != null && engine.isClosed.get() == false) {
+            engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
+        }
+        if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
+            replicaEngine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
+        }
         IOUtils.close(
             replicaEngine, storeReplica,
             engine, store);
@@ -2586,93 +2585,6 @@ public class InternalEngineTests extends ESTestCase {
         return new Mapping(Version.CURRENT, root, new MetadataFieldMapper[0], emptyMap());
     }
 
-    public void testUpgradeOldIndex() throws IOException {
-        List<Path> indexes = new ArrayList<>();
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(getBwcIndicesPath(), "index-*.zip")) {
-            for (Path path : stream) {
-                indexes.add(path);
-            }
-        }
-        Collections.shuffle(indexes, random());
-        for (Path indexFile : indexes.subList(0, scaledRandomIntBetween(1, indexes.size() / 2))) {
-            final String indexName = indexFile.getFileName().toString().replace(".zip", "").toLowerCase(Locale.ROOT);
-            Path unzipDir = createTempDir();
-            Path unzipDataDir = unzipDir.resolve("data");
-            // decompress the index
-            try (InputStream stream = Files.newInputStream(indexFile)) {
-                TestUtil.unzip(stream, unzipDir);
-            }
-            // check it is unique
-            assertTrue(Files.exists(unzipDataDir));
-            Path[] list = filterExtraFSFiles(FileSystemUtils.files(unzipDataDir));
-
-            if (list.length != 1) {
-                throw new IllegalStateException("Backwards index must contain exactly one cluster but was " + list.length
-                    + " " + Arrays.toString(list));
-            }
-
-            // the bwc scripts packs the indices under this path
-            Path src = OldIndexUtils.getIndexDir(logger, indexName, indexFile.toString(), list[0]);
-            Path translog = src.resolve("0").resolve("translog");
-            assertTrue("[" + indexFile + "] missing translog dir: " + translog.toString(), Files.exists(translog));
-            Path[] tlogFiles = filterExtraFSFiles(FileSystemUtils.files(translog));
-            assertEquals(Arrays.toString(tlogFiles), tlogFiles.length, 2); // ckp & tlog
-            Path tlogFile = tlogFiles[0].getFileName().toString().endsWith("tlog") ? tlogFiles[0] : tlogFiles[1];
-            final long size = Files.size(tlogFile);
-            logger.debug("upgrading index {} file: {} size: {}", indexName, tlogFiles[0].getFileName(), size);
-            Directory directory = newFSDirectory(src.resolve("0").resolve("index"));
-            final IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, xContentRegistry(), src);
-            final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
-            final Store store = createStore(indexSettings, directory);
-            final int iters = randomIntBetween(0, 2);
-            int numDocs = -1;
-            for (int i = 0; i < iters; i++) { // make sure we can restart on an upgraded index
-                try (InternalEngine engine = createEngine(indexSettings, store, translog, newMergePolicy())) {
-                    try (Searcher searcher = engine.acquireSearcher("test")) {
-                        if (i > 0) {
-                            assertEquals(numDocs, searcher.reader().numDocs());
-                        }
-                        TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 1);
-                        numDocs = searcher.reader().numDocs();
-                        assertTrue(search.totalHits > 1);
-                    }
-                    CommitStats commitStats = engine.commitStats();
-                    Map<String, String> userData = commitStats.getUserData();
-                    assertTrue("user data doesn't contain uuid", userData.containsKey(Translog.TRANSLOG_UUID_KEY));
-                    assertTrue("user data doesn't contain generation key", userData.containsKey(Translog.TRANSLOG_GENERATION_KEY));
-                    assertFalse("user data contains legacy marker", userData.containsKey("translog_id"));
-                }
-            }
-
-            try (InternalEngine engine = createEngine(indexSettings, store, translog, newMergePolicy())) {
-                if (numDocs == -1) {
-                    try (Searcher searcher = engine.acquireSearcher("test")) {
-                        numDocs = searcher.reader().numDocs();
-                    }
-                }
-                final int numExtraDocs = randomIntBetween(1, 10);
-                for (int i = 0; i < numExtraDocs; i++) {
-                    ParsedDocument doc = testParsedDocument("extra" + Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
-                    Term uid;
-                    if (indexMetaData.getCreationVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                        uid = new Term(IdFieldMapper.NAME, doc.id());
-                    } else {
-                        uid = new Term(UidFieldMapper.NAME, Uid.createUid(doc.type(), doc.id()));
-                    }
-                    Engine.Index firstIndexRequest = new Engine.Index(uid, doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, System.nanoTime(), -1, false);
-                    Engine.IndexResult indexResult = engine.index(firstIndexRequest);
-                    assertThat(indexResult.getVersion(), equalTo(1L));
-                }
-                engine.refresh("test");
-                try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-                    TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + numExtraDocs));
-                    assertThat(topDocs.totalHits, equalTo((long) numDocs + numExtraDocs));
-                }
-            }
-            IOUtils.close(store, directory);
-        }
-    }
-
     private Path[] filterExtraFSFiles(Path[] files) {
         List<Path> paths = new ArrayList<>();
         for (Path p : files) {
@@ -2768,7 +2680,7 @@ public class InternalEngineTests extends ESTestCase {
         public TranslogHandler(NamedXContentRegistry xContentRegistry, IndexSettings indexSettings) {
             NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
             IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultAnalyzer, defaultAnalyzer, Collections.emptyMap(), Collections.emptyMap());
-            SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
+            SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
             MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
             mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
                 () -> null);
@@ -3952,9 +3864,10 @@ public class InternalEngineTests extends ESTestCase {
             // skip to the op that we added to the translog
             Translog.Operation op;
             Translog.Operation last = null;
-            final Translog.Snapshot snapshot = noOpEngine.getTranslog().newSnapshot();
-            while ((op = snapshot.next()) != null) {
-                last = op;
+            try (Translog.Snapshot snapshot = noOpEngine.getTranslog().newSnapshot()) {
+                while ((op = snapshot.next()) != null) {
+                    last = op;
+                }
             }
             assertNotNull(last);
             assertThat(last, instanceOf(Translog.NoOp.class));
@@ -4162,21 +4075,22 @@ public class InternalEngineTests extends ESTestCase {
             assertEquals((maxSeqIDOnReplica + 1) - numDocsOnReplica, recoveringEngine.fillSeqNoGaps(2));
 
             // now snapshot the tlog and ensure the primary term is updated
-            Translog.Snapshot snapshot = recoveringEngine.getTranslog().newSnapshot();
-            assertTrue((maxSeqIDOnReplica + 1) - numDocsOnReplica <= snapshot.totalOperations());
-            Translog.Operation operation;
-            while ((operation = snapshot.next()) != null) {
-                if (operation.opType() == Translog.Operation.Type.NO_OP) {
-                    assertEquals(2, operation.primaryTerm());
-                } else {
-                    assertEquals(1, operation.primaryTerm());
-                }
+            try (Translog.Snapshot snapshot = recoveringEngine.getTranslog().newSnapshot()) {
+                assertTrue((maxSeqIDOnReplica + 1) - numDocsOnReplica <= snapshot.totalOperations());
+                Translog.Operation operation;
+                while ((operation = snapshot.next()) != null) {
+                    if (operation.opType() == Translog.Operation.Type.NO_OP) {
+                        assertEquals(2, operation.primaryTerm());
+                    } else {
+                        assertEquals(1, operation.primaryTerm());
+                    }
 
-            }
-            assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getMaxSeqNo());
-            assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getLocalCheckpoint());
-            if ((flushed = randomBoolean())) {
-                recoveringEngine.flush(true, true);
+                }
+                assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getMaxSeqNo());
+                assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getLocalCheckpoint());
+                if ((flushed = randomBoolean())) {
+                    recoveringEngine.flush(true, true);
+                }
             }
         } finally {
             IOUtils.close(recoveringEngine);

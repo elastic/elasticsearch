@@ -473,9 +473,7 @@ final class DocumentParser {
             if (update != null) {
                 context.addDynamicMapper(update);
             }
-            if (fieldMapper.copyTo() != null) {
-                parseCopyFields(context, fieldMapper.copyTo().copyToFields());
-            }
+            parseCopyFields(context, fieldMapper.copyTo().copyToFields());
         }
     }
 

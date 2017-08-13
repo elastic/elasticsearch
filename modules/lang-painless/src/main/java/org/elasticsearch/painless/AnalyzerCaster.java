@@ -401,7 +401,7 @@ public final class AnalyzerCaster {
                     case SHORT:
                     case CHAR:
                     case INT:
-                    case FLOAT:
+                    case LONG:
                         if (explicit)
                             return new Cast(actual, expected, true);
 
@@ -462,6 +462,7 @@ public final class AnalyzerCaster {
                     case SHORT:
                     case CHAR:
                     case INT:
+                    case LONG:
                     case FLOAT:
                         if (explicit)
                             return new Cast(DOUBLE_TYPE, expected, true);

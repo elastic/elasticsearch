@@ -20,17 +20,16 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 /**
  * ClusterInfo is an object representing a map of nodes to {@link DiskUsage}
@@ -38,7 +37,7 @@ import java.util.Map;
  * <code>InternalClusterInfoService.shardIdentifierFromRouting(String)</code>
  * for the key used in the shardSizes map
  */
-public class ClusterInfo implements ToXContent, Writeable {
+public class ClusterInfo implements ToXContentFragment, Writeable {
     private final ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage;
     private final ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage;
     final ImmutableOpenMap<String, Long> shardSizes;
@@ -117,13 +116,13 @@ public class ClusterInfo implements ToXContent, Writeable {
                 builder.startObject(c.key); { // node
                     builder.field("node_name", c.value.getNodeName());
                     builder.startObject("least_available"); {
-                        c.value.toShortXContent(builder, params);
+                        c.value.toShortXContent(builder);
                     }
                     builder.endObject(); // end "least_available"
                     builder.startObject("most_available"); {
                         DiskUsage most = this.mostAvailableSpaceUsage.get(c.key);
                         if (most != null) {
-                            most.toShortXContent(builder, params);
+                            most.toShortXContent(builder);
                         }
                     }
                     builder.endObject(); // end "most_available"

@@ -339,11 +339,19 @@ take effect on after completing the current batch. This prevents scroll
 timeouts.
 
 [float]
-[[docs-delete-by-query-manual-slice]]
-=== Manually slicing
+[[docs-delete-by-query-slice]]
+=== Slicing
 
-Delete-by-query supports <<sliced-scroll>> allowing you to manually parallelize
-the process relatively easily:
+Delete-by-query supports <<sliced-scroll>> to parallelize the deleting process.
+This parallelization can improve efficiency and provide a convenient way to
+break the request down into smaller parts.
+
+[float]
+[[docs-delete-by-query-manual-slice]]
+==== Manually slicing
+
+Slice a delete-by-query manually by providing a slice id and total number of
+slices to each request:
 
 [source,js]
 ----------------------------------------------------------------
@@ -412,10 +420,11 @@ Which results in a sensible `total` like this one:
 
 [float]
 [[docs-delete-by-query-automatic-slice]]
-=== Automatic slicing
+==== Automatic slicing
 
 You can also let delete-by-query automatically parallelize using
-<<sliced-scroll>> to slice on `_uid`:
+<<sliced-scroll>> to slice on `_uid`. Use `slices` to specify the number of
+slices to use:
 
 [source,js]
 ----------------------------------------------------------------
@@ -463,6 +472,11 @@ Which results in a sensible `total` like this one:
 ----------------------------------------------------------------
 // TESTRESPONSE
 
+Setting `slices` to `auto` will let Elasticsearch choose the number of slices
+to use. This setting will use one slice per shard, up to a certain limit. If
+there are multiple source indices, it will choose the number of slices based
+on the index with the smallest number of shards.
+
 Adding `slices` to `_delete_by_query` just automates the manual process used in
 the section above, creating sub-requests which means it has some quirks:
 
@@ -489,18 +503,20 @@ though these are all taken at approximately the same time.
 
 [float]
 [[docs-delete-by-query-picking-slices]]
-=== Picking the number of slices
+===== Picking the number of slices
 
-At this point we have a few recommendations around the number of `slices` to
-use (the `max` parameter in the slice API if manually parallelizing):
+If slicing automatically, setting `slices` to `auto` will choose a reasonable
+number for most indices. If you're slicing manually or otherwise tuning
+automatic slicing, use these guidelines.
 
-* Don't use large numbers. `500` creates fairly massive CPU thrash.
-* It is more efficient from a query performance standpoint to use some multiple
-of the number of shards in the source index.
-* Using exactly as many shards as are in the source index is the most efficient
-from a query performance standpoint.
-* Indexing performance should scale linearly across available resources with
-the number of `slices`.
-* Whether indexing or query performance dominates that process depends on lots
-of factors like the documents being reindexed and the cluster doing the
-reindexing.
+Query performance is most efficient when the number of `slices` is equal to the
+number of shards in the index. If that number is large, (for example,
+500) choose a lower number as too many `slices` will hurt performance. Setting
+`slices` higher than the number of shards generally does not improve efficiency
+and adds overhead.
+
+Delete performance scales linearly across available resources with the
+number of slices.
+
+Whether query or delete performance dominates the runtime depends on the
+documents being reindexed and cluster resources.

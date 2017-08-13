@@ -17,22 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.common.xcontent;
 
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.snowball.SnowballFilter;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-
-public class RussianStemTokenFilterFactory extends AbstractTokenFilterFactory {
-
-    public RussianStemTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
-    }
+/**
+ * An interface allowing to transfer an object to "XContent" using an
+ * {@link XContentBuilder}. The difference between {@link ToXContentFragment}
+ * and {@link ToXContentObject} is that the former outputs a fragment that
+ * requires to start and end a new anonymous object externally, while the latter
+ * guarantees that what gets printed out is fully valid syntax without any
+ * external addition.
+ */
+public interface ToXContentFragment extends ToXContent {
 
     @Override
-    public TokenStream create(TokenStream tokenStream) {
-        return new SnowballFilter(tokenStream, "Russian");
+    default boolean isFragment() {
+        return true;
     }
 }

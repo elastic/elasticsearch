@@ -17,3 +17,148 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+
+The final scores of the hits will be 
+these boost values multiplied by the calculated score of the hit. Therefore
+the boost value is disregarded if results are sorted by something other than
+`_score`.
+
+[source,js]
+--------------------------------------------------
+POST /test1/type1/1
+{
+  "int" : 3,
+  "text": "example test 1"
+}
+
+POST /test2/type1/1
+{
+  "int" : 3,
+  "text": "example test 2"
+}
+
+GET /test1,test2/_search
+{
+  "query": {
+    "match" : {
+      "int" : "3"
+    }
+  },
+  "indices_boost" : {
+    "test2" : 2,
+    "test1" : 1
+  },
+  "explain" : true
+}
+--------------------------------------------------
+// CONSOLE
+
+The example result of the above operation is:
+[source,js]
+--------------------------------------------------
+{
+  "took": 1,
+  "timed_out": false,
+  "_shards": {
+    "total": 10,
+    "successful": 10,
+    "failed": 0
+  },
+  "hits": {
+    "total": 2,
+    "max_score": 2,
+    "hits": [
+      {
+        "_shard": "[test2][3]",
+        "_node": "DbdHnrlQTmqYp289YukoaQ",
+        "_index": "test2",
+        "_type": "type1",
+        "_id": "1",
+        "_score": 2,
+        "_source": {
+          "int": 3,
+          "text": "example test 2"
+        },
+        "_explanation": {
+          "value": 2,
+          "description": "function score, product of:",
+          "details": [
+            {
+              "value": 1,
+              "description": "int:[3 TO 3], product of:",
+              "details": [
+                {
+                  "value": 1,
+                  "description": "boost",
+                  "details": []
+                },
+                {
+                  "value": 1,
+                  "description": "queryNorm",
+                  "details": []
+                }
+              ]
+            },
+            {
+              "value": 2,
+              "description": "min of:",
+              "details": [
+                {
+                  "value": 2,
+                  "description": "product of:",
+                  "details": [
+                    {
+                      "value": 1,
+                      "description": "constant score 1.0 - no function provided",
+                      "details": []
+                    },
+                    {
+                      "value": 2,
+                      "description": "weight",
+                      "details": []
+                    }
+                  ]
+                },
+                {
+                  "value": 3.4028235e+38,
+                  "description": "maxBoost",
+                  "details": []
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "_shard": "[test1][3]",
+        "_node": "DbdHnrlQTmqYp289YukoaQ",
+        "_index": "test1",
+        "_type": "type1",
+        "_id": "1",
+        "_score": 1,
+        "_source": {
+          "int": 3,
+          "text": "example test 1"
+        },
+        "_explanation": {
+          "value": 1,
+          "description": "int:[3 TO 3], product of:",
+          "details": [
+            {
+              "value": 1,
+              "description": "boost",
+              "details": []
+            },
+            {
+              "value": 1,
+              "description": "queryNorm",
+              "details": []
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE

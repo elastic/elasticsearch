@@ -46,7 +46,7 @@ public class SimilarityIT extends ESIntegTestCase {
                                     .field("type", "text")
                                 .endObject()
                                 .startObject("field2")
-                                    .field("similarity", "classic")
+                                    .field("similarity", "boolean")
                                     .field("type", "text")
                                 .endObject()
                             .endObject()

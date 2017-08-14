@@ -158,7 +158,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             "}";
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
             () -> parseQuery(queryMissingFuzzinessUpLimit).toQuery(createShardContext()));
-        String msg = "Auto fuzziness wrongly configured";
+        String msg = "failed to find low and high distance values";
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
         String queryHavingNegativeFuzzinessLowLimit = "{\n" +

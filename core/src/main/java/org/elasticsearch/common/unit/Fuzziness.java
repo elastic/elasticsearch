@@ -59,7 +59,7 @@ public final class Fuzziness implements ToXContent, Writeable {
     }
 
     private Fuzziness(String fuzziness) {
-        if (fuzziness == null  || fuzziness.isEmpty()) {
+        if (fuzziness == null || fuzziness.isEmpty()) {
             throw new IllegalArgumentException("fuzziness can't be null!");
         }
         this.fuzziness = fuzziness.toUpperCase(Locale.ROOT);
@@ -67,7 +67,7 @@ public final class Fuzziness implements ToXContent, Writeable {
 
     private Fuzziness(String fuzziness, int lowDistance, int highDistance) {
         this(fuzziness);
-        if (lowDistance < 0 || highDistance < 0 || lowDistance > highDistance ) {
+        if (lowDistance < 0 || highDistance < 0 || lowDistance > highDistance) {
             throw new IllegalArgumentException("fuzziness wrongly configured, must be: lowDistance > 0, highDistance" +
                 " > 0 and lowDistance <= highDistance ");
         }
@@ -89,11 +89,11 @@ public final class Fuzziness implements ToXContent, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fuzziness);
-        if (isAutoWithCustomValues()){
+        if (isAutoWithCustomValues()) {
             out.writeBoolean(true);
             out.writeVInt(lowDistance);
             out.writeVInt(highDistance);
-        }else {
+        } else {
             out.writeBoolean(false);
         }
     }
@@ -114,13 +114,14 @@ public final class Fuzziness implements ToXContent, Writeable {
         String string = fuzziness.toString();
         if (AUTO.asString().equalsIgnoreCase(string)) {
             return AUTO;
-        }  else if (string.toUpperCase(Locale.ROOT).startsWith(AUTO.asString() + ":")) {
+        } else if (string.toUpperCase(Locale.ROOT).startsWith(AUTO.asString() + ":")) {
             return parseCustomAuto(string);
         }
         return new Fuzziness(string);
     }
 
     private static Fuzziness parseCustomAuto( final String string) {
+        assert string.toUpperCase(Locale.ROOT).startsWith(AUTO.asString() + ":");
         String[] fuzzinessLimit = string.substring(AUTO.asString().length() + 1).split(",");
         if (fuzzinessLimit.length == 2) {
             try {
@@ -132,7 +133,7 @@ public final class Fuzziness implements ToXContent, Writeable {
                     string);
             }
         } else {
-            throw new ElasticsearchParseException("Auto fuzziness wrongly configured");
+            throw new ElasticsearchParseException("failed to find low and high distance values");
         }
     }
 
@@ -144,8 +145,7 @@ public final class Fuzziness implements ToXContent, Writeable {
                 final String fuzziness = parser.text();
                 if (AUTO.asString().equalsIgnoreCase(fuzziness)) {
                     return AUTO;
-                }
-                else if (fuzziness.toUpperCase(Locale.ROOT).startsWith(AUTO.asString() + ":")) {
+                } else if (fuzziness.toUpperCase(Locale.ROOT).startsWith(AUTO.asString() + ":")) {
                     return parseCustomAuto(fuzziness);
                 }
                 try {
@@ -213,7 +213,7 @@ public final class Fuzziness implements ToXContent, Writeable {
     }
 
     public String asString() {
-          if (isAutoWithCustomValues()){
+        if (isAutoWithCustomValues()) {
             return fuzziness.toString() + ":" + lowDistance + "," + highDistance;
         }
         return fuzziness.toString();

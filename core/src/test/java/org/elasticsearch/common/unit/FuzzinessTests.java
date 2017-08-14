@@ -148,8 +148,9 @@ public class FuzzinessTests extends ESTestCase {
     }
 
     public void testSerializationCustomAuto() throws IOException {
+        String auto = "AUTO:4,7";
         XContentBuilder json = jsonBuilder().startObject()
-            .field(Fuzziness.X_FIELD_NAME, "AUTO:4,7")
+            .field(Fuzziness.X_FIELD_NAME, auto)
             .endObject();
 
         XContentParser parser = createParser(json);

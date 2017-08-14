@@ -52,6 +52,9 @@ public class RestPutLicenseAction extends XPackRestHandler {
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest();
         putLicenseRequest.license(request.content(), request.getXContentType());
         putLicenseRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
+        putLicenseRequest.timeout(request.paramAsTime("timeout", putLicenseRequest.timeout()));
+        putLicenseRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putLicenseRequest.masterNodeTimeout()));
+
         return channel -> client.es().admin().cluster().execute(PutLicenseAction.INSTANCE, putLicenseRequest,
                 new RestBuilderListener<PutLicenseResponse>(channel) {
                     @Override

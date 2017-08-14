@@ -36,6 +36,8 @@ public class RestPutDatafeedAction extends BaseRestHandler {
         String datafeedId = restRequest.param(DatafeedConfig.ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
         PutDatafeedAction.Request putDatafeedRequest = PutDatafeedAction.Request.parseRequest(datafeedId, parser);
+        putDatafeedRequest.timeout(restRequest.paramAsTime("timeout", putDatafeedRequest.timeout()));
+        putDatafeedRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", putDatafeedRequest.masterNodeTimeout()));
         return channel -> client.execute(PutDatafeedAction.INSTANCE, putDatafeedRequest, new RestToXContentListener<>(channel));
     }
 

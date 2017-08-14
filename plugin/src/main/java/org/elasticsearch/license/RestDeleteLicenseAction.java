@@ -37,9 +37,12 @@ public class RestDeleteLicenseAction extends XPackRestHandler {
 
     @Override
     public RestChannelConsumer doPrepareRequest(final RestRequest request, final XPackClient client) throws IOException {
-        return channel -> client.es().admin().cluster().execute(DeleteLicenseAction.INSTANCE,
-                                              new DeleteLicenseRequest(),
-                                              new AcknowledgedRestListener<>(channel));
+        DeleteLicenseRequest deleteLicenseRequest = new DeleteLicenseRequest();
+        deleteLicenseRequest.timeout(request.paramAsTime("timeout", deleteLicenseRequest.timeout()));
+        deleteLicenseRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteLicenseRequest.masterNodeTimeout()));
+
+        return channel -> client.es().admin().cluster().execute(DeleteLicenseAction.INSTANCE, deleteLicenseRequest,
+                new AcknowledgedRestListener<>(channel));
     }
 
 }

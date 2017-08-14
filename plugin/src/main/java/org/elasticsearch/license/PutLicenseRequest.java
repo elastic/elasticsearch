@@ -66,7 +66,6 @@ public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
         super.readFrom(in);
         license = License.readLicense(in);
         acknowledge = in.readBoolean();
-        readTimeout(in);
     }
 
     @Override
@@ -74,6 +73,5 @@ public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
         super.writeTo(out);
         license.writeTo(out);
         out.writeBoolean(acknowledge);
-        writeTimeout(out);
     }
 }

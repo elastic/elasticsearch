@@ -97,7 +97,7 @@ if exist "%JAVA_HOME%\bin\server\jvm.dll" (
 )
 
 :foundJVM
-set ES_JVM_OPTIONS=%CONF_DIR%\jvm.options
+set ES_JVM_OPTIONS=%ES_PATH_CONF%\jvm.options
 
 if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS: =;%
 
@@ -174,7 +174,7 @@ if "%JVM_SS%" == "" (
   goto:eof
 )
 
-set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.path.conf="%CONF_DIR%"
+set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.path.conf="%ES_PATH_CONF%"
 
 if "%ES_START_TYPE%" == "" set ES_START_TYPE=manual
 if "%ES_STOP_TIMEOUT%" == "" set ES_STOP_TIMEOUT=0

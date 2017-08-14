@@ -6,7 +6,7 @@ After=network-online.target
 
 [Service]
 Environment=ES_HOME=/usr/share/elasticsearch
-Environment=CONF_DIR=${path.conf}
+Environment=ES_PATH_CONF=${path.conf}
 Environment=PID_DIR=/var/run/elasticsearch
 EnvironmentFile=-${path.env}
 

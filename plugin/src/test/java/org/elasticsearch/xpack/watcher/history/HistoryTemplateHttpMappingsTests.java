@@ -126,7 +126,6 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         assertThat(webServer.requests().get(1).getUri().getPath(), is("/webhook/path"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2222")
     public void testExceptionMapping() {
         // delete all history indices to ensure that we start with a fresh mapping
         assertAcked(client().admin().indices().prepareDelete(HistoryStore.INDEX_PREFIX + "*"));
@@ -145,7 +144,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
                 .trigger(schedule(interval("5s")))
                 .input(httpInput(HttpRequestTemplate.builder("localhost", webServer.getPort())
                         .path("/")
-                        .readTimeout(TimeValue.timeValueMillis(10))))
+                        .readTimeout(abortAtInput ? TimeValue.timeValueMillis(10) : TimeValue.timeValueSeconds(10))))
                 .condition(AlwaysCondition.INSTANCE)
                 .addAction("_webhook", webhookAction(HttpRequestTemplate.builder("localhost", webServer.getPort())
                         .readTimeout(TimeValue.timeValueMillis(10))
@@ -182,7 +181,6 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         }
 
         assertThat(indexed, hasSize(greaterThanOrEqualTo(1)));
-        logger.info("GOT [{}]", indexed);
         assertThat(indexed, hasItem(false));
         assertThat(indexed, not(hasItem(true)));
     }

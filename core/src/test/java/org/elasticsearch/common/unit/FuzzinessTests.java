@@ -140,11 +140,27 @@ public class FuzzinessTests extends ESTestCase {
         assertEquals(fuzziness, deserializedFuzziness);
     }
 
-    public void testSerializationAuto() throws IOException {
+    public void testSerializationDefaultAuto() throws IOException {
         Fuzziness fuzziness = Fuzziness.AUTO;
         Fuzziness deserializedFuzziness = doSerializeRoundtrip(fuzziness);
         assertEquals(fuzziness, deserializedFuzziness);
         assertEquals(fuzziness.asFloat(), deserializedFuzziness.asFloat(), 0f);
+    }
+
+    public void testSerializationCustomAuto() throws IOException {
+        XContentBuilder json = jsonBuilder().startObject()
+            .field(Fuzziness.X_FIELD_NAME, "AUTO:4,7")
+            .endObject();
+
+        XContentParser parser = createParser(json);
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
+        Fuzziness fuzziness = Fuzziness.parse(parser);
+
+        Fuzziness deserializedFuzziness = doSerializeRoundtrip(fuzziness);
+        assertEquals(fuzziness, deserializedFuzziness);
+        assertEquals(fuzziness.asString(), deserializedFuzziness.asString());
     }
 
     private static Fuzziness doSerializeRoundtrip(Fuzziness in) throws IOException {

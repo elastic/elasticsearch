@@ -140,7 +140,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         assertThat(boostQuery.getQuery(), instanceOf(FuzzyQuery.class));
         FuzzyQuery fuzzyQuery = (FuzzyQuery) boostQuery.getQuery();
         assertThat(fuzzyQuery.getTerm(), equalTo(new Term(STRING_FIELD_NAME, "sh")));
-        assertThat(fuzzyQuery.getMaxEdits(), equalTo(Fuzziness.AUTO.asDistance("sh")));
+        assertThat(fuzzyQuery.getMaxEdits(), equalTo(1));
         assertThat(fuzzyQuery.getPrefixLength(), equalTo(1));
     }
 
@@ -171,9 +171,11 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             "        }\n" +
             "    }\n" +
             "}";
-        e = expectThrows(ElasticsearchParseException.class,
+        String msg2 = "fuzziness wrongly configured";
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
             () -> parseQuery(queryHavingNegativeFuzzinessLowLimit).toQuery(createShardContext()));
-        assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
+        assertTrue(e2.getMessage() + " didn't contain: " + msg2 + " but: " + e.getMessage(), e.getMessage().contains
+            (msg));
 
         String queryMissingFuzzinessUpLimit2 = "{\n" +
             "    \"fuzzy\":{\n" +

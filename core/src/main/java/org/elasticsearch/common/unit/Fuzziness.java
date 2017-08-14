@@ -80,11 +80,22 @@ public final class Fuzziness implements ToXContent, Writeable {
      */
     public Fuzziness(StreamInput in) throws IOException {
         fuzziness = in.readString();
+        if (in.readBoolean()) {
+            lowDistance = in.readVInt();
+            highDistance = in.readVInt();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fuzziness);
+        if (isAutoWithCustomValues()){
+            out.writeBoolean(true);
+            out.writeVInt(lowDistance);
+            out.writeVInt(highDistance);
+        }else {
+            out.writeBoolean(false);
+        }
     }
 
     /**
@@ -103,8 +114,26 @@ public final class Fuzziness implements ToXContent, Writeable {
         String string = fuzziness.toString();
         if (AUTO.asString().equalsIgnoreCase(string)) {
             return AUTO;
+        }  else if (string.toUpperCase(Locale.ROOT).startsWith(AUTO.asString() + ":")) {
+            return parseCustomAuto(string);
         }
         return new Fuzziness(string);
+    }
+
+    private static Fuzziness parseCustomAuto( final String string) {
+        String[] fuzzinessLimit = string.substring(AUTO.asString().length() + 1).split(",");
+        if (fuzzinessLimit.length == 2) {
+            try {
+                int lowerLimit = Integer.parseInt(fuzzinessLimit[0]);
+                int highLimit = Integer.parseInt(fuzzinessLimit[1]);
+                return new Fuzziness("AUTO", lowerLimit, highLimit);
+            } catch (NumberFormatException e) {
+                throw new ElasticsearchParseException("failed to parse [{}] as a \"auto:int,int\"", e,
+                    string);
+            }
+        } else {
+            throw new ElasticsearchParseException("Auto fuzziness wrongly configured");
+        }
     }
 
     public static Fuzziness parse(XContentParser parser) throws IOException {
@@ -117,23 +146,7 @@ public final class Fuzziness implements ToXContent, Writeable {
                     return AUTO;
                 }
                 else if (fuzziness.toUpperCase(Locale.ROOT).startsWith(AUTO.asString() + ":")) {
-                    String[] fuzzinessLimit = fuzziness.substring(AUTO.asString().length() + 1).split(",");
-                    if (fuzzinessLimit.length == 2) {
-                        try {
-                            int lowerLimit = Integer.parseInt(fuzzinessLimit[0]);
-                            int highLimit = Integer.parseInt(fuzzinessLimit[1]);
-
-                            if (lowerLimit < 0 || highLimit < 0 || lowerLimit > highLimit) {
-                                throw new ElasticsearchParseException("Auto fuzziness wrongly configured");
-                            }
-                            return new Fuzziness("AUTO", lowerLimit, highLimit);
-                        } catch (NumberFormatException e) {
-                            throw new ElasticsearchParseException("failed to parse [{}] as a \"auto:int,int\"", e,
-                                fuzziness);
-                        }
-                    } else {
-                        throw new ElasticsearchParseException("Auto fuzziness wrongly configured");
-                    }
+                    return parseCustomAuto(fuzziness);
                 }
                 try {
                     final int minimumSimilarity = Integer.parseInt(fuzziness);
@@ -189,7 +202,7 @@ public final class Fuzziness implements ToXContent, Writeable {
     }
 
     public float asFloat() {
-        if (this.equals(AUTO)) {
+        if (this.equals(AUTO) || isAutoWithCustomValues()) {
             return 1f;
         }
         return Float.parseFloat(fuzziness.toString());
@@ -200,7 +213,15 @@ public final class Fuzziness implements ToXContent, Writeable {
     }
 
     public String asString() {
+          if (isAutoWithCustomValues()){
+            return fuzziness.toString() + ":" + lowDistance + "," + highDistance;
+        }
         return fuzziness.toString();
+    }
+
+    private boolean isAutoWithCustomValues() {
+        return fuzziness.startsWith("AUTO") && lowDistance != DEFAULT_LOW_DISTANCE &&
+            highDistance != DEFAULT_HIGH_DISTANCE;
     }
 
     @Override

@@ -157,7 +157,7 @@ be set to `true` in the response.
 
 The `took` time in the response contains the milliseconds that this request
 took for processing, beginning quickly after the node received the query, up
-until all search related work is done and before the the above JSON is returned
+until all search related work is done and before the above JSON is returned
 to the client. This means it includes the time spent waiting in thread pools,
 executing a distributed search across the whole cluster and gathering all the
 results.

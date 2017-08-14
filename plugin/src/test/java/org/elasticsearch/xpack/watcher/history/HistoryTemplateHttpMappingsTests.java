@@ -125,10 +125,6 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         assertThat(webServer.requests().get(1).getUri().getPath(), is("/webhook/path"));
     }
 
-    // This test is unstable, but cannot be reproduced locally (thus all the logging messages),
-    // feel free to add back the awaits fix below when found in CI
-    // Also, please provide the failed build it to allow checking logs
-    // @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2222")
     public void testExceptionMapping() {
         // delete all history indices to ensure that we only need to check a single index
         assertAcked(client().admin().indices().prepareDelete(HistoryStore.INDEX_PREFIX + "*"));
@@ -138,18 +134,16 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         boolean abortAtInput = randomBoolean();
         if (abortAtInput) {
             webServer.enqueue(new MockResponse().setBeforeReplyDelay(TimeValue.timeValueSeconds(5)));
-            logger.info("Will delay at first HTTP request at the input");
         } else {
             webServer.enqueue(new MockResponse().setBody("{}"));
             webServer.enqueue(new MockResponse().setBeforeReplyDelay(TimeValue.timeValueSeconds(5)));
-            logger.info("Will delay at second HTTP request at the action");
         }
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch(id).setSource(watchBuilder()
                 .trigger(schedule(interval("1h")))
                 .input(httpInput(HttpRequestTemplate.builder("localhost", webServer.getPort())
                         .path("/")
-                        .readTimeout(TimeValue.timeValueMillis(10))))
+                        .readTimeout(abortAtInput ? TimeValue.timeValueMillis(10) : TimeValue.timeValueSeconds(10))))
                 .condition(AlwaysCondition.INSTANCE)
                 .addAction("_webhook", webhookAction(HttpRequestTemplate.builder("localhost", webServer.getPort())
                         .readTimeout(TimeValue.timeValueMillis(10))
@@ -167,7 +161,6 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
                 .setQuery(QueryBuilders.termQuery("watch_id", id))
                 .get();
         assertHitCount(searchResponse, 1L);
-        logger.info("Watch history record [{}]", searchResponse.getHits().getHits()[0].getSourceAsMap());
 
         // ensure that enabled is set to false
         List<Boolean> indexed = new ArrayList<>();
@@ -184,11 +177,9 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
                 Boolean enabled = ObjectPath.eval("properties.result.properties.actions.properties.error.enabled", docMapping);
                 indexed.add(enabled);
             }
-            logger.info("Full mapping [{}]", docMapping);
         }
 
         assertThat(indexed, hasSize(greaterThanOrEqualTo(1)));
-        logger.info("GOT [{}]", indexed);
         assertThat(indexed, hasItem(false));
         assertThat(indexed, not(hasItem(true)));
     }

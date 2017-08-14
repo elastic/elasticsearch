@@ -19,6 +19,15 @@ Elasticsearch should use another config file. Instead, to configure a custom
 config directory, use the <<config-files-location,`ES_PATH_CONF` environment
 variable>>.
 
+==== `CONF_DIR` is no longer supported
+
+Previous versions of Elasticsearch enabled using the `CONF_DIR` environment
+variable to specify a custom configuration directory for some configuration
+files and some scripts (it was used inconsistently). Starting in Elasticsearch
+6.0.0, the usage of this environment variable has been superceded by
+`ES_PATH_CONF`, and this new environment variable is consistently used for all
+configuration files and scripts.
+
 ==== Default path settings are removed
 
 Previous versions of Elasticsearch enabled setting `default.path.data` and

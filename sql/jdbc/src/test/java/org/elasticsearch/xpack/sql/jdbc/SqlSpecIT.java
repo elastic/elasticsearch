@@ -47,7 +47,15 @@ public class SqlSpecIT extends SpecBaseIntegrationTestCase {
                 readScriptSpec("/math.sql-spec", parser),
                 readScriptSpec("/agg.sql-spec", parser));
     }
-    
+
+    // NOCOMMIT: add tests for nested docs when interplug communication is enabled
+    //    "DESCRIBE emp.emp",
+    //    "SELECT dep FROM emp.emp",
+    //    "SELECT dep.dept_name, first_name, last_name FROM emp.emp WHERE emp_no = 10020",
+    //    "SELECT first_name f, last_name l, dep.from_date FROM emp.emp WHERE dep.dept_name = 'Production' ORDER BY dep.from_date",
+    //    "SELECT first_name f, last_name l, YEAR(dep.from_date) start "
+    //    + "FROM emp.emp WHERE dep.dept_name = 'Production' AND tenure > 30 ORDER BY start"
+
     private static class SqlSpecParser implements Parser {
         @Override
         public Object parse(String line) {

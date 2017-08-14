@@ -60,6 +60,9 @@ public class RestDeleteStoredScriptAction extends BaseRestHandler {
         }
 
         DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest(id, lang);
+        deleteStoredScriptRequest.timeout(request.paramAsTime("timeout", deleteStoredScriptRequest.timeout()));
+        deleteStoredScriptRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteStoredScriptRequest.masterNodeTimeout()));
+
         return channel -> client.admin().cluster().deleteStoredScript(deleteStoredScriptRequest, new AcknowledgedRestListener<>(channel));
     }
 }

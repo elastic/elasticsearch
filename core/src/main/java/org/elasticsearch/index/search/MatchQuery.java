@@ -167,6 +167,8 @@ public class MatchQuery {
 
     protected Float commonTermsCutoff = null;
 
+    protected boolean autoGenerateSynonymsPhraseQuery = true;
+
     public MatchQuery(QueryShardContext context) {
         this.context = context;
     }
@@ -226,6 +228,10 @@ public class MatchQuery {
         this.zeroTermsQuery = zeroTermsQuery;
     }
 
+    public void setAutoGenerateSynonymsPhraseQuery(boolean enabled) {
+        this.autoGenerateSynonymsPhraseQuery = enabled;
+    }
+
     protected Analyzer getAnalyzer(MappedFieldType fieldType, boolean quoted) {
         if (analyzer == null) {
             return quoted ? context.getSearchQuoteAnalyzer(fieldType) : context.getSearchAnalyzer(fieldType);
@@ -258,6 +264,7 @@ public class MatchQuery {
         assert analyzer != null;
         MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType);
         builder.setEnablePositionIncrements(this.enablePositionIncrements);
+        builder.setAutoGenerateMultiTermSynonymsPhraseQuery(this.autoGenerateSynonymsPhraseQuery);
 
         Query query = null;
         switch (type) {

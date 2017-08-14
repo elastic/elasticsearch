@@ -321,6 +321,11 @@ public class QueryStringQueryParser extends XQueryParser {
         this.groupTieBreaker = groupTieBreaker;
     }
 
+    @Override
+    public void setAutoGenerateMultiTermSynonymsPhraseQuery(boolean enable) {
+        queryBuilder.setAutoGenerateSynonymsPhraseQuery(enable);
+    }
+
     private Query applyBoost(Query q, Float boost) {
         if (boost != null && boost != 1f) {
             return new BoostQuery(q, boost);

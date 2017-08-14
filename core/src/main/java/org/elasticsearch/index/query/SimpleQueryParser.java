@@ -300,6 +300,8 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         private boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;
         /** Specifies a suffix, if any, to apply to field names for phrase matching. */
         private String quoteFieldSuffix = null;
+        /** Whether phrase queries should be automatically generated for multi terms synonyms. */
+        private boolean autoGenerateSynonymsPhraseQuery = true;
 
         /**
          * Generates default {@link Settings} object (uses ROOT locale, does
@@ -312,6 +314,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             this.lenient = other.lenient;
             this.analyzeWildcard = other.analyzeWildcard;
             this.quoteFieldSuffix = other.quoteFieldSuffix;
+            this.autoGenerateSynonymsPhraseQuery = other.autoGenerateSynonymsPhraseQuery;
         }
 
         /** Specifies whether to use lenient parsing, defaults to false. */
@@ -349,9 +352,21 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             return quoteFieldSuffix;
         }
 
+        public void autoGenerateSynonymsPhraseQuery(boolean value) {
+            this.autoGenerateSynonymsPhraseQuery = value;
+        }
+
+        /**
+         * Whether phrase queries should be automatically generated for multi terms synonyms.
+         * Defaults to <tt>true</tt>.
+         */
+        public boolean autoGenerateSynonymsPhraseQuery() {
+            return autoGenerateSynonymsPhraseQuery;
+        }
+
         @Override
         public int hashCode() {
-            return Objects.hash(lenient, analyzeWildcard, quoteFieldSuffix);
+            return Objects.hash(lenient, analyzeWildcard, quoteFieldSuffix, autoGenerateSynonymsPhraseQuery);
         }
 
         @Override
@@ -363,8 +378,10 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                 return false;
             }
             Settings other = (Settings) obj;
-            return Objects.equals(lenient, other.lenient) && Objects.equals(analyzeWildcard, other.analyzeWildcard)
-                    && Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix);
+            return Objects.equals(lenient, other.lenient) &&
+                Objects.equals(analyzeWildcard, other.analyzeWildcard) &&
+                Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix) &&
+                Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery);
         }
     }
 }

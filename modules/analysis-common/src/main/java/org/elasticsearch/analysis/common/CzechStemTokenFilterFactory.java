@@ -16,28 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.analysis.common;
 
-package org.elasticsearch.index.analysis;
-
-import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.de.GermanStemFilter;
-import org.apache.lucene.analysis.miscellaneous.SetKeywordMarkerFilter;
+import org.apache.lucene.analysis.cz.CzechStemFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 
-public class GermanStemTokenFilterFactory extends AbstractTokenFilterFactory {
+public class CzechStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private final CharArraySet exclusions;
-
-    public GermanStemTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    CzechStemTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        this.exclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new GermanStemFilter(new SetKeywordMarkerFilter(tokenStream, exclusions));
+        return new CzechStemFilter(tokenStream);
     }
 }

@@ -34,7 +34,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -160,7 +160,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
     /**
      * Represents a failure.
      */
-    public static class Failure implements Writeable, ToXContent {
+    public static class Failure implements Writeable, ToXContentFragment {
         static final String INDEX_FIELD = "index";
         static final String TYPE_FIELD = "type";
         static final String ID_FIELD = "id";

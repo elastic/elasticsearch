@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.backwards;
 
-import org.apache.http.HttpHost;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -213,19 +213,20 @@ public class IndexingIT extends ESRestTestCase {
             int numDocs = 0;
             final int numberOfInitialDocs = 1 + randomInt(5);
             logger.info("indexing [{}] docs initially", numberOfInitialDocs);
-            numDocs += indexDocs(index, 0, numberOfInitialDocs);
-            assertSeqNoOnShards(index, nodes, 0, newNodeClient);
+            numDocs += indexDocs(index, numDocs, numberOfInitialDocs);
+            assertOK(client().performRequest("POST", index + "/_refresh")); // this forces a global checkpoint sync
+            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
             logger.info("allowing shards on all nodes");
             updateIndexSetting(index, Settings.builder().putNull("index.routing.allocation.include._name"));
             ensureGreen();
-            assertOK(client().performRequest("POST", index + "/_refresh"));
             for (final String bwcName : bwcNamesList) {
                 assertCount(index, "_only_nodes:" + bwcName, numDocs);
             }
             final int numberOfDocsAfterAllowingShardsOnAllNodes = 1 + randomInt(5);
             logger.info("indexing [{}] docs after allowing shards on all nodes", numberOfDocsAfterAllowingShardsOnAllNodes);
             numDocs += indexDocs(index, numDocs, numberOfDocsAfterAllowingShardsOnAllNodes);
-            assertSeqNoOnShards(index, nodes, 0, newNodeClient);
+            assertOK(client().performRequest("POST", index + "/_refresh")); // this forces a global checkpoint sync
+            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
             Shard primary = buildShards(index, nodes, newNodeClient).stream().filter(Shard::isPrimary).findFirst().get();
             logger.info("moving primary to new node by excluding {}", primary.getNode().getNodeName());
             updateIndexSetting(index, Settings.builder().put("index.routing.allocation.exclude._name", primary.getNode().getNodeName()));
@@ -236,7 +237,7 @@ public class IndexingIT extends ESRestTestCase {
             numDocsOnNewPrimary += indexDocs(index, numDocs, numberOfDocsAfterMovingPrimary);
             numDocs += numberOfDocsAfterMovingPrimary;
             assertOK(client().performRequest("POST", index + "/_refresh")); // this forces a global checkpoint sync
-            assertSeqNoOnShards(index, nodes, numDocsOnNewPrimary, newNodeClient);
+            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
             /*
              * Dropping the number of replicas to zero, and then increasing it to one triggers a recovery thus exercising any BWC-logic in
              * the recovery code.
@@ -254,7 +255,7 @@ public class IndexingIT extends ESRestTestCase {
             // the number of documents on the primary and on the recovered replica should match the number of indexed documents
             assertCount(index, "_primary", numDocs);
             assertCount(index, "_replica", numDocs);
-            assertSeqNoOnShards(index, nodes, numDocsOnNewPrimary, newNodeClient);
+            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
         }
     }
 
@@ -280,28 +281,17 @@ public class IndexingIT extends ESRestTestCase {
                 List<Shard> shards = buildShards(index, nodes, client);
                 Shard primaryShard = shards.stream().filter(Shard::isPrimary).findFirst().get();
                 assertNotNull("failed to find primary shard", primaryShard);
-                final long expectedGlobalCkp;
-                final long expectMaxSeqNo;
+                final long expectedGlobalCkp = numDocs - 1;
+                final long expectMaxSeqNo = numDocs - 1;
                 logger.info("primary resolved to node {}", primaryShard.getNode());
-                if (primaryShard.getNode().getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                    expectMaxSeqNo = numDocs - 1;
-                    expectedGlobalCkp = numDocs - 1;
-                } else {
-                    expectedGlobalCkp = SequenceNumbersService.UNASSIGNED_SEQ_NO;
-                    expectMaxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
-                }
                 for (Shard shard : shards) {
-                    if (shard.getNode().getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                        final SeqNoStats seqNoStats = shard.getSeqNoStats();
-                        logger.info("stats for {}, primary [{}]: [{}]", shard.getNode(), shard.isPrimary(), seqNoStats);
-                        assertThat("max_seq no on " + shard.getNode() + " is wrong", seqNoStats.getMaxSeqNo(), equalTo(expectMaxSeqNo));
-                        assertThat("localCheckpoint no on " + shard.getNode() + " is wrong",
+                    final SeqNoStats seqNoStats = shard.getSeqNoStats();
+                    logger.info("stats for {}, primary [{}]: [{}]", shard.getNode(), shard.isPrimary(), seqNoStats);
+                    assertThat("max_seq no on " + shard.getNode() + " is wrong", seqNoStats.getMaxSeqNo(), equalTo(expectMaxSeqNo));
+                    assertThat("localCheckpoint no on " + shard.getNode() + " is wrong",
                         seqNoStats.getLocalCheckpoint(), equalTo(expectMaxSeqNo));
-                        assertThat("globalCheckpoint no on " + shard.getNode() + " is wrong",
-                            seqNoStats.getGlobalCheckpoint(), equalTo(expectedGlobalCkp));
-                    } else {
-                        logger.info("skipping seq no test on {}", shard.getNode());
-                    }
+                    assertThat("globalCheckpoint no on " + shard.getNode() + " is wrong",
+                        seqNoStats.getGlobalCheckpoint(), equalTo(expectedGlobalCkp));
                 }
             } catch (IOException e) {
                 throw new AssertionError("unexpected io exception", e);
@@ -318,14 +308,10 @@ public class IndexingIT extends ESRestTestCase {
             final Boolean primary = ObjectPath.evaluate(shard, "routing.primary");
             final Node node = nodes.getSafe(nodeId);
             final SeqNoStats seqNoStats;
-            if (node.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                Integer maxSeqNo = ObjectPath.evaluate(shard, "seq_no.max_seq_no");
-                Integer localCheckpoint = ObjectPath.evaluate(shard, "seq_no.local_checkpoint");
-                Integer globalCheckpoint = ObjectPath.evaluate(shard, "seq_no.global_checkpoint");
-                seqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
-            } else {
-                seqNoStats = null;
-            }
+            Integer maxSeqNo = ObjectPath.evaluate(shard, "seq_no.max_seq_no");
+            Integer localCheckpoint = ObjectPath.evaluate(shard, "seq_no.local_checkpoint");
+            Integer globalCheckpoint = ObjectPath.evaluate(shard, "seq_no.global_checkpoint");
+            seqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
             shards.add(new Shard(node, primary, seqNoStats));
         }
         return shards;

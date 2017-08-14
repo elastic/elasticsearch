@@ -107,8 +107,15 @@ $ curl -v -XPOST 'localhost:9200/my_index/_settings'
 * Connection #0 to host localhost left intact
 --------------------------------------------
 
-==== Dissallow using `_cache` and `_cache_key`
+==== Disallow using `_cache` and `_cache_key`
 
 The `_cache` and `_cache_key` options in queries have been deprecated since version 2.0.0 and
 have been ignored since then, issuing a deprecation warning. These options have now been completely
 removed, so using them now will throw an error.
+
+==== IndexClosedException to return 400 status code
+
+An `IndexClosedException` is returned whenever an api that doesn't support
+closed indices (e.g. search) is called passing closed indices as parameters
+and `ignore_unavailable` is set to `false`. The response status code returned
+in such case changed from `403` to `400`

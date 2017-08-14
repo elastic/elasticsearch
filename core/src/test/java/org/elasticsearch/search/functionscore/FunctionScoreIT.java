@@ -22,7 +22,7 @@ package org.elasticsearch.search.functionscore;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
@@ -160,7 +160,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                 searchRequest().source(searchSource().query(functionScoreQuery(new MatchAllQueryBuilder(), new FilterFunctionBuilder[] {
                                 new FilterFunctionBuilder(scriptFunction(script)),
                                 new FilterFunctionBuilder(scriptFunction(script))
-                        }).scoreMode(FiltersFunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)))
+                        }).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)))
                 ).actionGet();
         if (score < minScore) {
             assertThat(searchResponse.getHits().getTotalHits(), is(0L));
@@ -196,7 +196,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                 searchRequest().source(searchSource().query(functionScoreQuery(new MatchAllQueryBuilder(), new FilterFunctionBuilder[] {
                         new FilterFunctionBuilder(scriptFunction(script)),
                         new FilterFunctionBuilder(scriptFunction(script))
-                }).scoreMode(FiltersFunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)).size(numDocs))).actionGet();
+                }).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)).size(numDocs))).actionGet();
         assertMinScoreSearchResponses(numDocs, searchResponse, numMatchingDocs);
     }
 

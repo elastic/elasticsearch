@@ -117,8 +117,8 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     }
 
     protected ClusterState createInitialState(DiscoveryNode localNode) {
-        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
-            .nodes(DiscoveryNodes.builder().add(localNode)
+        ClusterState.Builder builder = clusterApplier.newClusterStateBuilder();
+        return builder.nodes(DiscoveryNodes.builder().add(localNode)
                 .localNodeId(localNode.getId())
                 .masterNodeId(localNode.getId())
                 .build())

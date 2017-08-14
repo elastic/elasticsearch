@@ -43,6 +43,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.Script;
@@ -375,5 +376,17 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         public String toString() {
             return name().toLowerCase(Locale.ROOT);
         }
+    }
+
+    @Override
+    public SortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        if (nestedFilter == null) {
+            return this;
+        }
+        QueryBuilder rewrite = nestedFilter.rewrite(ctx);
+        if (nestedFilter == rewrite) {
+            return this;
+        }
+        return new ScriptSortBuilder(this).setNestedFilter(rewrite);
     }
 }

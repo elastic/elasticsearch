@@ -27,11 +27,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery.FilterFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -70,13 +68,13 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
 
     public static final CombineFunction DEFAULT_BOOST_MODE = CombineFunction.MULTIPLY;
-    public static final FiltersFunctionScoreQuery.ScoreMode DEFAULT_SCORE_MODE = FiltersFunctionScoreQuery.ScoreMode.MULTIPLY;
+    public static final FunctionScoreQuery.ScoreMode DEFAULT_SCORE_MODE = FunctionScoreQuery.ScoreMode.MULTIPLY;
 
     private final QueryBuilder query;
 
     private float maxBoost = FunctionScoreQuery.DEFAULT_MAX_BOOST;
 
-    private FiltersFunctionScoreQuery.ScoreMode scoreMode = DEFAULT_SCORE_MODE;
+    private FunctionScoreQuery.ScoreMode scoreMode = DEFAULT_SCORE_MODE;
 
     private CombineFunction boostMode;
 
@@ -153,7 +151,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         maxBoost = in.readFloat();
         minScore = in.readOptionalFloat();
         boostMode = in.readOptionalWriteable(CombineFunction::readFromStream);
-        scoreMode = FiltersFunctionScoreQuery.ScoreMode.readFromStream(in);
+        scoreMode = FunctionScoreQuery.ScoreMode.readFromStream(in);
     }
 
     @Override
@@ -182,9 +180,9 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
 
     /**
      * Score mode defines how results of individual score functions will be aggregated.
-     * @see org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery.ScoreMode
+     * @see FunctionScoreQuery.ScoreMode
      */
-    public FunctionScoreQueryBuilder scoreMode(FiltersFunctionScoreQuery.ScoreMode scoreMode) {
+    public FunctionScoreQueryBuilder scoreMode(FunctionScoreQuery.ScoreMode scoreMode) {
         if (scoreMode == null) {
             throw new IllegalArgumentException("[" + NAME + "]  requires 'score_mode' field");
         }
@@ -194,9 +192,9 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
 
     /**
      * Returns the score mode, meaning how results of individual score functions will be aggregated.
-     * @see org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery.ScoreMode
+     * @see FunctionScoreQuery.ScoreMode
      */
-    public FiltersFunctionScoreQuery.ScoreMode scoreMode() {
+    public FunctionScoreQuery.ScoreMode scoreMode() {
         return this.scoreMode;
     }
 
@@ -294,12 +292,16 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        FilterFunction[] filterFunctions = new FilterFunction[filterFunctionBuilders.length];
+        ScoreFunction[] filterFunctions = new ScoreFunction[filterFunctionBuilders.length];
         int i = 0;
         for (FilterFunctionBuilder filterFunctionBuilder : filterFunctionBuilders) {
-            Query filter = filterFunctionBuilder.getFilter().toQuery(context);
             ScoreFunction scoreFunction = filterFunctionBuilder.getScoreFunction().toFunction(context);
-            filterFunctions[i++] = new FilterFunction(filter, scoreFunction);
+            if (filterFunctionBuilder.getFilter().getName().equals(MatchAllQueryBuilder.NAME)) {
+                filterFunctions[i++] = scoreFunction;
+            } else {
+                Query filter = filterFunctionBuilder.getFilter().toQuery(context);
+                filterFunctions[i++] = new FunctionScoreQuery.FilterScoreFunction(filter, scoreFunction);
+            }
         }
 
         Query query = this.query.toQuery(context);
@@ -308,29 +310,25 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         }
 
         // handle cases where only one score function and no filter was provided. In this case we create a FunctionScoreQuery.
-        if (filterFunctions.length == 0 || filterFunctions.length == 1
-                && (this.filterFunctionBuilders[0].getFilter().getName().equals(MatchAllQueryBuilder.NAME))) {
-            ScoreFunction function = filterFunctions.length == 0 ? null : filterFunctions[0].function;
+        if (filterFunctions.length == 0) {
+            return new FunctionScoreQuery(query, minScore, maxBoost);
+        } else if (filterFunctions.length == 1 && filterFunctions[0] instanceof FunctionScoreQuery.FilterScoreFunction == false) {
             CombineFunction combineFunction = this.boostMode;
             if (combineFunction == null) {
-                if (function != null) {
-                    combineFunction = function.getDefaultScoreCombiner();
-                } else {
-                    combineFunction = DEFAULT_BOOST_MODE;
-                }
+                combineFunction = filterFunctions[0].getDefaultScoreCombiner();
             }
-            return new FunctionScoreQuery(query, function, minScore, combineFunction, maxBoost);
+            return new FunctionScoreQuery(query, filterFunctions[0], combineFunction, minScore, maxBoost);
         }
-        // in all other cases we create a FiltersFunctionScoreQuery
+        // in all other cases we create a FunctionScoreQuery with filters
         CombineFunction boostMode = this.boostMode == null ? DEFAULT_BOOST_MODE : this.boostMode;
-        return new FiltersFunctionScoreQuery(query, scoreMode, filterFunctions, maxBoost, minScore, boostMode);
+        return new FunctionScoreQuery(query, scoreMode, filterFunctions, boostMode, minScore, maxBoost);
     }
 
     /**
      * Function to be associated with an optional filter, meaning it will be executed only for the documents
      * that match the given filter.
      */
-    public static class FilterFunctionBuilder implements ToXContent, Writeable {
+    public static class FilterFunctionBuilder implements ToXContentObject, Writeable {
         private final QueryBuilder filter;
         private final ScoreFunctionBuilder<?> scoreFunction;
 
@@ -439,7 +437,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
 
-        FiltersFunctionScoreQuery.ScoreMode scoreMode = FunctionScoreQueryBuilder.DEFAULT_SCORE_MODE;
+        FunctionScoreQuery.ScoreMode scoreMode = FunctionScoreQueryBuilder.DEFAULT_SCORE_MODE;
         float maxBoost = FunctionScoreQuery.DEFAULT_MAX_BOOST;
         Float minScore = null;
 
@@ -495,7 +493,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
 
             } else if (token.isValue()) {
                 if (SCORE_MODE_FIELD.match(currentFieldName)) {
-                    scoreMode = FiltersFunctionScoreQuery.ScoreMode.fromString(parser.text());
+                    scoreMode = FunctionScoreQuery.ScoreMode.fromString(parser.text());
                 } else if (BOOST_MODE_FIELD.match(currentFieldName)) {
                     combineFunction = CombineFunction.fromString(parser.text());
                 } else if (MAX_BOOST_FIELD.match(currentFieldName)) {

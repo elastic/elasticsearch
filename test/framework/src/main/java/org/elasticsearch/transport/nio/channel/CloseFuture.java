@@ -80,7 +80,7 @@ public class CloseFuture extends BaseFuture<NioChannel> {
         this.listener.set(listener);
     }
 
-    void channelClosed(NioChannel channel) {
+    boolean channelClosed(NioChannel channel) {
         boolean set = set(channel);
         if (set) {
             Consumer<NioChannel> listener = this.listener.get();
@@ -88,10 +88,11 @@ public class CloseFuture extends BaseFuture<NioChannel> {
                 listener.accept(channel);
             }
         }
+        return set;
     }
 
 
-    void channelCloseThrewException(NioChannel channel, IOException ex) {
+    boolean channelCloseThrewException(NioChannel channel, IOException ex) {
         boolean set = setException(ex);
         if (set) {
             Consumer<NioChannel> listener = this.listener.get();
@@ -99,6 +100,7 @@ public class CloseFuture extends BaseFuture<NioChannel> {
                 listener.accept(channel);
             }
         }
+        return set;
     }
 
 }

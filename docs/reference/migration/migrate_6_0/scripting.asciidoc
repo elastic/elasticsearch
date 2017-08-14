@@ -34,3 +34,48 @@ script otherwise an error will occur.  Note that a request using a stored script
 different from a request that puts a stored script.  The language of the script has
 already been stored as part of the cluster state and an `id` is sufficient to access
 all of the information necessary to execute a stored script.
+
+==== 'lang` can no longer be used when putting, getting, or deleting a stored script
+
+Stored scripts can no longer have the `lang` parameter specified as part of the url
+when performing PUT, GET, and DELETE actions on the `_scripts/` path.  All stored
+scripts must have a unique `id` as the namespace is only `id` now and no longer `lang`
+and `id`.
+
+==== Stored search template apis removed
+
+The PUT, GET and DELETE `_search/template` apis have been removed. Store search templates with the stored scripts apis instead.
+
+For example, previously one might have stored a search template with the following:
+
+[source,js]
+--------------------------------------------------
+PUT /_search/template/my_template
+{
+  "query": {
+    "match": {
+      "f1": "{{f1}}"
+    }
+  }
+}
+--------------------------------------------------
+
+And instead one would now use the following:
+
+[source,js]
+--------------------------------------------------
+PUT /_scripts/my_template
+{
+  "script": {
+    "lang": "mustache",
+    "source": {
+      "query": {
+        "match": {
+          "f1": "{{f1}}"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+

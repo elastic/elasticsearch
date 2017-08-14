@@ -22,7 +22,6 @@ package org.elasticsearch.common.settings;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.Map;
 
 import org.elasticsearch.cli.Command;
@@ -40,7 +39,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new AddStringKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path configPath) {
+            protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
                 return env;
             }
             @Override

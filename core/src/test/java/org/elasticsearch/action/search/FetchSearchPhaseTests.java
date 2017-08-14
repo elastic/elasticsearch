@@ -103,7 +103,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         results.consumeResult(queryResult);
 
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null) {
+            Settings.builder().put("search.remote.connect", false).build(), null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -157,7 +157,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         results.consumeResult(queryResult);
 
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null) {
+            Settings.builder().put("search.remote.connect", false).build(), null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -210,7 +210,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             results.consumeResult(queryResult);
         }
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null) {
+            Settings.builder().put("search.remote.connect", false).build(), null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -271,7 +271,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         results.consumeResult(queryResult);
         AtomicInteger numFetches = new AtomicInteger(0);
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null) {
+            Settings.builder().put("search.remote.connect", false).build(), null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -324,7 +324,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         results.consumeResult(queryResult);
 
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null) {
+            Settings.builder().put("search.remote.connect", false).build(), null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {

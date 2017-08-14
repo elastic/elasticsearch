@@ -31,7 +31,7 @@ public enum CombineFunction implements Writeable {
     MULTIPLY {
         @Override
         public float combine(double queryScore, double funcScore, double maxBoost) {
-            return toFloat(queryScore * Math.min(funcScore, maxBoost));
+            return (float) (queryScore * Math.min(funcScore, maxBoost));
         }
 
         @Override
@@ -48,7 +48,7 @@ public enum CombineFunction implements Writeable {
     REPLACE {
         @Override
         public float combine(double queryScore, double funcScore, double maxBoost) {
-            return toFloat(Math.min(funcScore, maxBoost));
+            return (float) (Math.min(funcScore, maxBoost));
         }
 
         @Override
@@ -64,7 +64,7 @@ public enum CombineFunction implements Writeable {
     SUM {
         @Override
         public float combine(double queryScore, double funcScore, double maxBoost) {
-            return toFloat(queryScore + Math.min(funcScore, maxBoost));
+            return (float) (queryScore + Math.min(funcScore, maxBoost));
         }
 
         @Override
@@ -79,7 +79,7 @@ public enum CombineFunction implements Writeable {
     AVG {
         @Override
         public float combine(double queryScore, double funcScore, double maxBoost) {
-            return toFloat((Math.min(funcScore, maxBoost) + queryScore) / 2.0);
+            return (float) ((Math.min(funcScore, maxBoost) + queryScore) / 2.0);
         }
 
         @Override
@@ -87,7 +87,7 @@ public enum CombineFunction implements Writeable {
             Explanation minExpl = Explanation.match(Math.min(funcExpl.getValue(), maxBoost), "min of:",
                     funcExpl, Explanation.match(maxBoost, "maxBoost"));
             return Explanation.match(
-                    toFloat((Math.min(funcExpl.getValue(), maxBoost) + queryExpl.getValue()) / 2.0), "avg of",
+                    (float) ((Math.min(funcExpl.getValue(), maxBoost) + queryExpl.getValue()) / 2.0), "avg of",
                     queryExpl, minExpl);
         }
 
@@ -95,7 +95,7 @@ public enum CombineFunction implements Writeable {
     MIN {
         @Override
         public float combine(double queryScore, double funcScore, double maxBoost) {
-            return toFloat(Math.min(queryScore, Math.min(funcScore, maxBoost)));
+            return (float) (Math.min(queryScore, Math.min(funcScore, maxBoost)));
         }
 
         @Override
@@ -112,7 +112,7 @@ public enum CombineFunction implements Writeable {
     MAX {
         @Override
         public float combine(double queryScore, double funcScore, double maxBoost) {
-            return toFloat(Math.max(queryScore, Math.min(funcScore, maxBoost)));
+            return (float) (Math.max(queryScore, Math.min(funcScore, maxBoost)));
         }
 
         @Override
@@ -128,16 +128,6 @@ public enum CombineFunction implements Writeable {
     };
 
     public abstract float combine(double queryScore, double funcScore, double maxBoost);
-
-    public static float toFloat(double input) {
-        assert deviation(input) <= 0.001 : "input " + input + " out of float scope for function score deviation: " + deviation(input);
-        return (float) input;
-    }
-
-    private static double deviation(double input) { // only with assert!
-        float floatVersion = (float) input;
-        return Double.compare(floatVersion, input) == 0 || input == 0.0d ? 0 : 1.d - (floatVersion) / input;
-    }
 
     public abstract Explanation explain(Explanation queryExpl, Explanation funcExpl, float maxBoost);
 

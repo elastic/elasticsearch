@@ -66,7 +66,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
             ShardId shardId = new ShardId(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10)), randomIntBetween(0, 10));
             String nodeId = randomAlphaOfLength(10);
             State shardState = randomFrom(State.values());
-            builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState));
+            builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState,
+                shardState.failed() ? randomAlphaOfLength(10) : null));
         }
         ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = builder.build();
         return new Entry(snapshot, includeGlobalState, partial, state, indices, startTime, repositoryStateId, shards);
@@ -112,6 +113,18 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+    }
+
+    @Override
+    protected Custom mutateInstance(Custom instance) {
+        List<Entry> entries = new ArrayList<>(((SnapshotsInProgress) instance).entries());
+        boolean addEntry = entries.isEmpty() ? true : randomBoolean();
+        if (addEntry) {
+            entries.add(randomSnapshot());
+        } else {
+            entries.remove(randomIntBetween(0, entries.size() - 1));
+        }
+        return new SnapshotsInProgress(entries);
     }
 
 }

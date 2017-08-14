@@ -42,6 +42,6 @@ public class IndexClosedException extends ElasticsearchException {
 
     @Override
     public RestStatus status() {
-        return RestStatus.FORBIDDEN;
+        return RestStatus.BAD_REQUEST;
     }
 }

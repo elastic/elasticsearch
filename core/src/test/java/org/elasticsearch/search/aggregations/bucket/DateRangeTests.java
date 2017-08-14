@@ -19,9 +19,16 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
+
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregationBuilder> {
 
@@ -60,6 +67,19 @@ public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregation
             factory.timeZone(randomDateTimeZone());
         }
         return factory;
+    }
+
+    public void testParsingRangeStrict() throws IOException {
+        final String rangeAggregation = "{\n" +
+                "\"field\" : \"date\",\n" +
+                "\"format\" : \"yyyy-MM-dd\",\n" +
+                "\"ranges\" : [\n" +
+                "    { \"from\" : \"2017-01-01\", \"to\" : \"2017-01-02\", \"badField\" : \"abcd\" }\n" +
+                "]\n" +
+            "}";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
+        ParsingException ex = expectThrows(ParsingException.class, () -> DateRangeAggregationBuilder.parse("aggregationName", parser));
+        assertThat(ex.getDetailedMessage(), containsString("badField"));
     }
 
 }

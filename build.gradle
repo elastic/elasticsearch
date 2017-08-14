@@ -64,10 +64,10 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
 
 /* Introspect all versions of ES that may be tested agains for backwards
  * compatibility. It is *super* important that this logic is the same as the
- * logic in VersionUtils.java, modulo alphas, betas, and rcs which are ignored
- * in gradle because they don't have any backwards compatibility guarantees
- * but are not ignored in VersionUtils.java because the tests expect them not
- * to be. */
+ * logic in VersionUtils.java, throwing out alphas because they don't have any
+ * backwards compatibility guarantees and only keeping the latest beta or rc
+ * in a branch if there are only betas and rcs in the branch so we have
+ * *something* to test against. */
 Version currentVersion = Version.fromString(VersionProperties.elasticsearch.minus('-SNAPSHOT'))
 int prevMajor = currentVersion.major - 1
 File versionFile = file('core/src/main/java/org/elasticsearch/Version.java')
@@ -79,18 +79,29 @@ int lastPrevMinor = -1 // the minor version number from the prev major we most r
 for (String line : versionLines) {
   /* Note that this skips alphas and betas which is fine because they aren't
    * compatible with anything. */
-  Matcher match = line =~ /\W+public static final Version V_(\d+)_(\d+)_(\d+) .*/
+  Matcher match = line =~ /\W+public static final Version V_(\d+)_(\d+)_(\d+)(_beta\d+|_rc\d+)? .*/
   if (match.matches()) {
     int major = Integer.parseInt(match.group(1))
     int minor = Integer.parseInt(match.group(2))
     int bugfix = Integer.parseInt(match.group(3))
-    Version foundVersion = new Version(major, minor, bugfix, false)
-    if (currentVersion != foundVersion) {
-      versions.add(foundVersion)
-    }
-    if (major == prevMajor && minor > lastPrevMinor) {
-      prevMinorIndex = versions.size() - 1
-      lastPrevMinor = minor
+    String suffix = (match.group(4) ?: '').replace('_', '-')
+    Version foundVersion = new Version(major, minor, bugfix, suffix, false)
+    if (currentVersion != foundVersion
+        && (major == prevMajor || major == currentVersion.major)) {
+      if (versions.isEmpty() || versions.last() != foundVersion) {
+        versions.add(foundVersion)
+      } else {
+        // Replace the earlier betas with later ones
+        Version last = versions.set(versions.size() - 1, foundVersion)
+        if (last.suffix == '') {
+          throw new InvalidUserDataException("Found two equal versions but"
+              + " the first one [$last] wasn't a beta.")
+        }
+      }
+      if (major == prevMajor && minor > lastPrevMinor) {
+        prevMinorIndex = versions.size() - 1
+        lastPrevMinor = minor
+      }
     }
   }
 }
@@ -104,10 +115,10 @@ if (currentVersion.bugfix == 0) {
   // unreleased version of closest branch. So for those cases, the version includes -SNAPSHOT,
   // and the bwc distribution will checkout and build that version.
   Version last = versions[-1]
-  versions[-1] = new Version(last.major, last.minor, last.bugfix, true)
+  versions[-1] = new Version(last.major, last.minor, last.bugfix, last.suffix, true)
   if (last.bugfix == 0) {
     versions[-2] = new Version(
-        versions[-2].major, versions[-2].minor, versions[-2].bugfix, true)
+        versions[-2].major, versions[-2].minor, versions[-2].bugfix, versions[-2].suffix, true)
   }
 }
 
@@ -242,9 +253,11 @@ subprojects {
       ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-stable-snapshot'
       ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-stable-snapshot'
       ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-stable-snapshot'
-      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
-      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
-      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+      if (indexCompatVersions.size() > 1) {
+        ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+        ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+        ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+      }
     } else {
       ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
       ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
@@ -268,7 +281,7 @@ subprojects {
 // the dependency is added.
 gradle.projectsEvaluated {
   allprojects {
-    if (project.path == ':test:framework') {
+    if (project.path == ':test:framework' || project.path == ':client:test') {
       // :test:framework:test cannot run before and after :core:test
       return
     }

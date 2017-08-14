@@ -60,15 +60,15 @@ public class RethrottleTests extends ReindexTestCase {
     }
 
     public void testReindexWithWorkers() throws Exception {
-        testCase(reindex().source("test").destination("dest").setSlices(between(2, 10)), ReindexAction.NAME);
+        testCase(reindex().source("test").destination("dest").setSlices(randomSlices()), ReindexAction.NAME);
     }
 
     public void testUpdateByQueryWithWorkers() throws Exception {
-        testCase(updateByQuery().source("test").setSlices(between(2, 10)), UpdateByQueryAction.NAME);
+        testCase(updateByQuery().source("test").setSlices(randomSlices()), UpdateByQueryAction.NAME);
     }
 
     public void testDeleteByQueryWithWorkers() throws Exception {
-        testCase(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).setSlices(between(2, 10)), DeleteByQueryAction.NAME);
+        testCase(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).setSlices(randomSlices()), DeleteByQueryAction.NAME);
     }
 
     private void testCase(AbstractBulkByScrollRequestBuilder<?, ?> request, String actionName) throws Exception {
@@ -76,8 +76,12 @@ public class RethrottleTests extends ReindexTestCase {
         /* Add ten documents per slice so most slices will have many documents to process, having to go to multiple batches.
          * we can't rely on all of them doing so, but
          */
+
+        createIndex("test");
+        int numSlices = expectedSlices(request.request().getSlices(), "test");
+
         List<IndexRequestBuilder> docs = new ArrayList<>();
-        for (int i = 0; i < request.request().getSlices() * 10; i++) {
+        for (int i = 0; i < numSlices * 10; i++) {
             docs.add(client().prepareIndex("test", "test", Integer.toString(i)).setSource("foo", "bar"));
         }
         indexRandom(true, docs);
@@ -87,15 +91,15 @@ public class RethrottleTests extends ReindexTestCase {
         request.source().setSize(1);             // Make sure we use multiple batches
         ActionFuture<? extends BulkByScrollResponse> responseListener = request.execute();
 
-        TaskGroup taskGroupToRethrottle = findTaskToRethrottle(actionName, request.request().getSlices());
+        TaskGroup taskGroupToRethrottle = findTaskToRethrottle(actionName, numSlices);
         TaskId taskToRethrottle = taskGroupToRethrottle.getTaskInfo().getTaskId();
 
-        if (request.request().getSlices() == 1) {
+        if (numSlices == 1) {
             assertThat(taskGroupToRethrottle.getChildTasks(), empty());
         } else {
             // There should be a sane number of child tasks running
             assertThat(taskGroupToRethrottle.getChildTasks(),
-                    hasSize(allOf(greaterThanOrEqualTo(1), lessThanOrEqualTo(request.request().getSlices()))));
+                    hasSize(allOf(greaterThanOrEqualTo(1), lessThanOrEqualTo(numSlices))));
             // Wait for all of the sub tasks to start (or finish, some might finish early, all that matters is that not all do)
             assertBusy(() -> {
                 BulkByScrollTask.Status parent = (BulkByScrollTask.Status) client().admin().cluster().prepareGetTask(taskToRethrottle).get()
@@ -103,7 +107,7 @@ public class RethrottleTests extends ReindexTestCase {
                 long finishedSubTasks = parent.getSliceStatuses().stream().filter(Objects::nonNull).count();
                 ListTasksResponse list = client().admin().cluster().prepareListTasks().setParentTaskId(taskToRethrottle).get();
                 list.rethrowFailures("subtasks");
-                assertThat(finishedSubTasks + list.getTasks().size(), greaterThanOrEqualTo((long) request.request().getSlices()));
+                assertThat(finishedSubTasks + list.getTasks().size(), greaterThanOrEqualTo((long) numSlices));
                 assertThat(list.getTasks().size(), greaterThan(0));
             });
         }
@@ -114,8 +118,9 @@ public class RethrottleTests extends ReindexTestCase {
         rethrottleResponse.rethrowFailures("Rethrottle");
         assertThat(rethrottleResponse.getTasks(), hasSize(1));
         BulkByScrollTask.Status status = (BulkByScrollTask.Status) rethrottleResponse.getTasks().get(0).getStatus();
+
         // Now check the resulting requests per second.
-        if (request.request().getSlices() == 1) {
+        if (numSlices == 1) {
             // If there is a single slice it should match perfectly
             assertEquals(newRequestsPerSecond, status.getRequestsPerSecond(), Float.MIN_NORMAL);
         } else {
@@ -128,7 +133,7 @@ public class RethrottleTests extends ReindexTestCase {
             float maxExpectedSliceRequestsPerSecond = newRequestsPerSecond == Float.POSITIVE_INFINITY ?
                     Float.POSITIVE_INFINITY : (newRequestsPerSecond / unfinished) * 1.01F;
             float minExpectedSliceRequestsPerSecond = newRequestsPerSecond == Float.POSITIVE_INFINITY ?
-                    Float.POSITIVE_INFINITY : (newRequestsPerSecond / request.request().getSlices()) * 0.99F;
+                    Float.POSITIVE_INFINITY : (newRequestsPerSecond / numSlices) * 0.99F;
             boolean oneSliceRethrottled = false;
             float totalRequestsPerSecond = 0;
             for (BulkByScrollTask.StatusOrException statusOrException : status.getSliceStatuses()) {
@@ -164,7 +169,7 @@ public class RethrottleTests extends ReindexTestCase {
         // Now the response should come back quickly because we've rethrottled the request
         BulkByScrollResponse response = responseListener.get();
         assertThat("Entire request completed in a single batch. This may invalidate the test as throttling is done between batches.",
-                response.getBatches(), greaterThanOrEqualTo(request.request().getSlices()));
+                response.getBatches(), greaterThanOrEqualTo(numSlices));
     }
 
     private TaskGroup findTaskToRethrottle(String actionName, int sliceCount) {

@@ -38,6 +38,8 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.repositories.RepositoriesModule;
@@ -104,10 +106,15 @@ public abstract class Plugin implements Closeable {
      * @param threadPool A service to allow retrieving an executor to run an async action
      * @param resourceWatcherService A service to watch for changes to node local files
      * @param scriptService A service to allow running scripts on the local node
+     * @param xContentRegistry the registry for extensible xContent parsing
+     * @param environment the environment for path and setting configurations
+     * @param nodeEnvironment the node environment used coordinate access to the data paths
+     * @param namedWriteableRegistry the registry for {@link NamedWriteable} object parsing
      */
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry) {
+                                               NamedXContentRegistry xContentRegistry, Environment environment,
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         return Collections.emptyList();
     }
 

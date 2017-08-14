@@ -556,22 +556,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 containsString("cannot use [all_fields] parameter in conjunction with [fields]"));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl="currently can't perform phrase queries on fields that don't support positions")
-    public void testPhraseQueryOnFieldWithNoPositions() throws Exception {
-        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
-        prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
-        ensureGreen("test");
-
-        List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo bar", "f4", "eggplant parmesan"));
-        reqs.add(client().prepareIndex("test", "doc", "2").setSource("f1", "foo bar", "f4", "chicken parmesan"));
-        indexRandom(true, false, reqs);
-
-        SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("\"eggplant parmesan\"")).get();
-        assertHits(resp.getHits(), "1");
-        assertHitCount(resp, 1L);
-    }
-
     public void testAllFieldsWithSpecifiedLeniency() throws IOException {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();

@@ -299,7 +299,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
 
     @Override
-    public Translog.Snapshot newSnapshot() {
+    public TranslogSnapshot newSnapshot() {
         // make sure to acquire the sync lock first, to prevent dead locks with threads calling
         // syncUpTo() , where the sync lock is acquired first, following by the synchronize(this)
         synchronized (syncLock) {

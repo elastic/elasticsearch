@@ -20,7 +20,6 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.transport.nio.NetworkBytesReference;
-import org.elasticsearch.transport.nio.ESSelector;
 import org.elasticsearch.transport.nio.SocketSelector;
 
 import java.io.IOException;
@@ -34,26 +33,23 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     private final InetSocketAddress remoteAddress;
     private final ConnectFuture connectFuture = new ConnectFuture();
-    private volatile SocketSelector socketSelector;
+    private final SocketSelector socketSelector;
     private WriteContext writeContext;
     private ReadContext readContext;
 
-    public NioSocketChannel(String profile, SocketChannel socketChannel) throws IOException {
-        super(profile, socketChannel);
+    public NioSocketChannel(String profile, SocketChannel socketChannel, SocketSelector selector) throws IOException {
+        super(profile, socketChannel, selector);
         this.remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
-    }
-
-    @Override
-    public CloseFuture closeAsync() {
-        clearQueuedWrites();
-
-        return super.closeAsync();
+        this.socketSelector = selector;
     }
 
     @Override
     public void closeFromSelector() {
+        assert socketSelector.isOnCurrentThread() : "Should only call from selector thread";
         // Even if the channel has already been closed we will clear any pending write operations just in case
-        clearQueuedWrites();
+        if (writeContext.hasQueuedWriteOps()) {
+            writeContext.clearQueuedWriteOps(new ClosedChannelException());
+        }
 
         super.closeFromSelector();
     }
@@ -61,12 +57,6 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     @Override
     public SocketSelector getSelector() {
         return socketSelector;
-    }
-
-    @Override
-    boolean markRegistered(ESSelector selector) {
-        this.socketSelector = (SocketSelector) selector;
-        return super.markRegistered(selector);
     }
 
     public int write(NetworkBytesReference[] references) throws IOException {
@@ -122,11 +112,11 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     }
 
     public boolean isWritable() {
-        return state.get() == REGISTERED;
+        return isClosing.get() == false;
     }
 
     public boolean isReadable() {
-        return state.get() == REGISTERED;
+        return isClosing.get() == false;
     }
 
     /**
@@ -174,16 +164,6 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         } catch (RuntimeException e) {
             connectFuture.setConnectionFailed(e);
             throw e;
-        }
-    }
-
-    private void clearQueuedWrites() {
-        // Even if the channel has already been closed we will clear any pending write operations just in case
-        if (state.get() > UNREGISTERED) {
-            SocketSelector selector = getSelector();
-            if (selector != null && selector.isOnCurrentThread() && writeContext.hasQueuedWriteOps()) {
-                writeContext.clearQueuedWriteOps(new ClosedChannelException());
-            }
         }
     }
 }

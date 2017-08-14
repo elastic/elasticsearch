@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.Header;
+import org.elasticsearch.client.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.rest.ESRestTestCase;

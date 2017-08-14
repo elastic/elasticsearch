@@ -19,8 +19,18 @@
 
 package org.elasticsearch.index.query.functionscore;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.Mockito;
 
 public class ScoreFunctionBuilderTests extends ESTestCase {
 
@@ -38,5 +48,24 @@ public class ScoreFunctionBuilderTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> new ExponentialDecayFunctionBuilder(null, "", "", ""));
         expectThrows(IllegalArgumentException.class, () -> new ExponentialDecayFunctionBuilder("", "", null, ""));
         expectThrows(IllegalArgumentException.class, () -> new ExponentialDecayFunctionBuilder("", "", null, "", randomDouble()));
+    }
+
+    public void testRandomScoreFunctionWithSeed() throws Exception {
+        RandomScoreFunctionBuilder builder = new RandomScoreFunctionBuilder();
+        builder.seed(42);
+        QueryShardContext context = Mockito.mock(QueryShardContext.class);
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        IndexSettings settings = new IndexSettings(IndexMetaData.builder("index").settings(indexSettings).build(), Settings.EMPTY);
+        Mockito.when(context.index()).thenReturn(settings.getIndex());
+        Mockito.when(context.getShardId()).thenReturn(0);
+        Mockito.when(context.getIndexSettings()).thenReturn(settings);
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
+        ft.setName("foo");
+        Mockito.when(mapperService.fullName(Mockito.anyString())).thenReturn(ft);
+        Mockito.when(context.getMapperService()).thenReturn(mapperService);
+        builder.toFunction(context);
+        assertWarnings("As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
     }
 }

@@ -105,7 +105,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         @Override
         public void onIndexModule(IndexModule indexModule) {
             super.onIndexModule(indexModule);
-            indexModule.addSimilarity("fake-similarity", BM25SimilarityProvider::new);
+            indexModule.addSimilarity("fake-similarity",
+                    (name, settings, indexSettings, scriptService) -> new BM25SimilarityProvider(name, settings, indexSettings));
         }
     }
 
@@ -430,5 +431,4 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertThat("index not defined", indexStats.containsKey(index), equalTo(true));
         assertThat("unexpected shard stats", indexStats.get(index), equalTo(shardStats));
     }
-
 }

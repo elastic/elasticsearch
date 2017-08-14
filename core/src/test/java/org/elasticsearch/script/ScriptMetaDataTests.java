@@ -21,6 +21,7 @@ package org.elasticsearch.script;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,81 +33,103 @@ import java.io.UncheckedIOException;
 
 public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaData> {
 
+    public void testFromXContentLoading() throws Exception {
+        // failure to load to old namespace scripts with the same id but different langs
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject().field("lang0#id0", "script0").field("lang1#id0", "script1").endObject();
+        XContentParser parser0 = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, builder.bytes());
+        expectThrows(IllegalArgumentException.class, () -> ScriptMetaData.fromXContent(parser0));
+
+        // failure to load a new namespace script and old namespace script with the same id but different langs
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject().field("lang0#id0", "script0")
+            .startObject("id0").field("lang", "lang1").field("source", "script1").endObject().endObject();
+        XContentParser parser1 = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, builder.bytes());
+        expectThrows(IllegalArgumentException.class, () -> ScriptMetaData.fromXContent(parser1));
+
+        // failure to load a new namespace script and old namespace script with the same id but different langs with additional scripts
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject().field("lang0#id0", "script0").field("lang0#id1", "script1")
+            .startObject("id1").field("lang", "lang0").field("source", "script0").endObject()
+            .startObject("id0").field("lang", "lang1").field("source", "script1").endObject().endObject();
+        XContentParser parser2 = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, builder.bytes());
+        expectThrows(IllegalArgumentException.class, () -> ScriptMetaData.fromXContent(parser2));
+
+        // okay to load the same script from the new and old namespace if the lang is the same
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject().field("lang0#id0", "script0")
+            .startObject("id0").field("lang", "lang0").field("source", "script1").endObject().endObject();
+        XContentParser parser3 = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, builder.bytes());
+        ScriptMetaData.fromXContent(parser3);
+    }
+
     public void testGetScript() throws Exception {
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
 
         XContentBuilder sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().startObject("template").field("field", "value").endObject().endObject();
-        builder.storeScript("template", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
+        builder.storeScript("template", StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().field("template", "value").endObject();
-        builder.storeScript("template_field", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
+        builder.storeScript("template_field", StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
 
         sourceBuilder = XContentFactory.jsonBuilder();
-        sourceBuilder.startObject().startObject("script").field("field", "value").endObject().endObject();
-        builder.storeScript("script", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
-
-        sourceBuilder = XContentFactory.jsonBuilder();
-        sourceBuilder.startObject().field("script", "value").endObject();
-        builder.storeScript("script_field", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
-
-        sourceBuilder = XContentFactory.jsonBuilder();
-        sourceBuilder.startObject().field("field", "value").endObject();
-        builder.storeScript("any", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
+        sourceBuilder.startObject().startObject("script").field("lang", "_lang").field("source", "_source").endObject().endObject();
+        builder.storeScript("script", StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
 
         ScriptMetaData scriptMetaData = builder.build();
-        assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("template", "lang").getSource());
-        assertEquals("value", scriptMetaData.getStoredScript("template_field", "lang").getSource());
-        assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("script", "lang").getSource());
-        assertEquals("value", scriptMetaData.getStoredScript("script_field", "lang").getSource());
-        assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("any", "lang").getSource());
+        assertEquals("_source", scriptMetaData.getStoredScript("script").getSource());
+        assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("template").getSource());
+        assertEquals("value", scriptMetaData.getStoredScript("template_field").getSource());
     }
 
     public void testDiff() throws Exception {
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
-        builder.storeScript("1", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"abc\"}"), XContentType.JSON));
-        builder.storeScript("2", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"def\"}"), XContentType.JSON));
-        builder.storeScript("3", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"ghi\"}"), XContentType.JSON));
+        builder.storeScript("1", StoredScriptSource.parse(new BytesArray("{\"foo\":\"abc\"}"), XContentType.JSON));
+        builder.storeScript("2", StoredScriptSource.parse(new BytesArray("{\"foo\":\"def\"}"), XContentType.JSON));
+        builder.storeScript("3", StoredScriptSource.parse(new BytesArray("{\"foo\":\"ghi\"}"), XContentType.JSON));
         ScriptMetaData scriptMetaData1 = builder.build();
 
         builder = new ScriptMetaData.Builder(scriptMetaData1);
-        builder.storeScript("2", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"changed\"}"), XContentType.JSON));
-        builder.deleteScript("3", "lang");
-        builder.storeScript("4", StoredScriptSource.parse("lang", new BytesArray("{\"foo\":\"jkl\"}"), XContentType.JSON));
+        builder.storeScript("2", StoredScriptSource.parse(new BytesArray("{\"foo\":\"changed\"}"), XContentType.JSON));
+        builder.deleteScript("3");
+        builder.storeScript("4", StoredScriptSource.parse(new BytesArray("{\"foo\":\"jkl\"}"), XContentType.JSON));
         ScriptMetaData scriptMetaData2 = builder.build();
 
         ScriptMetaData.ScriptMetadataDiff diff = (ScriptMetaData.ScriptMetadataDiff) scriptMetaData2.diff(scriptMetaData1);
-        assertEquals(2, ((DiffableUtils.MapDiff) diff.pipelines).getDeletes().size());
+        assertEquals(1, ((DiffableUtils.MapDiff) diff.pipelines).getDeletes().size());
         assertEquals("3", ((DiffableUtils.MapDiff) diff.pipelines).getDeletes().get(0));
-        assertEquals(2, ((DiffableUtils.MapDiff) diff.pipelines).getDiffs().size());
+        assertEquals(1, ((DiffableUtils.MapDiff) diff.pipelines).getDiffs().size());
         assertNotNull(((DiffableUtils.MapDiff) diff.pipelines).getDiffs().get("2"));
-        assertEquals(2, ((DiffableUtils.MapDiff) diff.pipelines).getUpserts().size());
+        assertEquals(1, ((DiffableUtils.MapDiff) diff.pipelines).getUpserts().size());
         assertNotNull(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().get("4"));
 
         ScriptMetaData result = (ScriptMetaData) diff.apply(scriptMetaData1);
-        assertEquals("{\"foo\":\"abc\"}", result.getStoredScript("1", "lang").getSource());
-        assertEquals("{\"foo\":\"changed\"}", result.getStoredScript("2", "lang").getSource());
-        assertEquals("{\"foo\":\"jkl\"}", result.getStoredScript("4", "lang").getSource());
+        assertEquals("{\"foo\":\"abc\"}", result.getStoredScript("1").getSource());
+        assertEquals("{\"foo\":\"changed\"}", result.getStoredScript("2").getSource());
+        assertEquals("{\"foo\":\"jkl\"}", result.getStoredScript("4").getSource());
     }
 
     public void testBuilder() {
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
-        builder.storeScript("_id", StoredScriptSource.parse("_lang", new BytesArray("{\"script\":\"1 + 1\"}"), XContentType.JSON));
+        builder.storeScript("_id", StoredScriptSource.parse(
+            new BytesArray("{\"script\": {\"lang\": \"painless\", \"source\": \"1 + 1\"} }"), XContentType.JSON));
 
         ScriptMetaData result = builder.build();
-        assertEquals("1 + 1", result.getStoredScript("_id", "_lang").getSource());
+        assertEquals("1 + 1", result.getStoredScript("_id").getSource());
     }
 
-    private ScriptMetaData randomScriptMetaData(XContentType sourceContentType) throws IOException {
+    private ScriptMetaData randomScriptMetaData(XContentType sourceContentType, int minNumberScripts) throws IOException {
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
-        int numScripts = scaledRandomIntBetween(0, 32);
+        int numScripts = scaledRandomIntBetween(minNumberScripts, 32);
         for (int i = 0; i < numScripts; i++) {
-            String lang = randomAlphaOfLength(4);
             XContentBuilder sourceBuilder = XContentBuilder.builder(sourceContentType.xContent());
-            sourceBuilder.startObject().field("script", randomAlphaOfLength(4)).endObject();
+            sourceBuilder.startObject().field("script").startObject()
+                .field("lang", randomAlphaOfLength(4)).field("source", randomAlphaOfLength(10))
+                .endObject().endObject();
             builder.storeScript(randomAlphaOfLength(i + 1),
-                StoredScriptSource.parse(lang, sourceBuilder.bytes(), sourceBuilder.contentType()));
+                StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
         }
         return builder.build();
     }
@@ -114,7 +137,7 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
     @Override
     protected ScriptMetaData createTestInstance() {
         try {
-            return randomScriptMetaData(randomFrom(XContentType.values()));
+            return randomScriptMetaData(randomFrom(XContentType.values()), 0);
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);
         }
@@ -123,6 +146,15 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
     @Override
     protected Writeable.Reader<ScriptMetaData> instanceReader() {
         return ScriptMetaData::new;
+    }
+
+    @Override
+    protected ScriptMetaData mutateInstance(ScriptMetaData instance) throws IOException {
+        // ScriptMetaData doesn't allow us to see the scripts inside it so
+        // the best we can do here is create a new random instance and rely
+        // on the fact that the new instance is very unlikely to be equal to
+        // the old one
+        return randomScriptMetaData(randomFrom(XContentType.values()), 1);
     }
 
     @Override

@@ -218,8 +218,8 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
     }
 
     private boolean isAutoWithCustomValues() {
-        return fuzziness.startsWith("AUTO") && lowDistance != DEFAULT_LOW_DISTANCE &&
-            highDistance != DEFAULT_HIGH_DISTANCE;
+        return fuzziness.startsWith("AUTO") && (lowDistance != DEFAULT_LOW_DISTANCE ||
+            highDistance != DEFAULT_HIGH_DISTANCE);
     }
 
     @Override

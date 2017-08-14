@@ -247,8 +247,6 @@ cd /usr/share/elasticsearch
 sudo bin/elasticsearch-plugin install x-pack
 ----------------------------------------------------------
 
-NOTE: If the configuration files are not in `/etc/elasticsearch` you
-      need to specify the location of the configuration files by
-      setting the system property `es.path.conf` to the config path via
-      `ES_JAVA_OPTS="-Des.path.conf=<path>"` or by setting the
-      environment variable `CONF_DIR` via `CONF_DIR=<path>`.
+NOTE: If the configuration files are not in `/etc/elasticsearch` you need to
+      specify the location of the configuration files by setting the environment
+      variable `ES_PATH_CONF` via `ES_PATH_CONF=<path>`.

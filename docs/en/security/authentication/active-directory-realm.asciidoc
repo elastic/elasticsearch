@@ -286,8 +286,8 @@ operation are supported: failover and load balancing
                                           Defaults to `false`.
 | `files.role_mapping`       | no       | Specifies the path and file name of the
                                           <<ldap-role-mapping, YAML role  mapping configuration file>>.
-                                          Defaults to `CONF_DIR/x-pack/role_mapping.yml`,
-                                          where `CONF_DIR` is `ES_HOME/config` (zip/tar installations)
+                                          Defaults to `ES_PATH_CONF/x-pack/role_mapping.yml`,
+                                          where `ES_PATH_CONF` is `ES_HOME/config` (zip/tar installations)
                                           or `/etc/elasticsearch` (package installations).
 | `follow_referrals`         | no       | Specifies whether {security} should follow referrals returned
                                           by the Active Directory server. Referrals are URLs returned by

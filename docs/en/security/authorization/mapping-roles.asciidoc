@@ -241,11 +241,11 @@ To use file based role-mappings, you must configure the mappings in a
 YAML file and copy it to each node in the cluster. Tools like Puppet or Chef can
 help with this.
 
-By default, role mappings are stored in `CONF_DIR/x-pack/role_mapping.yml`, where
-`CONF_DIR` is `ES_HOME/config` (zip/tar installations) or `/etc/elasticsearch`
-(package installations). To specify a different location, you configure the
-`files.role_mapping` realm settings in `elasticsearch.yml`. This setting enable
-you to use a different set of mappings for each realm type:
+By default, role mappings are stored in `ES_PATH_CONF/x-pack/role_mapping.yml`,
+where `ES_PATH_CONF` is `ES_HOME/config` (zip/tar installations) or
+`/etc/elasticsearch` (package installations). To specify a different location,
+you configure the `files.role_mapping` realm settings in `elasticsearch.yml`.
+This setting enables you to use a different set of mappings for each realm type:
 
 |=====
 | `xpack.security.authc.ldap.files.role_mapping` | | | The location of the role mappings for LDAP realms.

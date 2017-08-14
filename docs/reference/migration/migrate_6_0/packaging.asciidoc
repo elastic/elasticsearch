@@ -16,7 +16,7 @@ Previous versions of Elasticsearch enabled setting `path.conf` as a
 setting. This was rather convoluted as it meant that you could start
 Elasticsearch with a config file that specified via `path.conf` that
 Elasticsearch should use another config file. Instead, to configure a custom
-config directory, use the <<config-files-location,`CONF_DIR` environment
+config directory, use the <<config-files-location,`ES_PATH_CONF` environment
 variable>>.
 
 ==== Default path settings are removed
@@ -56,7 +56,7 @@ are no longer maintaining this attempt.
 
 The environment variable `ES_JVM_OPTIONS` that enabled a custom location for the
 `jvm.options` file has been removed in favor of using the environment variable
-`CONF_DIR`. This environment variable is already used in the packaging to
+`ES_PATH_CONF`. This environment variable is already used in the packaging to
 support relocating the configuration files so this change merely aligns the
 other configuration files with the location of the `jvm.options` file.
 

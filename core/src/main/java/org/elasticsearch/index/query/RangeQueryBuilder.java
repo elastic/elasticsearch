@@ -495,6 +495,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             if (fieldNamesFieldType == null) {
                 return new MatchNoDocsQuery("No mappings yet");
             }
+            // Exists query would fail if the fieldNames field is disabled.
             if (fieldNamesFieldType.isEnabled()) {
                 return ExistsQueryBuilder.newFilter(context, fieldName);
             }

@@ -27,7 +27,7 @@ ES_JVM_OPTIONS="$ES_PATH_CONF"/jvm.options
 ES_JAVA_OPTS="`parse_jvm_options "$ES_JVM_OPTIONS"` $ES_JAVA_OPTS"
 
 # manual parsing to find out, if process should be detached
-if [ ! `echo $* | grep -E '(^-d |-d$| -d |--daemonize$|--daemonize )'` ]; then
+if ! echo $* | grep -E '(^-d |-d$| -d |--daemonize$|--daemonize )' > /dev/null; then
   exec \
     "$JAVA" \
     $ES_JAVA_OPTS \

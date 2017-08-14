@@ -6,7 +6,7 @@ document that match a query. Here is the API:
 
 [source,js]
 --------------------------------------------------
-POST twitter/_delete_by_query
+POST /twitter/_delete_by_query
 {
   "query": { <1>
     "match": {
@@ -76,7 +76,7 @@ will only delete `tweet` documents from the `twitter` index:
 
 [source,js]
 --------------------------------------------------
-POST twitter/tweet/_delete_by_query?conflicts=proceed
+POST /twitter/tweet/_delete_by_query?conflicts=proceed
 {
   "query": {
     "match_all": {}
@@ -91,7 +91,7 @@ types at once, just like the search API:
 
 [source,js]
 --------------------------------------------------
-POST twitter,blog/tweet,post/_delete_by_query
+POST /twitter,blog/tweet,post/_delete_by_query
 {
   "query": {
     "match_all": {}
@@ -106,7 +106,7 @@ limiting the process to the shards that match that routing value:
 
 [source,js]
 --------------------------------------------------
-POST twitter/_delete_by_query?routing=1
+POST /twitter/_delete_by_query?routing=1
 {
   "query": {
     "range" : {
@@ -125,7 +125,7 @@ batch size with the `scroll_size` URL parameter:
 
 [source,js]
 --------------------------------------------------
-POST twitter/_delete_by_query?scroll_size=5000
+POST /twitter/_delete_by_query?scroll_size=5000
 {
   "query": {
     "term": {
@@ -306,7 +306,7 @@ Any Delete By Query can be canceled using the <<tasks,Task Cancel API>>:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/task_id:1/_cancel
+POST /_tasks/task_id:1/_cancel
 --------------------------------------------------
 // CONSOLE
 
@@ -325,7 +325,7 @@ using the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _delete_by_query/task_id:1/_rethrottle?requests_per_second=-1
+POST /_delete_by_query/task_id:1/_rethrottle?requests_per_second=-1
 --------------------------------------------------
 // CONSOLE
 
@@ -347,7 +347,7 @@ the process relatively easily:
 
 [source,js]
 ----------------------------------------------------------------
-POST twitter/_delete_by_query
+POST /twitter/_delete_by_query
 {
   "slice": {
     "id": 0,
@@ -361,7 +361,7 @@ POST twitter/_delete_by_query
     }
   }
 }
-POST twitter/_delete_by_query
+POST /twitter/_delete_by_query
 {
   "slice": {
     "id": 1,
@@ -384,7 +384,7 @@ Which you can verify works with:
 [source,js]
 ----------------------------------------------------------------
 GET _refresh
-POST twitter/_search?size=0&filter_path=hits.total
+POST /twitter/_search?size=0&filter_path=hits.total
 {
   "query": {
     "range": {
@@ -419,7 +419,7 @@ You can also let delete-by-query automatically parallelize using
 
 [source,js]
 ----------------------------------------------------------------
-POST twitter/_delete_by_query?refresh&slices=5
+POST /twitter/_delete_by_query?refresh&slices=5
 {
   "query": {
     "range": {
@@ -437,7 +437,7 @@ Which you also can verify works with:
 
 [source,js]
 ----------------------------------------------------------------
-POST twitter/_search?size=0&filter_path=hits.total
+POST /twitter/_search?size=0&filter_path=hits.total
 {
   "query": {
     "range": {

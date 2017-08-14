@@ -416,7 +416,8 @@ public class OsStats implements Writeable, ToXContent {
             cpuCfsPeriodMicros = in.readLong();
             cpuCfsQuotaMicros = in.readLong();
             cpuStat = new CpuStat(in);
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            // TODO: change this to 6.1.0 after backporting
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
                 memoryControlGroup = in.readOptionalString();
                 memoryLimitInBytes = in.readOptionalLong();
                 memoryUsageInBytes = in.readOptionalLong();
@@ -435,7 +436,8 @@ public class OsStats implements Writeable, ToXContent {
             out.writeLong(cpuCfsPeriodMicros);
             out.writeLong(cpuCfsQuotaMicros);
             cpuStat.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            // TODO: change this to 6.1.0 after backporting
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
                 out.writeOptionalString(memoryControlGroup);
                 out.writeOptionalLong(memoryLimitInBytes);
                 out.writeOptionalLong(memoryUsageInBytes);

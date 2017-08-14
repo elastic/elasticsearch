@@ -5,6 +5,14 @@
  */
 package org.elasticsearch.license;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -18,15 +26,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
 
 /**
  * Data structure for license. Use {@link Builder} to build a license.
@@ -490,6 +489,12 @@ public class License implements ToXContentObject {
     }
 
     public static License fromSource(BytesReference bytes, XContentType xContentType) throws IOException {
+        if (bytes == null || bytes.length() == 0) {
+            throw new ElasticsearchParseException("failed to parse license - no content provided");
+        }
+        if (xContentType == null) {
+            throw new ElasticsearchParseException("failed to parse license - no content-type provided");
+        }
         // EMPTY is safe here because we don't call namedObject
         final XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, bytes);
         License license = null;

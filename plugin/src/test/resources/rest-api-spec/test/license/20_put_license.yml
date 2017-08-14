@@ -93,3 +93,12 @@ teardown:
         xpack.license.get: {}
 
     - length: { license: 11 }
+---
+"Should fail gracefully when body content is not provided":
+
+  - do:
+      catch: request
+      xpack.license.post:
+        acknowledge: true
+
+  - match: { error.root_cause.0.reason: 'The license must be provided in the request body' }

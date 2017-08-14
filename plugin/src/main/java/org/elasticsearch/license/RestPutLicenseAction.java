@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.license;
 
+import java.io.IOException;
+
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -16,8 +19,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.rest.XPackRestHandler;
-
-import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -49,6 +50,9 @@ public class RestPutLicenseAction extends XPackRestHandler {
 
     @Override
     public RestChannelConsumer doPrepareRequest(final RestRequest request, final XPackClient client) throws IOException {
+        if (request.hasContent() == false) {
+            throw new IllegalArgumentException("The license must be provided in the request body");
+        }
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest();
         putLicenseRequest.license(request.content(), request.getXContentType());
         putLicenseRequest.acknowledge(request.paramAsBoolean("acknowledge", false));

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.support.master;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -73,19 +74,45 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
     /**
      * Reads the timeout value
      */
+    @Deprecated
     protected void readTimeout(StreamInput in) throws IOException {
-        timeout = new TimeValue(in);
+        // in older ES versions, we would explicitly call this method in subclasses
+        // now we properly serialize the timeout value as part of the readFrom method
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            timeout = new TimeValue(in);
+        }
     }
 
     /**
      * writes the timeout value
      */
+    @Deprecated
     protected void writeTimeout(StreamOutput out) throws IOException {
-        timeout.writeTo(out);
+        // in older ES versions, we would explicitly call this method in subclasses
+        // now we properly serialize the timeout value as part of the writeTo method
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            timeout.writeTo(out);
+        }
     }
 
     @Override
     public TimeValue ackTimeout() {
         return timeout;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            timeout = new TimeValue(in);
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            timeout.writeTo(out);
+        }
     }
 }

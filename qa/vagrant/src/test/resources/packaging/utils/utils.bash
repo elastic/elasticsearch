@@ -338,9 +338,9 @@ run_elasticsearch_service() {
     # Set the ES_PATH_CONF setting in case we start as a service
     if [ ! -z "$ES_PATH_CONF" ] ; then
         if is_dpkg; then
-            echo "ES_PATH_CONF=ES_PATH_CONF" >> /etc/default/elasticsearch;
+            echo "ES_PATH_CONF=$ES_PATH_CONF" >> /etc/default/elasticsearch;
         elif is_rpm; then
-            echo "ES_PATH_CONF=ES_PATH_CONF" >> /etc/sysconfig/elasticsearch;
+            echo "ES_PATH_CONF=$ES_PATH_CONF" >> /etc/sysconfig/elasticsearch;
         fi
     fi
 

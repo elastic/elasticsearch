@@ -241,6 +241,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.nodeId = nodeId;
             this.state = state;
             this.reason = reason;
+            // If the state is failed we have to have a reason for this failure
+            assert state.failed() == false || reason != null;
         }
 
         public ShardSnapshotStatus(StreamInput in) throws IOException {
@@ -403,7 +405,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 ShardId shardId = ShardId.readShardId(in);
                 String nodeId = in.readOptionalString();
                 State shardState = State.fromValue(in.readByte());
-                builder.put(shardId, new ShardSnapshotStatus(nodeId, shardState));
+                // Workaround for https://github.com/elastic/elasticsearch/issues/25878
+                String reason = shardState.failed() ? "" : null;
+                builder.put(shardId, new ShardSnapshotStatus(nodeId, shardState, reason));
             }
             long repositoryStateId = UNDEFINED_REPOSITORY_STATE_ID;
             if (in.getVersion().onOrAfter(REPOSITORY_ID_INTRODUCED_VERSION)) {

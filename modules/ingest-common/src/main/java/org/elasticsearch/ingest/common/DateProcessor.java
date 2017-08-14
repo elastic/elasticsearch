@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -123,6 +124,9 @@ public final class DateProcessor extends AbstractProcessor {
                 try {
                     locale = (new Locale.Builder()).setLanguageTag(localeString).build();
                 } catch (IllformedLocaleException e) {
+                    throw new IllegalArgumentException("Invalid language tag specified: " + localeString);
+                }
+                if (!LocaleUtils.isValid(locale)) {
                     throw new IllegalArgumentException("Invalid language tag specified: " + localeString);
                 }
             }

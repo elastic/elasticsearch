@@ -21,6 +21,7 @@ package org.elasticsearch.common.util;
 
 
 import java.util.Locale;
+import java.util.MissingResourceException;
 
 /**
  * Utilities for for dealing with {@link Locale} objects
@@ -56,5 +57,16 @@ public class LocaleUtils {
     public static String toString(Locale locale) {
         // JAVA7 - use .toLanguageTag instead of .toString()
         return locale.toString();
+    }
+
+    /**
+     * Validate a {@link Locale} object
+     */
+    public static boolean isValid(Locale locale) {
+        try {
+            return locale.getISO3Language() != null && locale.getISO3Country() != null;
+        } catch (MissingResourceException e) {
+            return false;
+        }
     }
 }

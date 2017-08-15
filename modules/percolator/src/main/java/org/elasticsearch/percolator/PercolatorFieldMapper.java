@@ -83,6 +83,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.isObject;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 public class PercolatorFieldMapper extends FieldMapper {
@@ -106,6 +109,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     static class Builder extends FieldMapper.Builder<Builder, PercolatorFieldMapper> {
 
         private final Supplier<QueryShardContext> queryShardContext;
+        private final Map<String, Float> boostFields = new HashMap<>();
 
         Builder(String fieldName, Supplier<QueryShardContext> queryShardContext) {
             super(fieldName, FIELD_TYPE, FIELD_TYPE);
@@ -130,7 +134,11 @@ public class PercolatorFieldMapper extends FieldMapper {
             setupFieldType(context);
             return new PercolatorFieldMapper(name(), fieldType, defaultFieldType, context.indexSettings(),
                     multiFieldsBuilder.build(this, context), copyTo, queryShardContext, extractedTermsField,
-                    extractionResultField, queryBuilderField, rangeFieldMapper);
+                    extractionResultField, queryBuilderField, rangeFieldMapper, Collections.unmodifiableMap(boostFields));
+        }
+
+        void addBoostField(String field, float boost) {
+            this.boostFields.put(field, boost);
         }
 
         static KeywordFieldMapper createExtractQueryFieldBuilder(String name, BuilderContext context) {
@@ -163,7 +171,24 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         @Override
         public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            return new Builder(name, parserContext.queryShardContextSupplier());
+            Builder builder = new Builder(name, parserContext.queryShardContextSupplier());
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
+                String propName = entry.getKey();
+                Object propNode = entry.getValue();
+                if (propName.equals("boost_fields")) {
+                    if (isObject(propNode)) {
+                        for (Map.Entry<?, ?> innerEntry : ((Map<?, ?>) propNode).entrySet()) {
+                            String fieldName = nodeStringValue(innerEntry.getKey(), null);
+                            builder.addBoostField(fieldName, nodeFloatValue(innerEntry.getValue()));
+                        }
+                    } else {
+                        throw new IllegalArgumentException("boost_fields [" + propNode + "] is not an object");
+                    }
+                    iterator.remove();
+                }
+            }
+            return builder;
         }
     }
 
@@ -277,12 +302,14 @@ public class PercolatorFieldMapper extends FieldMapper {
     private BinaryFieldMapper queryBuilderField;
 
     private RangeFieldMapper rangeFieldMapper;
+    private Map<String, Float> boostFields;
 
     PercolatorFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                  Settings indexSettings, MultiFields multiFields, CopyTo copyTo,
                                  Supplier<QueryShardContext> queryShardContext,
                                  KeywordFieldMapper queryTermsField, KeywordFieldMapper extractionResultField,
-                                 BinaryFieldMapper queryBuilderField, RangeFieldMapper rangeFieldMapper) {
+                                 BinaryFieldMapper queryBuilderField, RangeFieldMapper rangeFieldMapper,
+                                 Map<String, Float> boostFields) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.queryShardContext = queryShardContext;
         this.queryTermsField = queryTermsField;
@@ -290,6 +317,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         this.queryBuilderField = queryBuilderField;
         this.mapUnmappedFieldAsString = INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING.get(indexSettings);
         this.rangeFieldMapper = rangeFieldMapper;
+        this.boostFields = boostFields;
     }
 
     @Override
@@ -367,7 +395,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         FieldType pft = (FieldType) this.fieldType();
         QueryAnalyzer.Result result;
         try {
-            result = QueryAnalyzer.analyze(query);
+            result = QueryAnalyzer.analyze(query, boostFields);
         } catch (QueryAnalyzer.UnsupportedQueryException e) {
             doc.add(new Field(pft.extractionResultField.name(), EXTRACTION_FAILED, extractionResultField.fieldType()));
             return;
@@ -435,6 +463,28 @@ public class PercolatorFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
+        PercolatorFieldMapper percolatorMergeWith = (PercolatorFieldMapper) mergeWith;
+
+        // Updating the boost_fields can be allowed, because it doesn't break previously indexed percolator queries
+        // However the updated boost_fields to completely take effect, percolator queries prior to the mapping update need to be reindexed
+        boostFields = percolatorMergeWith.boostFields;
+    }
+
+    @Override
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+        super.doXContentBody(builder, includeDefaults, params);
+        if (boostFields.isEmpty() == false) {
+            builder.startObject("boost_fields");
+            for (Map.Entry<String, Float> entry : boostFields.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+            builder.endObject();
+        }
     }
 
     /**

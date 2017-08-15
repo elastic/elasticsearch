@@ -172,7 +172,7 @@ can do this as follows:
 
 [source,sh]
 ---------------------
-sudo CONF_DIR=/path/to/conf/dir bin/elasticsearch-plugin install <plugin name>
+sudo ES_PATH_CONF=/path/to/conf/dir bin/elasticsearch-plugin install <plugin name>
 ---------------------
 
 [float]

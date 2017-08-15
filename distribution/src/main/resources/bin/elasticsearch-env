@@ -67,7 +67,7 @@ fi
 
 ${source.path.env}
 
-if [ -z "$CONF_DIR" ]; then
-  echo "CONF_DIR must be set to the configuration path"
+if [ -z "$ES_PATH_CONF" ]; then
+  echo "ES_PATH_CONF must be set to the configuration path"
   exit 1
 fi

@@ -66,6 +66,10 @@ As a consequence, the `network.tcp.blocking_server`, `network.tcp.blocking_clien
 `network.tcp.blocking`,`transport.tcp.blocking_client`, `transport.tcp.blocking_server`,
 and `http.tcp.blocking_server` settings are not recognized anymore.
 
+The previously unused settings `transport.netty.max_cumulation_buffer_capacity`,
+`transport.netty.max_composite_buffer_components` and
+`http.netty.max_cumulation_buffer_capacity` have been removed.
+
 ==== Similarity settings
 
 The `base` similarity is now ignored as coords and query normalization have

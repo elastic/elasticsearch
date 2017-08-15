@@ -46,12 +46,15 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class WorkingBulkByScrollTaskTests extends ESTestCase {
-    private WorkingBulkByScrollTask task;
+public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
+    private BulkByScrollTask task;
+    private WorkerBulkByScrollTaskState workerState;
 
     @Before
     public void createTask() {
-        task = new WorkingBulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID, null, Float.POSITIVE_INFINITY);
+        task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID);
+        task.setWorker(Float.POSITIVE_INFINITY, null);
+        workerState = task.getWorkerState();
     }
 
     public void testBasicData() {
@@ -78,7 +81,7 @@ public class WorkingBulkByScrollTaskTests extends ESTestCase {
         assertEquals(noops, status.getNoops());
 
         long totalHits = randomIntBetween(10, 1000);
-        task.setTotal(totalHits);
+        workerState.setTotal(totalHits);
         for (long p = 0; p < totalHits; p++) {
             status = task.getStatus();
             assertEquals(totalHits, status.getTotal());
@@ -91,28 +94,28 @@ public class WorkingBulkByScrollTaskTests extends ESTestCase {
 
             if (randomBoolean()) {
                 created++;
-                task.countCreated();
+                workerState.countCreated();
             } else if (randomBoolean()) {
                 updated++;
-                task.countUpdated();
+                workerState.countUpdated();
             } else {
                 deleted++;
-                task.countDeleted();
+                workerState.countDeleted();
             }
 
             if (rarely()) {
                 versionConflicts++;
-                task.countVersionConflict();
+                workerState.countVersionConflict();
             }
 
             if (rarely()) {
                 batch++;
-                task.countBatch();
+                workerState.countBatch();
             }
 
             if (rarely()) {
                 noops++;
-                task.countNoop();
+                workerState.countNoop();
             }
         }
         status = task.getStatus();
@@ -139,7 +142,7 @@ public class WorkingBulkByScrollTaskTests extends ESTestCase {
          * each time.
          */
         float originalRequestsPerSecond = (float) randomDoubleBetween(1, 10000, true);
-        task.rethrottle(originalRequestsPerSecond);
+        workerState.rethrottle(originalRequestsPerSecond);
         TimeValue maxDelay = timeValueSeconds(between(1, 5));
         assertThat(maxDelay.nanos(), greaterThanOrEqualTo(0L));
         int batchSizeForMaxDelay = (int) (maxDelay.seconds() * originalRequestsPerSecond);
@@ -151,20 +154,22 @@ public class WorkingBulkByScrollTaskTests extends ESTestCase {
             }
         };
         try {
-            task.delayPrepareBulkRequest(threadPool, timeValueNanos(System.nanoTime()), batchSizeForMaxDelay, new AbstractRunnable() {
-                @Override
-                protected void doRun() throws Exception {
-                    boolean oldValue = done.getAndSet(true);
-                    if (oldValue) {
-                        throw new RuntimeException("Ran twice oh no!");
+            workerState.delayPrepareBulkRequest(threadPool, timeValueNanos(System.nanoTime()), batchSizeForMaxDelay,
+                new AbstractRunnable() {
+                    @Override
+                    protected void doRun() throws Exception {
+                        boolean oldValue = done.getAndSet(true);
+                        if (oldValue) {
+                            throw new RuntimeException("Ran twice oh no!");
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        errors.add(e);
                     }
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    errors.add(e);
-                }
-            });
+            );
 
             // Rethrottle on a random number of threads, one of which is this thread.
             Runnable test = () -> {
@@ -172,7 +177,7 @@ public class WorkingBulkByScrollTaskTests extends ESTestCase {
                     int rethrottles = 0;
                     while (false == done.get()) {
                         float requestsPerSecond = (float) randomDoubleBetween(0, originalRequestsPerSecond * 2, true);
-                        task.rethrottle(requestsPerSecond);
+                        workerState.rethrottle(requestsPerSecond);
                         rethrottles += 1;
                     }
                     logger.info("Rethrottled [{}] times", rethrottles);
@@ -237,7 +242,7 @@ public class WorkingBulkByScrollTaskTests extends ESTestCase {
         };
         try {
             // Have the task use the thread pool to delay a task that does nothing
-            task.delayPrepareBulkRequest(threadPool, timeValueSeconds(0), 1, new AbstractRunnable() {
+            workerState.delayPrepareBulkRequest(threadPool, timeValueSeconds(0), 1, new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
                 }
@@ -254,12 +259,12 @@ public class WorkingBulkByScrollTaskTests extends ESTestCase {
     }
 
     public void testPerfectlyThrottledBatchTime() {
-        task.rethrottle(Float.POSITIVE_INFINITY);
-        assertThat((double) task.perfectlyThrottledBatchTime(randomInt()), closeTo(0f, 0f));
+        workerState.rethrottle(Float.POSITIVE_INFINITY);
+        assertThat((double) workerState.perfectlyThrottledBatchTime(randomInt()), closeTo(0f, 0f));
 
         int total = between(0, 1000000);
-        task.rethrottle(1);
-        assertThat((double) task.perfectlyThrottledBatchTime(total),
+        workerState.rethrottle(1);
+        assertThat((double) workerState.perfectlyThrottledBatchTime(total),
                 closeTo(TimeUnit.SECONDS.toNanos(total), TimeUnit.SECONDS.toNanos(1)));
     }
 }

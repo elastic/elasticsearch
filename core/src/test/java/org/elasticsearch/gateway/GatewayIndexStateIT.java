@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -330,7 +331,8 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         // test with a regular index, shadow replicas are removed in 6.x and test failures with
         // them are too hard to debug
         logger.info("--> starting a cluster with " + numNodes + " nodes");
-        final List<String> nodes = internalCluster().startNodes(numNodes);
+        final List<String> nodes = internalCluster().startNodes(numNodes,
+            Settings.builder().put(IndexGraveyard.SETTING_MAX_TOMBSTONES.getKey(), randomIntBetween(10, 100)).build());
         logger.info("--> create an index");
         createIndex(indexName);
 

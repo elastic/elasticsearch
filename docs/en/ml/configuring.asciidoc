@@ -28,11 +28,13 @@ gaining deep insights might require some additional planning and configuration.
 The scenarios in this section describe some best practices for generating useful
 {ml} results and insights from your data.
 
+* <<ml-configuring-url>>
 * <<ml-configuring-aggregation>>
 * <<ml-configuring-categories>>
 * <<ml-configuring-pop>>
 * <<ml-configuring-transform>>
 
+include::customurl.asciidoc[]
 include::aggregations.asciidoc[]
 include::categories.asciidoc[]
 include::populations.asciidoc[]

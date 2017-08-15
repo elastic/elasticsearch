@@ -61,7 +61,7 @@ public abstract class AbstractXContentParser implements XContentParser {
      * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
      * {@link Setting} object constructed in, for example, {@link org.elasticsearch.env.Environment}.
      */
-    static class DeprecationLoggerHolder {
+    private static class DeprecationLoggerHolder {
         static DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(AbstractXContentParser.class));
     }
 

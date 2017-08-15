@@ -62,6 +62,57 @@ the <<analysis-standard-analyzer,`standard` analyzer>>, the
 This is the purpose of _multi-fields_.  Most datatypes support multi-fields
 via the <<multi-fields>> parameter.
 
+
+[float]
+== Mappings explosion
+
+Mappings explosion occurs when the differences between keys and values are
+overlooked.  Keys are a fixed value whose only purpose is to serve as a
+way to locate the paired value.  Values are changeable, their purpose is
+to store, and allow the update of, data. When changeable values are used
+in place of keys each version of the key is added to the indexes mapping.
+
+.Correct key value pair usage
+[cols="2*", options="header"]
+|===
+|Key|Value|
+|1
+|7.3
+|2
+|5.5
+|3
+|0.1
+|4
+|1.9
+|===
+This table shows key value pairs wherein the key is simply the arrays index.
+
+
+.Incorrect key value pair usage
+[cols="2*", options="header"]
+|===
+|Key|Value|
+|1.002
+|4.9
+|2.164
+|7.11
+|3.057
+|62.4
+|4.009
+|11.3
+|===
+This table shows key value pairs in which the key was initially the identity
+of the array, however at every update of the value the key itself is updated
+to show how many times the value has been changed.
+
+Effects of mappings explosion include increased memory usage and slowed
+search times due to the large number of unnecessary entries stored in the
+index. Whilst this will not pose any issue for small datasets, for larger
+datasets the volume of memory required to process the excess values
+contained in the index may result in out of memory exceptions or
+application shutdown.
+
+
 [[mapping-limit-settings]]
 [float]
 === Settings to prevent mappings explosion

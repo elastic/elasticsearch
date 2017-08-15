@@ -619,7 +619,6 @@ public class ThreadContextTests extends ESTestCase {
         try {
             threadContext.putHeader(Collections.<String, String>singletonMap("foo", "boom"));
         } catch (IllegalArgumentException e) {
-            System.out.println(e.getMessage());
             assertEquals("value for key [foo] already present", e.getMessage());
         }
     }

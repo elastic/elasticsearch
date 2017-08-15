@@ -84,6 +84,19 @@ public abstract class BucketsAggregator extends AggregatorBase {
         subCollector.collect(doc, bucketOrd);
     }
 
+    public final void mergeBuckets(long[] mergeMap, long newNumBuckets) {
+        try (IntArray oldDocCounts = docCounts) {
+            docCounts = bigArrays.newIntArray(newNumBuckets, true);
+            docCounts.fill(0, newNumBuckets, 0);
+            for (int i = 0; i < oldDocCounts.size(); i++) {
+                int docCount = oldDocCounts.get(i);
+                if (docCount != 0) {
+                    docCounts.increment(mergeMap[i], docCount);
+                }
+            }
+        }
+    }
+
     public IntArray getDocCounts() {
         return docCounts;
     }

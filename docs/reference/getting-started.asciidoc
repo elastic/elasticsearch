@@ -1092,7 +1092,7 @@ In SQL, the above aggregation is similar in concept to:
 
 [source,sh]
 --------------------------------------------------
-SELECT state, COUNT(*) FROM bank GROUP BY state ORDER BY COUNT(*) DESC
+SELECT bank.`state.keyword`, COUNT(*) FROM bank GROUP BY bank.`state.keyword` ORDER BY COUNT(*) DESC LIMIT 10
 --------------------------------------------------
 
 And the response (partially shown):

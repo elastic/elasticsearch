@@ -1086,14 +1086,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected void ensureClusterStateConsistency() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
-            final NamedWriteableRegistry namedWriteableRegistry;
-            if (isInternalCluster()) {
-                // If it's internal cluster - using existing registry in case plugin registered custom data
-                namedWriteableRegistry = internalCluster().getInstance(NamedWriteableRegistry.class);
-            } else {
-                // If it's external cluster - fall back to the standard set
-                namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-            }
+            final NamedWriteableRegistry namedWriteableRegistry = cluster().getNamedWriteableRegistry();
             ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
             byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
             // remove local node reference
@@ -2194,9 +2187,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected static RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
-        final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
-        final List<NodeInfo> nodes = nodeInfos.getNodes();
-        assertFalse(nodeInfos.hasFailures());
+        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
+        assertFalse(nodesInfoResponse.hasFailures());
+        return createRestClient(nodesInfoResponse.getNodes(), httpClientConfigCallback, protocol);
+    }
+
+    protected static RestClient createRestClient(final List<NodeInfo> nodes,
+                                                 RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
         List<HttpHost> hosts = new ArrayList<>();
         for (NodeInfo node : nodes) {
             if (node.getHttp() != null) {

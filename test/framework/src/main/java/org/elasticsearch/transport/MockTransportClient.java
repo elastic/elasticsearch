@@ -19,6 +19,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 
@@ -51,5 +52,9 @@ public class MockTransportClient extends TransportClient {
         plugins = new ArrayList<>(plugins);
         plugins.add(MockTcpTransportPlugin.class);
         return plugins;
+    }
+
+    public NamedWriteableRegistry getNamedWriteableRegistry() {
+        return namedWriteableRegistry;
     }
 }

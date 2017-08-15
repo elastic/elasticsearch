@@ -69,8 +69,8 @@ public class KeyStoreWrapperTests extends ESTestCase {
         }
     }
 
-    public void testBootstrapSeed() throws Exception {
+    public void testKeystoreSeed() throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.create(new char[0]);
-        assertTrue(keystore.getSettingNames().contains(BootstrapSettings.SEED_SETTING.getKey()));
+        assertTrue(keystore.getSettingNames().contains(KeyStoreWrapper.SEED_SETTING.getKey()));
     }
 }

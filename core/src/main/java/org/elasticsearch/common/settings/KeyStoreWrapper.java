@@ -72,6 +72,8 @@ import org.elasticsearch.common.Randomness;
  */
 public class KeyStoreWrapper implements SecureSettings {
 
+    public static final Setting<SecureString> SEED_SETTING = SecureSetting.secureString("keystore.seed", null);
+
     /** Characters that may be used in the bootstrap seed setting added to all keystores. */
     private static final char[] SEED_CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" +
         "~!@#$%^&*-_=+?").toCharArray();
@@ -173,7 +175,7 @@ public class KeyStoreWrapper implements SecureSettings {
         for (int i = 0; i < passwordLength; ++i) {
             characters[i] = SEED_CHARS[random.nextInt(SEED_CHARS.length)];
         }
-        wrapper.setString(BootstrapSettings.SEED_SETTING.getKey(), characters);
+        wrapper.setString(SEED_SETTING.getKey(), characters);
         Arrays.fill(characters, (char)0);
     }
 

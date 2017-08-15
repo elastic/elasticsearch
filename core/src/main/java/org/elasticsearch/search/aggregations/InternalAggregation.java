@@ -202,9 +202,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * Opportunity for subclasses to the {@link #hashCode()} for this
      * class.
      **/
-    protected int doHashCode() {
-        return System.identityHashCode(this);
-    }
+    protected abstract int doHashCode();
 
     @Override
     public boolean equals(Object obj) {
@@ -221,7 +219,6 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
                 doEquals(obj);
     }
 
-    // norelease: make this abstract when all InternalAggregations implement this method
     /**
      * Opportunity for subclasses to add criteria to the {@link #equals(Object)}
      * method for this class.
@@ -230,9 +227,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * {@link #equals(Object)} method checks that <code>obj</code> is the same
      * class as <code>this</code>
      */
-    protected boolean doEquals(Object obj) {
-        return this == obj;
-    }
+    protected abstract boolean doEquals(Object obj);
 
     @Override
     public String toString() {

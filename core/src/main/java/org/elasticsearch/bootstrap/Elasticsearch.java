@@ -94,8 +94,8 @@ class Elasticsearch extends EnvironmentAwareCommand {
     @Override
     protected boolean shouldConfigureLoggingWithoutConfig() {
         /*
-         * If we allow logging to be configured without a config before we ready to read the log4j2.properties file, then we will fail to
-         * detect uses of logging before it is properly configured.
+         * If we allow logging to be configured without a config before we are ready to read the log4j2.properties file, then we will fail
+         * to detect uses of logging before it is properly configured.
          */
         return false;
     }

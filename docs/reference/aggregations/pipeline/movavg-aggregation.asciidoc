@@ -145,6 +145,7 @@ the "lag" behind the data's mean, since older points have less influence.
             "window" : 30,
             "model" : "linear"
         }
+    }
 }
 --------------------------------------------------
 
@@ -189,6 +190,7 @@ The EWMA model can be <<movavg-minimizer, Minimized>>
                 "alpha" : 0.5
             }
         }
+    }
 }
 --------------------------------------------------
 
@@ -232,6 +234,7 @@ The Holt-Linear model can be <<movavg-minimizer, Minimized>>
                 "beta" : 0.5
             }
         }
+    }    
 }
 --------------------------------------------------
 
@@ -305,6 +308,7 @@ The additive Holt-Winters model can be <<movavg-minimizer, Minimized>>
                 "period" : 7
             }
         }
+    }        
 }
 --------------------------------------------------
 
@@ -349,6 +353,7 @@ you can disable this behavior with `pad: false`
                 "pad" : true
             }
         }
+    }        
 }
 --------------------------------------------------
 
@@ -371,6 +376,7 @@ as your buckets:
             "model" : "simple",
             "predict" : 10
         }
+    }        
 }
 --------------------------------------------------
 
@@ -434,6 +440,7 @@ Minimization is enabled/disabled via the `minimize` parameter:
                 "period" : 7
             }
         }
+    }        
 }
 --------------------------------------------------
 <1> Minimization is enabled with the `minimize` parameter

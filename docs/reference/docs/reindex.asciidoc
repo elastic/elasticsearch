@@ -540,11 +540,12 @@ padding each batch with a wait time. The throttling can be disabled by
 setting `requests_per_second` to `-1`.
 
 The throttling is done waiting between bulk batches so that it can manipulate the 
-scroll timeout. The wait time is calculated by dividing the request scroll search
-size by the `requests_per_second`. By default the scroll batch size is `1000`, so 
-if the `requests_per_second` is set to `500`:
+scroll timeout. The wait time is the difference between the request scroll search
+size divided by the `requests_per_second` and the `batch_write_time`. By default 
+the scroll batch size is `1000`, so if the `requests_per_second` is set to `500`:
 
-`wait_time_in_seconds` = `1000` / `500` = `2` seconds
+`target_total_time` = `1000` / `500 per second` = `2 seconds` +
+`wait_time` = `target_total_time` - `batch_write_time` = `2 seconds` - `.5 seconds` = `1.5 seconds`
 
 Since the batch isn't broken into multiple bulk requests large batch sizes will 
 cause Elasticsearch to create many requests and then wait for a while before 

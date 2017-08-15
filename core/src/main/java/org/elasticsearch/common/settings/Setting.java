@@ -19,7 +19,6 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
@@ -27,8 +26,6 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
@@ -394,23 +391,13 @@ public class Setting<T> extends ToXContentToBytes {
         return settings.get(getKey(), defaultValue.apply(settings));
     }
 
-    private static SetOnce<DeprecationLogger> deprecationLogger = new SetOnce<>();
-
-    // we have to initialize lazily otherwise a logger would be constructed before logging is initialized
-    private static synchronized DeprecationLogger getDeprecationLogger() {
-        if (deprecationLogger.get() == null) {
-            deprecationLogger.set(new DeprecationLogger(Loggers.getLogger(Settings.class)));
-        }
-        return deprecationLogger.get();
-    }
-
     /** Logs a deprecation warning if the setting is deprecated and used. */
     void checkDeprecation(Settings settings) {
         // They're using the setting, so we need to tell them to stop
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
-            getDeprecationLogger().deprecatedAndMaybeLog(
+            Settings.DeprecationLoggerHolder.deprecationLogger.deprecatedAndMaybeLog(
                     key,
                     "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
                             + "See the breaking changes documentation for the next major version.",

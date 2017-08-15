@@ -164,6 +164,9 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
         if (percents == null) {
             throw new IllegalArgumentException("[percents] must not be null: [" + name + "]");
         }
+        if (percents.length == 0) {
+            throw new IllegalArgumentException("[percents] must not be empty: [" + name + "]");
+        }
         double[] sortedPercents = Arrays.copyOf(percents, percents.length);
         Arrays.sort(sortedPercents);
         this.percents = sortedPercents;
@@ -316,8 +319,8 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
 
     /**
      * Private specialization of this builder that should only be used by the parser, this enables us to
-     * overwrite {@link #method()} to check that it is not called twice when parsing xContent and throw
-     * an error while the Java API should allow this
+     * overwrite {@link #method()} to check that it is not defined twice in xContent and throw
+     * an error, while the Java API should allow to overwrite the method
      */
     private static class InternalBuilder extends PercentilesAggregationBuilder {
 

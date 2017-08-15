@@ -60,6 +60,15 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
         return factory;
     }
 
+    public void testNullOrEmptyPercentilesThrows() throws IOException {
+        PercentilesAggregationBuilder builder = new PercentilesAggregationBuilder("testAgg");
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> builder.percentiles(null));
+        assertEquals("[percents] must not be null: [testAgg]", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> builder.percentiles(new double[0]));
+        assertEquals("[percents] must not be empty: [testAgg]", ex.getMessage());
+    }
+
     public void testExceptionMultipleMethods() throws IOException {
         final String illegalAgg = "{\n" +
             "       \"percentiles\": {\n" +

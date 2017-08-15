@@ -139,10 +139,8 @@ public class AllFieldMapper extends MetadataFieldMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
+                    deprecationLogger.deprecated("The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
                     boolean enabled = TypeParsers.nodeBooleanValue(name, "enabled", fieldNode);
-                    if (enabled) {
-                        deprecationLogger.deprecated("The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
-                    }
                     builder.enabled(enabled ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
                     iterator.remove();
                 }

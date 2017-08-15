@@ -78,6 +78,9 @@ Checking shards may take a lot of time on large indices.
     compression, but this can be set to +best_compression+
     which uses https://en.wikipedia.org/wiki/DEFLATE[DEFLATE] for a higher
     compression ratio, at the expense of slower stored fields performance.
+    If you are updating the compression type, the new one will be applied
+    after segments are merged. Segment merging can be forced using
+    <<indices-forcemerge,force merge>>.
 
 [[routing-partition-size]] `index.routing_partition_size`::
 

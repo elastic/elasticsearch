@@ -28,17 +28,17 @@ import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpRequestEncoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
-import io.netty.handler.codec.http.LastHttpContent;
+import org.elasticsearch.client.http.HttpStatus;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -60,11 +60,9 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
     private BiConsumer<NioSocketChannel, Throwable> exceptionHandler;
     private NioHttpNettyAdaptor adaptor;
     private NioSocketChannel nioSocketChannel;
-    private WriteContext writeContext;
-    private ArgumentCaptor<ByteWriteOperation> writeOperation;
 
-    private final EmbeddedChannel requestEncoder = new EmbeddedChannel(new HttpRequestEncoder());
-    private final EmbeddedChannel responseDecoder = new EmbeddedChannel(new HttpResponseDecoder());
+    private final RequestEncoder requestEncoder = new RequestEncoder();
+    private final ResponseDecoder responseDecoder = new ResponseDecoder();
 
     @Before
     @SuppressWarnings("unchecked")
@@ -73,55 +71,48 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
 
         adaptor = new NioHttpNettyAdaptor(Settings.EMPTY, exceptionHandler, Netty4CorsConfigBuilder.forAnyOrigin().build(), 1024);
         nioSocketChannel = mock(NioSocketChannel.class);
-        writeContext = mock(WriteContext.class);
-        writeOperation = ArgumentCaptor.forClass(ByteWriteOperation.class);
-
-        when(nioSocketChannel.getWriteContext()).thenReturn(writeContext);
     }
 
-    public void testCloseEmbeddedChannelSchedulesRealChannelForClose() {
+    public void testCloseAdaptorSchedulesRealChannelForClose() {
         NioSocketChannel channel = mock(NioSocketChannel.class);
-        EmbeddedChannel channelAdaptor = adaptor.getAdaptor(channel);
+        ESEmbeddedChannel channelAdaptor = adaptor.getAdaptor(channel);
 
         channelAdaptor.close();
         verify(channel).closeAsync();
     }
 
-    public void testDecodeHttpRequest() {
-        EmbeddedChannel channelAdaptor = adaptor.getAdaptor(mock(NioSocketChannel.class));
+    public void testSuccessfulDecodeHttpRequest() {
+        ESEmbeddedChannel channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
 
-        HttpRequest defaultFullHttpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "localhost:9090/got/got");
+        HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "localhost:9090/got/got");
 
-        EmbeddedChannel ch = new EmbeddedChannel(new HttpRequestEncoder());
-        ch.writeOutbound(defaultFullHttpRequest);
-        ByteBuf buf = ch.readOutbound();
+        ByteBuf buf = requestEncoder.encode(httpRequest);
+        int slicePoint = randomInt(buf.writerIndex() - 1);
 
-        channelAdaptor.writeInbound(buf.slice(0, 5).retainedDuplicate());
+        ByteBuf slicedBuf = buf.retainedSlice(0, slicePoint);
+        channelAdaptor.writeInbound(slicedBuf);
 
         assertNull(channelAdaptor.readInbound());
 
-        channelAdaptor.writeInbound(buf.slice(5, buf.writerIndex() - 5).retainedDuplicate());
+        channelAdaptor.writeInbound(buf.retainedSlice(slicePoint, buf.writerIndex() - slicePoint));
         HttpPipelinedRequest decodedRequest = channelAdaptor.readInbound();
 
         FullHttpRequest fullHttpRequest = (FullHttpRequest) decodedRequest.last();
-        assertEquals(defaultFullHttpRequest.protocolVersion(), fullHttpRequest.protocolVersion());
-        assertEquals(defaultFullHttpRequest.method(), fullHttpRequest.method());
+        assertEquals(httpRequest.protocolVersion(), fullHttpRequest.protocolVersion());
+        assertEquals(httpRequest.method(), fullHttpRequest.method());
     }
 
     public void testDecodeHttpRequestError() {
-        EmbeddedChannel channelAdaptor = adaptor.getAdaptor(mock(NioSocketChannel.class));
+        ESEmbeddedChannel channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
 
-        HttpRequest defaultFullHttpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "localhost:9090/got/got");
+        HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "localhost:9090/got/got");
 
-        EmbeddedChannel ch = new EmbeddedChannel(new HttpRequestEncoder());
-        ch.writeOutbound(defaultFullHttpRequest);
-        ByteBuf buf = ch.readOutbound();
+        ByteBuf buf = requestEncoder.encode(httpRequest);
         buf.setByte(0, ' ');
         buf.setByte(1, ' ');
         buf.setByte(2, ' ');
 
-        channelAdaptor.writeInbound(buf);
-
+        channelAdaptor.writeInbound(buf.retainedDuplicate());
         HttpPipelinedRequest decodedRequest = channelAdaptor.readInbound();
 
         FullHttpRequest fullHttpRequest = (FullHttpRequest) decodedRequest.last();
@@ -131,40 +122,41 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
     }
 
     public void testDecodeHttpRequestContentLengthToLongGeneratesOutboundMessage() {
-        EmbeddedChannel channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
+        ESEmbeddedChannel channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
 
         HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "localhost:9090/got/got", false);
         HttpUtil.setContentLength(httpRequest, 1025);
 
-        EmbeddedChannel ch = new EmbeddedChannel(new HttpRequestEncoder());
-        ch.writeOutbound(httpRequest);
-        ByteBuf buf = ch.readOutbound();
+        ByteBuf buf = requestEncoder.encode(httpRequest);
 
-        channelAdaptor.writeInbound(buf);
+        channelAdaptor.writeInbound(buf.retainedDuplicate());
 
         HttpPipelinedRequest decodedRequest = channelAdaptor.readInbound();
 
         assertNull(decodedRequest);
 
-        ByteBuf buffer = channelAdaptor.readOutbound();
+        Tuple<BytesReference, ChannelPromise> message = channelAdaptor.getMessage();
+
+        assertFalse(message.v2().isDone());
+
+        HttpResponse response = responseDecoder.decode(Netty4Utils.toByteBuf(message.v1()));
+        assertEquals(HttpVersion.HTTP_1_1, response.protocolVersion());
+        assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, response.status());
     }
 
     public void testEncodeHttpResponse() {
-        NioHttpNettyAdaptor nioHttpNettyAdaptor = new NioHttpNettyAdaptor(Settings.EMPTY, exceptionHandler,
-            Netty4CorsConfigBuilder.forAnyOrigin().build(), 1024);
         NioSocketChannel nioSocketChannel = mock(NioSocketChannel.class);
         when(nioSocketChannel.getWriteContext()).thenReturn(mock(WriteContext.class));
-        ESEmbeddedChannel adaptor = nioHttpNettyAdaptor.getAdaptor(nioSocketChannel);
+        ESEmbeddedChannel channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
 
-        prepareAdaptorForResponse(adaptor);
+        prepareAdaptorForResponse(channelAdaptor);
 
         HttpResponse defaultFullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
 
-        adaptor.writeOutbound(defaultFullHttpResponse);
-        Tuple<BytesReference, ChannelPromise> encodedMessage = adaptor.getMessage();
+        channelAdaptor.writeOutbound(defaultFullHttpResponse);
+        Tuple<BytesReference, ChannelPromise> encodedMessage = channelAdaptor.getMessage();
 
-        responseDecoder.writeInbound(Netty4Utils.toByteBuf(encodedMessage.v1()));
-        HttpResponse response = responseDecoder.readInbound();
+        HttpResponse response = responseDecoder.decode(Netty4Utils.toByteBuf(encodedMessage.v1()));
 
         assertEquals(HttpResponseStatus.OK, response.status());
         assertEquals(HttpVersion.HTTP_1_1, response.protocolVersion());
@@ -176,8 +168,8 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
         String uri = "http://localhost:9090/" + randomAlphaOfLength(8);
 
         HttpRequest request = new DefaultFullHttpRequest(version, method, uri);
-        requestEncoder.writeOutbound(request);
-        ByteBuf buf = requestEncoder.readOutbound();
+        ByteBuf buf = requestEncoder.encode(request);
+
         adaptor.writeInbound(buf);
         HttpPipelinedRequest pipelinedRequest = adaptor.readInbound();
         FullHttpRequest requestParsed = (FullHttpRequest) pipelinedRequest.last();
@@ -185,5 +177,25 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
         assertEquals(requestParsed.method(), method);
         assertEquals(requestParsed.protocolVersion(), version);
         assertEquals(requestParsed.uri(), uri);
+    }
+
+    private static class RequestEncoder {
+
+        private final EmbeddedChannel requestEncoder = new EmbeddedChannel(new HttpRequestEncoder());
+
+        private ByteBuf encode(HttpRequest httpRequest) {
+            requestEncoder.writeOutbound(httpRequest);
+            return requestEncoder.readOutbound();
+        }
+    }
+
+    private static class ResponseDecoder {
+
+        private final EmbeddedChannel responseDecoder = new EmbeddedChannel(new HttpResponseDecoder());
+
+        private HttpResponse decode(ByteBuf response) {
+            responseDecoder.writeInbound(response);
+            return responseDecoder.readInbound();
+        }
     }
 }

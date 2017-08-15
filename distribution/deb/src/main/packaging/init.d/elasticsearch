@@ -45,7 +45,7 @@ MAX_OPEN_FILES=65536
 #MAX_LOCKED_MEMORY=
 
 # Elasticsearch configuration directory
-CONF_DIR=/etc/$NAME
+ES_PATH_CONF=/etc/$NAME
 
 # Maximum number of VMA (Virtual Memory Areas) a process can own
 MAX_MAP_COUNT=262144
@@ -73,7 +73,7 @@ DAEMON_OPTS="-d -p $PID_FILE"
 
 export ES_JAVA_OPTS
 export JAVA_HOME
-export CONF_DIR
+export ES_PATH_CONF
 
 if [ ! -x "$DAEMON" ]; then
 	echo "The elasticsearch startup script does not exists or it is not executable, tried: $DAEMON"

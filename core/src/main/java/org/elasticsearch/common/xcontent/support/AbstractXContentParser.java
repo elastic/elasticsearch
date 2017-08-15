@@ -20,11 +20,12 @@
 package org.elasticsearch.common.xcontent.support;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -55,31 +56,15 @@ public abstract class AbstractXContentParser implements XContentParser {
         }
     }
 
-    // do not use this field directly, use AbstractXContentParser#getDeprecationLogger
-    private static final SetOnce<DeprecationLogger> deprecationLogger = new SetOnce<>();
-
-    private static DeprecationLogger getDeprecationLogger() {
-        /*
-         * This implementation is intentionally verbose to make the minimum number of volatile reads. In the case that the set once is
-         * already initialized, this implementation makes exactly one volatile read. In the case that the set once is not initialized we
-         * make exactly two volatile reads.
-         */
-        final DeprecationLogger logger = deprecationLogger.get();
-        if (logger == null) {
-            synchronized (AbstractXContentParser.class) {
-                final DeprecationLogger innerLogger = deprecationLogger.get();
-                if (innerLogger == null) {
-                    final DeprecationLogger newLogger = new DeprecationLogger(Loggers.getLogger(AbstractXContentParser.class));
-                    deprecationLogger.set(newLogger);
-                    return newLogger;
-                } else {
-                    return innerLogger;
-                }
-            }
-        } else {
-            return logger;
-        }
+    /**
+     * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
+     * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
+     * {@link Setting} object constructed in, for example, {@link org.elasticsearch.env.Environment}.
+     */
+    static class DeprecationLoggerHolder {
+        static DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(AbstractXContentParser.class));
     }
+
 
     private final NamedXContentRegistry xContentRegistry;
 
@@ -137,7 +122,8 @@ public abstract class AbstractXContentParser implements XContentParser {
             booleanValue = doBooleanValue();
         }
         if (interpretedAsLenient) {
-            getDeprecationLogger().deprecated("Expected a boolean [true/false] for property [{}] but got [{}]", currentName(), rawValue);
+            final DeprecationLogger deprecationLogger = DeprecationLoggerHolder.deprecationLogger;
+            deprecationLogger.deprecated("Expected a boolean [true/false] for property [{}] but got [{}]", currentName(), rawValue);
         }
         return booleanValue;
 

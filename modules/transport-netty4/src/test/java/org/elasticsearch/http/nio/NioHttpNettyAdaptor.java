@@ -50,6 +50,7 @@ import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.http.netty4.pipelining.HttpPipeliningHandler;
 import org.elasticsearch.transport.netty4.ByteBufBytesReferenceTests;
 import org.elasticsearch.transport.netty4.Netty4Utils;
+import org.elasticsearch.transport.nio.channel.ChannelConsumerAdaptor;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
@@ -127,12 +128,10 @@ public class NioHttpNettyAdaptor {
             }
         });
         ch.pipeline().addLast("close_adaptor", new ChannelOutboundHandlerAdapter() {
-
             @Override
             public void close(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
-                channel.closeAsync();
+                channel.closeAsync().addListener(new ESChannelPromise(promise));
             }
-
         });
 
         return ch;

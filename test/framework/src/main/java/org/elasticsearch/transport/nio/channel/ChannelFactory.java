@@ -21,6 +21,7 @@ package org.elasticsearch.transport.nio.channel;
 
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.mocksocket.PrivilegedSocketAccess;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.nio.AcceptingSelector;
@@ -59,7 +60,7 @@ public class ChannelFactory {
         SocketChannel rawChannel = rawChannelFactory.openNioChannel(remoteAddress);
         NioSocketChannel channel = new NioSocketChannel(NioChannel.CLIENT, rawChannel, selector);
         contextSetter.accept(channel);
-        channel.getCloseFuture().setListener(closeListener);
+        channel.getCloseFuture().addListener(ChannelConsumerAdaptor.adapt(channel, closeListener));
         scheduleChannel(channel, selector);
         return channel;
     }
@@ -69,7 +70,7 @@ public class ChannelFactory {
         SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverChannel);
         NioSocketChannel channel = new NioSocketChannel(serverChannel.getProfile(), rawChannel, selector);
         contextSetter.accept(channel);
-        channel.getCloseFuture().setListener(closeListener);
+        channel.getCloseFuture().addListener(ChannelConsumerAdaptor.adapt(channel, closeListener));
         scheduleChannel(channel, selector);
         return channel;
     }

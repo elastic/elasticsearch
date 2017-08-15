@@ -40,6 +40,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
+import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -198,6 +199,44 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertFalse(embeddedChannel.isOpen());
     }
 
+    public void testPipeliningRequestsAreReleased() throws InterruptedException {
+        final int numberOfRequests = 10;
+        final EmbeddedChannel embeddedChannel =
+            new EmbeddedChannel(
+                new AggregateUrisAndHeadersHandler(),
+                new HttpPipeliningHandler(numberOfRequests));
+
+        for (int i = 0; i < numberOfRequests; i++) {
+            final DefaultHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/" + i);
+            embeddedChannel.writeInbound(request);
+            embeddedChannel.writeInbound(LastHttpContent.EMPTY_LAST_CONTENT);
+        }
+
+        HttpPipelinedRequest inbound;
+        ArrayList<HttpPipelinedRequest> requests = new ArrayList<>();
+        while ((inbound = embeddedChannel.readInbound()) != null) {
+            requests.add(inbound);
+        }
+
+        ArrayList<ChannelPromise> promises = new ArrayList<>();
+        for (int i = 1; i < requests.size(); ++i) {
+            final DefaultFullHttpResponse httpResponse = new DefaultFullHttpResponse(HTTP_1_1, OK);
+            ChannelPromise promise = embeddedChannel.newPromise();
+            promises.add(promise);
+            HttpPipelinedResponse response = requests.get(i).createHttpResponse(httpResponse, promise);
+            embeddedChannel.writeAndFlush(response, promise);
+        }
+
+        for (ChannelPromise promise : promises) {
+            assertFalse(promise.isDone());
+        }
+        embeddedChannel.close().syncUninterruptibly();
+        for (ChannelPromise promise : promises) {
+            assertTrue(promise.isDone());
+            assertTrue(promise.cause() instanceof ClosedChannelException);
+        }
+    }
+
 
     private void assertReadHttpMessageHasContent(EmbeddedChannel embeddedChannel, String expectedContent) {
         FullHttpResponse response = (FullHttpResponse) embeddedChannel.outboundMessages().poll();
@@ -255,7 +294,5 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
                 }
             });
         }
-
     }
-
 }

@@ -25,6 +25,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.LastHttpContent;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
+import java.nio.channels.ClosedChannelException;
 import java.util.Collections;
 import java.util.PriorityQueue;
 
@@ -120,4 +121,12 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
         }
     }
 
+    @Override
+    public void close(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
+        for (HttpPipelinedResponse pipelinedResponse : holdingQueue) {
+            pipelinedResponse.release();
+            pipelinedResponse.promise().setFailure(new ClosedChannelException());
+        }
+        ctx.close(promise);
+    }
 }

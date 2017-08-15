@@ -6,21 +6,24 @@
 package org.elasticsearch.xpack.security.audit;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.security.user.User;
 import org.junit.Before;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.unmodifiableList;
+import static java.util.Collections.unmodifiableSet;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -138,11 +141,12 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAccessGranted() throws Exception {
         User user = new User("_username", "r1");
-        service.accessGranted(user, "_action", message);
+        Set<String> specificIndices = randomBoolean() ? randomSpecificIndices() : null;
+        service.accessGranted(user, "_action", message, specificIndices);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).accessGranted(user, "_action", message);
+                verify(auditTrail).accessGranted(user, "_action", message, specificIndices);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -151,11 +155,12 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAccessDenied() throws Exception {
         User user = new User("_username", "r1");
-        service.accessDenied(user, "_action", message);
+        Set<String> specificIndices = randomBoolean() ? randomSpecificIndices() : null;
+        service.accessDenied(user, "_action", message, specificIndices);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).accessDenied(user, "_action", message);
+                verify(auditTrail).accessDenied(user, "_action", message, specificIndices);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -216,5 +221,19 @@ public class AuditTrailServiceTests extends ESTestCase {
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
         }
+    }
+
+    /**
+     * Generates a semi-believable random value for the specificIndices parameter sent
+     * to the {@link AuditTrail#accessGranted(User, String, TransportMessage, Set)} or
+     * {@link AuditTrail#accessDenied(User, String, TransportMessage, Set)} methods.
+     */
+    public static Set<String> randomSpecificIndices() {
+        Set<String> specificIndices = new HashSet<>();
+        int count = between(1, 10);
+        while (specificIndices.size() < count) {
+            specificIndices.add(randomAlphaOfLength(5));
+        }
+        return unmodifiableSet(specificIndices);
     }
 }

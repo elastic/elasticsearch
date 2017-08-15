@@ -116,7 +116,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             assertEquals(testSearchContext.id(), expected.id());
             verify(licenseState, times(3)).isAuthAllowed();
             verify(auditTrailService)
-                    .accessDenied(authentication.getUser(), "action", request);
+                    .accessDenied(authentication.getUser(), "action", request, null);
         }
 
         // another user running as the original user
@@ -150,7 +150,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             assertEquals(testSearchContext.id(), expected.id());
             verify(licenseState, times(5)).isAuthAllowed();
             verify(auditTrailService)
-                    .accessDenied(authentication.getUser(), "action", request);
+                    .accessDenied(authentication.getUser(), "action", request, null);
         }
     }
 
@@ -186,7 +186,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         SearchContextMissingException e = expectThrows(SearchContextMissingException.class,
                 () -> ensureAuthenticatedUserIsSame(original, differentRealmType, auditTrail, id, action, request));
         assertEquals(id, e.id());
-        verify(auditTrail).accessDenied(differentRealmType.getUser(), action, request);
+        verify(auditTrail).accessDenied(differentRealmType.getUser(), action, request, null);
 
         // wrong user
         Authentication differentUser =
@@ -194,7 +194,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         e = expectThrows(SearchContextMissingException.class,
                 () -> ensureAuthenticatedUserIsSame(original, differentUser, auditTrail, id, action, request));
         assertEquals(id, e.id());
-        verify(auditTrail).accessDenied(differentUser.getUser(), action, request);
+        verify(auditTrail).accessDenied(differentUser.getUser(), action, request, null);
 
         // run as different user
         Authentication diffRunAs = new Authentication(new User(new User("test2", "role"), new User("authenticated", "runas")),
@@ -202,7 +202,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         e = expectThrows(SearchContextMissingException.class,
                 () -> ensureAuthenticatedUserIsSame(original, diffRunAs, auditTrail, id, action, request));
         assertEquals(id, e.id());
-        verify(auditTrail).accessDenied(diffRunAs.getUser(), action, request);
+        verify(auditTrail).accessDenied(diffRunAs.getUser(), action, request, null);
 
         // run as different looked up by type
         Authentication runAsDiffType = new Authentication(user, new RealmRef("realm", "file", "node"),
@@ -210,7 +210,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         e = expectThrows(SearchContextMissingException.class,
                 () -> ensureAuthenticatedUserIsSame(runAs, runAsDiffType, auditTrail, id, action, request));
         assertEquals(id, e.id());
-        verify(auditTrail).accessDenied(runAsDiffType.getUser(), action, request);
+        verify(auditTrail).accessDenied(runAsDiffType.getUser(), action, request, null);
     }
 
     static class TestScrollSearchContext extends TestSearchContext {

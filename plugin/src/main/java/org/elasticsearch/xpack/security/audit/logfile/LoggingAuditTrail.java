@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.audit.logfile;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -252,12 +253,12 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void accessGranted(User user, String action, TransportMessage message) {
+    public void accessGranted(User user, String action, TransportMessage message, @Nullable Set<String> specificIndices) {
         final boolean isSystem = (SystemUser.is(user) && SystemPrivilege.INSTANCE.predicate().test(action)) || XPackUser.is(user);
         final boolean logSystemAccessGranted = isSystem && events.contains(SYSTEM_ACCESS_GRANTED);
         final boolean shouldLog = logSystemAccessGranted || (isSystem == false && events.contains(ACCESS_GRANTED));
         if (shouldLog) {
-            String indices = indicesString(message);
+            String indices = specificIndices == null ? indicesString(message) : collectionToCommaDelimitedString(specificIndices);
             if (indices != null) {
                 logger.info("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
                         originAttributes(message, clusterService.localNode(), threadContext), principal(user), action, indices,
@@ -271,9 +272,9 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void accessDenied(User user, String action, TransportMessage message) {
+    public void accessDenied(User user, String action, TransportMessage message, @Nullable Set<String> specificIndices) {
         if (events.contains(ACCESS_DENIED)) {
-            String indices = indicesString(message);
+            String indices = specificIndices == null ? indicesString(message) : collectionToCommaDelimitedString(specificIndices);
             if (indices != null) {
                 logger.info("{}[transport] [access_denied]\t{}, {}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
                         originAttributes(message, clusterService.localNode(), threadContext), principal(user), action, indices,

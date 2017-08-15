@@ -5,11 +5,6 @@
  */
 package org.elasticsearch.xpack.security.audit.index;
 
-import java.net.InetAddress;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -35,6 +30,12 @@ import org.elasticsearch.xpack.security.user.User;
 import org.junit.After;
 import org.junit.Before;
 
+import java.net.InetAddress;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.xpack.security.audit.AuditTrailServiceTests.randomSpecificIndices;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -173,7 +174,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         createAuditTrail(new String[] { "access_granted" });
         TransportMessage message = mock(TransportMessage.class);
         User user = mock(User.class);
-        auditTrail.accessGranted(user, randomAlphaOfLengthBetween(6, 40), message);
+        auditTrail.accessGranted(user, randomAlphaOfLengthBetween(6, 40), message, randomBoolean() ? randomSpecificIndices() : null);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -184,7 +185,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         createAuditTrail(randomFrom(new String[] { "access_granted" }, null));
         TransportMessage message = mock(TransportMessage.class);
         User user = SystemUser.INSTANCE;
-        auditTrail.accessGranted(user, "internal:foo", message);
+        auditTrail.accessGranted(user, "internal:foo", message, randomBoolean() ? randomSpecificIndices() : null);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -195,7 +196,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         createAuditTrail(new String[] { "access_denied" });
         TransportMessage message = mock(TransportMessage.class);
         User user = mock(User.class);
-        auditTrail.accessDenied(user, randomAlphaOfLengthBetween(6, 40), message);
+        auditTrail.accessDenied(user, randomAlphaOfLengthBetween(6, 40), message, randomBoolean() ? randomSpecificIndices() : null);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 

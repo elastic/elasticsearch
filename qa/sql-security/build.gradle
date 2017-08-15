@@ -15,6 +15,15 @@ integTestCluster {
   plugin ':x-pack-elasticsearch:plugin'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
+  // Enabled audit logging so we can test it
+  setting 'xpack.security.audit.enabled', 'true'
+  setting 'xpack.security.audit.outputs', 'index'
+  // Only log the events we need so we don't have as much to sort through
+  setting 'xpack.security.audit.index.events.include', '[access_denied, access_granted]'
+  // Try and speed up audit logging without overwelming it
+  setting 'xpack.security.audit.index.flush_interval', '250ms'
+  setting 'xpack.security.audit.index.settings.index.number_of_shards', '1'
+  setting 'xpack.security.audit.index.settings.index.refresh_interval', '250ms'
   extraConfigFile 'x-pack/roles.yml', 'roles.yml'
   setupCommand 'setupUser#test_admin',
                'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
@@ -35,6 +44,15 @@ task run(type: RunTask) {
   plugin ':x-pack-elasticsearch:plugin'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
+  // Enabled audit logging so we can test it
+  setting 'xpack.security.audit.enabled', 'true'
+  setting 'xpack.security.audit.outputs', 'index'
+  // Only log the events we need so we don't have as much to sort through
+  setting 'xpack.security.audit.index.events.include', '[access_denied, access_granted]'
+  // Try and speed up the logging process without overwelming it
+  setting 'xpack.security.audit.index.flush_interval', '250ms'
+  setting 'xpack.security.audit.index.settings.index.number_of_shards', '1'
+  setting 'xpack.security.audit.index.settings.index.refresh_interval', '250ms'
   extraConfigFile 'x-pack/roles.yml', 'roles.yml'
   setupCommand 'setupUser#test_admin',
                'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'

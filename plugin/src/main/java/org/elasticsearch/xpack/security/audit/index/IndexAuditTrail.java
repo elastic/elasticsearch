@@ -473,19 +473,21 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void accessGranted(User user, String action, TransportMessage message) {
+    public void accessGranted(User user, String action, TransportMessage message, @Nullable Set<String> specificIndices) {
         // special treatment for internal system actions - only log if explicitly told to
         if ((SystemUser.is(user) && SystemPrivilege.INSTANCE.predicate().test(action))) {
             if (events.contains(SYSTEM_ACCESS_GRANTED)) {
                 try {
-                    enqueue(message("access_granted", action, user, null, indices(message), message), "access_granted");
+                    Set<String> indices = specificIndices == null ? indices(message) : specificIndices;
+                    enqueue(message("access_granted", action, user, null, indices, message), "access_granted");
                 } catch (Exception e) {
                     logger.warn("failed to index audit event: [access_granted]", e);
                 }
             }
         } else if (events.contains(ACCESS_GRANTED) && XPackUser.is(user) == false) {
             try {
-                enqueue(message("access_granted", action, user, null, indices(message), message), "access_granted");
+                Set<String> indices = specificIndices == null ? indices(message) : specificIndices;
+                enqueue(message("access_granted", action, user, null, indices, message), "access_granted");
             } catch (Exception e) {
                 logger.warn("failed to index audit event: [access_granted]", e);
             }
@@ -493,10 +495,11 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void accessDenied(User user, String action, TransportMessage message) {
+    public void accessDenied(User user, String action, TransportMessage message, @Nullable Set<String> specificIndices) {
         if (events.contains(ACCESS_DENIED) && XPackUser.is(user) == false) {
             try {
-                enqueue(message("access_denied", action, user, null, indices(message), message), "access_denied");
+                Set<String> indices = specificIndices == null ? indices(message) : specificIndices; 
+                enqueue(message("access_denied", action, user, null, indices, message), "access_denied");
             } catch (Exception e) {
                 logger.warn("failed to index audit event: [access_denied]", e);
             }

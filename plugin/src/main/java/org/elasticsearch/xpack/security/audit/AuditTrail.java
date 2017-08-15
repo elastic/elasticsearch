@@ -5,13 +5,15 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
-import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.security.user.User;
 
 import java.net.InetAddress;
+import java.util.Set;
 
 public interface AuditTrail {
 
@@ -37,9 +39,25 @@ public interface AuditTrail {
 
     void authenticationFailed(String realm, AuthenticationToken token, RestRequest request);
 
-    void accessGranted(User user, String action, TransportMessage message);
+    /**
+     * Access was granted for some request.
+     * @param specificIndices if non-null then the action was authorized
+     *      for all indices in this particular set of indices, otherwise
+     *      the action was authorized for all indices to which it is
+     *      related, if any
+     */
+    void accessGranted(User user, String action, TransportMessage message, @Nullable Set<String> specificIndices);
 
-    void accessDenied(User user, String action, TransportMessage message);
+    /**
+     * Access was denied for some request.
+     * @param specificIndices if non-null then the action was denied
+     *      for at least one index in this particular set of indices,
+     *      otherwise the action was denied for at least one index
+     *      to which the request is related. If the request isn't
+     *      related to any particular index then the request itself
+     *      was denied.
+     */
+    void accessDenied(User user, String action, TransportMessage message, @Nullable Set<String> specificIndices);
 
     void tamperedRequest(RestRequest request);
 

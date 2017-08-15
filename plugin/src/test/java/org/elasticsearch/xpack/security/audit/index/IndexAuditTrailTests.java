@@ -67,6 +67,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
+import static org.elasticsearch.xpack.security.audit.AuditTrailServiceTests.randomSpecificIndices;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.DAILY;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.HOURLY;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.MONTHLY;
@@ -472,7 +473,8 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         } else {
             user = new User("_username", new String[]{"r1"});
         }
-        auditor.accessGranted(user, "_action", message);
+        Set<String> specificIndices = randomBoolean() ? randomSpecificIndices() : null;
+        auditor.accessGranted(user, "_action", message, specificIndices);
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "access_granted");
@@ -485,9 +487,15 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             assertEquals("_username", sourceMap.get("principal"));
         }
         assertEquals("_action", sourceMap.get("action"));
-        if (message instanceof IndicesRequest) {
-            List<Object> indices = (List<Object>) sourceMap.get("indices");
-            assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest)message).indices()));
+        List<?> indices = (List<?>) sourceMap.get("indices");
+        if (specificIndices == null) {
+            if (message instanceof IndicesRequest) {
+                assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest)message).indices()));
+            } else {
+                assertThat(indices, nullValue());
+            }
+        } else {
+            assertThat(indices, containsInAnyOrder(specificIndices.toArray()));
         }
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
@@ -495,7 +503,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     public void testSystemAccessGranted() throws Exception {
         initialize(new String[] { "system_access_granted" }, null);
         TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
-        auditor.accessGranted(SystemUser.INSTANCE, "internal:_action", message);
+        auditor.accessGranted(SystemUser.INSTANCE, "internal:_action", message, null);
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "access_granted");
@@ -516,7 +524,8 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         } else {
             user = new User("_username", new String[]{"r1"});
         }
-        auditor.accessDenied(user, "_action", message);
+        Set<String> specificIndices = randomBoolean() ? randomSpecificIndices() : null;
+        auditor.accessDenied(user, "_action", message, specificIndices);
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         Map<String, Object> sourceMap = hit.getSourceAsMap();
@@ -529,9 +538,15 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             assertEquals("_username", sourceMap.get("principal"));
         }
         assertEquals("_action", sourceMap.get("action"));
-        if (message instanceof IndicesRequest) {
-            List<Object> indices = (List<Object>) sourceMap.get("indices");
-            assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest)message).indices()));
+        List<?> indices = (List<?>) sourceMap.get("indices");
+        if (specificIndices == null) {
+            if (message instanceof IndicesRequest) {
+                assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest)message).indices()));
+            } else {
+                assertThat(indices, nullValue());
+            }
+        } else {
+            assertThat(indices, containsInAnyOrder(specificIndices.toArray()));
         }
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }

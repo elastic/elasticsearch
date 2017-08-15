@@ -1079,7 +1079,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
-
     /**
      * Verifies that all nodes that have the same version of the cluster state as master have same cluster state
      */

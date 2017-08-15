@@ -78,8 +78,6 @@ public class Environment {
 
     private final Path configFile;
 
-    private final Path scriptsFile;
-
     private final Path pluginsFile;
 
     private final Path modulesFile;
@@ -135,12 +133,6 @@ public class Environment {
             configFile = PathUtils.get(cleanPath(PATH_CONF_SETTING.get(settings)));
         } else {
             configFile = homeFile.resolve("config");
-        }
-
-        if (PATH_SCRIPTS_SETTING.exists(settings)) {
-            scriptsFile = PathUtils.get(cleanPath(PATH_SCRIPTS_SETTING.get(settings)));
-        } else {
-            scriptsFile = configFile.resolve("scripts");
         }
 
         pluginsFile = homeFile.resolve("plugins");
@@ -311,7 +303,11 @@ public class Environment {
      * Location of on-disk scripts
      */
     public Path scriptsFile() {
-        return scriptsFile;
+        if (PATH_SCRIPTS_SETTING.exists(settings)) {
+            return PathUtils.get(cleanPath(PATH_SCRIPTS_SETTING.get(settings)));
+        } else {
+            return configFile.resolve("scripts");
+        }
     }
 
     public Path pluginsFile() {

@@ -69,8 +69,10 @@ public class ResourceWatcherService extends AbstractLifecycleComponent {
     public static final Setting<Boolean> ENABLED = Setting.boolSetting("resource.reload.enabled", true, Property.NodeScope);
     public static final Setting<TimeValue> RELOAD_INTERVAL_HIGH =
         Setting.timeSetting("resource.reload.interval.high", Frequency.HIGH.interval, Property.NodeScope);
-    public static final Setting<TimeValue> RELOAD_INTERVAL_MEDIUM = Setting.timeSetting("resource.reload.interval.medium",
-        Setting.timeSetting("resource.reload.interval", Frequency.MEDIUM.interval), Property.NodeScope);
+    public static final Setting<TimeValue> RELOAD_INTERVAL =
+        Setting.timeSetting("resource.reload.interval", Frequency.MEDIUM.interval, Property.NodeScope);
+    public static final Setting<TimeValue> RELOAD_INTERVAL_MEDIUM =
+        Setting.timeSetting("resource.reload.interval.medium", RELOAD_INTERVAL, Property.NodeScope);
     public static final Setting<TimeValue> RELOAD_INTERVAL_LOW =
         Setting.timeSetting("resource.reload.interval.low", Frequency.LOW.interval, Property.NodeScope);
 

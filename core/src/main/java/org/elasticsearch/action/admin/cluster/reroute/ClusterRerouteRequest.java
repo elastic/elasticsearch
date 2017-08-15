@@ -128,7 +128,6 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         dryRun = in.readBoolean();
         explain = in.readBoolean();
         retryFailed = in.readBoolean();
-        readTimeout(in);
     }
 
     @Override
@@ -138,7 +137,6 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         out.writeBoolean(dryRun);
         out.writeBoolean(explain);
         out.writeBoolean(retryFailed);
-        writeTimeout(out);
     }
 
     @Override

@@ -118,8 +118,6 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         Netty4Utils.setup();
     }
 
-    public static Setting<ByteSizeValue> SETTING_HTTP_NETTY_MAX_CUMULATION_BUFFER_CAPACITY =
-        Setting.byteSizeSetting("http.netty.max_cumulation_buffer_capacity", new ByteSizeValue(-1), Property.NodeScope);
     public static Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS =
         Setting.intSetting("http.netty.max_composite_buffer_components", -1, Property.NodeScope);
 
@@ -187,7 +185,6 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     protected final ByteSizeValue tcpReceiveBufferSize;
     protected final RecvByteBufAllocator recvByteBufAllocator;
 
-    protected final ByteSizeValue maxCumulationBufferCapacity;
     protected final int maxCompositeBufferComponents;
     private final Dispatcher dispatcher;
 
@@ -218,7 +215,6 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
         this.resetCookies = SETTING_HTTP_RESET_COOKIES.get(settings);
-        this.maxCumulationBufferCapacity = SETTING_HTTP_NETTY_MAX_CUMULATION_BUFFER_CAPACITY.get(settings);
         this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
         this.workerCount = SETTING_HTTP_WORKER_COUNT.get(settings);
         this.port = SETTING_HTTP_PORT.get(settings);

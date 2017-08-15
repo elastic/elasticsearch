@@ -50,15 +50,6 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
      *
      * @param entries list of currently running restore processes
      */
-    public RestoreInProgress(List<Entry> entries) {
-        this.entries = entries;
-    }
-
-    /**
-     * Constructs new restore metadata
-     *
-     * @param entries list of currently running restore processes
-     */
     public RestoreInProgress(Entry... entries) {
         this.entries = Arrays.asList(entries);
     }

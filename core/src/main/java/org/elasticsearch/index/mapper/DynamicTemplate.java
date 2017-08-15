@@ -23,7 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-public class DynamicTemplate implements ToXContent {
+public class DynamicTemplate implements ToXContentObject {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(DynamicTemplate.class));
 

@@ -141,8 +141,12 @@ public class MatchQueryIT extends ESIntegTestCase {
         indexRandom(true, false, getDocs());
 
         // no min should match
-        SearchResponse searchResponse = client().prepareSearch(INDEX).setQuery(QueryBuilders.matchQuery("field", "three what the fudge foo")
-            .operator(Operator.OR).analyzer("lower_graphsyns")).get();
+        SearchResponse searchResponse = client().prepareSearch(INDEX)
+            .setQuery(
+                QueryBuilders.matchQuery("field", "three what the fudge foo")
+                    .operator(Operator.OR).analyzer("lower_graphsyns").autoGenerateSynonymsPhraseQuery(false)
+            )
+            .get();
 
         assertHitCount(searchResponse, 6L);
         assertSearchHits(searchResponse, "1", "2", "3", "4", "5", "6");
@@ -157,6 +161,19 @@ public class MatchQueryIT extends ESIntegTestCase {
         // three what the fudge bar baz = 4 terms, match #2
         assertHitCount(searchResponse, 3L);
         assertSearchHits(searchResponse, "1", "2", "6");
+    }
+
+    public void testMultiTermsSynonymsPhrase() throws ExecutionException, InterruptedException {
+        List<IndexRequestBuilder> builders = getDocs();
+        indexRandom(true, false, builders);
+        SearchResponse searchResponse = client().prepareSearch(INDEX)
+            .setQuery(
+                QueryBuilders.matchQuery("field", "wtf")
+                    .analyzer("lower_graphsyns")
+                    .operator(Operator.AND))
+            .get();
+        assertHitCount(searchResponse, 3L);
+        assertSearchHits(searchResponse, "1", "2", "3");
     }
 
     public void testPhrasePrefix() throws ExecutionException, InterruptedException {

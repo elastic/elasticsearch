@@ -49,7 +49,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -66,7 +65,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -593,7 +591,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             if (binaryDocValues == null) {
                 return docId -> null;
             }
-            if (indexVersion.onOrAfter(Version.V_6_0_0_beta1)) {
+            if (indexVersion.onOrAfter(Version.V_6_0_0_beta2)) {
                 return docId -> {
                     if (binaryDocValues.advanceExact(docId)) {
                         BytesRef qbSource = binaryDocValues.binaryValue();
@@ -661,7 +659,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             @Override
             @SuppressWarnings("unchecked")
             public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-                IndexFieldData.Builder builder = fieldType.fielddataBuilder();
+                IndexFieldData.Builder builder = fieldType.fielddataBuilder(shardContext.getFullyQualifiedIndexName());
                 IndexFieldDataCache cache = new IndexFieldDataCache.None();
                 CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
                 return (IFD) builder.build(shardContext.getIndexSettings(), fieldType, cache, circuitBreaker,

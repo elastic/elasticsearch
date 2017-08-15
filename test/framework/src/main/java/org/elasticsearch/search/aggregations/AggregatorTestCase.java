@@ -44,7 +44,6 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache.Listener;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -202,9 +201,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(queryShardContext.getMapperService()).thenReturn(mapperService);
         for (MappedFieldType fieldType : fieldTypes) {
             when(queryShardContext.fieldMapper(fieldType.name())).thenReturn(fieldType);
-            when(queryShardContext.getForField(fieldType)).then(invocation -> fieldType.fielddataBuilder().build(
-                    mapperService.getIndexSettings(), fieldType, new IndexFieldDataCache.None(), circuitBreakerService,
-                    mapperService));
+            when(queryShardContext.getForField(fieldType)).then(invocation -> fieldType.fielddataBuilder(mapperService.getIndexSettings()
+                .getIndex().getName())
+                .build(mapperService.getIndexSettings(), fieldType, new IndexFieldDataCache.None(), circuitBreakerService, mapperService));
         }
         NestedScope nestedScope = new NestedScope();
         when(queryShardContext.isFilter()).thenCallRealMethod();

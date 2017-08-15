@@ -121,7 +121,7 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new BytesBinaryDVIndexFieldData.Builder();
         }

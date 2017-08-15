@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -42,7 +42,7 @@ import java.util.Objects;
  * relocationId. Once relocation is done, the new allocation id is set to the relocationId. This is similar
  * behavior to how ShardRouting#currentNodeId is used.
  */
-public class AllocationId implements ToXContent, Writeable {
+public class AllocationId implements ToXContentObject, Writeable {
     private static final String ID_KEY = "id";
     private static final String RELOCATION_ID_KEY = "relocation_id";
 

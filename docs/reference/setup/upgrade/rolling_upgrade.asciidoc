@@ -18,23 +18,7 @@ To perform a rolling upgrade:
 . *Disable shard allocation*.
 +
 --
-
-When you shut down a node, the allocation process waits for one minute
-before starting to replicate the shards on that node to other nodes
-in the cluster, causing a lot of wasted I/O. This can be avoided by disabling
-allocation before shutting down the node:
-
-[source,js]
---------------------------------------------------
-PUT _cluster/settings
-{
-  "transient": {
-    "cluster.routing.allocation.enable": "none"
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[skip:indexes don't assign]
+include::disable-shard-alloc.asciidoc[]
 --
 
 . *Stop non-essential indexing and perform a synced flush.* (Optional)
@@ -42,90 +26,30 @@ PUT _cluster/settings
 --
 While you can continue indexing during the upgrade, shard recovery
 is much faster if you temporarily stop non-essential indexing and perform a
-<<indices-synced-flush, synced-flush>>:
+<<indices-synced-flush, synced-flush>>.
 
-[source,js]
---------------------------------------------------
-POST _flush/synced
---------------------------------------------------
-// CONSOLE
+include::synced-flush.asciidoc[]
 
-Synced flush operations are performed on a "best effort" basis. The request
-fails if there are any pending indexing operations, but it is safe to
-reissue the request multiple times until it succeeds.
 --
 
 . [[upgrade-node]] *Shut down a single node*.
 +
 --
-* If you are running Elasticsearch with `systemd`:
-+
-[source,sh]
---------------------------------------------------
-sudo systemctl stop elasticsearch.service
---------------------------------------------------
-
-* If you are running Elasticsearch with SysV `init`:
-+
-[source,sh]
---------------------------------------------------
-sudo -i service elasticsearch stop
---------------------------------------------------
-
-* If you are running Elasticsearch as a daemon:
-+
-[source,sh]
---------------------------------------------------
-kill `cat pid`
---------------------------------------------------
+include::shut-down-node.asciidoc[]
 --
 
 . *Upgrade the node you shut down.*
 +
 --
-To upgrade using a <<deb,Debian>> or <<rpm,RPM>> package:
-
-*   Use `rpm` or `dpkg` to install the new package.  All files are
-    installed in the appropriate location for the operating system
-    and Elasticsearch config files are not overwritten.
-
-To upgrade using a zip or compressed tarball:
-
-.. Extract the zip or tarball to a _new_ directory to be sure that you don't
-    overwrite the `config` or `data` directories.
-
-..  Copy the files in the `config` directory from your old installation
-    to your new installation, or set the environment variable
-    <<config-files-location,`ES_PATH_CONF`>> to point to your custom config
-    directory.
-
-..  Copy the files in the `data` directory from your old installation
-    to your new installation, or set `path.data` in `config/elasticsearch.yml`
-    to point to your external data directory.
-
-[TIP]
-================================================
-
-When you install from the zip or tarball packages, by default the `config`,
-`data`, `logs` and `plugins` directories are located in the Elasticsearch home
-directory.
-
-We recommend moving these directories out of the Elasticsearch home directory
-so that there is no chance of deleting them when you upgrade Elasticsearch.
-To specify where they are located, use the `ES_PATH_CONF` environment
-variable and the `path.logs`, and `path.data` settings. For more information,
-see <<important-settings,Important Elasticsearch configuration>>.
-
-The RPM and Debian distributions use custom paths by default.
-
-================================================
+include::upgrade-node.asciidoc[]
+include::set-paths-tip.asciidoc[]
 --
 
 . *Upgrade any plugins.*
 +
 Use the `elasticsearch-plugin` script to install the upgraded version of each
-installed Elasticsearch plugin. When you upgrade a node, you must also upgrade
-its plugins.
+installed Elasticsearch plugin. All plugins must be upgraded when you upgrade
+a node.
 
 . *Start the upgraded node.*
 +
@@ -185,12 +109,12 @@ not understood by the old version.
 
 If it is not possible to assign the replica shards to another node
 (there is only one upgraded node in the cluster), the replica
-shards will remain unassigned and status will remain `yellow`.
+shards remain unassigned and status stays `yellow`.
 
 In this case, you can proceed once there are no initializing or relocating shards
 (check the `init` and `relo` columns).
 
-As soon as another node is upgraded, the replicas should be assigned and the
+As soon as another node is upgraded, the replicas can be assigned and the
 status will change to `green`.
 ====================================================
 

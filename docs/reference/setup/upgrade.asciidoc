@@ -58,8 +58,8 @@ Reindex to upgrade>>.
 ===============================================
 
 
-include::rolling_upgrade.asciidoc[]
+include::upgrade/rolling_upgrade.asciidoc[]
 
-include::cluster_restart.asciidoc[]
+include::upgrade/cluster_restart.asciidoc[]
 
-include::reindex_upgrade.asciidoc[]
+include::upgrade/reindex_upgrade.asciidoc[]

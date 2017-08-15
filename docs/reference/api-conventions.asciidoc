@@ -202,7 +202,7 @@ one or more maths expressions:
 * `-1d` - subtract one day
 * `/d`  - round down to the nearest day
 
-The supported time units differ than those supported by <<time-units, time units>> for durations.
+The supported time units differ from those supported by <<time-units, time units>> for durations.
 The supported units are:
 
 [horizontal]

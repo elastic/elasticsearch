@@ -227,12 +227,14 @@ final class Bootstrap {
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
-        if (keystore == null) {
-            return null; // no keystore
-        }
 
         try {
-            keystore.decrypt(new char[0] /* TODO: read password from stdin */);
+            if (keystore == null) {
+                // create it, we always want one! we use an empty passphrase, but a user can change this later if they want.
+                KeyStoreWrapper.create(new char[0]);
+            } else {
+                keystore.decrypt(new char[0] /* TODO: read password from stdin */);
+            }
         } catch (Exception e) {
             throw new BootstrapException(e);
         }

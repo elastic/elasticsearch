@@ -2,7 +2,7 @@
 === `include_in_all`
 
 The `include_in_all` parameter provides per-field control over which fields
-are included in the <<mapping-all-field,`_all`>> field.  It defaults to `true`, unless <<mapping-index,`index`>> is set to `no`.
+are included in the <<mapping-all-field,`_all`>> field.  It defaults to `true`, unless <<mapping-index,`index`>> is set to `false`.
 
 This example demonstrates how to exclude the `date` field from the `_all` field:
 

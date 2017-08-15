@@ -31,6 +31,8 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
+import com.amazonaws.regions.Region;
+import com.amazonaws.regions.Regions;
 import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
@@ -61,6 +63,12 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Clos
         String endpoint = findEndpoint(logger, settings);
         if (endpoint != null) {
             client.setEndpoint(endpoint);
+        } else {
+            Region currentRegion = Regions.getCurrentRegion();
+            if (currentRegion != null) {
+                logger.debug("using ec2 region [{}]", currentRegion);
+                client.setRegion(currentRegion);
+            }
         }
 
         return this.client;

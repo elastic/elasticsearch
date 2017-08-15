@@ -66,6 +66,8 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
         }
 
         PutStoredScriptRequest putRequest = new PutStoredScriptRequest(id, lang, content, request.getXContentType());
+        putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
+        putRequest.timeout(request.paramAsTime("timeout", putRequest.timeout()));
         return channel -> client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));
     }
 }

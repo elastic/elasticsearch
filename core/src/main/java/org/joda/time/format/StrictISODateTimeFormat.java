@@ -169,7 +169,7 @@ public class StrictISODateTimeFormat {
         if (fields == null || fields.size() == 0) {
             throw new IllegalArgumentException("The fields must not be null or empty");
         }
-        Set<DateTimeFieldType> workingFields = new HashSet<DateTimeFieldType>(fields);
+        Set<DateTimeFieldType> workingFields = new HashSet<>(fields);
         int inputSize = workingFields.size();
         boolean reducedPrec = false;
         DateTimeFormatterBuilder bld = new DateTimeFormatterBuilder();

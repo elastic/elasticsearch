@@ -51,9 +51,11 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
@@ -610,6 +612,9 @@ public final class InternalTestCluster extends TestCluster {
             throw new IllegalArgumentException(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " must be configured");
         }
         SecureSettings secureSettings = finalSettings.getSecureSettings();
+        if (secureSettings instanceof MockSecureSettings) {
+            secureSettings = ((MockSecureSettings) secureSettings).clone();
+        }
         MockNode node = new MockNode(finalSettings.build(), plugins, nodeConfigurationSource.nodeConfigPath(nodeId));
         try {
             IOUtils.close(secureSettings);
@@ -1962,6 +1967,11 @@ public final class InternalTestCluster extends TestCluster {
 
             };
         };
+    }
+
+    @Override
+    public NamedWriteableRegistry getNamedWriteableRegistry() {
+        return getInstance(NamedWriteableRegistry.class);
     }
 
     /**

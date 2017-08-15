@@ -52,13 +52,16 @@
   - match: { _id: "test_watch" }
   - match: { created: true }
 
-  # Simulate a Thread.sleep()
   - do:
-      catch: request_timeout
-      cluster.health:
-        wait_for_nodes: 99
-        timeout: 5s
-  - match: { "timed_out": true }
+      xpack.watcher.execute_watch:
+        id: test_watch
+        body:
+          record_execution: true
+          action_modes:
+            _all: execute
+
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.result.actions.0.status: "success" }
 
   - do:
       get:

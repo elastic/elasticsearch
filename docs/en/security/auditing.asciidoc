@@ -1,18 +1,18 @@
 [[auditing]]
 == Auditing Security Events
 
-You can enable auditing to keep track of security-related events such as 
+You can enable auditing to keep track of security-related events such as
 authentication failures and refused connections. Logging these events enables you
 to monitor your cluster for suspicious activity and provides evidence in the
 event of an attack.
 
 [IMPORTANT]
 ============================================================================
-Audit logs are **disabled** by default. To enable this functionality, you 
+Audit logs are **disabled** by default. To enable this functionality, you
 must set `xpack.security.audit.enabled` to `true` in `elasticsearch.yml`.
 ============================================================================
 
-{Security} provides two ways to persist audit logs: 
+{Security} provides two ways to persist audit logs:
 
 * The <<audit-log-output, `logfile`>> output, which persists events to
   a dedicated `<clustername>_access.log` file on the host's file system.
@@ -28,14 +28,14 @@ indexing by setting `xpack.security.audit.outputs` in `elasticsearch.yml`:
 xpack.security.audit.outputs: [ index, logfile ]
 ----------------------------
 
-The `index` output type should be used in conjunction with the `logfile` 
+The `index` output type should be used in conjunction with the `logfile`
 output type Because it is possible for the `index` output type to lose
-messages if the target index is unavailable, the `access.log` should be 
+messages if the target index is unavailable, the `access.log` should be
 used as the official record of events.
 
-NOTE: Audit events are batched for indexing so there is a lag before 
-events appear in the index. You can control how frequently batches of 
-events are pushed to the index by setting 
+NOTE: Audit events are batched for indexing so there is a lag before
+events appear in the index. You can control how frequently batches of
+events are pushed to the index by setting
 `xpack.security.audit.index.flush_interval` in `elasticsearch.yml`.
 
 [float]
@@ -55,7 +55,7 @@ The following is a list of the events that can be generated:
                                           authentication token. `<realm>` represents the
                                           realm type.
 | `access_denied`                   | | | Logged when an authenticated user attempts to execute
-                                          an action they do not have the necessary 
+                                          an action they do not have the necessary
                                           <<security-reference, privilege>> to perform.
 | `access_granted`                  | | | Logged when an authenticated user attempts to execute
                                           an action they have the necessary privilege to perform.
@@ -67,8 +67,8 @@ The following is a list of the events that can be generated:
 | `run_as_denied`                   | | | Logged when an authenticated user attempts to <<run-as-privilege, run as>>
                                           another user action they do not have the necessary
                                           <<security-reference, privilege>> to do so.
-| `tampered_request`                | | | Logged when {security} detects that the request has 
-                                          been tampered with. Typically relates to `search/scroll` 
+| `tampered_request`                | | | Logged when {security} detects that the request has
+                                          been tampered with. Typically relates to `search/scroll`
                                           requests when the scroll ID is believed to have been
                                           tampered with.
 | `connection_granted`              | | | Logged when an incoming TCP connection passes the
@@ -221,7 +221,7 @@ The log level determines  which attributes are included in a log entry.
                       (request was received on the transport channel),
                       `local_node` (the local node issued the request).
 | `origin_address`  | The IP address from which the request originated.
-| `principal`       | The principal (username) that failed authentication.
+| `principal`       | The principal (username) that passed authentication.
 | `action`          | The name of the action that was executed.
 | `request`         | The type of request that was executed.
 | `indices`         | A comma-separated list of indices this request
@@ -359,9 +359,9 @@ file located in `CONFIG_DIR/x-pack`. By default, audit information is appended t
 [[audit-index]]
 === Index Audit Output
 
-In addition to logging to a file, you can store audit logs in Elasticsearch 
-rolling indices. These indices can be either on the same cluster, or on a 
-remote cluster. You configure the following settings in  
+In addition to logging to a file, you can store audit logs in Elasticsearch
+rolling indices. These indices can be either on the same cluster, or on a
+remote cluster. You configure the following settings in
 `elasticsearch.yml` to control how audit entries are indexed. To enable
 this output, you need to configure the setting `xpack.security.audit.outputs`
 in the `elasticsearch.yml` file:
@@ -422,7 +422,7 @@ the following `xpack.security.audit.index.client` settings.
 |======
 
 You can pass additional settings to the remote client by specifying them in the
-`xpack.security.audit.index.client` namespace. For example, to allow the remote 
+`xpack.security.audit.index.client` namespace. For example, to allow the remote
 client to discover all of the nodes in the remote cluster you can specify the
 `client.transport.sniff` setting:
 

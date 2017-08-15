@@ -120,8 +120,10 @@ S3Object getZip() {
 File snapshotZip = new File(buildDir, "download/ml-cpp-${version}.zip")
 task downloadMachineLearningSnapshot {
   onlyIf {
-    // skip for offline builds, just rely on the artifact already having been downloaded before here
-    project.gradle.startParameter.isOffline() == false
+    // skip if machine-learning-cpp is being built locally
+    findProject(':machine-learning-cpp') == null &&
+      // skip for offline builds - just rely on the artifact already having been downloaded before here
+      project.gradle.startParameter.isOffline() == false
   }
   doFirst {
     snapshotZip.parentFile.mkdirs()
@@ -138,8 +140,9 @@ task downloadMachineLearningSnapshot {
 }
 
 gradle.taskGraph.whenReady { taskGraph ->
-  // do validation of token/java version up front, don't wait for the task to run
-  if (taskGraph.hasTask(downloadMachineLearningSnapshot)) {
+  // skip if machine-learning-cpp is being built locally and also for offline builds
+  if (findProject(':machine-learning-cpp') == null && project.gradle.startParameter.isOffline() == false) {
+    // do validation of token/java version up front, don't wait for the task to run
     checkJavaVersion()
     setupVaultAuthMethod()
   }

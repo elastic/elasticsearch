@@ -235,6 +235,9 @@ public abstract class TestCluster implements Closeable {
      */
     public abstract Iterable<Client> getClients();
 
-
+    /**
+     * Returns this clusters {@link NamedWriteableRegistry} this is needed to
+     * deserialize binary content from this cluster that might include custom named writeables
+     */
     public abstract NamedWriteableRegistry getNamedWriteableRegistry();
 }

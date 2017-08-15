@@ -2186,14 +2186,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected static RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
-        return createRestClient(client(), httpClientConfigCallback, protocol);
+        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
+        assertFalse(nodesInfoResponse.hasFailures());
+        return createRestClient(nodesInfoResponse.getNodes(), httpClientConfigCallback, protocol);
     }
 
-    protected static RestClient createRestClient(Client client, RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String
-        protocol) {
-        final NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().get();
-        final List<NodeInfo> nodes = nodeInfos.getNodes();
-        assertFalse(nodeInfos.hasFailures());
+    protected static RestClient createRestClient(final List<NodeInfo> nodes,
+                                                 RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
         List<HttpHost> hosts = new ArrayList<>();
         for (NodeInfo node : nodes) {
             if (node.getHttp() != null) {

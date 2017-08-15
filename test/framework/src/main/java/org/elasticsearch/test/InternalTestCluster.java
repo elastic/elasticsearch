@@ -613,6 +613,7 @@ public final class InternalTestCluster extends TestCluster {
         }
         SecureSettings secureSettings = finalSettings.getSecureSettings();
         if (secureSettings instanceof MockSecureSettings) {
+            // we clone this here since in the case of a node restart we might need it again
             secureSettings = ((MockSecureSettings) secureSettings).clone();
         }
         MockNode node = new MockNode(finalSettings.build(), plugins, nodeConfigurationSource.nodeConfigPath(nodeId));

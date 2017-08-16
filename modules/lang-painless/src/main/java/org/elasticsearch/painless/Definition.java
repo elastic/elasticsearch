@@ -525,9 +525,7 @@ public final class Definition {
         simpleTypesMap = new HashMap<>();
         runtimeMap = new HashMap<>();
 
-        for (String dynamic : whitelist.pDynamicTypeNames) {
-            addStruct(dynamic, Object.class);
-        }
+        addStruct(whitelist.pDynamicTypeName, Object.class);
 
         for (WStruct wstruct : whitelist.wStructs) {
             addStruct(wstruct.pTypeName, wstruct.jClass);
@@ -555,9 +553,7 @@ public final class Definition {
             }
         }
 
-        for (String dynamic : whitelist.pDynamicTypeNames) {
-            copyStruct(dynamic, Collections.singletonList("Object"));
-        }
+        copyStruct(whitelist.pDynamicTypeName, Collections.singletonList("Object"));
 
         for (Struct clazz : structsMap.values()) {
             clazz.functionalMethod.set(computeFunctionalInterfaceMethod(clazz));

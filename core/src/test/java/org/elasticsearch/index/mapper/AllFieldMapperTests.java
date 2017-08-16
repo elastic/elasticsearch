@@ -92,7 +92,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(mapper.fieldType().queryStringTermQuery(new Term("_all", "foobar")),
             Matchers.instanceOf(AllTermQuery.class));
         assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
-                        " in 6.0, use [copy_to] instead.");
+                        " in 6.0, use [copy_to] instead.",
+                "The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
     }
 
     public void testAllMappersNoBoost() throws Exception {
@@ -114,7 +115,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(mapper.fieldType().queryStringTermQuery(new Term("_all", "foobar")),
             Matchers.instanceOf(AllTermQuery.class));
         assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
-                        " in 6.0, use [copy_to] instead.");
+                        " in 6.0, use [copy_to] instead.",
+                "The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
     }
 
     public void testAllMappersTermQuery() throws Exception {
@@ -135,7 +137,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(mapper.fieldType().queryStringTermQuery(new Term("_all", "foobar")),
             Matchers.instanceOf(AllTermQuery.class));
         assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
-                        " in 6.0, use [copy_to] instead.");
+                        " in 6.0, use [copy_to] instead.",
+                "The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
     }
 
     // #6187: make sure we see AllTermQuery even when offsets are indexed in the _all field:
@@ -156,7 +159,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(mapper.fieldType().queryStringTermQuery(new Term("_all", "foobar")),
             Matchers.instanceOf(AllTermQuery.class));
         assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
-                        " in 6.0, use [copy_to] instead.");
+                        " in 6.0, use [copy_to] instead.",
+                "The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
     }
 
     // #6187: if _all doesn't index positions then we never use AllTokenStream, even if some fields have boost
@@ -175,7 +179,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
                 Matchers.not(Matchers.instanceOf(AllTokenStream.class)));
         }
         assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
-                        " in 6.0, use [copy_to] instead.");
+                        " in 6.0, use [copy_to] instead.",
+                "The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
     }
 
     // #6187: if no fields were boosted, we shouldn't use AllTokenStream
@@ -193,7 +198,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
                 Matchers.not(Matchers.instanceOf(AllTokenStream.class)));
         }
         assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
-                        " in 6.0, use [copy_to] instead.");
+                        " in 6.0, use [copy_to] instead.",
+                "The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
     }
 
     public void testSimpleAllMappersWithReparse() throws Exception {
@@ -221,7 +227,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
             }
         }
         assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
-                        " in 6.0, use [copy_to] instead.");
+                        " in 6.0, use [copy_to] instead.",
+                "The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
     }
 
     public void testSimpleAllMappersWithStore() throws Exception {
@@ -238,7 +245,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(fields[i].fieldType().omitNorms(), equalTo(false));
         }
         assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
-                        " in 6.0, use [copy_to] instead.");
+                        " in 6.0, use [copy_to] instead.",
+                "The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
     }
 
 
@@ -260,7 +268,8 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(fields[i].fieldType().omitNorms(), equalTo(false));
         }
         assertWarnings("field [include_in_all] is deprecated, as [_all] is deprecated, and will be disallowed" +
-                        " in 6.0, use [copy_to] instead.");
+                        " in 6.0, use [copy_to] instead.",
+                "The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
     }
 
     public void testRandom() throws Exception {

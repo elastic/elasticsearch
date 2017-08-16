@@ -57,4 +57,8 @@ public class LocaleUtils {
         // JAVA7 - use .toLanguageTag instead of .toString()
         return locale.toString();
     }
+
+    public static void main(String[] args) {
+        System.out.println(parse("aar").getDisplayLanguage());
+    }
 }

@@ -21,13 +21,16 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermContext;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -189,14 +192,24 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 throw new IllegalStateException("Cannot run [exists] queries if the [_field_names] field is disabled");
             }
             failIfNotIndexed(); // should never fail since we do not allow this field to be not indexed
-            Term term = new Term(name(), indexedValueForSearch(value));
-            TermContext termContext;
-            try {
-                termContext = TermContext.build(context.getIndexReader().getContext(), term);
-            } catch (IOException e) {
-                throw new IllegalStateException(e);
-            }
-            if (termContext.docFreq() == context.getIndexReader().maxDoc()) {
+            return new FieldExistsQuery(indexedValueForSearch(value));
+        }
+    }
+
+    static class FieldExistsQuery extends Query {
+
+        private final Term term;
+
+        FieldExistsQuery(BytesRef field) {
+            this.term = new Term(NAME, field);
+        }
+
+        @Override
+        public Query rewrite(IndexReader reader) throws IOException {
+            TermContext termContext = TermContext.build(reader.getContext(), term);
+            if (termContext.docFreq() == 0) {
+                return new MatchNoDocsQuery("No term dict entry for: " + term);
+            } else if (termContext.docFreq() == reader.maxDoc()) {
                 // what should be the common case: all documents match
                 // BooleanQuery has special rewrite rules for MatchAllDocsQuery so this
                 // can help simplify the query
@@ -206,6 +219,25 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 // pay the price for looking up the term in the terms dict twice
                 return new ConstantScoreQuery(new TermQuery(term, termContext));
             }
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (sameClassAs(obj) == false) {
+                return false;
+            }
+            FieldExistsQuery that = (FieldExistsQuery) obj;
+            return Objects.equals(term, that.term);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * classHash() + term.hashCode();
+        }
+
+        @Override
+        public String toString(String field) {
+            return new ConstantScoreQuery(new TermQuery(term)).toString(field);
         }
     }
 

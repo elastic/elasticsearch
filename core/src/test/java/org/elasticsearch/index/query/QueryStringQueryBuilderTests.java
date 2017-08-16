@@ -804,7 +804,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         Query query = queryBuilder.toQuery(context);
         Query expected;
         if (getCurrentTypes().length > 0) {
-            expected = new ConstantScoreQuery(new TermQuery(new Term("_field_names", "foo")));
+            expected = context.fieldMapper("_field_names").termQuery("foo", context);
         } else {
             expected = new MatchNoDocsQuery();
         }

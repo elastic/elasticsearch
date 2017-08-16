@@ -65,9 +65,8 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
             MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
             assertThat(matchNoDocsQuery.toString(null), containsString("Missing types in \"exists\" query."));
         } else if (fields.size() == 1) {
-            assertThat(query, instanceOf(ConstantScoreQuery.class));
-            ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
-            assertThat(constantScoreQuery.getQuery(), instanceOf(MatchAllDocsQuery.class));
+            assertEquals(context.getQueryShardContext().fieldMapper("_field_names")
+                    .termQuery(fields.iterator().next(), context.getQueryShardContext()), query);
         } else {
             assertThat(query, instanceOf(ConstantScoreQuery.class));
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;

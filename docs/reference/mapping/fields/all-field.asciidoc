@@ -1,6 +1,8 @@
 [[mapping-all-field]]
 === `_all` field
 
+deprecated::[6.0.0,The _all field is deprecated and will removed in Elasticsearch 6.0]
+
 The `_all` field is a special _catch-all_ field which concatenates the values
 of all of the other fields into one big string, using space as a delimiter, which is then
 <<analysis,analyzed>> and indexed, but not stored.  This means that it can be
@@ -119,6 +121,7 @@ PUT my_index
 --------------------------------
 // CONSOLE
 // TEST[s/\.\.\.//]
+// TEST[warning:The [_all] field is deprecated and will be removed in Elasticsearch 6.0]
 
 <1> The `_all` field in `type_1` is enabled.
 <2> The `_all` field in `type_2` is completely disabled.
@@ -150,6 +153,7 @@ PUT my_index
 }
 --------------------------------
 // CONSOLE
+// TEST[warning:The [_all] field is deprecated and will be removed in Elasticsearch 6.0]
 
 <1> The `_all` field is disabled for the `my_type` type.
 <2> The `query_string` query will default to querying the `content` field in this index.

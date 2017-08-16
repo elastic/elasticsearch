@@ -190,6 +190,7 @@ PUT my_index <1>
 }
 ---------------------------------------
 // CONSOLE
+// TEST[warning:The [_all] field is deprecated and will be removed in Elasticsearch 6.0]
 <1> Create an index called `my_index`.
 <2> Add mapping types called `user` and `blogpost`.
 <3> Disable the `_all` <<mapping-fields,meta field>> for the `user` mapping type.

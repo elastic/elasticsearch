@@ -39,6 +39,7 @@ public class DocumentMapperParserTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertThat(mapper.type(), equalTo("type"));
         assertThat(mapper.allFieldMapper().enabled(), equalTo(false));
+        assertWarnings("The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
     }
 
     public void testFieldNameWithDots() throws Exception {

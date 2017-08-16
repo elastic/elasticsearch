@@ -23,7 +23,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -34,7 +35,7 @@ import java.util.Objects;
  * This class encapsulates all remote cluster information to be rendered on
  * <tt>_remote/info</tt> requests.
  */
-public final class RemoteConnectionInfo implements ToXContent, Writeable {
+public final class RemoteConnectionInfo implements ToXContentFragment, Writeable {
     final List<TransportAddress> seedNodes;
     final List<TransportAddress> httpAddresses;
     final int connectionsPerCluster;

@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -30,9 +31,9 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-public class ThreadPoolStats implements Writeable, ToXContent, Iterable<ThreadPoolStats.Stats> {
+public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<ThreadPoolStats.Stats> {
 
-    public static class Stats implements Writeable, ToXContent, Comparable<Stats> {
+    public static class Stats implements Writeable, ToXContentFragment, Comparable<Stats> {
 
         private final String name;
         private final int threads;

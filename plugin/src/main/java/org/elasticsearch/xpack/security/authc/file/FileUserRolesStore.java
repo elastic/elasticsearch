@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.security.support.NoOpLogger;
 import org.elasticsearch.xpack.security.support.Validation;
 
 import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -193,10 +193,14 @@ public class FileUserRolesStore {
             }
         }
 
-        try (PrintWriter writer = new PrintWriter(openAtomicMoveWriter(path))) {
+        try (Writer writer = openAtomicMoveWriter(path)) {
             for (Map.Entry<String, List<String>> entry : roleToUsers.entrySet()) {
-                writer.printf(Locale.ROOT, "%s:%s%s", entry.getKey(), Strings.collectionToCommaDelimitedString(entry.getValue()),
-                        System.lineSeparator());
+                final String message = String.format(
+                        Locale.ROOT,
+                        "%s:%s%s",
+                        entry.getKey(),
+                        Strings.collectionToCommaDelimitedString(entry.getValue()), System.lineSeparator());
+                writer.write(message);
             }
         } catch (IOException ioe) {
             throw new ElasticsearchException("could not write file [" + path.toAbsolutePath() + "], please check file permissions", ioe);

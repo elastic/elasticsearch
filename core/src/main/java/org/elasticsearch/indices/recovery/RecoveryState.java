@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -45,7 +44,7 @@ import java.util.Map;
 /**
  * Keeps track of state related to shard recovery.
  */
-public class RecoveryState implements ToXContent, Streamable {
+public class RecoveryState implements ToXContentFragment, Streamable {
 
     public enum Stage {
         INIT((byte) 0),
@@ -413,7 +412,7 @@ public class RecoveryState implements ToXContent, Streamable {
 
     }
 
-    public static class VerifyIndex extends Timer implements ToXContent, Streamable {
+    public static class VerifyIndex extends Timer implements ToXContentFragment, Streamable {
         private volatile long checkIndexTime;
 
 
@@ -450,7 +449,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
     }
 
-    public static class Translog extends Timer implements ToXContent, Streamable {
+    public static class Translog extends Timer implements ToXContentFragment, Streamable {
         public static final int UNKNOWN = -1;
 
         private int recovered;

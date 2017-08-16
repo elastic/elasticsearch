@@ -29,6 +29,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
@@ -43,7 +45,7 @@ import java.util.Objects;
 /**
  * Information about a snapshot
  */
-public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent, Writeable {
+public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentObject, Writeable {
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
     public static final String CONTEXT_MODE_SNAPSHOT = "SNAPSHOT";

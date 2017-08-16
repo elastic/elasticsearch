@@ -23,6 +23,7 @@ import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.LastHttpContent;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.nio.channels.ClosedChannelException;
@@ -37,6 +38,7 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
     // we use a priority queue so that responses are ordered by their sequence number
     private final PriorityQueue<HttpPipelinedResponse> holdingQueue;
 
+    private final Logger logger;
     private final int maxEventsHeld;
 
     /*
@@ -50,10 +52,12 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
     /**
      * Construct a new pipelining handler; this handler should be used downstream of HTTP decoding/aggregation.
      *
+     * @param logger for logging unexpected errors
      * @param maxEventsHeld the maximum number of channel events that will be retained prior to aborting the channel connection; this is
      *                      required as events cannot queue up indefinitely
      */
-    public HttpPipeliningHandler(final int maxEventsHeld) {
+    public HttpPipeliningHandler(Logger logger, final int maxEventsHeld) {
+        this.logger = logger;
         this.maxEventsHeld = maxEventsHeld;
         this.holdingQueue = new PriorityQueue<>(1);
     }
@@ -127,8 +131,12 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
             ClosedChannelException closedChannelException = new ClosedChannelException();
             HttpPipelinedResponse pipelinedResponse;
             while ((pipelinedResponse = holdingQueue.poll()) != null) {
-                pipelinedResponse.release();
-                pipelinedResponse.promise().setFailure(closedChannelException);
+                try {
+                    pipelinedResponse.release();
+                    pipelinedResponse.promise().setFailure(closedChannelException);
+                } catch (Exception e) {
+                    logger.error("unexpected error while releasing logger pipelined requests", e);
+                }
             }
         }
         ctx.close(promise);

@@ -422,6 +422,11 @@ configure(distributions.findAll { ['deb', 'rpm'].contains(it.name) }) {
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/elasticsearch.service"
     }
+    configurationFile '/usr/lib/systemd/system/elasticsearch@.service'
+    into('/usr/lib/systemd/system') {
+      fileType CONFIG | NOREPLACE
+      from "${packagingFiles}/systemd/elasticsearch@.service"
+    }
     into('/usr/lib/sysctl.d') {
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/sysctl/elasticsearch.conf"

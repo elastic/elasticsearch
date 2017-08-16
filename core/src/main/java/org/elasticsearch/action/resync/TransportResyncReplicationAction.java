@@ -80,9 +80,9 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
-    protected ReplicationOperation.Replicas newReplicasProxy() {
+    protected ReplicationOperation.Replicas newReplicasProxy(long primaryTerm) {
         // We treat the resync as best-effort for now and don't mark unavailable shard copies as stale.
-        return new ReplicasProxy();
+        return new ReplicasProxy(primaryTerm);
     }
 
     @Override
@@ -93,7 +93,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
         if (node.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             super.sendReplicaRequest(replicaRequest, node, listener);
         } else {
-            listener.onResponse(new ReplicaResponse(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+            listener.onResponse(new ReplicaResponse(SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT));
         }
     }
 
@@ -135,13 +135,13 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
-    public void sync(ResyncReplicationRequest request, Task parentTask, String primaryAllocationId,
+    public void sync(ResyncReplicationRequest request, Task parentTask, String primaryAllocationId, long primaryTerm,
                      ActionListener<ResyncReplicationResponse> listener) {
         // skip reroute phase
         transportService.sendChildRequest(
             clusterService.localNode(),
             transportPrimaryAction,
-            new ConcreteShardRequest<>(request, primaryAllocationId),
+            new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
             parentTask,
             transportOptions,
             new TransportResponseHandler<ResyncReplicationResponse>() {

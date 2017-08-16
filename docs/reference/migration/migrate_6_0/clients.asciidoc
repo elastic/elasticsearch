@@ -1,0 +1,11 @@
+[[breaking_60_clients_changes]]
+=== Clients changes
+
+==== Java High Level REST Client
+
+Starting from version 5.6.0 a new Java client has been released: the Java High Level REST Client.
+This official high-level client (named like this to differentiate it from the existing low-level client) for
+Elasticsearch can be used to execute search, index, delete, update and bulk operations using the same Core
+Java classes as the `TransportClient` uses.
+
+This Java High Level REST Client is designed to replace the `TransportClient` in a near future.

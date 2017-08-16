@@ -23,14 +23,19 @@ import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+/**
+ * Tests VersionUtils. Note: this test should remain unchanged across major versions
+ * it uses the hardcoded versions on purpose.
+ */
 public class VersionUtilsTests extends ESTestCase {
 
     public void testAllVersionsSorted() {
@@ -54,14 +59,14 @@ public class VersionUtilsTests extends ESTestCase {
 
         // sub range
         got = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
-                Version.V_6_0_0_alpha3);
+                Version.V_6_0_0_beta1);
         assertTrue(got.onOrAfter(Version.V_5_0_0));
-        assertTrue(got.onOrBefore(Version.V_6_0_0_alpha3));
+        assertTrue(got.onOrBefore(Version.V_6_0_0_beta1));
 
         // unbounded lower
-        got = VersionUtils.randomVersionBetween(random(), null, Version.V_6_0_0_alpha3);
+        got = VersionUtils.randomVersionBetween(random(), null, Version.V_6_0_0_beta1);
         assertTrue(got.onOrAfter(VersionUtils.getFirstVersion()));
-        assertTrue(got.onOrBefore(Version.V_6_0_0_alpha3));
+        assertTrue(got.onOrBefore(Version.V_6_0_0_beta1));
         got = VersionUtils.randomVersionBetween(random(), null, VersionUtils.allReleasedVersions().get(0));
         assertTrue(got.onOrAfter(VersionUtils.getFirstVersion()));
         assertTrue(got.onOrBefore(VersionUtils.allReleasedVersions().get(0)));
@@ -79,9 +84,9 @@ public class VersionUtilsTests extends ESTestCase {
         assertEquals(got, VersionUtils.getFirstVersion());
         got = VersionUtils.randomVersionBetween(random(), Version.CURRENT, Version.CURRENT);
         assertEquals(got, Version.CURRENT);
-        got = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_alpha3,
-                Version.V_6_0_0_alpha3);
-        assertEquals(got, Version.V_6_0_0_alpha3);
+        got = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_beta1,
+                Version.V_6_0_0_beta1);
+        assertEquals(got, Version.V_6_0_0_beta1);
 
         // implicit range of one
         got = VersionUtils.randomVersionBetween(random(), null, VersionUtils.getFirstVersion());
@@ -109,8 +114,8 @@ public class VersionUtilsTests extends ESTestCase {
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
         assertEquals(Arrays.asList(TestReleaseBranch.V_5_3_0, TestReleaseBranch.V_5_3_1, TestReleaseBranch.V_5_3_2,
-                TestReleaseBranch.V_5_4_0, TestReleaseBranch.V_5_4_1), released);
-        assertEquals(emptyList(), unreleased);
+                TestReleaseBranch.V_5_4_0), released);
+        assertEquals(singletonList(TestReleaseBranch.V_5_4_1), unreleased);
     }
 
     static class TestStableBranch {
@@ -125,10 +130,8 @@ public class VersionUtilsTests extends ESTestCase {
                 TestStableBranch.class);
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
-        assertEquals(
-                Arrays.asList(TestStableBranch.V_5_3_0, TestStableBranch.V_5_3_1, TestStableBranch.V_5_4_0),
-                released);
-        assertEquals(singletonList(TestStableBranch.V_5_3_2), unreleased);
+        assertEquals(Arrays.asList(TestStableBranch.V_5_3_0, TestStableBranch.V_5_3_1), released);
+        assertEquals(Arrays.asList(TestStableBranch.V_5_3_2, TestStableBranch.V_5_4_0), unreleased);
     }
 
     static class TestStableBranchBehindStableBranch {
@@ -144,9 +147,9 @@ public class VersionUtilsTests extends ESTestCase {
                 TestStableBranchBehindStableBranch.class);
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
-        assertEquals(Arrays.asList(TestStableBranchBehindStableBranch.V_5_3_0, TestStableBranchBehindStableBranch.V_5_3_1,
-                TestStableBranchBehindStableBranch.V_5_5_0), released);
-        assertEquals(Arrays.asList(TestStableBranchBehindStableBranch.V_5_3_2, Version.V_5_4_0), unreleased);
+        assertEquals(Arrays.asList(TestStableBranchBehindStableBranch.V_5_3_0, TestStableBranchBehindStableBranch.V_5_3_1), released);
+        assertEquals(Arrays.asList(TestStableBranchBehindStableBranch.V_5_3_2, TestStableBranchBehindStableBranch.V_5_4_0,
+                TestStableBranchBehindStableBranch.V_5_5_0), unreleased);
     }
 
     static class TestUnstableBranch {
@@ -156,8 +159,8 @@ public class VersionUtilsTests extends ESTestCase {
         public static final Version V_5_4_0 = Version.fromString("5.4.0");
         public static final Version V_6_0_0_alpha1 = Version.fromString("6.0.0-alpha1");
         public static final Version V_6_0_0_alpha2 = Version.fromString("6.0.0-alpha2");
-        public static final Version V_6_0_0_alpha3 = Version.fromString("6.0.0-alpha3");
-        public static final Version CURRENT = V_6_0_0_alpha3;
+        public static final Version V_6_0_0_beta1 = Version.fromString("6.0.0-beta1");
+        public static final Version CURRENT = V_6_0_0_beta1;
     }
 
     public void testResolveReleasedVersionsForUnstableBranch() {
@@ -166,8 +169,8 @@ public class VersionUtilsTests extends ESTestCase {
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
         assertEquals(Arrays.asList(TestUnstableBranch.V_5_3_0, TestUnstableBranch.V_5_3_1,
-                TestUnstableBranch.V_6_0_0_alpha1, TestUnstableBranch.V_6_0_0_alpha2, TestUnstableBranch.V_6_0_0_alpha3), released);
-        assertEquals(Arrays.asList(TestUnstableBranch.V_5_3_2, TestUnstableBranch.V_5_4_0), unreleased);
+                TestUnstableBranch.V_6_0_0_alpha1, TestUnstableBranch.V_6_0_0_alpha2), released);
+        assertEquals(Arrays.asList(TestUnstableBranch.V_5_3_2, TestUnstableBranch.V_5_4_0, TestUnstableBranch.V_6_0_0_beta1), unreleased);
     }
 
     /**
@@ -177,34 +180,41 @@ public class VersionUtilsTests extends ESTestCase {
     public void testGradleVersionsMatchVersionUtils() {
         // First check the index compatible versions
         VersionsFromProperty indexCompatible = new VersionsFromProperty("tests.gradle_index_compat_versions");
-
         List<Version> released = VersionUtils.allReleasedVersions().stream()
-                /* We skip alphas, betas, and the like in gradle because they don't have
-                 * backwards compatibility guarantees even though they are technically
-                 * released. */
+                // Java lists some non-index compatible versions but gradle does not include them.
+                .filter(v -> v.major == Version.CURRENT.major || v.major == Version.CURRENT.major - 1)
+                /* Gradle will never include *released* alphas or betas because it will prefer
+                 * the unreleased branch head. Gradle is willing to use branch heads that are
+                 * beta or rc so that we have *something* to test against even though we
+                 * do not offer backwards compatibility for alphas, betas, or rcs. */
                 .filter(Version::isRelease)
                 .collect(toList());
+
         List<String> releasedIndexCompatible = released.stream()
                 .map(Object::toString)
                 .collect(toList());
         assertEquals(releasedIndexCompatible, indexCompatible.released);
 
-        List<String> unreleasedIndexCompatible = VersionUtils.allUnreleasedVersions().stream()
+        List<String> unreleasedIndexCompatible = new ArrayList<>(VersionUtils.allUnreleasedVersions().stream()
+                /* Gradle skips the current version because being backwards compatible
+                 * with yourself is implied. Java lists the version because it is useful. */
+                .filter(v -> v != Version.CURRENT)
+                /* Note that gradle skips alphas because they don't have any backwards
+                 * compatibility guarantees but keeps the last beta and rc in a branch
+                 * on when there are only betas an RCs in that branch so that we have
+                 * *something* to test that branch against. There is no need to recreate
+                 * that logic here because allUnreleasedVersions already only contains
+                 * the heads of branches so it should be good enough to just keep all
+                 * the non-alphas.*/
+                .filter(v -> false == v.isAlpha())
                 .map(Object::toString)
-                .collect(toList());
+                .collect(toCollection(LinkedHashSet::new)));
         assertEquals(unreleasedIndexCompatible, indexCompatible.unreleased);
 
         // Now the wire compatible versions
         VersionsFromProperty wireCompatible = new VersionsFromProperty("tests.gradle_wire_compat_versions");
 
-        // Big horrible hack:
-        // This *should* be:
-        //         Version minimumCompatibleVersion = Version.CURRENT.minimumCompatibilityVersion();
-        // But instead it is:
-        Version minimumCompatibleVersion = Version.V_5_6_0;
-        // Because things blow up all over the place if the minimum compatible version isn't released.
-        // We'll fix this very, very soon. But for now, this hack.
-        // end big horrible hack
+        Version minimumCompatibleVersion = Version.CURRENT.minimumCompatibilityVersion();
         List<String> releasedWireCompatible = released.stream()
                 .filter(v -> v.onOrAfter(minimumCompatibleVersion))
                 .map(Object::toString)
@@ -212,6 +222,9 @@ public class VersionUtilsTests extends ESTestCase {
         assertEquals(releasedWireCompatible, wireCompatible.released);
 
         List<String> unreleasedWireCompatible = VersionUtils.allUnreleasedVersions().stream()
+                /* Gradle skips the current version because being backwards compatible
+                 * with yourself is implied. Java lists the version because it is useful. */
+                .filter(v -> v != Version.CURRENT)
                 .filter(v -> v.onOrAfter(minimumCompatibleVersion))
                 .map(Object::toString)
                 .collect(toList());

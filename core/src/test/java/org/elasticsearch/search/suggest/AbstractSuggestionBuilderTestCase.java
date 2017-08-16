@@ -19,6 +19,9 @@
 
 package org.elasticsearch.search.suggest;
 
+import org.apache.lucene.analysis.core.SimpleAnalyzer;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -28,15 +31,32 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.mock.orig.Mockito;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBuilder<SB>> extends ESTestCase {
 
@@ -48,7 +68,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      * setup for the whole base test class
      */
     @BeforeClass
-    public static void init() throws IOException {
+    public static void init() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
@@ -98,7 +118,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     /**
      * Test equality and hashCode properties
      */
-    public void testEqualsAndHashcode() throws IOException {
+    public void testEqualsAndHashcode() {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             checkEqualsAndHashCode(randomTestBuilder(), this::copy, this::mutate);
         }
@@ -129,6 +149,69 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             assertEquals(suggestionBuilder, secondSuggestionBuilder);
             assertEquals(suggestionBuilder.hashCode(), secondSuggestionBuilder.hashCode());
         }
+    }
+
+    public void testBuild() throws IOException {
+        for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
+            SB suggestionBuilder = randomTestBuilder();
+            Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index(randomAlphaOfLengthBetween(1, 10), "_na_"),
+                    indexSettings);
+            MapperService mapperService = mock(MapperService.class);
+            ScriptService scriptService = mock(ScriptService.class);
+            MappedFieldType fieldType = mockFieldType();
+            boolean fieldTypeSearchAnalyzerSet = randomBoolean();
+            if (fieldTypeSearchAnalyzerSet) {
+                NamedAnalyzer searchAnalyzer = new NamedAnalyzer("fieldSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer());
+                if (Mockito.mockingDetails(fieldType).isMock()) {
+                    when(fieldType.searchAnalyzer()).thenReturn(searchAnalyzer);
+                } else {
+                    fieldType.setSearchAnalyzer(searchAnalyzer);
+                }
+            } else {
+                when(mapperService.searchAnalyzer())
+                        .thenReturn(new NamedAnalyzer("mapperServiceSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer()));
+            }
+            when(mapperService.fullName(any(String.class))).thenReturn(fieldType);
+            when(mapperService.getNamedAnalyzer(any(String.class))).then(
+                    invocation -> new NamedAnalyzer((String) invocation.getArguments()[0], AnalyzerScope.INDEX, new SimpleAnalyzer()));
+            when(scriptService.compile(any(Script.class), any())).then(invocation -> new TestTemplateService.MockTemplateScript.Factory(
+                    ((Script) invocation.getArguments()[0]).getIdOrCode()));
+            QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, mapperService, null, scriptService,
+                    xContentRegistry(), namedWriteableRegistry, null, null, System::currentTimeMillis, null);
+
+            SuggestionContext suggestionContext = suggestionBuilder.build(mockShardContext);
+            assertEquals(toBytesRef(suggestionBuilder.text()), suggestionContext.getText());
+            if (suggestionBuilder.text() != null && suggestionBuilder.prefix() == null) {
+                assertEquals(toBytesRef(suggestionBuilder.text()), suggestionContext.getPrefix());
+            } else {
+                assertEquals(toBytesRef(suggestionBuilder.prefix()), suggestionContext.getPrefix());
+            }
+            assertEquals(toBytesRef(suggestionBuilder.regex()), suggestionContext.getRegex());
+            assertEquals(suggestionBuilder.field(), suggestionContext.getField());
+            int expectedSize = suggestionBuilder.size() != null ? suggestionBuilder.size : 5;
+            assertEquals(expectedSize, suggestionContext.getSize());
+            Integer expectedShardSize = suggestionBuilder.shardSize != null ? suggestionBuilder.shardSize : Math.max(expectedSize, 5);
+            assertEquals(expectedShardSize, suggestionContext.getShardSize());
+            assertSame(mockShardContext, suggestionContext.getShardContext());
+            if (suggestionBuilder.analyzer() != null) {
+                assertEquals(suggestionBuilder.analyzer(), ((NamedAnalyzer) suggestionContext.getAnalyzer()).name());
+            } else if (fieldTypeSearchAnalyzerSet) {
+                assertEquals("fieldSearchAnalyzer", ((NamedAnalyzer) suggestionContext.getAnalyzer()).name());
+            } else {
+                assertEquals("mapperServiceSearchAnalyzer", ((NamedAnalyzer) suggestionContext.getAnalyzer()).name());
+            }
+            assertSuggestionContext(suggestionBuilder, suggestionContext);
+        }
+    }
+
+    /**
+     * put implementation dependent assertions in the sub-type test
+     */
+    protected abstract void assertSuggestionContext(SB builder, SuggestionContext context) throws IOException;
+
+    protected MappedFieldType mockFieldType() {
+        return mock(MappedFieldType.class);
     }
 
     /**

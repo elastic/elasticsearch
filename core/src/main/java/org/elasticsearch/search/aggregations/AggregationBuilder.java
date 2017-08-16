@@ -19,11 +19,12 @@
 package org.elasticsearch.search.aggregations;
 
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -34,8 +35,7 @@ import java.util.Map;
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
 public abstract class AggregationBuilder
-    extends ToXContentToBytes
-    implements NamedWriteable, ToXContent, BaseAggregationBuilder {
+        implements NamedWriteable, ToXContentFragment, BaseAggregationBuilder {
 
     protected final String name;
     protected AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();
@@ -84,9 +84,10 @@ public abstract class AggregationBuilder
     }
 
     /**
-     * Internal: Registers sub-factories with this factory. The sub-factory will be
-     * responsible for the creation of sub-aggregators under the aggregator
-     * created by this factory. This is only for use by {@link AggregatorFactories#parseAggregators(QueryParseContext)}.
+     * Internal: Registers sub-factories with this factory. The sub-factory will
+     * be responsible for the creation of sub-aggregators under the aggregator
+     * created by this factory. This is only for use by
+     * {@link AggregatorFactories#parseAggregators(XContentParser)}.
      *
      * @param subFactories
      *            The sub-factories
@@ -95,8 +96,51 @@ public abstract class AggregationBuilder
     @Override
     public abstract AggregationBuilder subAggregations(AggregatorFactories.Builder subFactories);
 
+    public final AggregationBuilder rewrite(QueryRewriteContext context) throws IOException {
+        AggregationBuilder rewritten = doRewrite(context);
+        if (rewritten == this) {
+            return rewritten;
+        }
+        if (getMetaData() != null && rewritten.getMetaData() == null) {
+            rewritten.setMetaData(getMetaData());
+        }
+        AggregatorFactories.Builder rewrittenSubAggs = factoriesBuilder.rewrite(context);
+        rewritten.subAggregations(rewrittenSubAggs);
+        return rewritten;
+    }
+
+    /**
+     * Rewrites this aggregation builder into its primitive form. By default
+     * this method return the builder itself. If the builder did not change the
+     * identity reference must be returned otherwise the builder will be
+     * rewritten infinitely.
+     */
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        return this;
+    }
+
+    /**
+     * Rewrites the given aggregation into its primitive form. Aggregations that for instance fetch resources from remote hosts or
+     * can simplify / optimize itself should do their heavy lifting during {@link #rewrite(QueryRewriteContext)}. This method
+     * rewrites the aggregation until it doesn't change anymore.
+     * @throws IOException if an {@link IOException} occurs
+     */
+    static AggregationBuilder rewriteAggregation(AggregationBuilder original, QueryRewriteContext context) throws IOException {
+        AggregationBuilder builder = original;
+        for (AggregationBuilder rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder;
+             rewrittenBuilder = builder.rewrite(context)) {
+            builder = rewrittenBuilder;
+        }
+        return builder;
+    }
+
     /** Common xcontent fields shared among aggregator builders */
     public static final class CommonFields extends ParseField.CommonFields {
         public static final ParseField VALUE_TYPE = new ParseField("value_type");
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

@@ -19,9 +19,7 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -280,12 +278,11 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh().get();
 
         logger.info("percolating empty doc with source disabled");
-        Throwable e = expectThrows(SearchPhaseExecutionException.class, () -> {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("query", "test", "type", "1", null, null, null))
                 .get();
-        }).getRootCause();
-        assertThat(e, instanceOf(IllegalArgumentException.class));
+        });
         assertThat(e.getMessage(), containsString("source disabled"));
     }
 
@@ -650,9 +647,37 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         item = response.getResponses()[5];
         assertThat(item.getResponse(), nullValue());
         assertThat(item.getFailureMessage(), notNullValue());
-        assertThat(item.getFailureMessage(), equalTo("all shards failed"));
-        assertThat(ExceptionsHelper.unwrapCause(item.getFailure().getCause()).getMessage(),
-            containsString("[test/type/6] couldn't be found"));
+        assertThat(item.getFailureMessage(), containsString("[test/type/6] couldn't be found"));
+    }
+
+    public void testBoostFields() throws Exception {
+        XContentBuilder mappingSource = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("status").field("type", "keyword").endObject()
+            .startObject("price").field("type", "long").endObject()
+            .startObject("query").field("type", "percolator")
+                .startObject("boost_fields").field("status", 0.0F).endObject()
+            .endObject()
+            .endObject().endObject().endObject();
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type", mappingSource));
+
+        client().prepareIndex("test", "type", "q1")
+            .setSource(jsonBuilder().startObject().field("query", boolQuery()
+                .must(matchQuery("status", "sold"))
+                .must(matchQuery("price", 100))
+            ).endObject())
+            .get();
+        refresh();
+
+        SearchResponse response = client().prepareSearch()
+            .setQuery(new PercolateQueryBuilder("query",
+                XContentFactory.jsonBuilder().startObject()
+                    .field("status", "sold")
+                    .field("price", 100)
+                    .endObject().bytes(), XContentType.JSON))
+            .get();
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getAt(0).getId(), equalTo("q1"));
     }
 
 }

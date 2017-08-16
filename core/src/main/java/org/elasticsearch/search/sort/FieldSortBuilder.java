@@ -32,7 +32,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
@@ -313,7 +313,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     /**
-     * Creates a new {@link FieldSortBuilder} from the query held by the {@link QueryParseContext} in
+     * Creates a new {@link FieldSortBuilder} from the query held by the {@link XContentParser} in
      * {@link org.elasticsearch.common.xcontent.XContent} format.
      *
      * @param parser the input parser. The state on the parser contained in this context will be changed as a side effect of this
@@ -325,7 +325,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return PARSER.parse(parser, new FieldSortBuilder(fieldName), null);
     }
 
-    private static ObjectParser<FieldSortBuilder, QueryParseContext> PARSER = new ObjectParser<>(NAME);
+    private static ObjectParser<FieldSortBuilder, Void> PARSER = new ObjectParser<>(NAME);
 
     static {
         PARSER.declareField(FieldSortBuilder::missing, p -> p.objectText(),  MISSING, ValueType.VALUE);
@@ -334,5 +334,17 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)) , ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORT_MODE);
         PARSER.declareObject(FieldSortBuilder::setNestedFilter, (p, c) -> SortBuilder.parseNestedFilter(p), NESTED_FILTER_FIELD);
+    }
+
+    @Override
+    public SortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        if (nestedFilter == null) {
+            return this;
+        }
+        QueryBuilder rewrite = nestedFilter.rewrite(ctx);
+        if (nestedFilter == rewrite) {
+            return this;
+        }
+        return new FieldSortBuilder(this).setNestedFilter(rewrite);
     }
 }

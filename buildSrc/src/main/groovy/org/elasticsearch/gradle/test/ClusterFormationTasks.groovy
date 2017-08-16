@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.test
 import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
@@ -312,6 +313,11 @@ class ClusterFormationTasks {
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
         esConfig['cluster.routing.allocation.disk.watermark.low'] = '1b'
         esConfig['cluster.routing.allocation.disk.watermark.high'] = '1b'
+        if (Version.fromString(node.nodeVersion).major >= 6) {
+            esConfig['cluster.routing.allocation.disk.watermark.flood_stage'] = '1b'
+        }
+        // increase script compilation limit since tests can rapid-fire script compilations
+        esConfig['script.max_compilations_per_minute'] = 2048
         esConfig.putAll(node.config.settings)
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
@@ -320,7 +326,7 @@ class ClusterFormationTasks {
             if (unicastTransportUri != null) {
                 esConfig['discovery.zen.ping.unicast.hosts'] = "\"${unicastTransportUri}\""
             }
-            File configFile = new File(node.confDir, 'elasticsearch.yml')
+            File configFile = new File(node.pathConf, 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")
             configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')
         }

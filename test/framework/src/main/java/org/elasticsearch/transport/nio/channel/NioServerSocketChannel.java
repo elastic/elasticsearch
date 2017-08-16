@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+import org.elasticsearch.transport.nio.AcceptingSelector;
+
 import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
 
@@ -26,8 +28,9 @@ public class NioServerSocketChannel extends AbstractNioChannel<ServerSocketChann
 
     private final ChannelFactory channelFactory;
 
-    public NioServerSocketChannel(String profile, ServerSocketChannel socketChannel, ChannelFactory channelFactory) throws IOException {
-        super(profile, socketChannel);
+    public NioServerSocketChannel(String profile, ServerSocketChannel socketChannel, ChannelFactory channelFactory,
+                                  AcceptingSelector selector) throws IOException {
+        super(profile, socketChannel, selector);
         this.channelFactory = channelFactory;
     }
 

@@ -129,6 +129,14 @@ final class Natives {
         JNANatives.trySetMaxSizeVirtualMemory();
     }
 
+    static void trySetMaxFileSize() {
+        if (!JNA_AVAILABLE) {
+            logger.warn("cannot getrlimit RLIMIT_FSIZE because JNA is not available");
+            return;
+        }
+        JNANatives.trySetMaxFileSize();
+    }
+
     static boolean isSystemCallFilterInstalled() {
         if (!JNA_AVAILABLE) {
             return false;

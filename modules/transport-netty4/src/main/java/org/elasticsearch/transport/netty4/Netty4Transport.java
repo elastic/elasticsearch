@@ -47,7 +47,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.network.NetworkService.TcpSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -63,8 +62,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportServiceAdapter;
-import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -99,11 +96,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
             (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
             (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"), Property.NodeScope);
 
-    public static final Setting<ByteSizeValue> NETTY_MAX_CUMULATION_BUFFER_CAPACITY =
-        Setting.byteSizeSetting("transport.netty.max_cumulation_buffer_capacity", new ByteSizeValue(-1), Property.NodeScope);
-    public static final Setting<Integer> NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS =
-        Setting.intSetting("transport.netty.max_composite_buffer_components", -1, -1, Property.NodeScope);
-
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(
             "transport.netty.receive_predictor_size", new ByteSizeValue(64, ByteSizeUnit.KB), Property.NodeScope);
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MIN =
@@ -114,8 +106,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
         intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
 
 
-    protected final ByteSizeValue maxCumulationBufferCapacity;
-    protected final int maxCompositeBufferComponents;
     protected final RecvByteBufAllocator recvByteBufAllocator;
     protected final int workerCount;
     protected final ByteSizeValue receivePredictorMin;
@@ -130,8 +120,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
         super("netty", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
         Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
         this.workerCount = WORKER_COUNT.get(settings);
-        this.maxCumulationBufferCapacity = NETTY_MAX_CUMULATION_BUFFER_CAPACITY.get(settings);
-        this.maxCompositeBufferComponents = NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
 
         // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
         this.receivePredictorMin = NETTY_RECEIVE_PREDICTOR_MIN.get(settings);
@@ -144,10 +132,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
         }
     }
 
-    TransportServiceAdapter transportServiceAdapter() {
-        return transportServiceAdapter;
-    }
-
     @Override
     protected void doStart() {
         boolean success = false;
@@ -156,14 +140,9 @@ public class Netty4Transport extends TcpTransport<Channel> {
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 final Netty4OpenChannelsHandler openChannels = new Netty4OpenChannelsHandler(logger);
                 this.serverOpenChannels = openChannels;
-                // loop through all profiles and start them up, special handling for default one
-                for (Map.Entry<String, Settings> entry : buildProfileSettings().entrySet()) {
-                    // merge fallback settings with default settings with profile settings so we have complete settings with default values
-                    final Settings settings = Settings.builder()
-                        .put(createFallbackSettings())
-                        .put(entry.getValue()).build();
-                    createServerBootstrap(entry.getKey(), settings);
-                    bindServer(entry.getKey(), settings);
+                for (ProfileSettings profileSettings : profileSettings) {
+                    createServerBootstrap(profileSettings);
+                    bindServer(profileSettings);
                 }
             }
             super.doStart();
@@ -206,46 +185,12 @@ public class Netty4Transport extends TcpTransport<Channel> {
         return bootstrap;
     }
 
-    private Settings createFallbackSettings() {
-        Settings.Builder fallbackSettingsBuilder = Settings.builder();
-
-        List<String> fallbackBindHost = TransportSettings.BIND_HOST.get(settings);
-        if (fallbackBindHost.isEmpty() == false) {
-            fallbackSettingsBuilder.putArray("bind_host", fallbackBindHost);
-        }
-
-        List<String> fallbackPublishHost = TransportSettings.PUBLISH_HOST.get(settings);
-        if (fallbackPublishHost.isEmpty() == false) {
-            fallbackSettingsBuilder.putArray("publish_host", fallbackPublishHost);
-        }
-
-        boolean fallbackTcpNoDelay =  TcpSettings.TCP_NO_DELAY.get(settings);
-        fallbackSettingsBuilder.put("tcp_no_delay", fallbackTcpNoDelay);
-
-        boolean fallbackTcpKeepAlive = TcpSettings.TCP_KEEP_ALIVE.get(settings);
-        fallbackSettingsBuilder.put("tcp_keep_alive", fallbackTcpKeepAlive);
-
-        boolean fallbackReuseAddress =  TcpSettings.TCP_REUSE_ADDRESS.get(settings);
-        fallbackSettingsBuilder.put("reuse_address", fallbackReuseAddress);
-
-        ByteSizeValue fallbackTcpSendBufferSize = TCP_SEND_BUFFER_SIZE.get(settings);
-        if (fallbackTcpSendBufferSize.getBytes() >= 0) {
-            fallbackSettingsBuilder.put("tcp_send_buffer_size", fallbackTcpSendBufferSize);
-        }
-
-        ByteSizeValue fallbackTcpBufferSize = TCP_RECEIVE_BUFFER_SIZE.get(settings);
-        if (fallbackTcpBufferSize.getBytes() >= 0) {
-            fallbackSettingsBuilder.put("tcp_receive_buffer_size", fallbackTcpBufferSize);
-        }
-
-        return fallbackSettingsBuilder.build();
-    }
-
-    private void createServerBootstrap(String name, Settings settings) {
+    private void createServerBootstrap(ProfileSettings profileSettings) {
+        String name = profileSettings.profileName;
         if (logger.isDebugEnabled()) {
             logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], "
                     + "connect_timeout[{}], connections_per_node[{}/{}/{}/{}/{}], receive_predictor[{}->{}]",
-                name, workerCount, settings.get("port"), settings.get("bind_host"), settings.get("publish_host"), compress,
+                name, workerCount, profileSettings.portOrRange, profileSettings.bindHosts, profileSettings.publishHosts, compress,
                 defaultConnectionProfile.getConnectTimeout(),
                 defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY),
                 defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK),
@@ -255,6 +200,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
                 receivePredictorMin, receivePredictorMax);
         }
 
+
         final ThreadFactory workerFactory = daemonThreadFactory(this.settings, TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX, name);
 
         final ServerBootstrap serverBootstrap = new ServerBootstrap();
@@ -262,34 +208,31 @@ public class Netty4Transport extends TcpTransport<Channel> {
         serverBootstrap.group(new NioEventLoopGroup(workerCount, workerFactory));
         serverBootstrap.channel(NioServerSocketChannel.class);
 
-        serverBootstrap.childHandler(getServerChannelInitializer(name, settings));
+        serverBootstrap.childHandler(getServerChannelInitializer(name));
 
-        serverBootstrap.childOption(ChannelOption.TCP_NODELAY, TCP_NO_DELAY.get(settings));
-        serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, TCP_KEEP_ALIVE.get(settings));
+        serverBootstrap.childOption(ChannelOption.TCP_NODELAY, profileSettings.tcpNoDelay);
+        serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, profileSettings.tcpKeepAlive);
 
-        final ByteSizeValue tcpSendBufferSize = TCP_SEND_BUFFER_SIZE.getDefault(settings);
-        if (tcpSendBufferSize != null && tcpSendBufferSize.getBytes() > 0) {
-            serverBootstrap.childOption(ChannelOption.SO_SNDBUF, Math.toIntExact(tcpSendBufferSize.getBytes()));
+        if (profileSettings.sendBufferSize.getBytes() != -1) {
+            serverBootstrap.childOption(ChannelOption.SO_SNDBUF, Math.toIntExact(profileSettings.sendBufferSize.getBytes()));
         }
 
-        final ByteSizeValue tcpReceiveBufferSize = TCP_RECEIVE_BUFFER_SIZE.getDefault(settings);
-        if (tcpReceiveBufferSize != null && tcpReceiveBufferSize.getBytes() > 0) {
-            serverBootstrap.childOption(ChannelOption.SO_RCVBUF, Math.toIntExact(tcpReceiveBufferSize.bytesAsInt()));
+        if (profileSettings.receiveBufferSize.getBytes() != -1) {
+            serverBootstrap.childOption(ChannelOption.SO_RCVBUF, Math.toIntExact(profileSettings.receiveBufferSize.bytesAsInt()));
         }
 
         serverBootstrap.option(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
         serverBootstrap.childOption(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
 
-        final boolean reuseAddress = TCP_REUSE_ADDRESS.get(settings);
-        serverBootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
-        serverBootstrap.childOption(ChannelOption.SO_REUSEADDR, reuseAddress);
+        serverBootstrap.option(ChannelOption.SO_REUSEADDR, profileSettings.reuseAddress);
+        serverBootstrap.childOption(ChannelOption.SO_REUSEADDR, profileSettings.reuseAddress);
         serverBootstrap.validate();
 
         serverBootstraps.put(name, serverBootstrap);
     }
 
-    protected ChannelHandler getServerChannelInitializer(String name, Settings settings) {
-        return new ServerChannelInitializer(name, settings);
+    protected ChannelHandler getServerChannelInitializer(String name) {
+        return new ServerChannelInitializer(name);
     }
 
     protected ChannelHandler getClientChannelInitializer() {
@@ -388,8 +331,21 @@ public class Netty4Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected void closeChannels(final List<Channel> channels) throws IOException {
-        Netty4Utils.closeChannels(channels);
+    protected void closeChannels(final List<Channel> channels, boolean blocking) throws IOException {
+        if (blocking) {
+            Netty4Utils.closeChannels(channels);
+        } else {
+            for (Channel channel : channels) {
+                if (channel != null && channel.isOpen()) {
+                    ChannelFuture closeFuture = channel.close();
+                    closeFuture.addListener((f) -> {
+                        if (f.isSuccess() == false) {
+                            logger.warn("failed to close channel", f.cause());
+                        }
+                    });
+                }
+            }
+        }
     }
 
     @Override
@@ -457,11 +413,9 @@ public class Netty4Transport extends TcpTransport<Channel> {
     protected class ServerChannelInitializer extends ChannelInitializer<Channel> {
 
         protected final String name;
-        protected final Settings settings;
 
-        protected ServerChannelInitializer(String name, Settings settings) {
+        protected ServerChannelInitializer(String name) {
             this.name = name;
-            this.settings = settings;
         }
 
         @Override

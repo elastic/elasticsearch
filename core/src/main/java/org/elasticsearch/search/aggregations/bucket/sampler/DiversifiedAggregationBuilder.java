@@ -23,7 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -43,7 +43,7 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
 
     public static final int MAX_DOCS_PER_VALUE_DEFAULT = 1;
 
-    private static final ObjectParser<DiversifiedAggregationBuilder, QueryParseContext> PARSER;
+    private static final ObjectParser<DiversifiedAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(DiversifiedAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareAnyFields(PARSER, true, false);
@@ -52,8 +52,8 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
         PARSER.declareString(DiversifiedAggregationBuilder::executionHint, SamplerAggregator.EXECUTION_HINT_FIELD);
     }
 
-    public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        return PARSER.parse(context.parser(), new DiversifiedAggregationBuilder(aggregationName), context);
+    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new DiversifiedAggregationBuilder(aggregationName), null);
     }
 
     private int shardSize = SamplerAggregationBuilder.DEFAULT_SHARD_SAMPLE_SIZE;

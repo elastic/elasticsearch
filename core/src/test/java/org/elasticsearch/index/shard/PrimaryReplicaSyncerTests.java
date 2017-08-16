@@ -18,8 +18,10 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +34,7 @@ import org.elasticsearch.tasks.TaskManager;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.containsString;
@@ -44,7 +47,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         TaskManager taskManager = new TaskManager(Settings.EMPTY);
         AtomicBoolean syncActionCalled = new AtomicBoolean();
         PrimaryReplicaSyncer.SyncAction syncAction =
-            (request, parentTask, allocationId, listener) -> {
+            (request, parentTask, allocationId, primaryTerm, listener) -> {
                 logger.info("Sending off {} operations", request.getOperations().size());
                 syncActionCalled.set(true);
                 assertThat(parentTask, instanceOf(PrimaryReplicaSyncer.ResyncTask.class));
@@ -63,7 +66,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
 
         String allocationId = shard.routingEntry().allocationId().getId();
         shard.updateShardState(shard.routingEntry(), shard.getPrimaryTerm(), null, 1000L, Collections.singleton(allocationId),
-            Collections.emptySet());
+            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build(), Collections.emptySet());
         shard.updateLocalCheckpointForShard(allocationId, globalCheckPoint);
         assertEquals(globalCheckPoint, shard.getGlobalCheckpoint());
 
@@ -87,6 +90,49 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         }
 
         closeShards(shard);
+    }
+
+    public void testSyncerOnClosingShard() throws Exception {
+        IndexShard shard = newStartedShard(true);
+        AtomicBoolean syncActionCalled = new AtomicBoolean();
+        CountDownLatch syncCalledLatch = new CountDownLatch(1);
+        PrimaryReplicaSyncer.SyncAction syncAction =
+            (request, parentTask, allocationId, primaryTerm, listener) -> {
+                logger.info("Sending off {} operations", request.getOperations().size());
+                syncActionCalled.set(true);
+                syncCalledLatch.countDown();
+                threadPool.generic().execute(() -> listener.onResponse(new ResyncReplicationResponse()));
+            };
+        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(Settings.EMPTY, new TaskManager(Settings.EMPTY), syncAction);
+        syncer.setChunkSize(new ByteSizeValue(1)); // every document is sent off separately
+
+        int numDocs = 10;
+        for (int i = 0; i < numDocs; i++) {
+            indexDoc(shard, "test", Integer.toString(i));
+        }
+
+        String allocationId = shard.routingEntry().allocationId().getId();
+        shard.updateShardState(shard.routingEntry(), shard.getPrimaryTerm(), null, 1000L, Collections.singleton(allocationId),
+            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build(), Collections.emptySet());
+
+        PlainActionFuture<PrimaryReplicaSyncer.ResyncTask> fut = new PlainActionFuture<>();
+        threadPool.generic().execute(() -> {
+            try {
+                syncer.resync(shard, fut);
+            } catch (AlreadyClosedException ace) {
+                fut.onFailure(ace);
+            }
+        });
+        if (randomBoolean()) {
+            syncCalledLatch.await();
+        }
+        closeShards(shard);
+        try {
+            fut.actionGet();
+            assertTrue("Sync action was not called", syncActionCalled.get());
+        } catch (AlreadyClosedException | IndexShardClosedException ignored) {
+            // ignore
+        }
     }
 
     public void testStatusSerialization() throws IOException {

@@ -32,8 +32,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
-
 /**
  * Rest handler for reindex actions that accepts a search request like Update-By-Query or Delete-By-Query
  */
@@ -52,7 +50,6 @@ public abstract class AbstractBulkByQueryRestHandler<
 
         SearchRequest searchRequest = internal.getSearchRequest();
         int scrollSize = searchRequest.source().size();
-        searchRequest.source().size(SIZE_ALL_MATCHES);
 
         try (XContentParser parser = extractRequestSpecificFields(restRequest, bodyConsumers)) {
             RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser);

@@ -178,14 +178,14 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             SearchHits internalHits = inputs.get(input).getHits();
             totalHits += internalHits.getTotalHits();
             maxScore = max(maxScore, internalHits.getMaxScore());
-            for (int i = 0; i < internalHits.internalHits().length; i++) {
+            for (int i = 0; i < internalHits.getHits().length; i++) {
                 ScoreDoc doc = inputs.get(input).getTopDocs().scoreDocs[i];
                 if (testInstancesLookSortedByField) {
                     doc = new FieldDoc(doc.doc, doc.score, ((FieldDoc) doc).fields, input);
                 } else {
                     doc = new ScoreDoc(doc.doc, doc.score, input);
                 }
-                allHits.add(new Tuple<>(doc, internalHits.internalHits()[i]));
+                allHits.add(new Tuple<>(doc, internalHits.getHits()[i]));
             }
         }
         allHits.sort(comparing(Tuple::v1, scoreDocComparator()));
@@ -246,5 +246,45 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             Comparator<ScoreDoc> comparator = comparing(d -> d.score);
             return comparator.reversed();
         }
+    }
+
+    @Override
+    protected InternalTopHits mutateInstance(InternalTopHits instance) {
+        String name = instance.getName();
+        int from = instance.getFrom();
+        int size = instance.getSize();
+        TopDocs topDocs = instance.getTopDocs();
+        SearchHits searchHits = instance.getHits();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 5)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            from += between(1, 100);
+            break;
+        case 2:
+            size += between(1, 100);
+            break;
+        case 3:
+            topDocs = new TopDocs(topDocs.totalHits + between(1, 100), topDocs.scoreDocs, topDocs.getMaxScore() + randomFloat());
+            break;
+        case 4:
+            searchHits = new SearchHits(searchHits.getHits(), searchHits.totalHits + between(1, 100),
+                    searchHits.getMaxScore() + randomFloat());
+            break;
+        case 5:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalTopHits(name, from, size, topDocs, searchHits, pipelineAggregators, metaData);
     }
 }

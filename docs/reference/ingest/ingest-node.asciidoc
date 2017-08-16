@@ -205,8 +205,8 @@ POST _ingest/pipeline/_simulate
     // pipeline definition here
   },
   "docs" : [
-    { /** first document **/ },
-    { /** second document **/ },
+    { "_source": {/** first document **/} },
+    { "_source": {/** second document **/} },
     // ...
   ]
 }
@@ -220,8 +220,8 @@ Here is the structure of a simulate request against an existing pipeline:
 POST _ingest/pipeline/my-pipeline-id/_simulate
 {
   "docs" : [
-    { /** first document **/ },
-    { /** second document **/ },
+    { "_source": {/** first document **/} },
+    { "_source": {/** second document **/} },
     // ...
   ]
 }
@@ -498,7 +498,7 @@ The following example sets the `_id` metadata field of a document to `1`:
 --------------------------------------------------
 // NOTCONSOLE
 
-The following metadata fields are accessible by a processor: `_index`, `_type`, `_id`, `_routing`, `_parent`.
+The following metadata fields are accessible by a processor: `_index`, `_type`, `_id`, `_routing`.
 
 [float]
 [[accessing-ingest-metadata]]
@@ -900,7 +900,6 @@ PUT /myindex/type/1?pipeline=monthlyindex
     "successful" : 1,
     "failed" : 0
   },
-  "created" : true,
   "_seq_no" : 0,
   "_primary_term" : 1
 }
@@ -1010,11 +1009,6 @@ to the requester.
 
 [[foreach-processor]]
 === Foreach Processor
-
-experimental[This processor may change or be replaced by something else that provides similar functionality. This
-processor executes in its own context, which makes it different compared to all other processors and for features like
-verbose simulation the subprocessor isn't visible. The reason we still expose this processor, is that it is the only
-processor that can operate on an array]
 
 Processes elements in an array of unknown length.
 
@@ -1186,7 +1180,7 @@ that is generally written for humans and not computer consumption.
 This processor comes packaged with over
 https://github.com/elastic/elasticsearch/tree/master/modules/ingest-common/src/main/resources/patterns[120 reusable patterns].
 
-If you need help building patterns to match your logs, you will find the {kibana-ref}/xpack-grokdebugger.html[Grok Debugger] tool quite useful! The Grok Debugger is an {xpack} feature under the Basic License and is therefore *free to use*. The Grok Constructor at <http://grokconstructor.appspot.com/> is also a useful tool. 
+If you need help building patterns to match your logs, you will find the {kibana-ref}/xpack-grokdebugger.html[Grok Debugger] tool quite useful! The Grok Debugger is an {xpack} feature under the Basic License and is therefore *free to use*. The Grok Constructor at <http://grokconstructor.appspot.com/> is also a useful tool.
 
 [[grok-basics]]
 ==== Grok Basics
@@ -1831,7 +1825,6 @@ The response from the above index request:
   },
   "_seq_no": 0,
   "_primary_term": 1,
-  "created": true
 }
 --------------------------------------------------
 // TESTRESPONSE
@@ -2012,7 +2005,7 @@ into:
 --------------------------------------------------
 {
   "foo" : {
-     "bar" : "value"
+    "bar" : "value"
   }
 }
 --------------------------------------------------
@@ -2088,3 +2081,27 @@ pipeline should be used:
 
 The reason for this is that Ingest doesn't know how to automatically cast
 a scalar field to an object field.
+
+[[urldecode-processor]]
+=== URL Decode Processor
+URL-decodes a string
+
+[[urldecode-options]]
+.URL Decode Options
+[options="header"]
+|======
+| Name             | Required  | Default  | Description
+| `field`          | yes       | -        | The field to decode
+| `target_field`   | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
+| `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "urldecode": {
+    "field": "my_url_to_decode"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

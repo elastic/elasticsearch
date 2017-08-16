@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(randomDynamicTemplates = false, scope = Scope.SUITE)
+@ClusterScope(scope = Scope.SUITE)
 public class SimpleValidateQueryIT extends ESIntegTestCase {
     public void testSimpleValidateQuery() throws Exception {
         createIndex("test");
@@ -111,7 +111,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                     .execute().actionGet();
             assertThat(response.isValid(), equalTo(true));
             assertThat(response.getQueryExplanation().size(), equalTo(1));
-            assertThat(response.getQueryExplanation().get(0).getExplanation(), equalTo("(foo:foo | baz:foo)"));
+            assertThat(response.getQueryExplanation().get(0).getExplanation(), equalTo("(MatchNoDocsQuery(\"failed [bar] query, caused by number_format_exception:[For input string: \"foo\"]\") | foo:foo | baz:foo)"));
             assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
         }
     }

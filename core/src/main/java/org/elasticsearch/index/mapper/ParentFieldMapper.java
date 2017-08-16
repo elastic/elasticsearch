@@ -41,7 +41,6 @@ import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -65,7 +64,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.setDocValuesType(DocValuesType.SORTED);
-            FIELD_TYPE.setEagerGlobalOrdinals(true);
+            FIELD_TYPE.setEagerGlobalOrdinals(false);
             FIELD_TYPE.freeze();
         }
     }
@@ -78,6 +77,8 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
         public Builder(String documentType) {
             super(Defaults.NAME, new ParentFieldType(Defaults.FIELD_TYPE, documentType), Defaults.FIELD_TYPE);
+            // Defaults to true
+            eagerGlobalOrdinals(true);
             this.documentType = documentType;
             builder = this;
         }
@@ -196,7 +197,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             return new DocValuesIndexFieldData.Builder();
         }
     }
@@ -287,7 +288,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
         builder.startObject(CONTENT_TYPE);
         builder.field("type", parentType);
-        if (includeDefaults || fieldType().eagerGlobalOrdinals() != defaultFieldType.eagerGlobalOrdinals()) {
+        if (includeDefaults || fieldType().eagerGlobalOrdinals() == false) {
             builder.field("eager_global_ordinals", fieldType().eagerGlobalOrdinals());
         }
         builder.endObject();
@@ -296,17 +297,11 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
         ParentFieldType currentFieldType = (ParentFieldType) fieldType.clone();
         super.doMerge(mergeWith, updateAllTypes);
-        ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
         if (fieldMergeWith.parentType != null && Objects.equals(parentType, fieldMergeWith.parentType) == false) {
             throw new IllegalArgumentException("The _parent field's type option can't be changed: [" + parentType + "]->[" + fieldMergeWith.parentType + "]");
-        }
-
-        List<String> conflicts = new ArrayList<>();
-        fieldType().checkCompatibility(fieldMergeWith.fieldType, conflicts, true);
-        if (conflicts.isEmpty() == false) {
-            throw new IllegalArgumentException("Merge conflicts: " + conflicts);
         }
 
         if (active()) {

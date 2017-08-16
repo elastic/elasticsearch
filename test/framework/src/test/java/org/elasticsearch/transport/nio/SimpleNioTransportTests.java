@@ -35,9 +35,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 
 import java.io.IOException;
@@ -55,7 +55,7 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
     public static MockTransportService nioFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
                                                            ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        NetworkService networkService = new NetworkService(settings, Collections.emptyList());
+        NetworkService networkService = new NetworkService(Collections.emptyList());
         Transport transport = new NioTransport(settings, threadPool,
             networkService,
             BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
@@ -88,7 +88,9 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
     protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
-        settings = Settings.builder().put(settings).put(TransportSettings.PORT.getKey(), "0").build();
+        settings = Settings.builder().put(settings)
+            .put(TcpTransport.PORT.getKey(), "0")
+            .build();
         MockTransportService transportService = nioFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
         transportService.start();
         return transportService;

@@ -44,7 +44,7 @@ import java.util.Set;
 final class PercolateQuery extends Query implements Accountable {
 
     // cost of matching the query against the document, arbitrary as it would be really complex to estimate
-    public static final float MATCH_COST = 1000;
+    private static final float MATCH_COST = 1000;
 
     private final QueryStore queryStore;
     private final BytesReference documentSource;
@@ -164,15 +164,15 @@ final class PercolateQuery extends Query implements Accountable {
         };
     }
 
-    public IndexSearcher getPercolatorIndexSearcher() {
+    IndexSearcher getPercolatorIndexSearcher() {
         return percolatorIndexSearcher;
     }
 
-    public BytesReference getDocumentSource() {
+    BytesReference getDocumentSource() {
         return documentSource;
     }
 
-    public QueryStore getQueryStore() {
+    QueryStore getQueryStore() {
         return queryStore;
     }
 

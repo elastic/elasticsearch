@@ -27,6 +27,8 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -62,7 +64,6 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -318,6 +319,15 @@ public final class Settings implements ToXContent {
         } catch (NumberFormatException e) {
             throw new SettingsException("Failed to parse long setting [" + setting + "] with value [" + sValue + "]", e);
         }
+    }
+
+    /**
+     * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
+     * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
+     * {@link Setting} object constructed in, for example, {@link org.elasticsearch.env.Environment}.
+     */
+    static class DeprecationLoggerHolder {
+        static DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(Settings.class));
     }
 
     /**

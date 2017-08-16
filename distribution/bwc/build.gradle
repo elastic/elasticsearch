@@ -101,14 +101,15 @@ if (enabled) {
     onlyIf { project.gradle.startParameter.isOffline() == false }
     dependsOn addUpstream
     workingDir = checkoutDir
-    commandLine = ['git', 'fetch', 'upstream']
+    commandLine = ['git', 'fetch', '--all']
   }
 
   // this is an Exec task so that the SHA that is checked out is logged
   task checkoutBwcBranch(type: Exec) {
+    def String refspec = System.getProperty("tests.bwc.refspec", "upstream/${bwcBranch}")
     dependsOn fetchLatest
     workingDir = checkoutDir
-    commandLine = ['git', 'checkout', "upstream/${bwcBranch}"]
+    commandLine = ['git', 'checkout', refspec]
   }
 
   File bwcDeb = file("${checkoutDir}/distribution/deb/build/distributions/elasticsearch-${bwcVersion}.deb")
@@ -118,6 +119,14 @@ if (enabled) {
     dependsOn checkoutBwcBranch
     dir = checkoutDir
     tasks = [':distribution:deb:assemble', ':distribution:rpm:assemble', ':distribution:zip:assemble']
+    doLast {
+      List missing = [bwcDeb, bwcRpm, bwcZip].grep { file ->
+        false == file.exists() }
+      if (false == missing.empty) {
+        throw new InvalidUserDataException(
+          "Building bwc version didn't generate expected files ${missing}")
+      }
+    }
   }
 
 

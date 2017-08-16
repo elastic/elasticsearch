@@ -25,6 +25,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -46,6 +47,7 @@ import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
@@ -149,7 +151,6 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 startedShards = shards.startReplicas(randomIntBetween(1, 2));
             } while (startedShards > 0);
 
-            final long unassignedSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
             for (IndexShard shard : shards) {
                 final SeqNoStats shardStats = shard.seqNoStats();
                 final ShardRouting shardRouting = shard.routingEntry();
@@ -164,9 +165,10 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                  */
                 final Matcher<Long> globalCheckpointMatcher;
                 if (shardRouting.primary()) {
-                    globalCheckpointMatcher = numDocs == 0 ? equalTo(unassignedSeqNo) : equalTo(numDocs - 1L);
+                    globalCheckpointMatcher = numDocs == 0 ? equalTo(SequenceNumbersService.NO_OPS_PERFORMED) : equalTo(numDocs - 1L);
                 } else {
-                    globalCheckpointMatcher = numDocs == 0 ? equalTo(unassignedSeqNo) : anyOf(equalTo(numDocs - 1L), equalTo(numDocs - 2L));
+                    globalCheckpointMatcher = numDocs == 0 ? equalTo(SequenceNumbersService.NO_OPS_PERFORMED)
+                        : anyOf(equalTo(numDocs - 1L), equalTo(numDocs - 2L));
                 }
                 assertThat(shardRouting + " global checkpoint mismatch", shardStats.getGlobalCheckpoint(), globalCheckpointMatcher);
                 assertThat(shardRouting + " max seq no mismatch", shardStats.getMaxSeqNo(), equalTo(numDocs - 1L));
@@ -194,12 +196,15 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(2, mappings))) {
             shards.startAll();
-            IndexShard replica1 = shards.getReplicas().get(0);
-            logger.info("--> isolated replica " + replica1.routingEntry());
-            shards.removeReplica(replica1);
+            List<IndexShard> replicas = shards.getReplicas();
+            IndexShard replica1 = replicas.get(0);
             IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "1").source("{ \"f\": \"1\"}", XContentType.JSON);
-            shards.index(indexRequest);
-            shards.addReplica(replica1);
+            logger.info("--> isolated replica " + replica1.routingEntry());
+            BulkShardRequest replicationRequest = indexOnPrimary(indexRequest, shards.getPrimary());
+            for (int i = 1; i < replicas.size(); i++) {
+                indexOnReplica(replicationRequest, replicas.get(i));
+            }
+
             logger.info("--> promoting replica to primary " + replica1.routingEntry());
             shards.promoteReplicaToPrimary(replica1);
             indexRequest = new IndexRequest(index.getName(), "type", "1").source("{ \"f\": \"2\"}", XContentType.JSON);
@@ -321,9 +326,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             long expectedPrimaryTerm,
             String failureMessage) throws IOException {
         for (IndexShard indexShard : replicationGroup) {
-            try(Translog.View view = indexShard.acquireTranslogView()) {
-                assertThat(view.estimateTotalOperations(SequenceNumbersService.NO_OPS_PERFORMED), equalTo(expectedOperation));
-                final Translog.Snapshot snapshot = view.snapshot(SequenceNumbersService.NO_OPS_PERFORMED);
+            try(Translog.Snapshot snapshot = indexShard.getTranslog().newSnapshot()) {
+                assertThat(snapshot.totalOperations(), equalTo(expectedOperation));
                 long expectedSeqNo = 0L;
                 Translog.Operation op = snapshot.next();
                 do {

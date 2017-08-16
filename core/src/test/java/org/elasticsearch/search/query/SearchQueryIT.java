@@ -971,7 +971,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThat((double)searchResponse.getHits().getAt(0).getScore(), closeTo(boost * searchResponse.getHits().getAt(1).getScore(), .1));
 
         searchResponse = client().prepareSearch()
-                .setQuery(queryStringQuery("\"phrase match\"").field("important", boost).field("less_important").useDisMax(false)).get();
+                .setQuery(queryStringQuery("\"phrase match\"").field("important", boost).field("less_important")).get();
         assertHitCount(searchResponse, 2L);
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
@@ -1699,11 +1699,15 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().preparePutMapping("test").setType("type").setSource("field", "type=date,format=epoch_millis").get());
         indexRandom(true, client().prepareIndex("test", "type", "1").setSource("field", -1000000000001L),
                 client().prepareIndex("test", "type", "2").setSource("field", -1000000000000L),
-                client().prepareIndex("test", "type", "3").setSource("field", -999999999999L));
+                client().prepareIndex("test", "type", "3").setSource("field", -999999999999L),
+                client().prepareIndex("test", "type", "4").setSource("field", -1000000000001.0123456789),
+                client().prepareIndex("test", "type", "5").setSource("field", -1000000000000.0123456789),
+                client().prepareIndex("test", "type", "6").setSource("field", -999999999999.0123456789));
 
 
-        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-1000000000000L)).get(), 2);
-        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-999999999999L)).get(), 3);
+        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-1000000000000L)).get(), 4);
+        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-999999999999L)).get(), 6);
+
     }
 
     public void testRangeQueryWithTimeZone() throws Exception {

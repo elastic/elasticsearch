@@ -1,8 +1,6 @@
 [[painless]]
 = Painless Scripting Language
 
-:docs-dir:  {docdir}/../../../docs
-
 include::../Versions.asciidoc[]
 
 include::painless-getting-started.asciidoc[]

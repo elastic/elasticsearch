@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -29,47 +28,30 @@ import static org.hamcrest.Matchers.instanceOf;
 public class GeoHashGridParserTests extends ESTestCase {
     public void testParseValidFromInts() throws Exception {
         int precision = randomIntBetween(1, 12);
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, 
+        XContentParser stParser = createParser(JsonXContent.jsonXContent,
                 "{\"field\":\"my_loc\", \"precision\":" + precision + ", \"size\": 500, \"shard_size\": 550}");
-        QueryParseContext parseContext = new QueryParseContext(stParser);
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        assertNotNull(GeoGridAggregationBuilder.parse("geohash_grid", parseContext));
+        assertNotNull(GeoGridAggregationBuilder.parse("geohash_grid", stParser));
     }
 
     public void testParseValidFromStrings() throws Exception {
         int precision = randomIntBetween(1, 12);
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, 
+        XContentParser stParser = createParser(JsonXContent.jsonXContent,
                 "{\"field\":\"my_loc\", \"precision\":\"" + precision + "\", \"size\": \"500\", \"shard_size\": \"550\"}");
-        QueryParseContext parseContext = new QueryParseContext(stParser);
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        assertNotNull(GeoGridAggregationBuilder.parse("geohash_grid", parseContext));
-    }
-
-    public void testParseErrorOnNonIntPrecision() throws Exception {
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, "{\"field\":\"my_loc\", \"precision\":\"2.0\"}");
-        QueryParseContext parseContext = new QueryParseContext(stParser);
-        XContentParser.Token token = stParser.nextToken();
-        assertSame(XContentParser.Token.START_OBJECT, token);
-        try {
-            GeoGridAggregationBuilder.parse("geohash_grid", parseContext);
-            fail();
-        } catch (ParsingException ex) {
-            assertThat(ex.getCause(), instanceOf(NumberFormatException.class));
-            assertEquals("For input string: \"2.0\"", ex.getCause().getMessage());
-        }
+        assertNotNull(GeoGridAggregationBuilder.parse("geohash_grid", stParser));
     }
 
     public void testParseErrorOnBooleanPrecision() throws Exception {
         XContentParser stParser = createParser(JsonXContent.jsonXContent, "{\"field\":\"my_loc\", \"precision\":false}");
-        QueryParseContext parseContext = new QueryParseContext(stParser);
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         try {
-            GeoGridAggregationBuilder.parse("geohash_grid", parseContext);
+            GeoGridAggregationBuilder.parse("geohash_grid", stParser);
             fail();
         } catch (IllegalArgumentException ex) {
             assertEquals("[geohash_grid] precision doesn't support values of type: VALUE_BOOLEAN", ex.getMessage());
@@ -78,11 +60,10 @@ public class GeoHashGridParserTests extends ESTestCase {
 
     public void testParseErrorOnPrecisionOutOfRange() throws Exception {
         XContentParser stParser = createParser(JsonXContent.jsonXContent, "{\"field\":\"my_loc\", \"precision\":\"13\"}");
-        QueryParseContext parseContext = new QueryParseContext(stParser);
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         try {
-            GeoGridAggregationBuilder.parse("geohash_grid", parseContext);
+            GeoGridAggregationBuilder.parse("geohash_grid", stParser);
             fail();
         } catch (ParsingException ex) {
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));

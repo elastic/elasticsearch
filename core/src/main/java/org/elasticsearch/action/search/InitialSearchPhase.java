@@ -24,7 +24,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -50,6 +49,8 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     private final Logger logger;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
+    private final AtomicInteger shardExecutionIndex = new AtomicInteger(0);
+    private final int maxConcurrentShardRequests;
 
     InitialSearchPhase(String name, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts, Logger logger) {
         super(name);
@@ -61,6 +62,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
         // we process hence we add one for the non active partition here.
         this.expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
+        maxConcurrentShardRequests = Math.min(request.getMaxConcurrentShardRequests(), shardsIts.size());
     }
 
     private void onShardFailure(final int shardIndex, @Nullable ShardRouting shard, @Nullable String nodeId,
@@ -105,6 +107,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                     onShardFailure(shardIndex, shard, shard.currentNodeId(), shardIt, inner);
                 }
             } else {
+                maybeExecuteNext(); // move to the next execution if needed
                 // no more shards active, add a failure
                 if (logger.isDebugEnabled() && !logger.isTraceEnabled()) { // do not double log this exception
                     if (e != null && !TransportActions.isShardNotAvailableException(e)) {
@@ -124,23 +127,33 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
 
     @Override
     public final void run() throws IOException {
-        int shardIndex = -1;
-        for (final SearchShardIterator shardIt : shardsIts) {
-            shardIndex++;
-            final ShardRouting shard = shardIt.nextOrNull();
-            if (shard != null) {
-                performPhaseOnShard(shardIndex, shardIt, shard);
+        boolean success = shardExecutionIndex.compareAndSet(0, maxConcurrentShardRequests);
+        assert success;
+        for (int i = 0; i < maxConcurrentShardRequests; i++) {
+            SearchShardIterator shardRoutings = shardsIts.get(i);
+            if (shardRoutings.skip()) {
+                skipShard(shardRoutings);
             } else {
-                // really, no shards active in this group
-                onShardFailure(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
+                performPhaseOnShard(i, shardRoutings, shardRoutings.nextOrNull());
             }
         }
     }
 
+    private void maybeExecuteNext() {
+        final int index = shardExecutionIndex.getAndIncrement();
+        if (index < shardsIts.size()) {
+            SearchShardIterator shardRoutings = shardsIts.get(index);
+            if (shardRoutings.skip()) {
+                skipShard(shardRoutings);
+            } else {
+                performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
+            }
+        }
+    }
+
+
     private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final ShardRouting shard) {
         if (shard == null) {
-            // TODO upgrade this to an assert...
-            // no more active shards... (we should not really get here, but just for safety)
             onShardFailure(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
         } else {
             try {
@@ -165,7 +178,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         }
     }
 
-    private void onShardResult(FirstResult result, ShardIterator shardIt) {
+    private void onShardResult(FirstResult result, SearchShardIterator shardIt) {
         assert result.getShardIndex() != -1 : "shard index is not set";
         assert result.getSearchShardTarget() != null : "search shard target must not be null";
         onShardSuccess(result);
@@ -174,12 +187,24 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         // cause the successor to read a wrong value from successfulOps if second phase is very fast ie. count etc.
         // increment all the "future" shards to update the total ops since we some may work and some may not...
         // and when that happens, we break on total ops, so we must maintain them
-        final int xTotalOps = totalOps.addAndGet(shardIt.remaining() + 1);
+        successfulShardExecution(shardIt);
+    }
+
+    private void successfulShardExecution(SearchShardIterator shardsIt) {
+        final int remainingOpsOnIterator;
+        if (shardsIt.skip()) {
+            remainingOpsOnIterator = shardsIt.remaining();
+        } else {
+            remainingOpsOnIterator = shardsIt.remaining() + 1;
+        }
+        final int xTotalOps = totalOps.addAndGet(remainingOpsOnIterator);
         if (xTotalOps == expectedTotalOps) {
             onPhaseDone();
         } else if (xTotalOps > expectedTotalOps) {
             throw new AssertionError("unexpected higher total ops [" + xTotalOps + "] compared to expected ["
                 + expectedTotalOps + "]");
+        } else {
+            maybeExecuteNext();
         }
     }
 
@@ -220,41 +245,39 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     /**
      * This class acts as a basic result collection that can be extended to do on-the-fly reduction or result processing
      */
-    static class SearchPhaseResults<Result extends SearchPhaseResult> {
-        final AtomicArray<Result> results;
+    abstract static class SearchPhaseResults<Result extends SearchPhaseResult> {
+        private final int numShards;
 
-        SearchPhaseResults(int size) {
-            results = new AtomicArray<>(size);
+        protected SearchPhaseResults(int numShards) {
+            this.numShards = numShards;
         }
-
         /**
          * Returns the number of expected results this class should collect
          */
         final int getNumShards() {
-            return results.length();
+            return numShards;
         }
 
         /**
          * A stream of all non-null (successful) shard results
          */
-        final Stream<Result> getSuccessfulResults() {
-            return results.asList().stream();
-        }
+        abstract Stream<Result> getSuccessfulResults();
 
         /**
          * Consumes a single shard result
          * @param result the shards result
          */
-        void consumeResult(Result result) {
-            assert results.get(result.getShardIndex()) == null : "shardIndex: " + result.getShardIndex() + " is already set";
-            results.set(result.getShardIndex(), result);
-        }
+        abstract void consumeResult(Result result);
 
         /**
          * Returns <code>true</code> iff a result if present for the given shard ID.
          */
-        final boolean hasResult(int shardIndex) {
-            return results.get(shardIndex) != null;
+        abstract boolean hasResult(int shardIndex);
+
+        void consumeShardFailure(int shardIndex) {}
+
+        AtomicArray<Result> getAtomicArray() {
+            throw new UnsupportedOperationException();
         }
 
         /**
@@ -264,4 +287,40 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
             throw new UnsupportedOperationException("reduce is not supported");
         }
     }
+
+    /**
+     * This class acts as a basic result collection that can be extended to do on-the-fly reduction or result processing
+     */
+    static class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPhaseResults<Result> {
+        final AtomicArray<Result> results;
+
+        ArraySearchPhaseResults(int size) {
+            super(size);
+            this.results = new AtomicArray<>(size);
+        }
+
+        Stream<Result> getSuccessfulResults() {
+            return results.asList().stream();
+        }
+
+        void consumeResult(Result result) {
+            assert results.get(result.getShardIndex()) == null : "shardIndex: " + result.getShardIndex() + " is already set";
+            results.set(result.getShardIndex(), result);
+        }
+
+        boolean hasResult(int shardIndex) {
+            return results.get(shardIndex) != null;
+        }
+
+        @Override
+        AtomicArray<Result> getAtomicArray() {
+            return results;
+        }
+    }
+
+    protected void skipShard(SearchShardIterator iterator) {
+        assert iterator.skip();
+        successfulShardExecution(iterator);
+    }
+
 }

@@ -120,9 +120,9 @@ setup() {
 
 @test "[INIT.D] start Elasticsearch with custom JVM options" {
     assert_file_exist $ESENVFILE
-    local es_java_opts=$ES_JAVA_OPTS
-    local es_jvm_options=$ES_JVM_OPTIONS
     local temp=`mktemp -d`
+    cp "$ESCONFIG"/elasticsearch.yml "$temp"
+    cp "$ESCONFIG"/log4j2.properties "$temp"
     touch "$temp/jvm.options"
     chown -R elasticsearch:elasticsearch "$temp"
     echo "-Xms512m" >> "$temp/jvm.options"
@@ -132,7 +132,7 @@ setup() {
     # startup since we detect usages of logging before it is configured
     echo "-Dlog4j2.disable.jmx=true" >> "$temp/jvm.options"
     cp $ESENVFILE "$temp/elasticsearch"
-    echo "ES_JVM_OPTIONS=\"$temp/jvm.options\"" >> $ESENVFILE
+    echo "ES_PATH_CONF=\"$temp\"" >> $ESENVFILE
     echo "ES_JAVA_OPTS=\"-XX:-UseCompressedOops\"" >> $ESENVFILE
     service elasticsearch start
     wait_for_elasticsearch_status

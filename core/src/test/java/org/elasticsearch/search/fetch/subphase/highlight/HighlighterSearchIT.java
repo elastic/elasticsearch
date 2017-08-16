@@ -2558,8 +2558,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         // Query string with a single field without dismax
         phraseBoostTestCaseForClauses(highlighterType, 100f,
-                queryStringQuery("highlight words together").field("field1").useDisMax(false),
-                queryStringQuery("\"highlight words together\"").field("field1").useDisMax(false).autoGeneratePhraseQueries(true));
+                queryStringQuery("highlight words together").field("field1"),
+                queryStringQuery("\"highlight words together\"").field("field1").autoGeneratePhraseQueries(true));
 
         // Query string with more than one field
         phraseBoostTestCaseForClauses(highlighterType, 100f,

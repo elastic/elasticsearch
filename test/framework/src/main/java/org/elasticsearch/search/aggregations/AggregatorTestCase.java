@@ -68,6 +68,8 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.mockito.Matchers;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -106,9 +108,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
         IndexFieldDataService ifds = new IndexFieldDataService(indexSettings,
                 new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
                 }), circuitBreakerService, mapperService);
-        when(searchContext.fieldData()).thenReturn(ifds);
+        when(searchContext.getForField(Mockito.any(MappedFieldType.class))).thenAnswer(new Answer<Object>() {
+            @Override
+            public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
+                return ifds.getForField((MappedFieldType) invocationOnMock.getArguments()[0]);
+            }
+        });
 
-        SearchLookup searchLookup = new SearchLookup(mapperService, ifds, new String[]{"type"});
+        SearchLookup searchLookup = new SearchLookup(mapperService, ifds::getForField, new String[]{"type"});
         when(searchContext.lookup()).thenReturn(searchLookup);
 
         QueryShardContext queryShardContext = queryShardContextMock(mapperService, fieldTypes, circuitBreakerService);
@@ -194,9 +201,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(queryShardContext.getMapperService()).thenReturn(mapperService);
         for (MappedFieldType fieldType : fieldTypes) {
             when(queryShardContext.fieldMapper(fieldType.name())).thenReturn(fieldType);
-            when(queryShardContext.getForField(fieldType)).then(invocation -> fieldType.fielddataBuilder().build(
-                    mapperService.getIndexSettings(), fieldType, new IndexFieldDataCache.None(), circuitBreakerService,
-                    mapperService));
+            when(queryShardContext.getForField(fieldType)).then(invocation -> fieldType.fielddataBuilder(mapperService.getIndexSettings()
+                .getIndex().getName())
+                .build(mapperService.getIndexSettings(), fieldType, new IndexFieldDataCache.None(), circuitBreakerService, mapperService));
         }
         NestedScope nestedScope = new NestedScope();
         when(queryShardContext.isFilter()).thenCallRealMethod();

@@ -1,9 +1,10 @@
 [[java-rest-low]]
-== Java Low Level REST Client
+= Java Low Level REST Client
+
+[partintro]
+--
 
 The low-level client's features include:
-
-* minimal dependencies
 
 * load balancing across all available nodes
 
@@ -19,9 +20,17 @@ The low-level client's features include:
 
 * optional automatic <<sniffer,discovery of cluster nodes>>
 
+* packaged as a single JAR file that shades all dependencies
 
+--
+
+:doc-tests: {docdir}/../../client/rest/src/test/java/org/elasticsearch/client/documentation
 include::usage.asciidoc[]
-
 include::configuration.asciidoc[]
 
+:doc-tests: {docdir}/../../client/sniffer/src/test/java/org/elasticsearch/client/sniff/documentation
 include::sniffer.asciidoc[]
+
+include::../license.asciidoc[]
+
+:doc-tests!:

@@ -118,8 +118,6 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         Netty4Utils.setup();
     }
 
-    public static Setting<ByteSizeValue> SETTING_HTTP_NETTY_MAX_CUMULATION_BUFFER_CAPACITY =
-        Setting.byteSizeSetting("http.netty.max_cumulation_buffer_capacity", new ByteSizeValue(-1), Property.NodeScope);
     public static Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS =
         Setting.intSetting("http.netty.max_composite_buffer_components", -1, Property.NodeScope);
 
@@ -128,16 +126,16 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         (s) -> Setting.parseInt(s, 1, "http.netty.worker_count"), Property.NodeScope);
 
     public static final Setting<Boolean> SETTING_HTTP_TCP_NO_DELAY =
-        boolSetting("http.tcp_no_delay", NetworkService.TcpSettings.TCP_NO_DELAY, Property.NodeScope);
+        boolSetting("http.tcp_no_delay", NetworkService.TCP_NO_DELAY, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_TCP_KEEP_ALIVE =
-        boolSetting("http.tcp.keep_alive", NetworkService.TcpSettings.TCP_KEEP_ALIVE, Property.NodeScope);
+        boolSetting("http.tcp.keep_alive", NetworkService.TCP_KEEP_ALIVE, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_TCP_REUSE_ADDRESS =
-        boolSetting("http.tcp.reuse_address", NetworkService.TcpSettings.TCP_REUSE_ADDRESS, Property.NodeScope);
+        boolSetting("http.tcp.reuse_address", NetworkService.TCP_REUSE_ADDRESS, Property.NodeScope);
 
     public static final Setting<ByteSizeValue> SETTING_HTTP_TCP_SEND_BUFFER_SIZE =
-        Setting.byteSizeSetting("http.tcp.send_buffer_size", NetworkService.TcpSettings.TCP_SEND_BUFFER_SIZE, Property.NodeScope);
+        Setting.byteSizeSetting("http.tcp.send_buffer_size", NetworkService.TCP_SEND_BUFFER_SIZE, Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE =
-        Setting.byteSizeSetting("http.tcp.receive_buffer_size", NetworkService.TcpSettings.TCP_RECEIVE_BUFFER_SIZE, Property.NodeScope);
+        Setting.byteSizeSetting("http.tcp.receive_buffer_size", NetworkService.TCP_RECEIVE_BUFFER_SIZE, Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE =
         Setting.byteSizeSetting("http.netty.receive_predictor_size", new ByteSizeValue(64, ByteSizeUnit.KB), Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MIN =
@@ -187,7 +185,6 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     protected final ByteSizeValue tcpReceiveBufferSize;
     protected final RecvByteBufAllocator recvByteBufAllocator;
 
-    protected final ByteSizeValue maxCumulationBufferCapacity;
     protected final int maxCompositeBufferComponents;
     private final Dispatcher dispatcher;
 
@@ -218,12 +215,17 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
         this.resetCookies = SETTING_HTTP_RESET_COOKIES.get(settings);
-        this.maxCumulationBufferCapacity = SETTING_HTTP_NETTY_MAX_CUMULATION_BUFFER_CAPACITY.get(settings);
         this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
         this.workerCount = SETTING_HTTP_WORKER_COUNT.get(settings);
         this.port = SETTING_HTTP_PORT.get(settings);
-        this.bindHosts = SETTING_HTTP_BIND_HOST.get(settings).toArray(Strings.EMPTY_ARRAY);
-        this.publishHosts = SETTING_HTTP_PUBLISH_HOST.get(settings).toArray(Strings.EMPTY_ARRAY);
+        // we can't make the network.bind_host a fallback since we already fall back to http.host hence the extra conditional here
+        List<String> httpBindHost = SETTING_HTTP_BIND_HOST.get(settings);
+        this.bindHosts = (httpBindHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING.get(settings) : httpBindHost)
+            .toArray(Strings.EMPTY_ARRAY);
+        // we can't make the network.publish_host a fallback since we already fall back to http.host hence the extra conditional here
+        List<String> httpPublishHost = SETTING_HTTP_PUBLISH_HOST.get(settings);
+        this.publishHosts = (httpPublishHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings) : httpPublishHost)
+            .toArray(Strings.EMPTY_ARRAY);
         this.tcpNoDelay = SETTING_HTTP_TCP_NO_DELAY.get(settings);
         this.tcpKeepAlive = SETTING_HTTP_TCP_KEEP_ALIVE.get(settings);
         this.reuseAddress = SETTING_HTTP_TCP_REUSE_ADDRESS.get(settings);

@@ -42,7 +42,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.UidFieldMapper;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
 
@@ -107,8 +106,7 @@ public class SliceBuilderTests extends ESTestCase {
         sliceBuilder.innerToXContent(builder);
         builder.endObject();
         XContentParser parser = createParser(shuffleXContent(builder));
-        QueryParseContext context = new QueryParseContext(parser);
-        SliceBuilder secondSliceBuilder = SliceBuilder.fromXContent(context);
+        SliceBuilder secondSliceBuilder = SliceBuilder.fromXContent(parser);
         assertNotSame(sliceBuilder, secondSliceBuilder);
         assertEquals(sliceBuilder, secondSliceBuilder);
         assertEquals(sliceBuilder.hashCode(), secondSliceBuilder.hashCode());
@@ -116,21 +114,21 @@ public class SliceBuilderTests extends ESTestCase {
 
     public void testInvalidArguments() throws Exception {
         Exception e = expectThrows(IllegalArgumentException.class, () -> new SliceBuilder("field", -1, 10));
-        assertEquals(e.getMessage(), "id must be greater than or equal to 0");
+        assertEquals("id must be greater than or equal to 0", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> new SliceBuilder("field", 10, -1));
-        assertEquals(e.getMessage(), "max must be greater than 1");
+        assertEquals("max must be greater than 1", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> new SliceBuilder("field", 10, 0));
-        assertEquals(e.getMessage(), "max must be greater than 1");
+        assertEquals("max must be greater than 1", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> new SliceBuilder("field", 10, 5));
-        assertEquals(e.getMessage(), "max must be greater than id");
+        assertEquals("max must be greater than id", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> new SliceBuilder("field", 1000, 1000));
-        assertEquals(e.getMessage(), "max must be greater than id");
+        assertEquals("max must be greater than id", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> new SliceBuilder("field", 1001, 1000));
-        assertEquals(e.getMessage(), "max must be greater than id");
+        assertEquals("max must be greater than id", e.getMessage());
     }
 
     public void testToFilter() throws IOException {

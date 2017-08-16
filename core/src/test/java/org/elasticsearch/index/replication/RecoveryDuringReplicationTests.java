@@ -39,6 +39,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -174,7 +175,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             // slip the extra document into the replica
             remainingReplica.applyIndexOperationOnReplica(
                     remainingReplica.getLocalCheckpoint() + 1,
-                    remainingReplica.getPrimaryTerm(),
                     1,
                     VersionType.EXTERNAL,
                     randomNonNegativeLong(),
@@ -220,14 +220,11 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 shards.flush();
                 committedDocs = totalDocs;
             }
-            // we need some indexing to happen to transfer local checkpoint information to the primary
-            // so it can update the global checkpoint and communicate to replicas
-            boolean expectSeqNoRecovery = totalDocs > 0;
-
 
             final IndexShard oldPrimary = shards.getPrimary();
             final IndexShard newPrimary = shards.getReplicas().get(0);
             final IndexShard replica = shards.getReplicas().get(1);
+            boolean expectSeqNoRecovery = true;
             if (randomBoolean()) {
                 // simulate docs that were inflight when primary failed, these will be rolled back
                 final int rollbackDocs = randomIntBetween(1, 5);
@@ -245,6 +242,12 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             }
 
             shards.promoteReplicaToPrimary(newPrimary);
+
+            // check that local checkpoint of new primary is properly tracked after primary promotion
+            assertThat(newPrimary.getLocalCheckpoint(), equalTo(totalDocs - 1L));
+            assertThat(IndexShardTestCase.getEngine(newPrimary).seqNoService()
+                .getTrackedLocalCheckpointForShard(newPrimary.routingEntry().allocationId().getId()), equalTo(totalDocs - 1L));
+
             // index some more
             totalDocs += shards.indexDocs(randomIntBetween(0, 5));
 
@@ -347,7 +350,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             closeShards(replica);
 
             docs += pendingDocs;
-            primaryEngineFactory.latchIndexers();
+            primaryEngineFactory.latchIndexers(pendingDocs);
             CountDownLatch pendingDocsDone = new CountDownLatch(pendingDocs);
             for (int i = 0; i < pendingDocs; i++) {
                 final String id = "pending_" + i;
@@ -447,7 +450,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                         public long indexTranslogOperations(final List<Translog.Operation> operations, final int totalTranslogOps)
                              throws IOException {
                             // index a doc which is not part of the snapshot, but also does not complete on replica
-                            replicaEngineFactory.latchIndexers();
+                            replicaEngineFactory.latchIndexers(1);
                             threadPool.generic().submit(() -> {
                                 try {
                                     shards.index(new IndexRequest(index.getName(), "type", "pending").source("{}", XContentType.JSON));
@@ -590,10 +593,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         private final AtomicReference<CountDownLatch> blockReference = new AtomicReference<>();
         private final AtomicReference<CountDownLatch> blockedIndexers = new AtomicReference<>();
 
-        public synchronized void latchIndexers() {
+        public synchronized void latchIndexers(int count) {
             final CountDownLatch block = new CountDownLatch(1);
             blocks.add(block);
-            blockedIndexers.set(new CountDownLatch(1));
+            blockedIndexers.set(new CountDownLatch(count));
             assert blockReference.compareAndSet(null, block);
         }
 

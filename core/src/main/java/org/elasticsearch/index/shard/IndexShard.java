@@ -30,6 +30,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.Assertions;
@@ -42,11 +43,12 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -82,7 +84,6 @@ import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
@@ -101,6 +102,7 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
@@ -128,6 +130,7 @@ import org.elasticsearch.search.suggest.completion.CompletionFieldStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
@@ -166,7 +169,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ShardIndexWarmerService shardWarmerService;
     private final ShardRequestCache requestCacheStats;
     private final ShardFieldData shardFieldData;
-    private final IndexFieldDataService indexFieldDataService;
     private final ShardBitsetFilterCache shardBitsetFilterCache;
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
@@ -231,7 +233,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public IndexShard(ShardRouting shardRouting, IndexSettings indexSettings, ShardPath path, Store store,
                       Supplier<Sort> indexSortSupplier, IndexCache indexCache, MapperService mapperService, SimilarityService similarityService,
-                      IndexFieldDataService indexFieldDataService, @Nullable EngineFactory engineFactory,
+                      @Nullable EngineFactory engineFactory,
                       IndexEventListener indexEventListener, IndexSearcherWrapper indexSearcherWrapper, ThreadPool threadPool, BigArrays bigArrays,
                       Engine.Warmer warmer, List<SearchOperationListener> searchOperationListener, List<IndexingOperationListener> listeners) throws IOException {
         super(shardRouting.shardId(), indexSettings);
@@ -260,7 +262,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.requestCacheStats = new ShardRequestCache();
         this.shardFieldData = new ShardFieldData();
-        this.indexFieldDataService = indexFieldDataService;
         this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
         state = IndexShardState.CREATED;
         this.path = path;
@@ -287,6 +288,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
     }
 
+    public ThreadPool getThreadPool() {
+        return this.threadPool;
+    }
+
     public Store store() {
         return this.store;
     }
@@ -310,10 +315,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public ShardBitsetFilterCache shardBitsetFilterCache() {
         return shardBitsetFilterCache;
-    }
-
-    public IndexFieldDataService indexFieldDataService() {
-        return indexFieldDataService;
     }
 
     public MapperService mapperService() {
@@ -359,23 +360,146 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @Override
     public void updateShardState(final ShardRouting newRouting,
                                  final long newPrimaryTerm,
-                                 final CheckedBiConsumer<IndexShard, ActionListener<ResyncTask>, IOException> primaryReplicaSyncer,
+                                 final BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
                                  final long applyingClusterStateVersion,
-                                 final Set<String> activeAllocationIds,
-                                 final Set<String> initializingAllocationIds) throws IOException {
+                                 final Set<String> inSyncAllocationIds,
+                                 final IndexShardRoutingTable routingTable,
+                                 final Set<String> pre60AllocationIds) throws IOException {
         final ShardRouting currentRouting;
         synchronized (mutex) {
             currentRouting = this.shardRouting;
-            updateRoutingEntry(newRouting);
+
+            if (!newRouting.shardId().equals(shardId())) {
+                throw new IllegalArgumentException("Trying to set a routing entry with shardId " + newRouting.shardId() + " on a shard with shardId " + shardId());
+            }
+            if ((currentRouting == null || newRouting.isSameAllocation(currentRouting)) == false) {
+                throw new IllegalArgumentException("Trying to set a routing entry with a different allocation. Current " + currentRouting + ", new " + newRouting);
+            }
+            if (currentRouting != null && currentRouting.primary() && newRouting.primary() == false) {
+                throw new IllegalArgumentException("illegal state: trying to move shard from primary mode to replica mode. Current "
+                    + currentRouting + ", new " + newRouting);
+            }
+
+            if (newRouting.primary()) {
+                final Engine engine = getEngineOrNull();
+                if (engine != null) {
+                    engine.seqNoService().updateAllocationIdsFromMaster(applyingClusterStateVersion, inSyncAllocationIds, routingTable, pre60AllocationIds);
+                }
+            }
+
+            if (state == IndexShardState.POST_RECOVERY && newRouting.active()) {
+                assert currentRouting.active() == false : "we are in POST_RECOVERY, but our shard routing is active " + currentRouting;
+                // we want to refresh *before* we move to internal STARTED state
+                try {
+                    getEngine().refresh("cluster_state_started");
+                } catch (Exception e) {
+                    logger.debug("failed to refresh due to move to cluster wide started", e);
+                }
+
+                if (newRouting.primary()) {
+                    final DiscoveryNode recoverySourceNode = recoveryState.getSourceNode();
+                    if (currentRouting.isRelocationTarget() == false || recoverySourceNode.getVersion().before(Version.V_6_0_0_alpha1)) {
+                        // there was no primary context hand-off in < 6.0.0, need to manually activate the shard
+                        getEngine().seqNoService().activatePrimaryMode(currentRouting.allocationId().getId(), getEngine().seqNoService().getLocalCheckpoint());
+                    }
+                }
+
+                changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
+            } else if (state == IndexShardState.RELOCATED &&
+                (newRouting.relocating() == false || newRouting.equalsIgnoringMetaData(currentRouting) == false)) {
+                // if the shard is marked as RELOCATED we have to fail when any changes in shard routing occur (e.g. due to recovery
+                // failure / cancellation). The reason is that at the moment we cannot safely move back to STARTED without risking two
+                // active primaries.
+                throw new IndexShardRelocatedException(shardId(), "Shard is marked as relocated, cannot safely move to state " + newRouting.state());
+            }
+            assert newRouting.active() == false || state == IndexShardState.STARTED || state == IndexShardState.RELOCATED ||
+                state == IndexShardState.CLOSED :
+                "routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
+            this.shardRouting = newRouting;
+            persistMetadata(path, indexSettings, newRouting, currentRouting, logger);
 
             if (shardRouting.primary()) {
-                updatePrimaryTerm(newPrimaryTerm, primaryReplicaSyncer);
+                if (newPrimaryTerm != primaryTerm) {
+                    assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
+                    /* Note that due to cluster state batching an initializing primary shard term can failed and re-assigned
+                     * in one state causing it's term to be incremented. Note that if both current shard state and new
+                     * shard state are initializing, we could replace the current shard and reinitialize it. It is however
+                     * possible that this shard is being started. This can happen if:
+                     * 1) Shard is post recovery and sends shard started to the master
+                     * 2) Node gets disconnected and rejoins
+                     * 3) Master assigns the shard back to the node
+                     * 4) Master processes the shard started and starts the shard
+                     * 5) The node process the cluster state where the shard is both started and primary term is incremented.
+                     *
+                     * We could fail the shard in that case, but this will cause it to be removed from the insync allocations list
+                     * potentially preventing re-allocation.
+                     */
+                    assert shardRouting.initializing() == false :
+                        "a started primary shard should never update its term; "
+                            + "shard " + shardRouting + ", "
+                            + "current term [" + primaryTerm + "], "
+                            + "new term [" + newPrimaryTerm + "]";
+                    assert newPrimaryTerm > primaryTerm :
+                        "primary terms can only go up; current term [" + primaryTerm + "], new term [" + newPrimaryTerm + "]";
+                    /*
+                     * Before this call returns, we are guaranteed that all future operations are delayed and so this happens before we
+                     * increment the primary term. The latch is needed to ensure that we do not unblock operations before the primary term is
+                     * incremented.
+                     */
+                    final CountDownLatch latch = new CountDownLatch(1);
+                    // to prevent primary relocation handoff while resync is not completed
+                    boolean resyncStarted = primaryReplicaResyncInProgress.compareAndSet(false, true);
+                    if (resyncStarted == false) {
+                        throw new IllegalStateException("cannot start resync while it's already in progress");
+                    }
+                    indexShardOperationPermits.asyncBlockOperations(
+                        30,
+                        TimeUnit.MINUTES,
+                        () -> {
+                            latch.await();
+                            try {
+                                /*
+                                 * If this shard was serving as a replica shard when another shard was promoted to primary then the state of
+                                 * its local checkpoint tracker was reset during the primary term transition. In particular, the local
+                                 * checkpoint on this shard was thrown back to the global checkpoint and the state of the local checkpoint
+                                 * tracker above the local checkpoint was destroyed. If the other shard that was promoted to primary
+                                 * subsequently fails before the primary/replica re-sync completes successfully and we are now being
+                                 * promoted, the local checkpoint tracker here could be left in a state where it would re-issue sequence
+                                 * numbers. To ensure that this is not the case, we restore the state of the local checkpoint tracker by
+                                 * replaying the translog and marking any operations there are completed.
+                                 */
+                                getEngine().restoreLocalCheckpointFromTranslog();
+                                getEngine().fillSeqNoGaps(newPrimaryTerm);
+                                getEngine().seqNoService().updateLocalCheckpointForShard(currentRouting.allocationId().getId(),
+                                    getEngine().seqNoService().getLocalCheckpoint());
+                                primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
+                                    @Override
+                                    public void onResponse(ResyncTask resyncTask) {
+                                        logger.info("primary-replica resync completed with {} operations",
+                                            resyncTask.getResyncedOperations());
+                                        boolean resyncCompleted = primaryReplicaResyncInProgress.compareAndSet(true, false);
+                                        assert resyncCompleted : "primary-replica resync finished but was not started";
+                                    }
 
-                final Engine engine = getEngineOrNull();
-                // if the engine is not yet started, we are not ready yet and can just ignore this
-                if (engine != null) {
-                    engine.seqNoService().updateAllocationIdsFromMaster(
-                            applyingClusterStateVersion, activeAllocationIds, initializingAllocationIds);
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        boolean resyncCompleted = primaryReplicaResyncInProgress.compareAndSet(true, false);
+                                        assert resyncCompleted : "primary-replica resync finished but was not started";
+                                        if (state == IndexShardState.CLOSED) {
+                                            // ignore, shutting down
+                                        } else {
+                                            failShard("exception during primary-replica resync", e);
+                                        }
+                                    }
+                                });
+                            } catch (final AlreadyClosedException e) {
+                                // okay, the index was deleted
+                            }
+                        },
+                        e -> failShard("exception during primary term transition", e));
+                    getEngine().seqNoService().activatePrimaryMode(currentRouting.allocationId().getId(), getEngine().seqNoService().getLocalCheckpoint());
+                    primaryTerm = newPrimaryTerm;
+                    latch.countDown();
                 }
             }
         }
@@ -384,117 +508,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         if (newRouting.equals(currentRouting) == false) {
             indexEventListener.shardRoutingChanged(this, currentRouting, newRouting);
-        }
-    }
-
-    private void updateRoutingEntry(ShardRouting newRouting) throws IOException {
-        assert Thread.holdsLock(mutex);
-        final ShardRouting currentRouting = this.shardRouting;
-
-        if (!newRouting.shardId().equals(shardId())) {
-            throw new IllegalArgumentException("Trying to set a routing entry with shardId " + newRouting.shardId() + " on a shard with shardId " + shardId());
-        }
-        if ((currentRouting == null || newRouting.isSameAllocation(currentRouting)) == false) {
-            throw new IllegalArgumentException("Trying to set a routing entry with a different allocation. Current " + currentRouting + ", new " + newRouting);
-        }
-        if (currentRouting != null && currentRouting.primary() && newRouting.primary() == false) {
-            throw new IllegalArgumentException("illegal state: trying to move shard from primary mode to replica mode. Current "
-                + currentRouting + ", new " + newRouting);
-        }
-
-        if (state == IndexShardState.POST_RECOVERY && newRouting.active()) {
-            assert currentRouting.active() == false : "we are in POST_RECOVERY, but our shard routing is active " + currentRouting;
-            // we want to refresh *before* we move to internal STARTED state
-            try {
-                getEngine().refresh("cluster_state_started");
-            } catch (Exception e) {
-                logger.debug("failed to refresh due to move to cluster wide started", e);
-            }
-            changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
-        } else if (state == IndexShardState.RELOCATED &&
-            (newRouting.relocating() == false || newRouting.equalsIgnoringMetaData(currentRouting) == false)) {
-            // if the shard is marked as RELOCATED we have to fail when any changes in shard routing occur (e.g. due to recovery
-            // failure / cancellation). The reason is that at the moment we cannot safely move back to STARTED without risking two
-            // active primaries.
-            throw new IndexShardRelocatedException(shardId(), "Shard is marked as relocated, cannot safely move to state " + newRouting.state());
-        }
-        assert newRouting.active() == false || state == IndexShardState.STARTED || state == IndexShardState.RELOCATED ||
-            state == IndexShardState.CLOSED :
-            "routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
-        this.shardRouting = newRouting;
-        persistMetadata(path, indexSettings, newRouting, currentRouting, logger);
-    }
-
-    private void updatePrimaryTerm(
-            final long newPrimaryTerm, final CheckedBiConsumer<IndexShard, ActionListener<ResyncTask>, IOException> primaryReplicaSyncer) {
-        assert Thread.holdsLock(mutex);
-        assert shardRouting.primary() : "primary term can only be explicitly updated on a primary shard";
-        if (newPrimaryTerm != primaryTerm) {
-            /* Note that due to cluster state batching an initializing primary shard term can failed and re-assigned
-             * in one state causing it's term to be incremented. Note that if both current shard state and new
-             * shard state are initializing, we could replace the current shard and reinitialize it. It is however
-             * possible that this shard is being started. This can happen if:
-             * 1) Shard is post recovery and sends shard started to the master
-             * 2) Node gets disconnected and rejoins
-             * 3) Master assigns the shard back to the node
-             * 4) Master processes the shard started and starts the shard
-             * 5) The node process the cluster state where the shard is both started and primary term is incremented.
-             *
-             * We could fail the shard in that case, but this will cause it to be removed from the insync allocations list
-             * potentially preventing re-allocation.
-             */
-            assert shardRouting.initializing() == false :
-                "a started primary shard should never update its term; "
-                    + "shard " + shardRouting + ", "
-                    + "current term [" + primaryTerm + "], "
-                    + "new term [" + newPrimaryTerm + "]";
-            assert newPrimaryTerm > primaryTerm :
-                "primary terms can only go up; current term [" + primaryTerm + "], new term [" + newPrimaryTerm + "]";
-            /*
-             * Before this call returns, we are guaranteed that all future operations are delayed and so this happens before we
-             * increment the primary term. The latch is needed to ensure that we do not unblock operations before the primary term is
-             * incremented.
-             */
-            final CountDownLatch latch = new CountDownLatch(1);
-            // to prevent primary relocation handoff while resync is not completed
-            boolean resyncStarted = primaryReplicaResyncInProgress.compareAndSet(false, true);
-            if (resyncStarted == false) {
-                throw new IllegalStateException("cannot start resync while it's already in progress");
-            }
-            indexShardOperationPermits.asyncBlockOperations(
-                30,
-                TimeUnit.MINUTES,
-                () -> {
-                    latch.await();
-                    try {
-                        getEngine().fillSeqNoGaps(newPrimaryTerm);
-                        primaryReplicaSyncer.accept(IndexShard.this, new ActionListener<ResyncTask>() {
-                            @Override
-                            public void onResponse(ResyncTask resyncTask) {
-                                logger.info("primary-replica resync completed with {} operations",
-                                    resyncTask.getResyncedOperations());
-                                boolean resyncCompleted = primaryReplicaResyncInProgress.compareAndSet(true, false);
-                                assert resyncCompleted : "primary-replica resync finished but was not started";
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                boolean resyncCompleted = primaryReplicaResyncInProgress.compareAndSet(true, false);
-                                assert resyncCompleted : "primary-replica resync finished but was not started";
-                                if (state == IndexShardState.CLOSED) {
-                                    // ignore, shutting down
-                                } else {
-                                    failShard("exception during primary-replica resync", e);
-                                }
-                            }
-                        });
-                    } catch (final AlreadyClosedException e) {
-                        // okay, the index was deleted
-                    }
-                },
-                e -> failShard("exception during primary term transition", e));
-            primaryTerm = newPrimaryTerm;
-            latch.countDown();
         }
     }
 
@@ -536,7 +549,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws InterruptedException            if blocking operations is interrupted
      */
     public void relocated(
-            final String reason, final Consumer<PrimaryContext> consumer) throws IllegalIndexShardStateException, InterruptedException {
+            final String reason, final Consumer<GlobalCheckpointTracker.PrimaryContext> consumer) throws IllegalIndexShardStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try {
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
@@ -548,16 +561,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                  * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
                  */
                 verifyRelocatingState();
-                final PrimaryContext primaryContext = getEngine().seqNoService().primaryContext();
+                final GlobalCheckpointTracker.PrimaryContext primaryContext = getEngine().seqNoService().startRelocationHandoff();
                 try {
                     consumer.accept(primaryContext);
                     synchronized (mutex) {
                         verifyRelocatingState();
                         changeState(IndexShardState.RELOCATED, reason);
                     }
+                    getEngine().seqNoService().completeRelocationHandoff();
                 } catch (final Exception e) {
                     try {
-                        getEngine().seqNoService().releasePrimaryContext();
+                        getEngine().seqNoService().abortRelocationHandoff();
                     } catch (final Exception inner) {
                         e.addSuppressed(inner);
                     }
@@ -621,10 +635,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             isRetry, Engine.Operation.Origin.PRIMARY, sourceToParse, onMappingUpdate);
     }
 
-    public Engine.IndexResult applyIndexOperationOnReplica(long seqNo, long opPrimaryTerm, long version, VersionType versionType,
+    public Engine.IndexResult applyIndexOperationOnReplica(long seqNo, long version, VersionType versionType,
                                                            long autoGeneratedTimeStamp, boolean isRetry, SourceToParse sourceToParse,
                                                            Consumer<Mapping> onMappingUpdate) throws IOException {
-        return applyIndexOperation(seqNo, opPrimaryTerm, version, versionType, autoGeneratedTimeStamp, isRetry,
+        return applyIndexOperation(seqNo, primaryTerm, version, versionType, autoGeneratedTimeStamp, isRetry,
             Engine.Operation.Origin.REPLICA, sourceToParse, onMappingUpdate);
     }
 
@@ -636,7 +650,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ensureWriteAllowed(origin);
         Engine.Index operation;
         try {
-            operation = prepareIndex(docMapper(sourceToParse.type()), sourceToParse, seqNo, opPrimaryTerm, version, versionType, origin,
+            operation = prepareIndex(docMapper(sourceToParse.type()), indexSettings.getIndexVersionCreated(), sourceToParse, seqNo,
+                    opPrimaryTerm, version, versionType, origin,
                 autoGeneratedTimeStamp, isRetry);
             Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
@@ -653,15 +668,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return index(getEngine(), operation);
     }
 
-    public static Engine.Index prepareIndex(DocumentMapperForType docMapper, SourceToParse source, long seqNo, long primaryTerm, long version,
-                                     VersionType versionType, Engine.Operation.Origin origin, long autoGeneratedIdTimestamp, boolean isRetry) {
+    public static Engine.Index prepareIndex(DocumentMapperForType docMapper, Version indexCreatedVersion, SourceToParse source, long seqNo,
+            long primaryTerm, long version, VersionType versionType, Engine.Operation.Origin origin, long autoGeneratedIdTimestamp,
+            boolean isRetry) {
         long startTime = System.nanoTime();
         ParsedDocument doc = docMapper.getDocumentMapper().parse(source);
         if (docMapper.getMapping() != null) {
             doc.addDynamicMappingsUpdate(docMapper.getMapping());
         }
         Term uid;
-        if (docMapper.getDocumentMapper().idFieldMapper().fieldType().indexOptions() != IndexOptions.NONE) {
+        if (indexCreatedVersion.onOrAfter(Version.V_6_0_0_beta1)) {
+            uid = new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id()));
+        } else if (docMapper.getDocumentMapper().idFieldMapper().fieldType().indexOptions() != IndexOptions.NONE) {
             uid = new Term(IdFieldMapper.NAME, doc.id());
         } else {
             uid = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(doc.type(), doc.id()));
@@ -687,7 +705,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return result;
     }
 
-    public Engine.NoOpResult markSeqNoAsNoop(long seqNo, long primaryTerm, String reason) throws IOException {
+    public Engine.NoOpResult markSeqNoAsNoop(long seqNo, String reason) throws IOException {
         return markSeqNoAsNoop(seqNo, primaryTerm, reason, Engine.Operation.Origin.REPLICA);
     }
 
@@ -714,7 +732,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             Engine.Operation.Origin.PRIMARY, onMappingUpdate);
     }
 
-    public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long primaryTerm, long version, String type, String id,
+    public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long version, String type, String id,
                                                              VersionType versionType,
                                                              Consumer<Mapping> onMappingUpdate) throws IOException {
         return applyDeleteOperation(seqNo, primaryTerm, version, type, id, versionType, Engine.Operation.Origin.REPLICA, onMappingUpdate);
@@ -756,7 +774,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Term extractUidForDelete(String type, String id) {
-        if (indexSettings.isSingleType()) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
+            assert indexSettings.isSingleType();
+            // This is only correct because we create types dynamically on delete operations
+            // otherwise this could match the same _id from a different type
+            BytesRef idBytes = Uid.encodeId(id);
+            return new Term(IdFieldMapper.NAME, idBytes);
+        } else if (indexSettings.isSingleType()) {
             // This is only correct because we create types dynamically on delete operations
             // otherwise this could match the same _id from a different type
             return new Term(IdFieldMapper.NAME, id);
@@ -823,8 +847,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public RefreshStats refreshStats() {
-        // Null refreshListeners means this shard doesn't support them so there can't be any.
-        int listeners = refreshListeners == null ? 0 : refreshListeners.pendingCount();
+        int listeners = refreshListeners.pendingCount();
         return new RefreshStats(refreshMetric.count(), TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()), listeners);
     }
 
@@ -960,6 +983,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Engine.CommitId commitId = engine.flush(force, waitIfOngoing);
         flushMetric.inc(System.nanoTime() - time);
         return commitId;
+    }
+
+    /**
+     * checks and removes translog files that no longer need to be retained. See
+     * {@link org.elasticsearch.index.translog.TranslogDeletionPolicy} for details
+     */
+    public void trimTranslog() {
+        verifyNotClosed();
+        final Engine engine = getEngine();
+        engine.trimTranslog();
     }
 
     /**
@@ -1121,6 +1154,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (state == IndexShardState.RELOCATED) {
                 throw new IndexShardRelocatedException(shardId);
             }
+            // we need to refresh again to expose all operations that were index until now. Otherwise
+            // we may not expose operations that were indexed with a refresh listener that was immediately
+            // responded to in addRefreshListener.
+            getEngine().refresh("post_recovery");
             recoveryState.setStage(RecoveryState.Stage.DONE);
             changeState(IndexShardState.POST_RECOVERY, reason);
         }
@@ -1290,6 +1327,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (state != IndexShardState.RECOVERING) {
                 throw new IndexShardNotRecoveringException(shardId, state);
             }
+            assert refreshListeners.pendingCount() == 0 : "we can't restart with pending listeners";
             final Engine engine = this.currentEngineReference.getAndSet(null);
             IOUtils.close(engine);
             recoveryState().setStage(RecoveryState.Stage.INIT);
@@ -1336,6 +1374,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (readAllowedStates.contains(state) == false) {
             throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when shard state is one of " + readAllowedStates.toString());
         }
+    }
+
+    /** returns true if the {@link IndexShardState} allows reading */
+    public boolean isReadAllowed() {
+        return readAllowedStates.contains(state);
     }
 
     private void ensureWriteAllowed(Engine.Operation.Origin origin) throws IllegalIndexShardStateException {
@@ -1522,10 +1565,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public Translog.View acquireTranslogView() {
+    public Closeable acquireTranslogRetentionLock() {
         Engine engine = getEngine();
-        assert engine.getTranslog() != null : "translog must not be null";
-        return engine.getTranslog().newView();
+        return engine.getTranslog().acquireRetentionLock();
     }
 
     public List<Segment> segments(boolean verbose) {
@@ -1620,6 +1662,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void updateLocalCheckpointForShard(final String allocationId, final long checkpoint) {
         verifyPrimary();
+        verifyNotClosed();
         getEngine().seqNoService().updateLocalCheckpointForShard(allocationId, checkpoint);
     }
 
@@ -1631,6 +1674,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void waitForOpsToComplete(final long seqNo) throws InterruptedException {
         getEngine().seqNoService().waitForOpsToComplete(seqNo);
+    }
+
+    /**
+     * Called when the recovery process for a shard is ready to open the engine on the target shard.
+     * See {@link GlobalCheckpointTracker#initiateTracking(String)} for details.
+     *
+     * @param allocationId  the allocation ID of the shard for which recovery was initiated
+     */
+    public void initiateTracking(final String allocationId) {
+        verifyPrimary();
+        getEngine().seqNoService().initiateTracking(allocationId);
+        /*
+         * We could have blocked so long waiting for the replica to catch up that we fell idle and there will not be a background sync to
+         * the replica; mark our self as active to force a future background sync.
+         */
+        active.compareAndSet(false, true);
     }
 
     /**
@@ -1670,11 +1729,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Returns the current replication group for the shard.
+     *
+     * @return the replication group
+     */
+    public ReplicationGroup getReplicationGroup() {
+        verifyPrimary();
+        verifyNotClosed();
+        return getEngine().seqNoService().getReplicationGroup();
+    }
+
+    /**
      * Updates the global checkpoint on a replica shard after it has been updated by the primary.
      *
      * @param globalCheckpoint the global checkpoint
+     * @param reason           the reason the global checkpoint was updated
      */
-    public void updateGlobalCheckpointOnReplica(final long globalCheckpoint) {
+    public void updateGlobalCheckpointOnReplica(final long globalCheckpoint, final String reason) {
         verifyReplicationTarget();
         final SequenceNumbersService seqNoService = getEngine().seqNoService();
         final long localCheckpoint = seqNoService.getLocalCheckpoint();
@@ -1689,9 +1760,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              * while the global checkpoint update may have emanated from the primary when we were in that state, we could subsequently move
              * to recovery finalization, or even finished recovery before the update arrives here.
              */
+            assert state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED && state() != IndexShardState.RELOCATED :
+                "supposedly in-sync shard copy received a global checkpoint [" + globalCheckpoint + "] " +
+                    "that is higher than its local checkpoint [" + localCheckpoint + "]";
             return;
         }
-        seqNoService.updateGlobalCheckpointOnReplica(globalCheckpoint);
+        seqNoService.updateGlobalCheckpointOnReplica(globalCheckpoint, reason);
     }
 
     /**
@@ -1699,13 +1773,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @param primaryContext the sequence number context
      */
-    public void updateAllocationIdsFromPrimaryContext(final PrimaryContext primaryContext) {
+    public void activateWithPrimaryContext(final GlobalCheckpointTracker.PrimaryContext primaryContext) {
         verifyPrimary();
         assert shardRouting.isRelocationTarget() : "only relocation target can update allocation IDs from primary context: " + shardRouting;
-        final Engine engine = getEngineOrNull();
-        if (engine != null) {
-            engine.seqNoService().updateAllocationIdsFromPrimaryContext(primaryContext);
-        }
+        assert primaryContext.getLocalCheckpoints().containsKey(routingEntry().allocationId().getId()) &&
+            getEngine().seqNoService().getLocalCheckpoint() ==
+                primaryContext.getLocalCheckpoints().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
+        getEngine().seqNoService().activateWithPrimaryContext(primaryContext);
     }
 
     /**
@@ -2057,7 +2131,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             assert operationPrimaryTerm > primaryTerm :
                                 "shard term already update.  op term [" + operationPrimaryTerm + "], shardTerm [" + primaryTerm + "]";
                             primaryTerm = operationPrimaryTerm;
-                            updateGlobalCheckpointOnReplica(globalCheckpoint);
+                            updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
+                            final long currentGlobalCheckpoint = getGlobalCheckpoint();
+                            final long localCheckpoint;
+                            if (currentGlobalCheckpoint == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                                localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
+                            } else {
+                                localCheckpoint = currentGlobalCheckpoint;
+                            }
+                            logger.trace(
+                                    "detected new primary with primary term [{}], resetting local checkpoint from [{}] to [{}]",
+                                    operationPrimaryTerm,
+                                    getLocalCheckpoint(),
+                                    localCheckpoint);
+                            getEngine().seqNoService().resetLocalCheckpoint(localCheckpoint);
                             getEngine().getTranslog().rollGeneration();
                         });
                         globalCheckpointUpdated = true;
@@ -2091,7 +2178,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         } else {
                             if (globalCheckpointUpdated == false) {
                                 try {
-                                    updateGlobalCheckpointOnReplica(globalCheckpoint);
+                                    updateGlobalCheckpointOnReplica(globalCheckpoint, "operation");
                                 } catch (Exception e) {
                                     releasable.close();
                                     onPermitAcquired.onFailure(e);
@@ -2278,7 +2365,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *        false otherwise.
      */
     public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
-        refreshListeners.addOrNotify(location, listener);
+        final boolean readAllowed;
+        if (isReadAllowed()) {
+            readAllowed = true;
+        } else {
+            // check again under mutex. this is important to create a happens before relationship
+            // between the switch to POST_RECOVERY + associated refresh. Otherwise we may respond
+            // to a listener before a refresh actually happened that contained that operation.
+            synchronized (mutex) {
+                readAllowed = isReadAllowed();
+            }
+        }
+        if (readAllowed) {
+            refreshListeners.addOrNotify(location, listener);
+        } else {
+            // we're not yet ready fo ready for reads, just ignore refresh cycles
+            listener.accept(false);
+        }
     }
 
     private static class RefreshMetricUpdater implements ReferenceManager.RefreshListener {

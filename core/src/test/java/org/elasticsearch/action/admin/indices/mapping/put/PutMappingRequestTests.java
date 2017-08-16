@@ -31,7 +31,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Base64;
 
 public class PutMappingRequestTests extends ESTestCase {
 
@@ -93,19 +92,6 @@ public class PutMappingRequestTests extends ESTestCase {
                 String source = serialized.source();
                 assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), source);
             }
-        }
-    }
-
-    public void testSerializationBwc() throws IOException {
-        final byte[] data = Base64.getDecoder().decode("ADwDAQNmb28MAA8tLS0KZm9vOiAiYmFyIgoAPAMAAAA=");
-        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
-        try (StreamInput in = StreamInput.wrap(data)) {
-            in.setVersion(version);
-            PutMappingRequest request = new PutMappingRequest();
-            request.readFrom(in);
-            String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
-            assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), request.source());
         }
     }
 }

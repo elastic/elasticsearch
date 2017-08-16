@@ -144,7 +144,9 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         }
 
         MatchQuery matchQuery = new MatchQuery(context);
-        matchQuery.setAnalyzer(analyzer);
+        if (analyzer != null) {
+            matchQuery.setAnalyzer(analyzer);
+        }
         matchQuery.setPhraseSlop(slop);
 
         return matchQuery.parse(MatchQuery.Type.PHRASE, fieldName, value);

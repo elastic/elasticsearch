@@ -29,9 +29,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
+import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableList;
 
@@ -58,10 +59,10 @@ public class VersionUtils {
             if (field.getType() != Version.class) {
                 continue;
             }
-            assert field.getName().matches("(V(_\\d+)+(_(alpha|beta|rc)\\d+)?|CURRENT)") : field.getName();
             if ("CURRENT".equals(field.getName())) {
                 continue;
             }
+            assert field.getName().matches("V(_\\d+)+(_(alpha|beta|rc)\\d+)?") : field.getName();
             try {
                 versions.add(((Version) field.get(null)));
             } catch (final IllegalAccessException e) {
@@ -69,29 +70,28 @@ public class VersionUtils {
             }
         }
         Collections.sort(versions);
-        assert versions.get(versions.size() - 1).equals(current) : "The highest version must be the current one "
+        Version last = versions.remove(versions.size() - 1);
+        assert last.equals(current) : "The highest version must be the current one "
             + "but was [" + versions.get(versions.size() - 1) + "] and current was [" + current + "]";
 
         if (current.revision != 0) {
             /* If we are in a stable branch there should be no unreleased version constants
              * because we don't expect to release any new versions in older branches. If there
              * are extra constants then gradle will yell about it. */
-            return new Tuple<>(unmodifiableList(versions), emptyList());
+            return new Tuple<>(unmodifiableList(versions), singletonList(current));
         }
 
         /* If we are on a patch release then we know that at least the version before the
          * current one is unreleased. If it is released then gradle would be complaining. */
-        int unreleasedIndex = versions.size() - 2;
+        int unreleasedIndex = versions.size() - 1;
         while (true) {
             if (unreleasedIndex < 0) {
                 throw new IllegalArgumentException("Couldn't find first non-alpha release");
             }
-            /* Technically we don't support backwards compatiblity for alphas, betas,
-             * and rcs. But the testing infrastructure requires that we act as though we
-             * do. This is a difference between the gradle and Java logic but should be
-             * fairly safe as it is errs on us being more compatible rather than less....
-             * Anyway, the upshot is that we never declare alphas as unreleased, no
-             * matter where they are in the list. */
+            /* We don't support backwards compatibility for alphas, betas, and rcs. But
+             * they were released so we add them to the released list. Usually this doesn't
+             * matter to consumers, but consumers that do care should filter non-release
+             * versions. */
             if (versions.get(unreleasedIndex).isRelease()) {
                 break;
             }
@@ -104,9 +104,9 @@ public class VersionUtils {
              * that there is yet another unreleased version before that. */
             unreleasedIndex--;
             Version earlierUnreleased = versions.remove(unreleasedIndex);
-            return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(earlierUnreleased, unreleased)));
+            return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(earlierUnreleased, unreleased, current)));
         }
-        return new Tuple<>(unmodifiableList(versions), singletonList(unreleased));
+        return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(unreleased, current)));
     }
 
     private static final List<Version> RELEASED_VERSIONS;
@@ -149,9 +149,13 @@ public class VersionUtils {
      * Get the released version before {@code version}.
      */
     public static Version getPreviousVersion(Version version) {
-        int index = RELEASED_VERSIONS.indexOf(version);
-        assert index > 0;
-        return RELEASED_VERSIONS.get(index - 1);
+        for (int i = RELEASED_VERSIONS.size() - 1; i >= 0; i--) {
+            Version v = RELEASED_VERSIONS.get(i);
+            if (v.before(version)) {
+                return v;
+            }
+        }
+        throw new IllegalArgumentException("couldn't find any released versions before [" + version + "]");
     }
 
     /**
@@ -168,12 +172,13 @@ public class VersionUtils {
      * where the minor version is less than the currents minor version.
      */
     public static Version getPreviousMinorVersion() {
-        Version version = Version.CURRENT;
-        do {
-            version = getPreviousVersion(version);
-            assert version.before(Version.CURRENT);
-        } while (version.minor == Version.CURRENT.minor);
-        return version;
+        for (int i = RELEASED_VERSIONS.size() - 1; i >= 0; i--) {
+            Version v = RELEASED_VERSIONS.get(i);
+            if (v.minor < Version.CURRENT.minor || v.major < Version.CURRENT.major) {
+                return v;
+            }
+        }
+        throw new IllegalArgumentException("couldn't find any released versions of the minor before [" + Version.CURRENT + "]");
     }
 
     /** Returns the oldest released {@link Version} */
@@ -184,6 +189,12 @@ public class VersionUtils {
     /** Returns a random {@link Version} from all available versions. */
     public static Version randomVersion(Random random) {
         return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
+    }
+
+    /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */
+    public static Version randomCompatibleVersion(Random random, Version version) {
+        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).collect(Collectors.toList());
+        return compatible.get(random.nextInt(compatible.size()));
     }
 
     /** Returns a random {@link Version} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
@@ -208,4 +219,20 @@ public class VersionUtils {
             return ALL_VERSIONS.get(minVersionIndex + random.nextInt(range));
         }
     }
+
+    /** returns the first future incompatible version */
+    public static Version incompatibleFutureVersion(Version version) {
+        final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version) == false).findAny();
+        assert opt.isPresent() : "no future incompatible version for " + version;
+        return opt.get();
+    }
+
+    /** Returns the maximum {@link Version} that is compatible with the given version. */
+    public static Version maxCompatibleVersion(Version version) {
+        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).filter(version::onOrBefore)
+            .collect(Collectors.toList());
+        assert compatible.size() > 0;
+        return compatible.get(compatible.size() - 1);
+    }
+
 }

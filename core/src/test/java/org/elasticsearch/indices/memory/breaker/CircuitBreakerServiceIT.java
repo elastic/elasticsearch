@@ -78,7 +78,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Integration tests for InternalCircuitBreakerService
  */
-@ClusterScope(scope = TEST, randomDynamicTemplates = false, numClientNodes = 0, maxNumDataNodes = 1)
+@ClusterScope(scope = TEST, numClientNodes = 0, maxNumDataNodes = 1)
 public class CircuitBreakerServiceIT extends ESIntegTestCase {
     /** Reset all breaker settings back to their defaults */
     private void reset() {

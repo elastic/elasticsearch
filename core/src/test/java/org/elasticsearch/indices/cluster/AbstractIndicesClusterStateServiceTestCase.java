@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -35,7 +34,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -55,8 +53,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -141,14 +139,12 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
                         if (shard.routingEntry().primary() && shard.routingEntry().active()) {
                             IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shard.shardId());
-                            Set<String> activeIds = shardRoutingTable.activeShards().stream()
-                                .map(r -> r.allocationId().getId()).collect(Collectors.toSet());
-                            Set<String> initializingIds = shardRoutingTable.getAllInitializingShards().stream()
-                                .map(r -> r.allocationId().getId()).collect(Collectors.toSet());
-                            assertThat(shard.routingEntry() + " isn't updated with active aIDs", shard.activeAllocationIds,
-                                equalTo(activeIds));
-                            assertThat(shard.routingEntry() + " isn't updated with init aIDs", shard.initializingAllocationIds,
-                                equalTo(initializingIds));
+                            Set<String> inSyncIds = state.metaData().index(shard.shardId().getIndex())
+                                .inSyncAllocationIds(shard.shardId().id());
+                            assertThat(shard.routingEntry() + " isn't updated with in-sync aIDs", shard.inSyncAllocationIds,
+                                equalTo(inSyncIds));
+                            assertThat(shard.routingEntry() + " isn't updated with routing table", shard.routingTable,
+                                equalTo(shardRoutingTable));
                         }
                     }
                 }
@@ -326,8 +322,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         private volatile long clusterStateVersion;
         private volatile ShardRouting shardRouting;
         private volatile RecoveryState recoveryState;
-        private volatile Set<String> activeAllocationIds;
-        private volatile Set<String> initializingAllocationIds;
+        private volatile Set<String> inSyncAllocationIds;
+        private volatile IndexShardRoutingTable routingTable;
         private volatile long term;
 
         public MockIndexShard(ShardRouting shardRouting, long term) {
@@ -348,10 +344,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         @Override
         public void updateShardState(ShardRouting shardRouting,
                                      long newPrimaryTerm,
-                                     CheckedBiConsumer<IndexShard, ActionListener<ResyncTask>, IOException> primaryReplicaSyncer,
+                                     BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
                                      long applyingClusterStateVersion,
-                                     Set<String> activeAllocationIds,
-                                     Set<String> initializingAllocationIds) throws IOException {
+                                     Set<String> inSyncAllocationIds,
+                                     IndexShardRoutingTable routingTable,
+                                     Set<String> pre60AllocationIds) throws IOException {
             failRandomly();
             assertThat(this.shardId(), equalTo(shardRouting.shardId()));
             assertTrue("current: " + this.shardRouting + ", got: " + shardRouting, this.shardRouting.isSameAllocation(shardRouting));
@@ -363,8 +360,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             if (shardRouting.primary()) {
                 term = newPrimaryTerm;
                 this.clusterStateVersion = applyingClusterStateVersion;
-                this.activeAllocationIds = activeAllocationIds;
-                this.initializingAllocationIds = initializingAllocationIds;
+                this.inSyncAllocationIds = inSyncAllocationIds;
+                this.routingTable = routingTable;
             }
         }
 

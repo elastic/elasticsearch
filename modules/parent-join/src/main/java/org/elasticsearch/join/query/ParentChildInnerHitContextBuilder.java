@@ -19,6 +19,8 @@
 package org.elasticsearch.join.query;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -32,6 +34,8 @@ import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -49,6 +53,7 @@ import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.fetch.subphase.InnerHitsContext.intersect;
@@ -126,8 +131,8 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
             TopDocs[] result = new TopDocs[hits.length];
             for (int i = 0; i < hits.length; i++) {
                 SearchHit hit = hits[i];
-                DocumentField joinField = hit.getFields().get(joinFieldMapper.name());
-                if (joinField == null) {
+                String joinName = getSortedDocValue(joinFieldMapper.name(), context, hit.docId());
+                if (joinName == null) {
                     result[i] = Lucene.EMPTY_TOP_DOCS;
                     continue;
                 }
@@ -150,8 +155,8 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                         .add(joinFieldMapper.fieldType().termQuery(typeName, qsc), BooleanClause.Occur.FILTER)
                         .build();
                 } else {
-                    DocumentField parentIdField = hit.getFields().get(parentIdFieldMapper.name());
-                    q = context.mapperService().fullName(IdFieldMapper.NAME).termQuery(parentIdField.getValue(), qsc);
+                    String parentId = getSortedDocValue(parentIdFieldMapper.name(), context, hit.docId());
+                    q = context.mapperService().fullName(IdFieldMapper.NAME).termQuery(parentId, qsc);
                 }
 
                 Weight weight = context.searcher().createNormalizedWeight(q, false);
@@ -181,6 +186,24 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
             }
             return result;
         }
+
+        private String getSortedDocValue(String field, SearchContext context, int docId) {
+            try {
+                List<LeafReaderContext> ctxs = context.searcher().getIndexReader().leaves();
+                LeafReaderContext ctx = ctxs.get(ReaderUtil.subIndex(docId, ctxs));
+                SortedDocValues docValues = ctx.reader().getSortedDocValues(field);
+                int segmentDocId = docId - ctx.docBase;
+                if (docValues == null || docValues.advanceExact(segmentDocId) == false) {
+                    return null;
+                }
+                int ord = docValues.ordValue();
+                BytesRef joinName = docValues.lookupOrd(ord);
+                return joinName.utf8ToString();
+            } catch (IOException e) {
+                throw ExceptionsHelper.convertToElastic(e);
+            }
+        }
+
     }
 
     static final class ParentChildInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {

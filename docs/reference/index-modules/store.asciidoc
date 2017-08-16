@@ -32,15 +32,15 @@ PUT /my_index
 }
 ---------------------------------
 
-experimental[This is an expert-only setting and may be removed in the future]
+WARNING: This is an expert-only setting and may be removed in the future.
 
 The following sections lists all the different storage types supported.
 
 `fs`::
 
 Default file system implementation. This will pick the best implementation
-depending on the operating environment: `simplefs` on Windows 32bit, `niofs`
-on other 32bit systems and `mmapfs` on 64bit systems.
+depending on the operating environment, which is currently `mmapfs` on all
+supported systems but is subject to change.
 
 [[simplefs]]`simplefs`::
 
@@ -73,7 +73,7 @@ compatibility.
 
 === Pre-loading data into the file system cache
 
-experimental[This is an expert-only setting and may be removed in the future]
+NOTE: This is an expert setting, the details of which may change in the future.
 
 By default, elasticsearch completely relies on the operating system file system
 cache for caching I/O operations. It is possible to set `index.store.preload`

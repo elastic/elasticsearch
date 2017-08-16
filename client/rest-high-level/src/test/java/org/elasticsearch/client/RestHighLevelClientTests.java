@@ -20,20 +20,20 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.ProtocolVersion;
-import org.apache.http.RequestLine;
-import org.apache.http.StatusLine;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHttpResponse;
-import org.apache.http.message.BasicRequestLine;
-import org.apache.http.message.BasicStatusLine;
-import org.apache.http.nio.entity.NStringEntity;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.HttpResponse;
+import org.elasticsearch.client.http.ProtocolVersion;
+import org.elasticsearch.client.http.RequestLine;
+import org.elasticsearch.client.http.StatusLine;
+import org.elasticsearch.client.http.entity.ByteArrayEntity;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
+import org.elasticsearch.client.http.message.BasicHttpResponse;
+import org.elasticsearch.client.http.message.BasicRequestLine;
+import org.elasticsearch.client.http.message.BasicStatusLine;
+import org.elasticsearch.client.http.nio.entity.NStringEntity;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -153,7 +153,7 @@ public class RestHighLevelClientTests extends ESTestCase {
     public void testSearchScroll() throws IOException {
         Header[] headers = randomHeaders(random(), "Header");
         SearchResponse mockSearchResponse = new SearchResponse(new SearchResponseSections(SearchHits.empty(), InternalAggregations.EMPTY,
-                null, false, false, null, 1), randomAlphaOfLengthBetween(5, 10), 5, 5, 100, new ShardSearchFailure[0]);
+                null, false, false, null, 1), randomAlphaOfLengthBetween(5, 10), 5, 5, 0, 100, new ShardSearchFailure[0]);
         mockResponse(mockSearchResponse);
         SearchResponse searchResponse = restHighLevelClient.searchScroll(new SearchScrollRequest(randomAlphaOfLengthBetween(5, 10)),
                 headers);

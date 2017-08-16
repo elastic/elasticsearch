@@ -22,6 +22,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
@@ -33,6 +34,7 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -86,6 +88,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     private final Predicate<DiscoveryNode> nodePredicate;
     private volatile List<DiscoveryNode> seedNodes;
     private final ConnectHandler connectHandler;
+    private SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
 
     /**
      * Creates a new {@link RemoteClusterConnection}
@@ -406,8 +409,14 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                             ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, null, null));
                         boolean success = false;
                         try {
-                            handshakeNode = transportService.handshake(connection, remoteProfile.getHandshakeTimeout().millis(),
-                                (c) -> true);
+                            try {
+                                handshakeNode = transportService.handshake(connection, remoteProfile.getHandshakeTimeout().millis(),
+                                    (c) -> remoteClusterName.get() == null ? true : c.equals(remoteClusterName.get()));
+                            } catch (IllegalStateException ex) {
+                                logger.warn((Supplier<?>) () -> new ParameterizedMessage("seed node {} cluster name mismatch expected " +
+                                    "cluster name {}", connection.getNode(), remoteClusterName.get()), ex);
+                                throw ex;
+                            }
                             if (nodePredicate.test(handshakeNode) && connectedNodes.size() < maxNumRemoteConnections) {
                                 transportService.connectToNode(handshakeNode, remoteProfile);
                                 connectedNodes.add(handshakeNode);
@@ -501,6 +510,10 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             public void handleResponse(ClusterStateResponse response) {
                 assert transportService.getThreadPool().getThreadContext().isSystemContext() == false : "context is a system context";
                 try {
+                    if (remoteClusterName.get() == null) {
+                        assert response.getClusterName().value() != null;
+                        remoteClusterName.set(response.getClusterName());
+                    }
                     try (Closeable theConnection = connection) { // the connection is unused - see comment in #collectRemoteNodes
                         // we have to close this connection before we notify listeners - this is mainly needed for test correctness
                         // since if we do it afterwards we might fail assertions that check if all high level connections are closed.

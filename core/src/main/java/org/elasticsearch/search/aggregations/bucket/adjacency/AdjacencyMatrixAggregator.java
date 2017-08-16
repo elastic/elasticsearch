@@ -28,11 +28,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -64,14 +63,13 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
 
     public static final ParseField FILTERS_FIELD = new ParseField("filters");
 
-    protected static class KeyedFilter implements Writeable, ToXContent {
+    protected static class KeyedFilter implements Writeable, ToXContentFragment {
         private final String key;
         private final QueryBuilder filter;
 
-        public static final NamedObjectParser<KeyedFilter, QueryParseContext> PARSER =
-                (XContentParser p, QueryParseContext c, String name) ->
+        public static final NamedObjectParser<KeyedFilter, Void> PARSER =
+                (XContentParser p, Void c, String name) ->
                      new KeyedFilter(name, parseInnerQueryBuilder(p));
-
 
         public KeyedFilter(String key, QueryBuilder filter) {
             if (key == null) {

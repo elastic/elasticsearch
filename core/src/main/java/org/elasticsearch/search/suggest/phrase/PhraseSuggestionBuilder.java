@@ -37,9 +37,7 @@ import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
@@ -55,7 +53,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * Defines the actual suggest command for phrase suggestions ( <tt>phrase</tt>).
@@ -312,6 +309,13 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     public PhraseSuggestionBuilder clearCandidateGenerators() {
         this.generators.clear();
         return this;
+    }
+
+    /**
+     * get the candidate generators.
+     */
+    Map<String, List<CandidateGenerator>> getCandidateGenerators() {
+        return this.generators;
     }
 
     /**
@@ -610,7 +614,6 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         suggestionContext.setRealWordErrorLikelihood(this.realWordErrorLikelihood);
         suggestionContext.setConfidence(this.confidence);
         suggestionContext.setMaxErrors(this.maxErrors);
-        suggestionContext.setSeparator(BytesRefs.toBytesRef(this.separator));
         suggestionContext.setRequireUnigram(this.forceUnigrams);
         suggestionContext.setTokenLimit(this.tokenLimit);
         suggestionContext.setPreTag(BytesRefs.toBytesRef(this.preTag));

@@ -543,7 +543,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                         return Explanation.noMatch("No value for the distance");
                     }
                     return Explanation.match(
-                            CombineFunction.toFloat(score(docId, subQueryScore.getValue())),
+                            (float) score(docId, subQueryScore.getValue()),
                             "Function for field " + getFieldName() + ":",
                             func.explainFunction(getDistanceString(ctx, docId), distance.doubleValue(), scale));
                 }

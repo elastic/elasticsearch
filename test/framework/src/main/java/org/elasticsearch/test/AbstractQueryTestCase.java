@@ -20,6 +20,7 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -166,7 +167,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     protected static String[] getCurrentTypes() {
-        return currentTypes == null ? Strings.EMPTY_ARRAY : currentTypes;
+        return currentTypes;
     }
 
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -186,7 +187,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
 
         // Set a single type in the index
-        currentTypes = new String[] { "doc" };
+        switch (random().nextInt(3)) {
+        case 0:
+            currentTypes = new String[0]; // no types
+            break;
+        default:
+            currentTypes = new String[] { "doc" };
+            break;
+        }
         randomTypes = getRandomTypes();
     }
 
@@ -733,6 +741,21 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
     }
 
+    /**
+     * Generic test that checks that the <code>Strings.toString()</code> method
+     * renders the XContent correctly.
+     */
+    public void testValidOutput() throws IOException {
+        for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
+            QB testQuery = createTestQueryBuilder();
+            XContentType xContentType = XContentType.JSON;
+            String toString = Strings.toString(testQuery);
+            assertParsedQuery(createParser(xContentType.xContent(), toString), testQuery);
+            BytesReference bytes = XContentHelper.toXContent(testQuery, xContentType, false);
+            assertParsedQuery(createParser(xContentType.xContent(), bytes), testQuery);
+        }
+    }
+
     private QB changeNameOrBoost(QB original) throws IOException {
         QB secondQuery = copyQuery(original);
         if (randomBoolean()) {
@@ -1029,7 +1052,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             AnalysisModule analysisModule = new AnalysisModule(new Environment(nodeSettings), emptyList());
             IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
             scriptService = scriptModule.getScriptService();
-            similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
+            similarityService = new SimilarityService(idxSettings, null, Collections.emptyMap());
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
             mapperService = new MapperService(idxSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
                     this::createShardContext);

@@ -42,14 +42,8 @@ if not "%JAVA_OPTS%" == "" (
 )
 
 rem check the Java version
-%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.JavaVersionChecker"
+%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.JavaVersionChecker" || exit /b 1
 
-if errorlevel 1 (
-  echo|set /p="the minimum required Java version is 8; "
-  echo your Java version from %JAVA% does not meet this requirement
-  exit /b 1
-)
-
-if "%CONF_DIR%" == "" (
-  set CONF_DIR=!ES_HOME!\config
+if "%ES_PATH_CONF%" == "" (
+  set ES_PATH_CONF=!ES_HOME!\config
 )

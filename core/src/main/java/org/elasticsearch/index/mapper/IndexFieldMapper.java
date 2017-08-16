@@ -157,8 +157,8 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
-            return new ConstantIndexFieldData.Builder(mapperService -> mapperService.index().getName());
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+            return new ConstantIndexFieldData.Builder(mapperService -> fullyQualifiedIndexName);
         }
     }
 

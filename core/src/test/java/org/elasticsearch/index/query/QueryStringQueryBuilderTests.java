@@ -160,6 +160,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         if (randomBoolean()) {
             queryStringQueryBuilder.timeZone(randomDateTimeZone().getID());
         }
+        if (randomBoolean()) {
+            queryStringQueryBuilder.autoGenerateSynonymsPhraseQuery(randomBoolean());
+        }
         queryStringQueryBuilder.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
         return queryStringQueryBuilder;
     }
@@ -375,6 +378,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
             queryParser.setDefaultOperator(op.toQueryParserOperator());
             queryParser.setForceAnalyzer(new MockSynonymAnalyzer());
+            queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(false);
 
             // simple multi-term
             Query query = queryParser.parse("guinea pig");
@@ -392,6 +396,21 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                             .build(),
                             defaultOp).build();
             assertThat(query, Matchers.equalTo(expectedQuery));
+
+            queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(true);
+            // simple multi-term with phrase query
+            query = queryParser.parse("guinea pig");
+            expectedQuery = new BooleanQuery.Builder()
+                    .add(new BooleanQuery.Builder()
+                            .add(new PhraseQuery.Builder()
+                                .add(new Term(STRING_FIELD_NAME, "guinea"))
+                                .add(new Term(STRING_FIELD_NAME, "pig"))
+                                .build(), Occur.SHOULD)
+                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), Occur.SHOULD)
+                            .build(), defaultOp)
+                    .build();
+            assertThat(query, Matchers.equalTo(expectedQuery));
+            queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(false);
 
             // simple with additional tokens
             query = queryParser.parse("that guinea pig smells");
@@ -779,12 +798,15 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testExistsFieldQuery() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-
         QueryShardContext context = createShardContext();
         QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
         Query query = queryBuilder.toQuery(context);
-        Query expected = new ConstantScoreQuery(new TermQuery(new Term("_field_names", "foo")));
+        Query expected;
+        if (getCurrentTypes().length > 0) {
+            expected = new ConstantScoreQuery(new TermQuery(new Term("_field_names", "foo")));
+        } else {
+            expected = new MatchNoDocsQuery();
+        }
         assertThat(query, equalTo(expected));
 
         queryBuilder = new QueryStringQueryBuilder("_all:*");
@@ -804,6 +826,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testDisabledFieldNamesField() throws Exception {
+        assumeTrue("No types", getCurrentTypes().length > 0);
         QueryShardContext context = createShardContext();
         context.getMapperService().merge("doc",
             new CompressedXContent(
@@ -811,16 +834,20 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     "foo", "type=text",
                     "_field_names", "enabled=false").string()),
             MapperService.MergeReason.MAPPING_UPDATE, true);
-        QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
-        Query query = queryBuilder.toQuery(context);
-        Query expected = new WildcardQuery(new Term("foo", "*"));
-        assertThat(query, equalTo(expected));
-        context.getMapperService().merge("doc",
-            new CompressedXContent(
-                PutMappingRequest.buildFromSimplifiedDef("doc",
-                    "foo", "type=text",
-                    "_field_names", "enabled=true").string()),
-            MapperService.MergeReason.MAPPING_UPDATE, true);
+        try {
+            QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
+            Query query = queryBuilder.toQuery(context);
+            Query expected = new WildcardQuery(new Term("foo", "*"));
+            assertThat(query, equalTo(expected));
+        } finally {
+            // restore mappings as they were before
+            context.getMapperService().merge("doc",
+                new CompressedXContent(
+                    PutMappingRequest.buildFromSimplifiedDef("doc",
+                        "foo", "type=text",
+                        "_field_names", "enabled=true").string()),
+                MapperService.MergeReason.MAPPING_UPDATE, true);
+        }
     }
 
 
@@ -842,6 +869,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "    \"fuzzy_max_expansions\" : 50,\n" +
                 "    \"phrase_slop\" : 0,\n" +
                 "    \"escape\" : false,\n" +
+                "    \"auto_generate_synonyms_phrase_query\" : true,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";

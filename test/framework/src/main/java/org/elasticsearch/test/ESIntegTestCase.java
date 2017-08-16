@@ -23,7 +23,6 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.elasticsearch.client.http.HttpHost;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
@@ -64,6 +63,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.http.HttpHost;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -134,7 +134,6 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.AssertingTransportInterceptor;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -1085,14 +1084,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected void ensureClusterStateConsistency() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
-            final NamedWriteableRegistry namedWriteableRegistry;
-            if (isInternalCluster()) {
-                // If it's internal cluster - using existing registry in case plugin registered custom data
-                namedWriteableRegistry = internalCluster().getInstance(NamedWriteableRegistry.class);
-            } else {
-                // If it's external cluster - fall back to the standard set
-                namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-            }
+            final NamedWriteableRegistry namedWriteableRegistry = cluster().getNamedWriteableRegistry();
             ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
             byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
             // remove local node reference
@@ -1806,8 +1798,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             ArrayList<Class<? extends Plugin>> mocks = new ArrayList<>(mockPlugins);
             // add both mock plugins - local and tcp if they are not there
             // we do this in case somebody overrides getMockPlugins and misses to call super
-            if (mockPlugins.contains(MockTcpTransportPlugin.class) == false) {
-                mocks.add(MockTcpTransportPlugin.class);
+            if (mockPlugins.contains(getTestTransportPlugin()) == false) {
+                mocks.add(getTestTransportPlugin());
             }
             mockPlugins = mocks;
         }
@@ -1820,7 +1812,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected NodeConfigurationSource getNodeConfigSource() {
         Settings.Builder networkSettings = Settings.builder();
         if (addMockTransportService()) {
-            networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
+            networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
         }
 
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
@@ -1828,8 +1820,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder()
                     .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                    .put(networkSettings.build()).
-                        put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
+                    .put(networkSettings.build())
+                    .put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
             }
 
             @Override
@@ -1851,9 +1843,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             @Override
             public Collection<Class<? extends Plugin>> transportClientPlugins() {
                 Collection<Class<? extends Plugin>> plugins = ESIntegTestCase.this.transportClientPlugins();
-                if (plugins.contains(MockTcpTransportPlugin.class) == false) {
+                if (plugins.contains(getTestTransportPlugin()) == false) {
                     plugins = new ArrayList<>(plugins);
-                    plugins.add(MockTcpTransportPlugin.class);
+                    plugins.add(getTestTransportPlugin());
                 }
                 return Collections.unmodifiableCollection(plugins);
             }
@@ -1911,7 +1903,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
 
         if (addMockTransportService()) {
-            mocks.add(MockTcpTransportPlugin.class);
+            mocks.add(getTestTransportPlugin());
         }
 
         if (addTestZenDiscovery()) {
@@ -2193,9 +2185,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected static RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
-        final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
-        final List<NodeInfo> nodes = nodeInfos.getNodes();
-        assertFalse(nodeInfos.hasFailures());
+        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
+        assertFalse(nodesInfoResponse.hasFailures());
+        return createRestClient(nodesInfoResponse.getNodes(), httpClientConfigCallback, protocol);
+    }
+
+    protected static RestClient createRestClient(final List<NodeInfo> nodes,
+                                                 RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
         List<HttpHost> hosts = new ArrayList<>();
         for (NodeInfo node : nodes) {
             if (node.getHttp() != null) {

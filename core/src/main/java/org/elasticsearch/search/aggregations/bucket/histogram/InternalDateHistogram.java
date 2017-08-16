@@ -26,14 +26,14 @@ import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -275,6 +275,22 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     @Override
     public List<InternalDateHistogram.Bucket> getBuckets() {
         return Collections.unmodifiableList(buckets);
+    }
+
+    DocValueFormat getFormatter() {
+        return format;
+    }
+
+    long getMinDocCount() {
+        return minDocCount;
+    }
+
+    long getOffset() {
+        return offset;
+    }
+
+    BucketOrder getOrder() {
+        return order;
     }
 
     @Override

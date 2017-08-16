@@ -247,15 +247,15 @@ public class AggregationBuilders {
         return new SignificantTermsAggregationBuilder(name, null);
     }
 
-    
+
     /**
      * Create a new {@link SignificantTextAggregationBuilder} aggregation with the given name and text field name
      */
     public static SignificantTextAggregationBuilder significantText(String name, String fieldName) {
         return new SignificantTextAggregationBuilder(name, fieldName);
-    }    
-        
-    
+    }
+
+
     /**
      * Create a new {@link DateHistogramAggregationBuilder} aggregation with the given
      * name.
@@ -304,8 +304,8 @@ public class AggregationBuilders {
     /**
      * Create a new {@link PercentileRanks} aggregation with the given name.
      */
-    public static PercentileRanksAggregationBuilder percentileRanks(String name) {
-        return new PercentileRanksAggregationBuilder(name);
+    public static PercentileRanksAggregationBuilder percentileRanks(String name, double[] values) {
+        return new PercentileRanksAggregationBuilder(name, values);
     }
 
     /**

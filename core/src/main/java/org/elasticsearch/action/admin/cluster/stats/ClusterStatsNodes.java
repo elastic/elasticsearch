@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -31,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -48,7 +49,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class ClusterStatsNodes implements ToXContent {
+public class ClusterStatsNodes implements ToXContentFragment {
 
     private final Counts counts;
     private final Set<Version> versions;
@@ -169,7 +170,7 @@ public class ClusterStatsNodes implements ToXContent {
         return builder;
     }
 
-    public static class Counts implements ToXContent {
+    public static class Counts implements ToXContentFragment {
         static final String COORDINATING_ONLY = "coordinating_only";
 
         private final int total;
@@ -221,7 +222,7 @@ public class ClusterStatsNodes implements ToXContent {
         }
     }
 
-    public static class OsStats implements ToXContent {
+    public static class OsStats implements ToXContentFragment {
         final int availableProcessors;
         final int allocatedProcessors;
         final ObjectIntHashMap<String> names;
@@ -300,7 +301,7 @@ public class ClusterStatsNodes implements ToXContent {
         }
     }
 
-    public static class ProcessStats implements ToXContent {
+    public static class ProcessStats implements ToXContentFragment {
 
         final int count;
         final int cpuPercent;
@@ -394,7 +395,7 @@ public class ClusterStatsNodes implements ToXContent {
         }
     }
 
-    public static class JvmStats implements ToXContent {
+    public static class JvmStats implements ToXContentFragment {
 
         private final ObjectIntHashMap<JvmVersion> versions;
         private final long threads;
@@ -542,7 +543,7 @@ public class ClusterStatsNodes implements ToXContent {
         }
     }
 
-    static class NetworkTypes implements ToXContent {
+    static class NetworkTypes implements ToXContentFragment {
 
         private final Map<String, AtomicInteger> transportTypes;
         private final Map<String, AtomicInteger> httpTypes;

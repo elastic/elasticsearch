@@ -31,7 +31,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -1245,7 +1245,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         return builder;
     }
 
-    public static class IndexBoost implements Writeable, ToXContent {
+    public static class IndexBoost implements Writeable, ToXContentObject {
         private final String index;
         private final float boost;
 
@@ -1329,7 +1329,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
 
     }
-    public static class ScriptField implements Writeable, ToXContent {
+
+    public static class ScriptField implements Writeable, ToXContentFragment {
 
         private final boolean ignoreFailure;
         private final String fieldName;

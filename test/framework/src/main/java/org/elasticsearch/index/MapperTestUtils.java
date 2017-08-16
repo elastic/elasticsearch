@@ -60,7 +60,7 @@ public class MapperTestUtils {
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexName, finalSettings);
         IndexAnalyzers indexAnalyzers = createTestAnalysis(indexSettings, finalSettings).indexAnalyzers;
-        SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
+        SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
         return new MapperService(indexSettings,
             indexAnalyzers,
             xContentRegistry,

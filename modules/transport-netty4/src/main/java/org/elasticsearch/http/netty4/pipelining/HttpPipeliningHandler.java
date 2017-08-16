@@ -123,10 +123,13 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void close(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
-        ClosedChannelException closedChannelException = new ClosedChannelException();
-        for (HttpPipelinedResponse pipelinedResponse : holdingQueue) {
-            pipelinedResponse.release();
-            pipelinedResponse.promise().setFailure(closedChannelException);
+        if (holdingQueue.isEmpty() == false) {
+            ClosedChannelException closedChannelException = new ClosedChannelException();
+            HttpPipelinedResponse pipelinedResponse;
+            while ((pipelinedResponse = holdingQueue.poll()) != null) {
+                pipelinedResponse.release();
+                pipelinedResponse.promise().setFailure(closedChannelException);
+            }
         }
         ctx.close(promise);
     }

@@ -62,9 +62,9 @@ import static org.hamcrest.core.Is.is;
 
 public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
-    private ExecutorService executorService = Executors.newFixedThreadPool(randomIntBetween(4, 8));
-    private Map<String, CountDownLatch> waitingRequests = new ConcurrentHashMap<>();
-    private Map<String, CountDownLatch> finishingRequests = new ConcurrentHashMap<>();
+    private final ExecutorService executorService = Executors.newFixedThreadPool(randomIntBetween(4, 8));
+    private final Map<String, CountDownLatch> waitingRequests = new ConcurrentHashMap<>();
+    private final Map<String, CountDownLatch> finishingRequests = new ConcurrentHashMap<>();
 
     @After
     public void tearDown() throws Exception {
@@ -202,14 +202,10 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     public void testPipeliningRequestsAreReleased() throws InterruptedException {
         final int numberOfRequests = 10;
         final EmbeddedChannel embeddedChannel =
-            new EmbeddedChannel(
-                new AggregateUrisAndHeadersHandler(),
-                new HttpPipeliningHandler(numberOfRequests));
+            new EmbeddedChannel(new HttpPipeliningHandler(numberOfRequests + 1));
 
         for (int i = 0; i < numberOfRequests; i++) {
-            final DefaultHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/" + i);
-            embeddedChannel.writeInbound(request);
-            embeddedChannel.writeInbound(LastHttpContent.EMPTY_LAST_CONTENT);
+            embeddedChannel.writeInbound(createHttpRequest("/" + i));
         }
 
         HttpPipelinedRequest inbound;

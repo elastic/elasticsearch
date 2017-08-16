@@ -67,10 +67,10 @@ public class NioSocketChannelTests extends ESTestCase {
 
         NioSocketChannel socketChannel = new DoNotCloseChannel(NioChannel.CLIENT, mock(SocketChannel.class), selector);
         socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
-        socketChannel.getCloseFuture().setListener((c) -> {
+        socketChannel.getCloseFuture().addListener(ChannelConsumerAdaptor.adapt(socketChannel, (c) -> {
             ref.set(c);
             latch.countDown();
-        });
+        }));
         CloseFuture closeFuture = socketChannel.getCloseFuture();
 
         assertFalse(closeFuture.isClosed());

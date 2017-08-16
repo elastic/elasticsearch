@@ -55,7 +55,7 @@ public class ChannelFactory {
         SocketChannel rawChannel = rawChannelFactory.openNioChannel(remoteAddress);
         NioSocketChannel channel = new NioSocketChannel(NioChannel.CLIENT, rawChannel, selector);
         channel.setContexts(new TcpReadContext(channel, handler), new TcpWriteContext(channel));
-        channel.getCloseFuture().setListener(closeListener);
+        channel.getCloseFuture().addListener(ChannelConsumerAdaptor.adapt(channel, closeListener));
         scheduleChannel(channel, selector);
         return channel;
     }
@@ -65,7 +65,7 @@ public class ChannelFactory {
         SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverChannel);
         NioSocketChannel channel = new NioSocketChannel(serverChannel.getProfile(), rawChannel, selector);
         channel.setContexts(new TcpReadContext(channel, handler), new TcpWriteContext(channel));
-        channel.getCloseFuture().setListener(closeListener);
+        channel.getCloseFuture().addListener(ChannelConsumerAdaptor.adapt(channel, closeListener));
         scheduleChannel(channel, selector);
         return channel;
     }

@@ -44,6 +44,6 @@ if not "%JAVA_OPTS%" == "" (
 rem check the Java version
 %JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.JavaVersionChecker" || exit /b 1
 
-if "%CONF_DIR%" == "" (
-  set CONF_DIR=!ES_HOME!\config
+if "%ES_PATH_CONF%" == "" (
+  set ES_PATH_CONF=!ES_HOME!\config
 )

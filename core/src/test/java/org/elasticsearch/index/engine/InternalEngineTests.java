@@ -29,6 +29,7 @@ import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -138,6 +139,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -495,6 +497,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
             assertThat(segments.get(0).isCompound(), equalTo(true));
             assertThat(segments.get(0).ramTree, nullValue());
+            assertThat(segments.get(0).getAttributes().keySet(), Matchers.contains(Lucene50StoredFieldsFormat.MODE_KEY));
 
             engine.flush();
 

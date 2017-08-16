@@ -22,12 +22,13 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class ProcessorInfo implements Writeable, ToXContent, Comparable<ProcessorInfo> {
+public class ProcessorInfo implements Writeable, ToXContentObject, Comparable<ProcessorInfo> {
 
     private final String type;
 

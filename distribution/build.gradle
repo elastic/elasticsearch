@@ -521,12 +521,12 @@ Map<String, String> expansionsForDistribution(distributionType) {
       'rpm': '/etc/sysconfig/elasticsearch',
       /* There isn't one of these files for tar or zip but its important to
         make an empty string here so the script can properly skip it. */
-      'def': 'if [ -z "$CONF_DIR" ]; then CONF_DIR="$ES_HOME"/config; done',
+      'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; done',
     ],
     'source.path.env': [
        'deb': 'if [ -f /etc/default/elasticsearch ]; then source /etc/default/elasticsearch; fi',
        'rpm': 'if [ -f /etc/sysconfig/elasticsearch ]; then source /etc/sysconfig/elasticsearch; fi',
-       'def': 'if [ -z "$CONF_DIR" ]; then CONF_DIR="$ES_HOME"/config; fi',
+       'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
     ],
     'path.logs': [
       'deb': packagingPathLogs,

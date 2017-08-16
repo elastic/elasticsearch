@@ -243,5 +243,6 @@ setup() {
     sudo rm -rf /var/run/elasticsearch
     systemctl start elasticsearch.service
     wait_for_elasticsearch_status
+    [ -d /var/run/elasticsearch ]
     systemctl stop elasticsearch.service
 }

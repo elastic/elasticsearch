@@ -27,6 +27,7 @@ import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestEncoder;
@@ -36,24 +37,22 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.http.HttpStatus;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
+import org.elasticsearch.http.netty4.pipelining.HttpPipelinedResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.netty4.Netty4Utils;
-import org.elasticsearch.transport.nio.ByteWriteOperation;
 import org.elasticsearch.transport.nio.channel.CloseFuture;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
-import org.elasticsearch.transport.nio.channel.WriteContext;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.nio.channels.ClosedChannelException;
 import java.util.function.BiConsumer;
 
 import static org.mockito.Mockito.mock;
@@ -74,7 +73,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
     public void setMocks() {
         exceptionHandler = mock(BiConsumer.class);
 
-        adaptor = new NioHttpNettyAdaptor(Settings.EMPTY, exceptionHandler, Netty4CorsConfigBuilder.forAnyOrigin().build(), 1024);
+        adaptor = new NioHttpNettyAdaptor(logger, Settings.EMPTY, exceptionHandler, Netty4CorsConfigBuilder.forAnyOrigin().build(), 1024);
         nioSocketChannel = mock(NioSocketChannel.class);
     }
 
@@ -187,25 +186,30 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
         assertEquals(HttpVersion.HTTP_1_1, response.protocolVersion());
     }
 
-//    public void testEncodeHttpResponseAfterClose() {
-//        ESEmbeddedChannel channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
-//
-//        prepareAdaptorForResponse(channelAdaptor);
-//
-//        HttpResponse defaultFullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
-//
-//        ChannelFuture close = channelAdaptor.close();
-//
-//        channelAdaptor.writeOutbound(defaultFullHttpResponse);
-//        Tuple<BytesReference, ChannelPromise> encodedMessage = channelAdaptor.getMessage();
-//
-//        HttpResponse response = responseDecoder.decode(Netty4Utils.toByteBuf(encodedMessage.v1()));
-//
-//        assertEquals(HttpResponseStatus.OK, response.status());
-//        assertEquals(HttpVersion.HTTP_1_1, response.protocolVersion());
-//    }
+    public void testResponsesAreClearedOnClose() {
+        adaptor = new NioHttpNettyAdaptor(logger, Settings.EMPTY, exceptionHandler, Netty4CorsConfigBuilder.forAnyOrigin().build(), 1024);
+        ESEmbeddedChannel channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
 
-    private void prepareAdaptorForResponse(ESEmbeddedChannel adaptor) {
+        prepareAdaptorForResponse(channelAdaptor);
+        HttpPipelinedRequest pipelinedRequest2 = prepareAdaptorForResponse(channelAdaptor);
+
+        FullHttpResponse httpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+        ChannelPromise writePromise = channelAdaptor.newPromise();
+        HttpPipelinedResponse pipelinedResponse = pipelinedRequest2.createHttpResponse(httpResponse, writePromise);
+
+        channelAdaptor.write(pipelinedResponse, writePromise);
+        assertNull(channelAdaptor.getMessage());
+        assertFalse(writePromise.isDone());
+
+        when(nioSocketChannel.closeAsync()).thenReturn(mock(CloseFuture.class));
+        ChannelFuture close = channelAdaptor.close();
+
+        assertFalse(close.isDone());
+        assertTrue(writePromise.isDone());
+        assertTrue(writePromise.cause() instanceof ClosedChannelException);
+    }
+
+    private HttpPipelinedRequest prepareAdaptorForResponse(ESEmbeddedChannel adaptor) {
         HttpMethod method = HttpMethod.GET;
         HttpVersion version = HttpVersion.HTTP_1_1;
         String uri = "http://localhost:9090/" + randomAlphaOfLength(8);
@@ -220,6 +224,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
         assertEquals(requestParsed.method(), method);
         assertEquals(requestParsed.protocolVersion(), version);
         assertEquals(requestParsed.uri(), uri);
+        return pipelinedRequest;
     }
 
     private static class RequestEncoder {

@@ -19,42 +19,24 @@
 
 package org.elasticsearch.http.nio;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.UnpooledByteBufAllocator;
-import io.netty.channel.ChannelConfig;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
-import io.netty.channel.DefaultChannelConfig;
-import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
-import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseEncoder;
-import io.netty.util.ReferenceCountUtil;
-import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.FutureListener;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.http.netty4.pipelining.HttpPipeliningHandler;
-import org.elasticsearch.transport.netty4.ByteBufBytesReferenceTests;
-import org.elasticsearch.transport.netty4.Netty4Utils;
-import org.elasticsearch.transport.nio.channel.ChannelConsumerAdaptor;
-import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
-import java.util.LinkedList;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
@@ -68,6 +50,7 @@ import static org.elasticsearch.http.netty4.Netty4HttpServerTransport.SETTING_HT
 
 public class NioHttpNettyAdaptor {
 
+    private final Logger logger;
     private final BiConsumer<NioSocketChannel, Throwable> exceptionHandler;
     private final Netty4CorsConfig corsConfig;
     private final int maxContentLength;
@@ -80,8 +63,9 @@ public class NioHttpNettyAdaptor {
     private final int maxInitialLineLength;
     private final int maxCompositeBufferComponents;
 
-    protected NioHttpNettyAdaptor(Settings settings, BiConsumer<NioSocketChannel, Throwable> exceptionHandler,
+    protected NioHttpNettyAdaptor(Logger logger, Settings settings, BiConsumer<NioSocketChannel, Throwable> exceptionHandler,
                                   Netty4CorsConfig config, int maxContentLength) {
+        this.logger = logger;
         this.exceptionHandler = exceptionHandler;
         this.maxContentLength = maxContentLength;
         this.corsConfig = config;
@@ -104,6 +88,14 @@ public class NioHttpNettyAdaptor {
         final HttpRequestDecoder decoder = new HttpRequestDecoder(maxInitialLineLength, maxHeaderSize, maxChunkSize);
         decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
 
+        ch.pipeline().addLast("close_adaptor", new ChannelOutboundHandlerAdapter() {
+            @Override
+            public void close(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
+                channel.closeAsync().addListener(new ESChannelPromise(promise));
+                // Should we forward the close() call with a different promise? This is the last item in
+                // the outbound pipeline. So it should not be necessary I think.
+            }
+        });
         ch.pipeline().addLast(decoder);
         ch.pipeline().addLast(new HttpContentDecompressor());
         ch.pipeline().addLast(new HttpResponseEncoder());
@@ -119,18 +111,12 @@ public class NioHttpNettyAdaptor {
             ch.pipeline().addLast("cors", new Netty4CorsHandler(corsConfig));
         }
         if (pipelining) {
-            ch.pipeline().addLast("pipelining", new HttpPipeliningHandler(pipeliningMaxEvents));
+            ch.pipeline().addLast("pipelining", new HttpPipeliningHandler(logger, pipeliningMaxEvents));
         }
         ch.pipeline().addLast("read_exception_handler", new ChannelInboundHandlerAdapter() {
             @Override
             public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
                 exceptionHandler.accept(channel, cause);
-            }
-        });
-        ch.pipeline().addLast("close_adaptor", new ChannelOutboundHandlerAdapter() {
-            @Override
-            public void close(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
-                channel.closeAsync().addListener(new ESChannelPromise(promise));
             }
         });
 

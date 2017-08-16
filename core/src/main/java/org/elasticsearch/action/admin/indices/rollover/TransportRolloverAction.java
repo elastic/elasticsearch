@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -101,19 +100,19 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     @Override
     protected void masterOperation(final RolloverRequest rolloverRequest, final ClusterState state,
                                    final ActionListener<RolloverResponse> listener) {
-        final ActionListener<RolloverResponse> aggListener = new AggRolloverResponseActionListener(
+        final ActionListener<RolloverResponse.SingleAliasRolloverResponse> aggListener = new AggRolloverResponseActionListener(
             rolloverRequest.getAliases().length, listener);
         final MetaData metaData = state.metaData();
         validate(metaData, rolloverRequest);
 
         Arrays.stream(rolloverRequest.getAliases())
             .map(alias -> createTask(metaData, alias, rolloverRequest, state))
-            .forEach(task -> {
+            .forEach(task ->
                 client.admin().indices().prepareStats(task.sourceIndexName).clear().setDocs(true).execute(
                     new IndicesStatsResponseActionListener(
                         rolloverRequest, aggListener, createIndexService, indexAliasesService, activeShardsObserver, task)
-                );
-            });
+                )
+            );
     }
 
     private static class RolloverTask {
@@ -122,8 +121,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final String sourceIndexName;
         final String unresolvedName;
         final String rolloverIndexName;
+        final String alias;
 
-        RolloverTask(MetaData metadata, String sourceIndexName, String unresolvedName, String rolloverIndexName) {
+        RolloverTask(String alias, MetaData metadata, String sourceIndexName, String unresolvedName, String rolloverIndexName) {
+            this.alias = alias;
             this.metaData = metadata;
             this.sourceIndexName = sourceIndexName;
             this.unresolvedName = unresolvedName;
@@ -133,11 +134,12 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     private RolloverTask createTask(MetaData metaData, String alias, RolloverRequest rolloverRequest, ClusterState state) {
         final IndexMetaData indexMetaData = getFirstIndexMetaData(metaData, alias);
+        // @todo handle missing alias
         final String sourceIndexName = indexMetaData.getIndex().getName();
         final String unresolvedName = getUnresolvedName(indexMetaData, rolloverRequest.getNewIndexName());
         final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
         MetaDataCreateIndexService.validateIndexName(rolloverIndexName, state);
-        return new RolloverTask(metaData, sourceIndexName, unresolvedName, rolloverIndexName);
+        return new RolloverTask(alias, metaData, sourceIndexName, unresolvedName, rolloverIndexName);
     }
 
     private IndexMetaData getFirstIndexMetaData(MetaData metaData, String alias) {
@@ -225,16 +227,18 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         private final RolloverRequest rolloverRequest;
         private final MetaData metaData;
         private final String sourceIndexName;
-        private final ActionListener<RolloverResponse> listener;
+        private final ActionListener<RolloverResponse.SingleAliasRolloverResponse> listener;
         private final String rolloverIndexName;
         private final String unresolvedName;
         private final MetaDataCreateIndexService createIndexService;
         private final MetaDataIndexAliasesService indexAliasesService;
         private final ActiveShardsObserver activeShardsObserver;
+        private final String alias;
 
-        IndicesStatsResponseActionListener(RolloverRequest rolloverRequest, ActionListener<RolloverResponse> listener,
+        IndicesStatsResponseActionListener(RolloverRequest rolloverRequest, ActionListener<RolloverResponse.SingleAliasRolloverResponse> listener,
                                            MetaDataCreateIndexService createIndexService, MetaDataIndexAliasesService indexAliasesService,
                                            ActiveShardsObserver activeShardsObserver, RolloverTask task) {
+            this.alias = task.alias;
             this.rolloverRequest = rolloverRequest;
             this.metaData = task.metaData;
             this.sourceIndexName = task.sourceIndexName;
@@ -253,7 +257,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
             if (rolloverRequest.isDryRun()) {
                 listener.onResponse(
-                    new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, true, false, false, false));
+                    new RolloverResponse.SingleAliasRolloverResponse(alias, sourceIndexName, rolloverIndexName, conditionResults, true, false, false, false));
                 return;
             }
             if (conditionResults.size() == 0 || conditionResults.stream().anyMatch(result -> result.matched)) {
@@ -269,11 +273,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                 activeShardsObserver.waitForActiveShards(rolloverIndexName,
                                     rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
                                     rolloverRequest.masterNodeTimeout(),
-                                    isShardsAcked -> listener.onResponse(new RolloverResponse(sourceIndexName, rolloverIndexName,
+                                    isShardsAcked -> listener.onResponse(new RolloverResponse.SingleAliasRolloverResponse(alias, sourceIndexName, rolloverIndexName,
                                                                             conditionResults, false, true, true, isShardsAcked)),
                                     listener::onFailure);
                             } else {
-                                listener.onResponse(new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults,
+                                listener.onResponse(new RolloverResponse.SingleAliasRolloverResponse(alias, sourceIndexName, rolloverIndexName, conditionResults,
                                                                             false, true, false, false));
                             }
                         }, listener::onFailure));
@@ -281,7 +285,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             } else {
                 // conditions not met
                 listener.onResponse(
-                    new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, false, false, false, false)
+                    new RolloverResponse.SingleAliasRolloverResponse(alias, sourceIndexName, rolloverIndexName, conditionResults, false, false, false, false)
                 );
             }
         }
@@ -292,10 +296,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
     }
 
-    private static class AggRolloverResponseActionListener implements ActionListener<RolloverResponse> {
+    private static class AggRolloverResponseActionListener implements ActionListener<RolloverResponse.SingleAliasRolloverResponse> {
 
         private final int size;
-        private final List<RolloverResponse> responses;
+        private final List<RolloverResponse.SingleAliasRolloverResponse> responses;
         private final List<Exception> failedResponses;
         private final ActionListener<RolloverResponse> listener;
 
@@ -307,15 +311,16 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
 
         @Override
-        public void onResponse(RolloverResponse rolloverResponse) {
+        public void onResponse(RolloverResponse.SingleAliasRolloverResponse rolloverResponse) {
             responses.add(rolloverResponse);
             if (responses.size() + failedResponses.size() == size) {
-                listener.onResponse(responses.get(0)); // todo add all response to aggresponse
+                listener.onResponse(new RolloverResponse(responses)); // todo add all response to aggresponse
             }
         }
 
         @Override
         public void onFailure(Exception e) {
+            // @todo throw exception to force exit and catch it 1 level higher
             failedResponses.add(e);
             listener.onFailure(e); // todo add all response to aggresponse
         }

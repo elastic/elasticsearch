@@ -135,7 +135,7 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
                     pipelinedResponse.release();
                     pipelinedResponse.promise().setFailure(closedChannelException);
                 } catch (Exception e) {
-                    logger.error("unexpected error while releasing logger pipelined requests", e);
+                    logger.error("unexpected error while releasing pipelined http requests", e);
                 }
             }
         }

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.ml.notifications.AuditMessage;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
@@ -126,6 +127,10 @@ public class ElasticsearchMappings {
     }
 
     public static XContentBuilder docMapping() throws IOException {
+        return docMapping(Collections.emptyList());
+    }
+
+    public static XContentBuilder docMapping(Collection<String> extraTermFields) throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         builder.startObject(DOC_TYPE);
@@ -152,6 +157,8 @@ public class ElasticsearchMappings {
         addCategoryDefinitionMapping(builder);
         addDataCountsMapping(builder);
         addModelSnapshotMapping(builder);
+
+        addTermFields(builder, extraTermFields);
 
         // end properties
         builder.endObject();

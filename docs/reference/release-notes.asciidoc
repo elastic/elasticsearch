@@ -1,13 +1,13 @@
 [[es-release-notes]]
 = Release Notes
 
-This section summarizes the changes in each release.
-
 [partintro]
 --
 
-There have been no 7.0 releases yet.
+This section summarizes the changes in each release.
+
+* <<release-notes-7.0.0-alpha1>>
 
 --
 
-There are no release notes for the 7.x series yet.
+include::release-notes/7.0.0-alpha1.asciidoc[]

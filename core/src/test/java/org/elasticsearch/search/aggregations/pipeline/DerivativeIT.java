@@ -265,7 +265,7 @@ public class DerivativeIT extends ESIntegTestCase {
         Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)deriv).getProperty("_count");
         Object[] propertiesSumCounts = (Object[]) ((InternalAggregation)deriv).getProperty("sum.value");
 
-        List<Bucket> buckets = new ArrayList<Bucket>(deriv.getBuckets());
+        List<Bucket> buckets = new ArrayList<>(deriv.getBuckets());
         Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
                                                          // overwritten
         for (int i = 0; i < numValueBuckets; ++i) {
@@ -311,7 +311,7 @@ public class DerivativeIT extends ESIntegTestCase {
         Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)deriv).getProperty("_count");
         Object[] propertiesSumCounts = (Object[]) ((InternalAggregation)deriv).getProperty("stats.sum");
 
-        List<Bucket> buckets = new ArrayList<Bucket>(deriv.getBuckets());
+        List<Bucket> buckets = new ArrayList<>(deriv.getBuckets());
         Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
                                                          // overwritten
         for (int i = 0; i < numValueBuckets; ++i) {

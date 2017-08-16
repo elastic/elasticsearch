@@ -236,3 +236,12 @@ setup() {
     [ "$max_address_space" == "unlimited" ]
     systemctl stop elasticsearch.service
 }
+
+@test "[SYSTEMD] test runtime directory" {
+    clean_before_test
+    install_package
+    sudo rm -rf /var/run/elasticsearch
+    systemctl start elasticsearch.service
+    wait_for_elasticsearch_status
+    systemctl stop elasticsearch.service
+}

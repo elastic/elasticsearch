@@ -285,6 +285,7 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
         mappingBuilder.startObject().startObject("test");
         List<Tuple<String, Boolean>> booleanOptionList = new ArrayList<>();
         boolean allDefault = true;
+        boolean allSet = false;
         if (frequently()) {
             allDefault = false;
             mappingBuilder.startObject("_all");
@@ -298,6 +299,7 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
                 booleanOptionList.add(new Tuple<>("store_term_vectors", tv_stored = randomBoolean()));
             }
             if (randomBoolean()) {
+                allSet = true;
                 booleanOptionList.add(new Tuple<>("enabled", enabled = randomBoolean()));
             }
             if (randomBoolean()) {
@@ -361,7 +363,9 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
             xContentBuilder.flush();
             assertThat(bytesStreamOutput.size(), equalTo(0));
         }
-
+        if (allSet) {
+            assertWarnings("The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
+        }
     }
 
     public void testMultiField_includeInAllSetToFalse() throws IOException {

@@ -36,3 +36,54 @@
         type: doc
         fields: new_field
   - match: {\.ml-anomalies-shared.mappings.doc.new_field.mapping.new_field.type: keyword}
+
+---
+"Test _meta exists when two jobs share an index":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: ml-anomalies-shared-mappings-job1
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"count","by_field_name":"foo"}]
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+  - match: { job_id: "ml-anomalies-shared-mappings-job1" }
+
+  - do:
+      indices.refresh:
+        index: .ml-anomalies-shared
+
+  - do:
+      indices.get_mapping:
+        index: .ml-anomalies-shared
+  - is_true: \.ml-anomalies-shared.mappings.doc._meta.version
+
+  - do:
+      xpack.ml.put_job:
+        job_id: ml-anomalies-shared-mappings-job2
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"count","by_field_name":"bar"}]
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+  - match: { job_id: "ml-anomalies-shared-mappings-job2" }
+
+  - do:
+      indices.refresh:
+        index: .ml-anomalies-shared
+
+  - do:
+      indices.get_mapping:
+        index: .ml-anomalies-shared
+  - is_true: \.ml-anomalies-shared.mappings.doc._meta.version

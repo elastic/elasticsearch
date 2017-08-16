@@ -234,6 +234,8 @@ public class JobProvider {
         if (!state.getMetaData().hasIndex(indexName)) {
             LOGGER.trace("ES API CALL: create index {}", indexName);
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+            // This assumes the requested mapping will be merged with mappings from the template,
+            // and may need to be revisited if template merging is ever refactored
             try (XContentBuilder termFieldsMapping = ElasticsearchMappings.termFieldsMapping(ElasticsearchMappings.DOC_TYPE, termFields)) {
                 createIndexRequest.mapping(ElasticsearchMappings.DOC_TYPE, termFieldsMapping);
             }
@@ -298,7 +300,8 @@ public class JobProvider {
     }
 
     private void updateIndexMappingWithTermFields(String indexName, Collection<String> termFields, ActionListener<Boolean> listener) {
-        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.termFieldsMapping(null, termFields)) {
+        // Put the whole "doc" mapping, not just the term fields, otherwise we'll wipe the _meta section of the mapping
+        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.docMapping(termFields)) {
             client.admin().indices().preparePutMapping(indexName).setType(ElasticsearchMappings.DOC_TYPE)
                     .setSource(termFieldsMapping)
                     .execute(new ActionListener<PutMappingResponse>() {
@@ -312,6 +315,8 @@ public class JobProvider {
                             listener.onFailure(e);
                         }
                     });
+        } catch (IOException e) {
+            listener.onFailure(e);
         }
     }
 

@@ -92,6 +92,14 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     public static final ClusterState EMPTY_STATE = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
 
     public interface Custom extends NamedDiffable<Custom>, ToXContent {
+
+        /**
+         * Returns <code>true</code> iff this {@link Custom} is private to the cluster and should never be send to a client.
+         * The default is <code>false</code>;
+         */
+        default boolean isPrivate() {
+            return false;
+        }
     }
 
     private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);

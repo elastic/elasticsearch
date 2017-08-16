@@ -53,6 +53,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
+import java.util.Queue;
 import java.util.function.BiConsumer;
 
 import static org.mockito.Mockito.mock;
@@ -114,12 +115,12 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
         int slicePoint = randomInt(buf.writerIndex() - 1);
 
         ByteBuf slicedBuf = buf.retainedSlice(0, slicePoint);
-        channelAdaptor.writeInbound(slicedBuf);
+        Queue<Object> messages = channelAdaptor.decode(slicedBuf);
 
-        assertNull(channelAdaptor.readInbound());
+        assertTrue(messages.isEmpty());
 
-        channelAdaptor.writeInbound(buf.retainedSlice(slicePoint, buf.writerIndex() - slicePoint));
-        HttpPipelinedRequest decodedRequest = channelAdaptor.readInbound();
+        messages = channelAdaptor.decode(buf.retainedSlice(slicePoint, buf.writerIndex() - slicePoint));
+        HttpPipelinedRequest decodedRequest = (HttpPipelinedRequest) messages.poll();
 
         FullHttpRequest fullHttpRequest = (FullHttpRequest) decodedRequest.last();
         assertEquals(httpRequest.protocolVersion(), fullHttpRequest.protocolVersion());
@@ -137,8 +138,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
         buf.setByte(1, ' ');
         buf.setByte(2, ' ');
 
-        channelAdaptor.writeInbound(buf.retainedDuplicate());
-        HttpPipelinedRequest decodedRequest = channelAdaptor.readInbound();
+        HttpPipelinedRequest decodedRequest = (HttpPipelinedRequest) channelAdaptor.decode(buf.retainedDuplicate()).poll();
 
         FullHttpRequest fullHttpRequest = (FullHttpRequest) decodedRequest.last();
         DecoderResult decoderResult = fullHttpRequest.decoderResult();
@@ -157,9 +157,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
 
         channelAdaptor.writeInbound(buf.retainedDuplicate());
 
-        HttpPipelinedRequest decodedRequest = channelAdaptor.readInbound();
-
-        assertNull(decodedRequest);
+        assertTrue(channelAdaptor.decode(buf.retainedDuplicate()).isEmpty());
 
         Tuple<BytesReference, ChannelPromise> message = channelAdaptor.getMessage();
 
@@ -217,8 +215,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
         HttpRequest request = new DefaultFullHttpRequest(version, method, uri);
         ByteBuf buf = requestEncoder.encode(request);
 
-        adaptor.writeInbound(buf);
-        HttpPipelinedRequest pipelinedRequest = adaptor.readInbound();
+        HttpPipelinedRequest pipelinedRequest = (HttpPipelinedRequest) adaptor.decode(buf).poll();
         FullHttpRequest requestParsed = (FullHttpRequest) pipelinedRequest.last();
         assertNotNull(requestParsed);
         assertEquals(requestParsed.method(), method);

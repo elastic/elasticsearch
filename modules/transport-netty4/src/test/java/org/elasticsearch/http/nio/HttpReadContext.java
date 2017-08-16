@@ -30,18 +30,19 @@ import org.elasticsearch.transport.nio.channel.ReadContext;
 
 import java.io.IOException;
 import java.util.LinkedList;
+import java.util.Queue;
 
 public class HttpReadContext implements ReadContext {
 
     private final NioSocketChannel channel;
-    private final EmbeddedChannel nettyPipelineAdaptor;
+    private final ESEmbeddedChannel nettyPipelineAdaptor;
     private final LinkedList<NetworkBytesReference> references = new LinkedList<>();
     private final NioHttpRequestHandler requestHandler;
 
-    public HttpReadContext(NioSocketChannel channel, NioHttpNettyAdaptor adaptor, NioHttpRequestHandler requestHandler) {
+    public HttpReadContext(NioSocketChannel channel, ESEmbeddedChannel adaptor, NioHttpRequestHandler requestHandler) {
         this.channel = channel;
         this.requestHandler = requestHandler;
-        this.nettyPipelineAdaptor = adaptor.getAdaptor(channel);
+        this.nettyPipelineAdaptor = adaptor;
     }
 
     @Override
@@ -61,10 +62,10 @@ public class HttpReadContext implements ReadContext {
 
         ByteBuf inboundBytes = toByteBuf(size);
 
-        nettyPipelineAdaptor.writeInbound(inboundBytes);
+        Queue<Object> requests = nettyPipelineAdaptor.decode(inboundBytes);
 
         Object msg;
-        while ((msg = nettyPipelineAdaptor.readInbound()) != null) {
+        while ((msg = requests.poll()) != null) {
             requestHandler.handleMessage(channel, nettyPipelineAdaptor, msg);
         }
 

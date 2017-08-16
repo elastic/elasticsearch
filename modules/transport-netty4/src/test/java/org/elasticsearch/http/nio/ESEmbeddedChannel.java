@@ -29,6 +29,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.util.LinkedList;
+import java.util.Queue;
 
 public class ESEmbeddedChannel extends EmbeddedChannel {
 
@@ -52,6 +53,11 @@ public class ESEmbeddedChannel extends EmbeddedChannel {
                 }
             }
         });
+    }
+
+    public Queue<Object> decode(ByteBuf inboundBytes) {
+        writeInbound(inboundBytes);
+        return inboundMessages();
     }
 
     public Tuple<BytesReference, ChannelPromise> getMessage() {

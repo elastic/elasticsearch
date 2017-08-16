@@ -36,12 +36,19 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class ClassicSimilarityProvider extends AbstractSimilarityProvider {
 
+    private final Version indexCreatedVersion;
     private final ClassicSimilarity similarity = new ClassicSimilarity();
 
     public ClassicSimilarityProvider(String name, Settings settings, Settings indexSettings) {
         super(name);
+        indexCreatedVersion = Version.indexCreated(indexSettings);
+        if (indexCreatedVersion.onOrAfter(Version.V_6_0_0_beta2)) {
+            throw new IllegalArgumentException("The [classic] similarity is disallowed as of 6.0. It is advised that you use the [BM25] " +
+                    "similarity instead which usually provides better scores. In case you really need to keep the same scores as the " +
+                    "[classic] similarity, it is possible to reimplement it using the [scripted] similarity.");
+        }
         boolean discountOverlaps = settings.getAsBooleanLenientForPreEs6Indices(
-            Version.indexCreated(indexSettings), "discount_overlaps", true, new DeprecationLogger(ESLoggerFactory.getLogger(getClass())));
+            indexCreatedVersion, "discount_overlaps", true, new DeprecationLogger(ESLoggerFactory.getLogger(getClass())));
         this.similarity.setDiscountOverlaps(discountOverlaps);
     }
 

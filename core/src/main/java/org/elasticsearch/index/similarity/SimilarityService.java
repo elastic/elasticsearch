@@ -43,16 +43,17 @@ public final class SimilarityService extends AbstractIndexComponent {
     private final Similarity defaultSimilarity;
     private final Map<String, SimilarityProvider> similarities;
     private static final Map<String, SimilarityProvider.Factory> DEFAULTS;
+    private static final Map<String, SimilarityProvider.Factory> V5X_DEFAULTS;
     public static final Map<String, SimilarityProvider.Factory> BUILT_IN;
     static {
         Map<String, SimilarityProvider.Factory> defaults = new HashMap<>();
         Map<String, SimilarityProvider.Factory> buildIn = new HashMap<>();
-        defaults.put("classic",
-                (name, settings, indexSettings, scriptService) -> new ClassicSimilarityProvider(name, settings, indexSettings));
         defaults.put("BM25",
                 (name, settings, indexSettings, scriptService) -> new BM25SimilarityProvider(name, settings, indexSettings));
         defaults.put("boolean",
                 (name, settings, indexSettings, scriptService) -> new BooleanSimilarityProvider(name, settings, indexSettings));
+        // We keep the definition of the classic similarity on 6.x indices so that users get get a nicer exception
+        // if they try to define a custom classic similarity
         buildIn.put("classic",
                 (name, settings, indexSettings, scriptService) -> new ClassicSimilarityProvider(name, settings, indexSettings));
         buildIn.put("BM25",
@@ -70,6 +71,11 @@ public final class SimilarityService extends AbstractIndexComponent {
         buildIn.put("scripted", ScriptedSimilarityProvider::new);
         DEFAULTS = Collections.unmodifiableMap(defaults);
         BUILT_IN = Collections.unmodifiableMap(buildIn);
+
+        Map<String, SimilarityProvider.Factory> v5xDefaults = new HashMap<>(defaults);
+        v5xDefaults.put("classic",
+                (name, settings, indexSettings, scriptService) -> new ClassicSimilarityProvider(name, settings, indexSettings));
+        V5X_DEFAULTS = Collections.unmodifiableMap(v5xDefaults);
     }
 
     public SimilarityService(IndexSettings indexSettings, ScriptService scriptService,
@@ -94,8 +100,11 @@ public final class SimilarityService extends AbstractIndexComponent {
             SimilarityProvider.Factory factory = similarities.getOrDefault(typeName, defaultFactory);
             providers.put(name, factory.create(name, providerSettings, indexSettings.getSettings(), scriptService));
         }
+        Map<String, SimilarityProvider.Factory> defaults = indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta2)
+                ? DEFAULTS
+                : V5X_DEFAULTS;
         Map<String, SimilarityProvider> providerMapping = addSimilarities(similaritySettings, indexSettings.getSettings(), scriptService,
-                DEFAULTS);
+                defaults);
         for (Map.Entry<String, SimilarityProvider> entry : providerMapping.entrySet()) {
             // Avoid overwriting custom providers for indices older that v5.0
             if (providers.containsKey(entry.getKey()) && indexSettings.getIndexVersionCreated().before(Version.V_5_0_0_alpha1)) {
@@ -133,7 +142,14 @@ public final class SimilarityService extends AbstractIndexComponent {
     }
 
     public SimilarityProvider getSimilarity(String name) {
-        return similarities.get(name);
+        SimilarityProvider provider = similarities.get(name);
+        if (provider == null && "classic".equals(name)) {
+            // TODO: remove this special case on 7.x
+            throw new IllegalArgumentException("The [classic] similarity is disallowed as of 6.0. It is advised that you use the [BM25] " +
+                    "similarity instead which usually provides better scores. In case you really need to keep the same scores as the " +
+                    "[classic] similarity, it is possible to reimplement it using the [scripted] similarity.");
+        }
+        return provider;
     }
 
     Similarity getDefaultSimilarity() {

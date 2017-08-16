@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -31,6 +32,9 @@ import org.elasticsearch.search.lookup.SearchLookup;
  * See {@link org.elasticsearch.index.query.ScriptQueryBuilder}.
  */
 public abstract class FilterScript {
+
+    // no parameters for execute, but constant still required...
+    public static final String[] PARAMETERS = {};
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
@@ -52,7 +56,7 @@ public abstract class FilterScript {
     }
 
     /** The doc lookup for the Lucene segment this script was created for. */
-    public final LeafDocLookup getDoc() {
+    public final Map<String, ScriptDocValues<?>> getDoc() {
         return leafLookup.doc();
     }
 

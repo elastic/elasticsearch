@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.flush.ShardsSyncedFlushResult;
 import org.elasticsearch.indices.flush.SyncedFlushService;
@@ -42,7 +42,7 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * The result of performing a sync flush operation on all shards of multiple indices
  */
-public class SyncedFlushResponse extends ActionResponse implements ToXContent {
+public class SyncedFlushResponse extends ActionResponse implements ToXContentFragment {
 
     Map<String, List<ShardsSyncedFlushResult>> shardsResultPerIndex;
     ShardCounts shardCounts;
@@ -140,7 +140,7 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContent {
         return new ShardCounts(total, successful, failed);
     }
 
-    static final class ShardCounts implements ToXContent, Streamable {
+    static final class ShardCounts implements ToXContentFragment, Streamable {
 
         public int total;
         public int successful;

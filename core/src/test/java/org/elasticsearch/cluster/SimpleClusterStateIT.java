@@ -286,15 +286,15 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertTrue(state.customs().containsKey("test"));
     }
 
-    private static class TestCustom  extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
+    private static class TestCustom extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
 
         private final int value;
 
-        public TestCustom(int value) {
+        TestCustom(int value) {
             this.value = value;
         }
 
-        public TestCustom(StreamInput in) throws IOException {
+        TestCustom(StreamInput in) throws IOException {
             this.value = in.readInt();
         }
         @Override
@@ -312,7 +312,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             return builder;
         }
 
-        public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {
+        static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {
             return readDiffFrom(ClusterState.Custom.class, "test", in);
         }
 

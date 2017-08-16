@@ -26,9 +26,7 @@ public class PercentileRanksAgg extends LeafAgg {
 
     @Override
     AggregationBuilder toBuilder() {
-        // TODO: look at keyed
-        return percentileRanks(id())
-                .field(fieldName())
-                .values(values.stream().mapToDouble(Double::doubleValue).toArray());
+        return percentileRanks(id(), values.stream().mapToDouble(Double::doubleValue).toArray())
+                .field(fieldName());
     }
 }

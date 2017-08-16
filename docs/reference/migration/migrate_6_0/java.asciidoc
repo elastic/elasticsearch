@@ -56,3 +56,9 @@ The `org.elasticsearch.search.aggregations.bucket.terms.support` package was rem
 `org.elasticsearch.search.aggregations.bucket.terms`.
 
 The filter aggregation classes were moved to `org.elasticsearch.search.aggregations.bucket.filter`
+
+=== Constructor for `PercentileRanksAggregationBuilder` has changed
+
+It is now required to include the desired ranks as a non-null, non-empty array of doubles to the builder's constructor,
+rather than configuring them via a setter on the builder. The setter method `values()` has correspondingly
+been removed.

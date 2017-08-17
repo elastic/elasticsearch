@@ -36,3 +36,6 @@ least one machine learning node in your cluster. +
 +
 IMPORTANT: On dedicated coordinating nodes or dedicated master nodes, disable
 the `node.ml` role.
+
+`xpack.ml.max_open_jobs`::
+The maximum number of jobs that can run on a node. Defaults to `10`.

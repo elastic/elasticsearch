@@ -25,6 +25,9 @@ Highlighting::
 Indexed Scripts/Templates::
 * Scripting: Deprecate stored search template apis {pull}25437[#25437] (issue: {issue}24596[#24596])
 
+Mapping::
+* Add deprecation logging when _all is enabled {pull}26228[#26228] (issue: {issue}22144[#22144])
+
 Query DSL::
 * Deprecate omitting terms lookup index name in 5.6 {pull}25755[#25755] (issue: {issue}25750[#25750])
 
@@ -87,6 +90,7 @@ Ingest::
 * Add target_field parameter to ingest processors {pull}24133[#24133] (issues: {issue}23228[#23228], {issue}23682[#23682])
 
 Internal::
+* Use holder pattern for lazy deprecation loggers {pull}26218[#26218] (issue: {issue}26210[#26210])
 * "shard started" should show index and shard ID {pull}25157[#25157]
 * Break out clear scroll logic from TransportClearScrollAction {pull}25125[#25125] (issue: {issue}25094[#25094])
 * Add helper methods to TransportActionProxy to identify proxy actions and requests {pull}25124[#25124]
@@ -161,6 +165,9 @@ Aliases::
 Analysis::
 * Pre-configured shingle filter should disable graph analysis {pull}25853[#25853] (issue: {issue}25555[#25555])
 
+CRUD::
+* Serialize and expose timeout of acknowledged requests in REST layer (ES 5.6) {pull}26213[#26213] (issue: {issue}26189[#26189])
+
 Core::
 * Release operation permit on thread-pool rejection {pull}25930[#25930] (issue: {issue}25863[#25863])
 * Node should start up despite of a lingering `.es_temp_file` {pull}21210[#21210] (issue: {issue}21007[#21007])
@@ -194,9 +201,13 @@ Internal::
 * Initialise empty lists in BaseTaskResponse constructor {pull}25290[#25290]
 
 Logging::
+* Lazy initialize deprecation logger in parser {pull}26210[#26210] (issue: {issue}25879[#25879])
+* Allow not configure logging without config {pull}26209[#26209] (issues: {issue}20575[#20575], {issue}24076[#24076])
 * Declare XContent deprecation logger as static {pull}25881[#25881] (issue: {issue}25879[#25879])
 
 Mapping::
+* Fixed bug that mapper_parsing_exception is thrown for numeric field with ignore_malformed=true when inserting "NaN" {pull}25967[#25967] (issue: {issue}25289[#25289])
+* Coerce decimal strings for whole number types by truncating the decimal part {pull}25835[#25835] (issue: {issue}25819[#25819])
 * Fix parsing of ip range queries. {pull}25768[#25768] (issue: {issue}25636[#25636])
 * Remove `fielddata:false` from mappings of non-analyzed strings. {pull}25542[#25542]
 * Disable date field mapping changing {pull}25285[#25285] (issue: {issue}25271[#25271])
@@ -207,6 +218,7 @@ Nested Docs::
 * In case of a single type the _id field should be added to the nested document instead of _uid field {pull}25149[#25149]
 
 Network::
+* Release pipelined http responses on close {pull}26226[#26226]
 * Ensure pending transport handlers are invoked for all channel failures {pull}25150[#25150]
 
 Packaging::
@@ -233,6 +245,7 @@ REST::
 * Fix handling of exceptions thrown on HEAD requests {pull}25172[#25172] (issue: {issue}21125[#21125])
 
 Search::
+* Fix term(s) query for range field {pull}25918[#25918]
 * Caching a MinDocQuery can lead to wrong results. {pull}25909[#25909]
 * First increment shard stats before notifying and potentially sending response {pull}25818[#25818]
 * Remove assertion about deviation when casting to a float. {pull}25806[#25806] (issue: {issue}25330[#25330])

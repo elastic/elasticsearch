@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
-public class Count extends NumericAggregate implements DistinctAware {
+public class Count extends AggregateFunction implements DistinctAware {
 
     private final boolean distinct;
 
@@ -23,11 +23,6 @@ public class Count extends NumericAggregate implements DistinctAware {
 
     public boolean distinct() {
         return distinct;
-    }
-
-    @Override
-    protected TypeResolution resolveType() {
-        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override

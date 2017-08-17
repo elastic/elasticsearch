@@ -1,5 +1,5 @@
 [Unit]
-Description=Elasticsearch Instance %i
+Description=Elasticsearch Instance %I
 Documentation=http://www.elastic.co
 Wants=network-online.target
 After=network-online.target

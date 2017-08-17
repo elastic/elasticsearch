@@ -254,15 +254,12 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                     .field("enabled", true)
                 .endObject().endObject().bytes());
 
-        CompressedXContent disabledAll = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
-                .startObject("_all")
-                    .field("enabled", false)
-                .endObject().endObject().bytes());
-
         Exception e = expectThrows(MapperParsingException.class,
                 () -> indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, enabledAll,
                         MergeReason.MAPPING_UPDATE, random().nextBoolean()));
         assertThat(e.getMessage(), containsString("[_all] is disabled in 6.0"));
+        assertWarnings("[_all] is deprecated in 6.0+ and will be removed in 7.0. As a replacement, " +
+                        "you can use [copy_to] on mapping fields to create your own catch all field.");
     }
 
      public void testPartitionedConstraints() {

@@ -159,7 +159,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
 
         assertTrue(channelAdaptor.decode(buf.retainedDuplicate()).isEmpty());
 
-        Tuple<BytesReference, ChannelPromise> message = channelAdaptor.getMessage();
+        Tuple<BytesReference, ChannelPromise> message = channelAdaptor.popMessage();
 
         assertFalse(message.v2().isDone());
 
@@ -176,7 +176,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
         HttpResponse defaultFullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
 
         channelAdaptor.writeOutbound(defaultFullHttpResponse);
-        Tuple<BytesReference, ChannelPromise> encodedMessage = channelAdaptor.getMessage();
+        Tuple<BytesReference, ChannelPromise> encodedMessage = channelAdaptor.popMessage();
 
         HttpResponse response = responseDecoder.decode(Netty4Utils.toByteBuf(encodedMessage.v1()));
 
@@ -196,7 +196,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
         HttpPipelinedResponse pipelinedResponse = pipelinedRequest2.createHttpResponse(httpResponse, writePromise);
 
         channelAdaptor.write(pipelinedResponse, writePromise);
-        assertNull(channelAdaptor.getMessage());
+        assertNull(channelAdaptor.popMessage());
         assertFalse(writePromise.isDone());
 
         when(nioSocketChannel.closeAsync()).thenReturn(mock(CloseFuture.class));

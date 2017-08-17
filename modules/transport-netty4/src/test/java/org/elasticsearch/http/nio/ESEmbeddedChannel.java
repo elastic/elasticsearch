@@ -36,7 +36,6 @@ public class ESEmbeddedChannel extends EmbeddedChannel {
     private LinkedList<Tuple<BytesReference, ChannelPromise>> messages = new LinkedList<>();
 
     public ESEmbeddedChannel() {
-        super();
         pipeline().addFirst("promise_captor", new ChannelOutboundHandlerAdapter() {
 
             @Override
@@ -60,7 +59,7 @@ public class ESEmbeddedChannel extends EmbeddedChannel {
         return inboundMessages();
     }
 
-    public Tuple<BytesReference, ChannelPromise> getMessage() {
+    public Tuple<BytesReference, ChannelPromise> popMessage() {
         return messages.pollFirst();
     }
 
@@ -68,7 +67,7 @@ public class ESEmbeddedChannel extends EmbeddedChannel {
         return messages.size() > 0;
     }
 
-    public LinkedList<Tuple<BytesReference, ChannelPromise>> getMessages() {
-        return messages;
+    public void closeNettyChannel() {
+        close();
     }
 }

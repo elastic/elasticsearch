@@ -36,7 +36,6 @@ import org.elasticsearch.transport.nio.channel.WriteContext;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.LinkedList;
-import java.util.Queue;
 
 public class HttpWriteContext implements WriteContext {
 
@@ -89,11 +88,9 @@ public class HttpWriteContext implements WriteContext {
             }
         }
 
-        LinkedList<Tuple<BytesReference, ChannelPromise>> messages = adaptor.getMessages();
-
         Tuple<BytesReference, ChannelPromise> message;
-        boolean lastMessageFullyFlushed = true;
-        while ((message = messages.pop()) != null && lastMessageFullyFlushed) {
+        boolean previousMessageFullyFlushed = true;
+        while (previousMessageFullyFlushed && (message = adaptor.popMessage()) != null) {
             ChannelPromise promise = message.v2();
             ESChannelPromise listener;
             if (promise instanceof ESChannelPromise) {
@@ -105,7 +102,7 @@ public class HttpWriteContext implements WriteContext {
 
             if (WriteContext.flushOperation(channel, writeOperation) == false) {
                 partiallyFlushed = writeOperation;
-                lastMessageFullyFlushed = false;
+                previousMessageFullyFlushed = false;
             }
         }
     }
@@ -113,20 +110,24 @@ public class HttpWriteContext implements WriteContext {
     @Override
     public boolean hasQueuedWriteOps() {
         assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to access queued writes";
-        return adaptor.hasMessages();
+        return partiallyFlushed != null || adaptor.hasMessages();
     }
 
     @Override
     public void clearQueuedWriteOps(Exception e) {
         assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to access queued writes";
-        for (Tuple<BytesReference, ChannelPromise> message : adaptor.getMessages()) {
-            message.v2().setFailure(e);
-            BytesReference bytes = message.v1();
-            if (bytes instanceof Releasable) {
-                Releasables.close((Releasable) bytes);
-            }
+
+        // Right now there is an assumption that all resources will be released by the promise completion
+        if (partiallyFlushed != null) {
+            partiallyFlushed.getListener().onFailure(e);
         }
 
-        adaptor.close().syncUninterruptibly();
+        Tuple<BytesReference, ChannelPromise> message;
+        while ((message = adaptor.popMessage()) != null) {
+            message.v2().setFailure(e);
+            BytesReference bytes = message.v1();
+        }
+
+        adaptor.closeNettyChannel();
     }
 }

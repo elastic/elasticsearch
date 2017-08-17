@@ -79,7 +79,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         }
         
         if (ctx.limit != null && ctx.INTEGER_VALUE() != null) {
-            plan = new Limit(source(ctx), new Literal(source(ctx), ctx.limit.getText(), DataTypes.INTEGER), plan);
+            plan = new Limit(source(ctx), new Literal(source(ctx), Integer.parseInt(ctx.limit.getText()), DataTypes.INTEGER), plan);
         }
         
         return plan;

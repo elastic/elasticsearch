@@ -6,7 +6,6 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.AbstractOldXPackIndicesBackwardsCompatibilityTestCase;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -37,7 +36,6 @@ import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -45,6 +43,7 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.ExternalResource;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -73,6 +72,7 @@ import static org.hamcrest.core.IsCollectionContaining.hasItem;
 public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS;
+    protected static SecureString BOOTSTRAP_PASSWORD = null;
 
     /**
      * Settings used when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
@@ -81,6 +81,11 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
      * to how {@link #nodeSettings(int)} and {@link #transportClientSettings()} work.
      */
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
+
+    @BeforeClass
+    public static void generateBootstrapPassword() {
+        BOOTSTRAP_PASSWORD = new SecureString("FOOBAR".toCharArray());
+    }
 
     //UnicastZen requires the number of nodes in a cluster to generate the unicast configuration.
     //The number of nodes is randomized though, but we can predict what the maximum number of nodes will be
@@ -215,6 +220,10 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
                     secureSettings.merge((MockSecureSettings) customBuilder.getSecureSettings()));
         }
+        if (builder.getSecureSettings() == null) {
+            builder.setSecureSettings(new MockSecureSettings());
+        }
+        ((MockSecureSettings) builder.getSecureSettings()).setString("bootstrap.password", BOOTSTRAP_PASSWORD.toString());
         return builder.build();
     }
 
@@ -467,29 +476,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 }
             });
         }
-    }
-
-    public void ensureElasticPasswordBootstrapped() throws Exception {
-        ensureElasticPasswordBootstrapped(internalCluster());
-    }
-
-    public void ensureElasticPasswordBootstrapped(InternalTestCluster internalTestCluster) throws Exception {
-        CountDownLatch latch = new CountDownLatch(1);
-        SecureString testPasswordHashed = new SecureString(SecuritySettingsSource.TEST_PASSWORD_HASHED.toCharArray());
-        ReservedRealm reservedRealm = internalTestCluster.getInstances(ReservedRealm.class).iterator().next();
-        reservedRealm.bootstrapElasticUserCredentials(testPasswordHashed, new ActionListener<Boolean>() {
-            @Override
-            public void onResponse(Boolean passwordSet) {
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("Exception attempting to bootstrap password for test", e);
-                fail("Failed to bootstrap elastic password for test due to exception: " + e.getMessage());
-            }
-        });
-        latch.await();
     }
 
     public void assertSecurityIndexWriteable() throws Exception {

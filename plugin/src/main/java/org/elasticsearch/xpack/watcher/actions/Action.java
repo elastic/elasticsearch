@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -19,7 +20,7 @@ public interface Action extends ToXContentObject {
 
     String type();
 
-    abstract class Result implements ToXContent {
+    abstract class Result implements ToXContentFragment {
 
         public enum Status implements ToXContent {
             SUCCESS,

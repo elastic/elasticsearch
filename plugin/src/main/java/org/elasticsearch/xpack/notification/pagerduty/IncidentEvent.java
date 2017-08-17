@@ -170,7 +170,7 @@ public class IncidentEvent implements ToXContentObject {
         return new Template.Builder(description);
     }
 
-    public static class Template implements ToXContent {
+    public static class Template implements ToXContentObject {
 
         final TextTemplate description;
         final TextTemplate incidentKey;

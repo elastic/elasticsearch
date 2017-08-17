@@ -8,17 +8,17 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.license.LicensesStatus;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class PutLicenseResponse extends AcknowledgedResponse implements ToXContent {
+public class PutLicenseResponse extends AcknowledgedResponse implements ToXContentFragment {
 
     private LicensesStatus status;
     private Map<String, String[]> acknowledgeMessages;

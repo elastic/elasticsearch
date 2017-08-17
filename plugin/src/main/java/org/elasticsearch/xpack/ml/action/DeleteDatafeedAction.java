@@ -28,7 +28,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -62,7 +63,7 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Request, D
         return new Response();
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
+    public static class Request extends AcknowledgedRequest<Request> implements ToXContentFragment {
 
         public static final ParseField FORCE = new ParseField("force");
 

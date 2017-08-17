@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 
 import java.util.List;
 import java.util.Objects;
 
-public abstract class Normalizable implements ToXContent {
+public abstract class Normalizable implements ToXContentObject {
     public enum ChildType {BUCKET_INFLUENCER, RECORD, PARTITION_SCORE};
 
     private final String indexName;

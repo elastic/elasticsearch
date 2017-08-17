@@ -24,7 +24,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,7 +54,7 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
         return new PutJobAction.Response();
     }
 
-    public static class Request extends AcknowledgedRequest<UpdateJobAction.Request> implements ToXContent {
+    public static class Request extends AcknowledgedRequest<UpdateJobAction.Request> implements ToXContentObject {
 
         public static UpdateJobAction.Request parseRequest(String jobId, XContentParser parser) {
             JobUpdate update = JobUpdate.PARSER.apply(parser, null).setJobId(jobId).build();

@@ -87,7 +87,7 @@ public class IndexDeprecationChecks {
             });
             if (issues.size() > 0) {
                 return new DeprecationIssue(DeprecationIssue.Level.INFO, "Coercion of boolean fields",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
                         "breaking_60_mappings_changes.html#_coercion_of_boolean_fields",
                     issues.toString());
             }
@@ -113,7 +113,7 @@ public class IndexDeprecationChecks {
             if (issues.size() > 0) {
                 return new DeprecationIssue(DeprecationIssue.Level.INFO,
                     "The _all meta field is disabled by default on indices created in 6.0",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
                         "breaking_60_mappings_changes.html#_the_literal__all_literal_meta_field_is_now_disabled_by_default",
                     "types: " + issues.toString());
             }
@@ -131,7 +131,7 @@ public class IndexDeprecationChecks {
             if (issues.size() > 0) {
                 return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                     "The [include_in_all] mapping parameter is now disallowed",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
                         "breaking_60_mappings_changes.html#_the_literal_include_in_all_literal_mapping_parameter_is_now_disallowed",
                     issues.toString());
             }
@@ -163,7 +163,7 @@ public class IndexDeprecationChecks {
             if (issues.size() > 0) {
                 return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                     "Unrecognized match_mapping_type options not silently ignored",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
                         "breaking_60_mappings_changes.html" +
                         "#_unrecognized_literal_match_mapping_type_literal_options_not_silently_ignored",
                     issues.toString());
@@ -180,7 +180,7 @@ public class IndexDeprecationChecks {
                 return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                     "The base similarity is now ignored as coords and query normalization have been removed." +
                         "If provided, this setting will be ignored and issue a deprecation warning",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
                         "breaking_60_settings_changes.html#_similarity_settings", null);
 
             }
@@ -196,7 +196,7 @@ public class IndexDeprecationChecks {
                 "The default index.store.type has been removed. If you were using it, " +
                     "we advise that you simply remove it from your index settings and Elasticsearch" +
                     "will use the best store implementation for your operating system.",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
                     "breaking_60_settings_changes.html#_store_settings", null);
 
         }
@@ -219,7 +219,7 @@ public class IndexDeprecationChecks {
             if (foundSettings.isEmpty() == false) {
                 return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                     "index.store.throttle settings are no longer recognized. these settings should be removed",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
                         "breaking_60_settings_changes.html#_store_throttling_settings", "present settings: " + foundSettings);
             }
         }
@@ -232,7 +232,7 @@ public class IndexDeprecationChecks {
             indexMetaData.getSettings().get("index.shared_filesystem") != null) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "[index.shared_filesystem] setting should be removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
                     "breaking_60_settings_changes.html#_shadow_replicas_have_been_removed", null);
 
         }

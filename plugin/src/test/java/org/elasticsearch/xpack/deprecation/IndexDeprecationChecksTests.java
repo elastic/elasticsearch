@@ -78,7 +78,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.INFO,
             "Coercion of boolean fields",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
                 "breaking_60_mappings_changes.html#_coercion_of_boolean_fields",
             "[[type: testBooleanCoercion, field: my_boolean], [type: testBooleanCoercion, field: my_inner_boolean]," +
                 " [type: testBooleanCoercion, field: my_text, multifield: raw]]");
@@ -105,7 +105,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.INFO,
             "The _all meta field is disabled by default on indices created in 6.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
                 "breaking_60_mappings_changes.html#_the_literal__all_literal_meta_field_is_now_disabled_by_default",
             "types: [testAllEnabled]");
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
@@ -139,7 +139,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "The [include_in_all] mapping parameter is now disallowed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
                 "breaking_60_mappings_changes.html#_the_literal_include_in_all_literal_mapping_parameter_is_now_disallowed",
             "[[type: testIncludeInAll, field: my_field]]");
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
@@ -183,7 +183,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Unrecognized match_mapping_type options not silently ignored",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
                 "breaking_60_mappings_changes.html#_unrecognized_literal_match_mapping_type_literal_options_not_silently_ignored",
             "[type: test, dynamicFieldDefinitionintegers, unknown match_mapping_type[UNKNOWN_VALUE]]");
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
@@ -195,7 +195,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "The base similarity is now ignored as coords and query normalization have been removed." +
                     "If provided, this setting will be ignored and issue a deprecation warning",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
                     "breaking_60_settings_changes.html#_similarity_settings", null));
     }
 
@@ -205,20 +205,20 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "The default index.store.type has been removed. If you were using it, " +
                     "we advise that you simply remove it from your index settings and Elasticsearch" +
                     "will use the best store implementation for your operating system.",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
                     "breaking_60_settings_changes.html#_store_settings", null));
     }
     public void testStoreThrottleSettingsCheck() {
         assertSettingsAndIssue("index.store.throttle.max_bytes_per_sec", "32",
         new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "index.store.throttle settings are no longer recognized. these settings should be removed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
                 "breaking_60_settings_changes.html#_store_throttling_settings",
             "present settings: [index.store.throttle.max_bytes_per_sec]"));
         assertSettingsAndIssue("index.store.throttle.type", "none",
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "index.store.throttle settings are no longer recognized. these settings should be removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
                     "breaking_60_settings_changes.html#_store_throttling_settings",
                 "present settings: [index.store.throttle.type]"));
     }
@@ -227,7 +227,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertSettingsAndIssue("index.shared_filesystem", "true",
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "[index.shared_filesystem] setting should be removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/6.0/" +
                     "breaking_60_settings_changes.html#_shadow_replicas_have_been_removed", null));
     }
 }

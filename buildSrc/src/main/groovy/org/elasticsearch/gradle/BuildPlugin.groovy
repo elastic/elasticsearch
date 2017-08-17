@@ -78,7 +78,6 @@ class BuildPlugin implements Plugin<Project> {
         configureConfigurations(project)
         project.ext.versions = VersionProperties.versions
         configureCompile(project)
-
         configureJavadoc(project)
         configureSourcesJar(project)
         configurePomGeneration(project)
@@ -461,7 +460,7 @@ class BuildPlugin implements Plugin<Project> {
              * Order matters, the linksOffline for org.elasticsearch:elasticsearch must be the last one
              * or all the links for the other packages (e.g org.elasticsearch.client) will point to core rather than their own artifacts
              */
-            Closure sortClosure = { a, b -> b.group <=> a.group };
+            Closure sortClosure = { a, b -> b.group <=> a.group }
             Closure depJavadocClosure = { dep ->
                 if (dep.group != null && dep.group.startsWith('org.elasticsearch')) {
                     String substitution = project.ext.projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")

@@ -1,0 +1,1194 @@
+[[getting-started]]
+= 시작하기
+
+[partintro]
+--
+
+Elasticsearch는 확장성이 뛰어난 오픈소스 풀텍스트 검색 및 분석 엔진입니다. 방대한 양의 데이터를 신속하게, 거의 실시간으로 저장, 검색, 분석할 수 있도록 지원합니다. 일반적으로 복잡한 검색 기능 및 요구 사항이 있는 애플리케이션을 위한 기본 엔진/기술로 사용됩니다
+
+Elasticsearch는 다음을 비롯한 다양한 활용 사례에 효과적입니다.
+
+* 고객이 판매 제품을 검색할 수 있는 온라인 웹 스토어를 운영합니다. 이 경우에는 Elasticsearch를 사용하여 전체 제품 카탈로그 및 재고 정보를 저장하고 그에 대한 검색 및 자동 완성 제안 기능을 제공할 수 있습니다.
+* 로그 또는 트랜잭션 데이터를 수집하고 이 데이터를 분석하고 마이닝하여 추이, 통계, 요약 정보를 얻거나 이상 요인을 알아내려 합니다. 이 경우에는 Logstash(Elasticsearch/Logstash/Kibana 스택의 일부)를 사용하여 데이터 수집, 집계, 파싱을 수행한 다음 Logstash에서 Elasticsearch에 이 데이터를 피드 형태로 전달하게 할 수 있습니다. 데이터가 Elasticsearch에 유입되면 검색 및 집계를 실행하여 관심 있는 어떤 정보도 마이닝할 수 있습니다.
+* 가격에 정통한 고객이 "특정 전자 제품을 구매할 의향이 있고 다음 달에 어떤 벤더의 제품이든 가격이 $X 아래로 내려가면 알림을 받고 싶다"라는 내용의 규칙을 지정할 수 있는 가격 알림 플랫폼을 운영합니다. 이 경우에는 벤더 가격을 취합하여 Elasticsearch에 푸시하고 역검색(퍼컬레이터) 기능을 사용하여 가격 변동을 고객 쿼리와 비교하면서 일치하는 항목이 있으면 고객에게 푸시 방식으로 알릴 수 있습니다.
+* 분석/비즈니스 인텔리전스 기능이 필요하며 방대한 데이터(수백만 또는 수십억 개의 레코드)를 대상으로 신속하게 조사, 분석, 시각화, 임시 질의를 수행하고 싶습니다. 이 경우에는 Elasticsearch를 사용하여 데이터를 저장한 다음 Kibana(Elasticsearch/Logstash/Kibana 스택의 일부)를 사용하여 데이터 중 중요한 요소를 시각화할 맞춤형 대시보드를 만들 수 있습니다. 또한 Elasticsearch 집계 기능을 사용하여 데이터에 대한 복잡한 비즈니스 인텔리전스 쿼리를 수행할 수 있습니다.
+
+이 튜토리얼에서는 Elasticsearch를 시작하고 실행하며 그 내부를 들여다보고 색인화, 검색, 데이터 수정과 같은 기본적인 작업을 수행하는 과정을 차례로 안내합니다. 이 튜토리얼을 통해 Elasticsearch이 무엇이고 어떻게 작동하는지 이해할 수 있습니다. 또한 정교한 검색 애플리케이션을 개발하거나 데이터에서 인텔리전스를 마이닝하는 데 Elasticsearch를 활용하기 위한 아이디어를 얻을 수 있습니다.
+--
+
+== 기본 개념
+
+Elasticsearch에서는 몇 가지 핵심 개념을 사용합니다. 처음부터 이 개념을 알아두면 훨씬 더 수월하게 학습할 수 있습니다.
+
+[float]
+=== NRT(Near Realtime)
+
+Elasticsearch는 NRT 검색 플랫폼입니다. 즉 문서를 색인화하는 시점부터 문서가 검색 가능해지는 시점까지 약간의 대기 시간(대개 1초)이 있습니다.
+
+[float]
+=== 클러스터
+
+클러스터는 하나 이상의 노드(서버)가 모인 것이며, 이를 통해 전체 데이터를 저장하고 모든 노드를 포괄하는 통합 색인화 및 검색 기능을 제공합니다. 클러스터는 고유한 이름으로 식별되는데, 기본 이름은 "elasticsearch"입니다. 이 이름은 중요한데, 어떤 노드가 어느 클러스터에 포함되기 위해서는 이름에 의해 클러스터의 구성원이 되도록 설정되기 때문입니다.
+
+동일한 클러스터 이름을 서로 다른 환경에서 재사용하지 마십시오. 노드가 잘못된 클러스터에 포함될 위험이 있습니다.
+예를 들어 개발, 스테이징, 프로덕션 클러스터에 `logging-dev`, `logging-stage`, `logging-prod`라는 이름을 사용할 수 있습니다.
+
+클러스터에 하나의 노드만 있는 것은 유효하며 문제가 없습니다. 또한 각자 고유한 클러스터 이름을 가진 독립적인 클러스터를 여러 개 둘 수도 있습니다.
+
+[float]
+=== 노드
+
+노드는 클러스터에 포함된 단일 서버로서 데이터를 저장하고 클러스터의 색인화 및 검색 기능에 참여합니다. 노드는 클러스터처럼 이름으로 식별되는데, 기본 이름은 시작 시 노드에 지정되는 임의 UUID(Universally Unique IDentifier)입니다. 원한다면 기본 이름 대신 어떤 노드 이름도 정의할 수 있습니다. 이 이름은 관리의 목적에서 중요합니다. 네트워크의 어떤 서버가 Elasticsearch 클러스터의 어떤 노드에 해당하는지 식별해야 하기 때문입니다.
+
+노드는 클러스터 이름을 통해 어떤 클러스터의 일부로 구성될 수 있습니다. 기본적으로 각 노드는 `elasticsearch`라는 이름의 클러스터에 포함되도록 설정됩니다. 즉 네트워크에서 다수의 노드를 시작할 경우 (각각을 검색할 수 있다고 가정하면) 이 노드가 모두 자동으로 `elasticsearch`라는 단일 클러스터를 형성하고 이 클러스터의 일부가 됩니다.
+
+하나의 클러스터에서 원하는 개수의 노드를 포함할 수 있습니다. 뿐만 아니라 현재 다른 어떤 Elasticsearch 노드도 네트워크에서 실행되고 있지 않은 상태에서 단일 노드를 시작하면 기본적으로 `elasticsearch`라는 이름의 새로운 단일 노드 클러스터가 생깁니다.
+
+[sect2]
+[float]
+=== 색인
+
+색인은 다소 비슷한 특성을 가진 문서의 모음입니다. 이를테면 고객 데이터에 대한 색인, 제품 카탈로그에 대한 색인, 주문 데이터에 대한 색인을 각각 둘 수 있습니다. 색인은 이름(모두 소문자여야 함)으로 식별되며, 이 이름은 색인에 포함된 문서에 대한 색인화, 검색, 업데이트, 삭제 작업에서 해당 색인을 가리키는 데 쓰입니다.
+
+단일 클러스터에서 원하는 개수의 색인을 정의할 수 있습니다.
+
+[float]
+=== 유형
+
+하나의 색인에서 하나 이상의 유형을 정의할 수 있습니다. 유형이란 색인을 논리적으로 분류/구분한 것이며 그 의미 체계는 전적으로 사용자가 결정합니다. 일반적으로 여러 공통된 필드를 갖는 문서에 대해 유형이 정의됩니다. 예를 들어 블로그 플랫폼을 운영하고 있는데 모든 데이터를 하나의 색인에 저장한다고 가정합니다. 이 색인에서 사용자 데이터, 블로그 데이터, 댓글 데이터에 대한 유형을 각각 정의할 수 있습니다.
+
+[float]
+=== 문서
+
+문서는 색인화할 수 있는 기본 정보 단위입니다. 예를 들어 어떤 단일 고객, 단일 제품, 단일 주문에 대한 문서가 각각 존재할 수 있습니다. 이 문서는 http://json.org/[JSON](JavaScript Object Notation) 형식인데, 이는 널리 사용되는 인터넷 데이터 교환 형식입니다.
+
+하나의 색인/유형에 원하는 개수의 문서를 저장할 수 있습니다. 문서가 물리적으로는 어떤 색인 내에 있더라도 문서는 색인화되어 색인에 포함된 어떤 유형으로 지정되어야 합니다.
+
+[[getting-started-shards-and-replicas]]
+[float]
+=== 샤드 & 리플리카
+
+색인은 방대한 양의 데이터를 저장할 수 있는데, 이 데이터가 단일 노드의 하드웨어 한도를 초과할 수도 있습니다. 예를 들어 10억 개의 문서로 구성된 하나의 색인에 1TB의 디스크 공간이 필요할 경우, 단일 노드의 디스크에서 수용하지 못하거나 단일 노드에서 검색 요청 처리 시 속도가 너무 느려질 수 있습니다.
+
+Elasticsearch는 이러한 문제를 해결하고자 색인을 이른바 샤드(shard)라는 조각으로 분할하는 기능을 제공합니다. 색인을 생성할 때 원하는 샤드 수를 간단히 정의할 수 있습니다. 각 샤드는 그 자체가 온전한 기능을 가진 독립적인 "색인"이며, 클러스터의 어떤 노드에서도 호스팅할 수 있습니다.
+
+샤딩은 무엇보다도 2가지 이유로 중요합니다.
+
+* 콘텐츠 볼륨의 수평 분할/확장이 가능해집니다.
+* 작업을 (어쩌면 여러 노드에 위치한) 여러 샤드에 분산 배치하고 병렬화함으로써 성능/처리량을 늘릴 수 있습니다.
+
+
+샤드가 분산 배치되는 방식 및 그 문서가 다시 검색 요청으로 집계되는 방식의 메커니즘은 모두 Elasticsearch에서 관리하며 사용자에게는 투명하게 이루어집니다.
+
+언제든 오류가 일어날 가능성이 있는 네트워크/클라우드 환경에서는 어떤 이유에서든 샤드/노드가 오프라인 상태가 되거나 사라지게 될 경우에 대비하여 페일오버 메커니즘을 마련하는 것이 매우 유익하고 바람직합니다. 이러한 취지에서 Elasticsearch에서는 색인의 샤드에 대해 하나 이상의 복사본을 생성할 수 있는데, 이를 리플리카 샤드(replica shard), 줄여서 리플리카라고 합니다.
+
+이처럼 리플리카를 만드는 복제는 무엇보다도 2가지 이유로 중요합니다.
+
+* 샤드/노드 오류가 발생하더라도 고가용성을 제공합니다. 따라서 리플리카 샤드는 그 원본인 기본 샤드와 동일한 노드에 배정되지 않습니다.
+* 모든 리플리카에서 병렬 방식으로 검색을 실행할 수 있으므로 검색 볼륨/처리량을 확장할 수 있습니다.
+
+
+요약하자면 각 색인은 여러 개의 샤드로 분할할 수 있습니다. 또한 하나의 색인은 복제하지 않거나(리플리카 없음) 1회 이상 복제할 수 있습니다. 복제되면 각 색인은 기본 샤드(복제 원본 샤드)와 리플리카 샤드(기본 샤드의 복사본)를 갖습니다.
+샤드 및 리플리카의 수는 색인별로, 색인 생성 시점에 정의할 수 있습니다. 색인이 생성된 다음 언제라도 탄력적으로 리플리카의 수를 변경할 수 있으나, 샤드 수는 사후 변경이 불가합니다.
+
+기본적으로 Elasticsearch의 각 색인은 기본 샤드 5개, 리플리카 1개를 갖습니다. 따라서 클러스터에 최소한 2개의 노드가 있다면 색인은 기본 샤드 5개, 리플리카 샤드 5개(완전한 리플리카 1개)를 가지므로 색인당 총 10개의 샤드가 존재하게 됩니다.
+
+NOTE: 각 Elasticsearch 샤드는 Lucene 색인입니다. 단일 Lucene 색인이 포함할 수 있는 문서 수의 최대 한도가 있습니다. https://issues.apache.org/jira/browse/LUCENE-5843[`LUCENE-5843`]에 따르면 `2,147,483,519`개(= Integer.MAX_VALUE - 128)입니다.
+{ref}/cat-shards.html[`_cat/shards`] API를 사용하여 샤드 크기를 모니터링할 수 있습니다.
+
+그럼 이제 재미있는 부분을 시작해볼까요?
+
+== 설치
+
+Elasticsearch는 Java 8 이상이 필요합니다. 이 글을 쓰는 시점에서는 Oracle JDK 버전 {jdk} 사용이 권장됩니다. Java 설치는 플랫폼에 따라 달라지므로 여기서 자세히 다루지 않겠습니다. Oracle의 권장 설치 설명서를 http://docs.oracle.com/javase/8/docs/technotes/guides/install/install_overview.html[Oracle's website]에서 구할 수 있습니다. Elasticsearch 설치에 앞서 Java 버전 확인을 위해 다음을 실행하십시오. 그 결과에 따라 설치하거나 업그레이드하면 됩니다.
+
+[source,sh]
+--------------------------------------------------
+java -version
+echo $JAVA_HOME
+--------------------------------------------------
+
+Java가 설정되었다면 Elasticsearch를 다운로드하고 실행할 수 있습니다. 그 이진 파일은 지금까지 나온 모든 릴리스와 함께 http://www.elastic.co/downloads[`www.elastic.co/downloads`]에 있습니다. 각 릴리스에서 `zip` 또는 `tar` 아카이브, `DEB` 또는 `RPM` 패키지를 선택할 수 있습니다. 여기서는 간단하게 tar 파일을 사용하겠습니다.
+
+다음과 같이 Elasticsearch {version} tar를 다운로드합니다. Windows 사용자는 zip 패키지를 다운로드해야 합니다.
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.tar.gz
+--------------------------------------------------
+// NOTCONSOLE
+
+그리고 다음과 같이 압축을 풉니다. Windows 사용자는 zip 패키지를 풀어야 합니다.
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+tar -xvf elasticsearch-{version}.tar.gz
+--------------------------------------------------
+
+그러면 현재 디렉토리에 여러 파일과 폴더가 생성됩니다. 다음과 같이 bin 디렉토리로 이동합니다.
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+cd elasticsearch-{version}/bin
+--------------------------------------------------
+
+이제 노드와 단일 클러스터를 시작할 수 있습니다. Windows 사용자는 elasticsearch.bat 파일을 실행해야 합니다.
+
+[source,sh]
+--------------------------------------------------
+./elasticsearch
+--------------------------------------------------
+
+모두 순조롭게 진행되었다면 아래와 같은 메시지가 표시됩니다.
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+[2016-09-16T14:17:51,251][INFO ][o.e.n.Node               ] [] initializing ...
+[2016-09-16T14:17:51,329][INFO ][o.e.e.NodeEnvironment    ] [6-bjhwl] using [1] data paths, mounts [[/ (/dev/sda1)]], net usable_space [317.7gb], net total_space [453.6gb], spins? [no], types [ext4]
+[2016-09-16T14:17:51,330][INFO ][o.e.e.NodeEnvironment    ] [6-bjhwl] heap size [1.9gb], compressed ordinary object pointers [true]
+[2016-09-16T14:17:51,333][INFO ][o.e.n.Node               ] [6-bjhwl] node name [6-bjhwl] derived from node ID; set [node.name] to override
+[2016-09-16T14:17:51,334][INFO ][o.e.n.Node               ] [6-bjhwl] version[{version}], pid[21261], build[f5daa16/2016-09-16T09:12:24.346Z], OS[Linux/4.4.0-36-generic/amd64], JVM[Oracle Corporation/Java HotSpot(TM) 64-Bit Server VM/1.8.0_60/25.60-b23]
+[2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [aggs-matrix-stats]
+[2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [ingest-common]
+[2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [lang-expression]
+[2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [lang-groovy]
+[2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [lang-mustache]
+[2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [lang-painless]
+[2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [percolator]
+[2016-09-16T14:17:51,968][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [reindex]
+[2016-09-16T14:17:51,968][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [transport-netty3]
+[2016-09-16T14:17:51,968][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [transport-netty4]
+[2016-09-16T14:17:51,968][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded plugin [mapper-murmur3]
+[2016-09-16T14:17:53,521][INFO ][o.e.n.Node               ] [6-bjhwl] initialized
+[2016-09-16T14:17:53,521][INFO ][o.e.n.Node               ] [6-bjhwl] starting ...
+[2016-09-16T14:17:53,671][INFO ][o.e.t.TransportService   ] [6-bjhwl] publish_address {192.168.8.112:9300}, bound_addresses {{192.168.8.112:9300}
+[2016-09-16T14:17:53,676][WARN ][o.e.b.BootstrapCheck     ] [6-bjhwl] max virtual memory areas vm.max_map_count [65530] likely too low, increase to at least [262144]
+[2016-09-16T14:17:56,718][INFO ][o.e.c.s.ClusterService   ] [6-bjhwl] new_master {6-bjhwl}{6-bjhwl4TkajjoD2oEipnQ}{8m3SNKoFR6yQl1I0JUfPig}{192.168.8.112}{192.168.8.112:9300}, reason: zen-disco-elected-as-master ([0] nodes joined)
+[2016-09-16T14:17:56,731][INFO ][o.e.h.HttpServer         ] [6-bjhwl] publish_address {192.168.8.112:9200}, bound_addresses {[::1]:9200}, {192.168.8.112:9200}
+[2016-09-16T14:17:56,732][INFO ][o.e.g.GatewayService     ] [6-bjhwl] recovered [0] indices into cluster_state
+[2016-09-16T14:17:56,748][INFO ][o.e.n.Node               ] [6-bjhwl] started
+--------------------------------------------------
+
+너무 자세히 들여다보지는 않겠지만, "6-bjhwl"라는 노드(여러분에게는 다른 문자 집합)가 시작됐고 단일 클러스터의 마스터로 표시되었습니다. 지금은 마스터의 의미에 대해 신경 쓰지 마십시오. 여기서 중요한 것은 단일 클러스터 내에서 단일 노드를 시작했다는 사실입니다.
+
+앞서 설명한 것처럼 클러스터 이름 또는 노드 이름을 재정의할 수 있습니다. 다음과 같이 Elasticsearch를 시작할 때 명령행에서 하면 됩니다.
+
+[source,sh]
+--------------------------------------------------
+./elasticsearch -Ecluster.name=my_cluster_name -Enode.name=my_node_name
+--------------------------------------------------
+
+또한 노드에 접속할 수 있는 위치를 나타내는 HTTP 주소(`192.168.8.112`) 및 포트(`9200`) 정보가 있는 http가 표시된 행에 주목하십시오. 기본적으로 Elasticsearch는 포트 `9200`을 사용하여 REST API에 대한 액세스를 제공합니다. 필요하다면 이 포트를 구성할 수 있습니다.
+
+== 클러스터 둘러보기
+
+[float]
+=== REST API
+
+노드(및 클러스터)가 실행 중이므로 노드와 통신하는 방법을 알아볼 차례입니다. 다행히 Elasticsearch는 클러스터와의 상호 작용에 사용할 수 있는 매우 포괄적이고 강력한 REST API를 제공합니다. 이 API에서 다음을 비롯한 다양한 작업을 수행할 수 있습니다.
+
+* 클러스터, 노드, 색인의 상태 및 통계 정보 확인
+* 클러스터, 노드, 색인의 데이터 및 메타데이터 관리
+*  색인에 대한 CRUD(Create, Read, Update, Delete) 및 검색 작업 수행
+* 페이징, 정렬, 필터링, 스크립팅, 집계 등 여러 고급 검색 작업 실행
+
+=== 클러스터 상태
+
+기본적인 상태 확인부터 시작하겠습니다. 이 확인을 통해 클러스터가 어떻게 작동하고 있는지 알아볼 수 있습니다. 여기서는 curl을 사용하겠지만, HTTP/REST 호출을 지원하는 어떤 툴도 사용 가능합니다. Elasticsearch를 시작한 노드에 아직 있다고 가정하고 다른 명령 셸 창을  열겠습니다.
+
+클러스터 상태를 확인하기 위해 {ref}/cat.html[`_cat` API]를 사용합니다. {kibana}/console-kibana.html[Kibana 콘솔]에서 아래의 명령을 실행할 수 있습니다. "VIEW IN CONSOLE"을 클릭하거나 `curl`을 사용할 경우에는 아래의 "COPY AS CURL" 링크를 클릭하고 터미널에 붙여 넣으면 됩니다.
+
+[source,js]
+--------------------------------------------------
+GET /_cat/health?v
+--------------------------------------------------
+// CONSOLE
+
+그러면 다음과 같이 응답합니다.
+
+[source,txt]
+--------------------------------------------------
+epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+1475247709 17:01:49  elasticsearch green           1         1      0   0    0    0        0             0                  -                100.0%
+--------------------------------------------------
+// TESTRESPONSE[s/1475247709 17:01:49  elasticsearch/\\d+ \\d+:\\d+:\\d+ docs_integTestCluster/]
+// TESTRESPONSE[s/0             0                  -/0             \\d+                  -/]
+// TESTRESPONSE[_cat]
+
+"elasticsearch"라는 클러스터가 시작되었고 녹색 상태임을 볼 수 있습니다.
+
+클러스터 상태를 물으면 항상 녹색, 노란색 또는 빨간색으로 표시됩니다. 녹색은 모두 양호한 상태(클러스터가 정상 작동 중), 노란색은 모든 데이터가 사용 가능한 상태이지만 일부 리플리카가 아직 배정되지 않은 상태(클러스터는 정상 작동 중), 빨간색은 어떤 이유로 일부 데이터가 사용할 수 없는 상태를 의미합니다. 클러스터가 빨간색이더라도 아직 부분적으로 작동하는 중입니다. 즉 사용 가능 샤드에서 계속 검색 요청을 처리합니다. 그러나 데이터가 누락되므로 서둘러 문제를 해결해야 합니다.
+
+또한 위 응답에서는 노드가 총 1개이고 샤드는 0개입니다. 아직 데이터가 없기 때문입니다. 여기서는 기본 클러스터 이름(elasticsearch)을 사용하는 중이고  Elasticsearch에서 동일한 시스템의 다른 노드를 찾는 데 기본적으로 유니캐스트 네트워크 검색을 사용하므로 어쩌다가 컴퓨터에서 둘 이상의 노드가 시작되고 이들이 모두 단일 클러스터에 포함될 수도 있습니다. 그러한 시나리오에서는 위 응답에서 둘 이상의 노드가 나타날 수 있습니다.
+
+또한 아래와 같이 클러스터에 있는 노드의 목록이 표시될 수도 있습니다.
+
+[source,js]
+--------------------------------------------------
+GET /_cat/nodes?v
+--------------------------------------------------
+// CONSOLE
+
+응답은 다음과 같습니다.
+
+[source,txt]
+--------------------------------------------------
+ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master name
+127.0.0.1           10           5   5    4.46                        mdi      *      PB2SGZY
+--------------------------------------------------
+// TESTRESPONSE[s/10           5   5    4.46/\\d+ \\d+ \\d+ (\\d+\\.\\d+)? (\\d+\\.\\d+)? (\\d+\.\\d+)?/]
+// TESTRESPONSE[s/[*]/[*]/ s/PB2SGZY/.+/ _cat]
+
+여기서는 노드의 이름이 "PB2SGZY"이며, 현재 이 클러스터의 유일한 노드입니다.
+
+=== 모든 색인 나열
+
+이제 색인을 살펴볼까요?
+
+[source,js]
+--------------------------------------------------
+GET /_cat/indices?v
+--------------------------------------------------
+// CONSOLE
+
+응답은 다음과 같습니다.
+
+[source,txt]
+--------------------------------------------------
+health status index uuid pri rep docs.count docs.deleted store.size pri.store.size
+--------------------------------------------------
+// TESTRESPONSE[_cat]
+
+아직 클러스터에 색인이 없는 것입니다.
+
+=== 색인 생성
+
+"customer"라는 이름의 색인을 만들고 다시 모든 색인을 나열해보겠습니다.
+
+[source,js]
+--------------------------------------------------
+PUT /customer?pretty
+GET /_cat/indices?v
+--------------------------------------------------
+// CONSOLE
+
+첫 번째 명령은 PUT 동사를 사용하여 "customer"라는 이름의 색인을 만듭니다. 단, 호출의 끝에 `pretty`를 추가하여 JSON 응답이 있다면 pretty-print를 수행하게 합니다.
+
+응답은 다음과 같습니다.
+
+[source,txt]
+--------------------------------------------------
+health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+yellow open   customer 95SQ4TSUT7mWBT7VNHH67A   5   1          0            0       260b           260b
+--------------------------------------------------
+// TESTRESPONSE[s/95SQ4TSUT7mWBT7VNHH67A/.+/ s/260b/\\d+b/ _cat]
+
+두 번째 명령의 결과를 보면 customer라는 이름의 색인 1개가 있고 이 색인은 기본 샤드 5개, 리플리카 1개가 있으며(기본 설정) 포함된 문서는 0개입니다.
+
+또한 customer 색인은 노란색 상태 태그로 표시되어 있습니다. 앞서 설명한 것처럼 노란색은 일부 리플리카가 (아직) 배정되지 않았음을 의미합니다. 이 색인이 노란색으로 표시된 까닭은 Elasticsearch에서 기본적으로 이 색인에 대해 리플리카 1개를 생성했기 때문입니다. 현재는 하나의 노드가 실행 중이므로 이 리플리카는 아직 (고가용성을 위해) 배정될 수 없습니다. 나중에 다른 노드가 클러스터에 포함되면 가능해집니다. 이 리플리카가 두 번째 노드에 배정되면 이 색인의 상태는 녹색으로 바뀝니다.
+
+=== 문서 색인화 및 쿼리
+
+customer 색인에 뭔가를 추가해보겠습니다. 앞서 설명했지만, 문서를 색인화하려면 Elasticsearch에게 색인의 어떤 유형을 선택할지 알려줘야 합니다.
+
+다음과 같이 어떤 간단한 고객 문서를 customer 색인, "external" 유형으로 색인화하고 ID는 1로 하겠습니다.
+
+[source,js]
+--------------------------------------------------
+PUT /customer/external/1?pretty
+{
+  "name": "John Doe"
+}
+--------------------------------------------------
+// CONSOLE
+
+응답은 다음과 같습니다.
+
+[source,sh]
+--------------------------------------------------
+{
+  "_index" : "customer",
+  "_type" : "external",
+  "_id" : "1",
+  "_version" : 1,
+  "result" : "created",
+  "_shards" : {
+    "total" : 2,
+    "successful" : 1,
+    "failed" : 0
+  },
+  "created" : true
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+customer 색인 및 external 유형에 새 고객 문서가 성공적으로 생성되었음을 알 수 있습니다. 또한 색인화 시점에 지정한 대로 이 문서의 내부 ID는 1입니다.
+
+Elasticsearch에서는 문서를 색인화하기 전에 명시적으로 색인을 생성할 필요가 없다는 점도 중요합니다. 앞의 예에서 Elasticsearch는 customer 색인이 아직 없으면 자동으로 생성합니다.
+
+방금 색인화한 문서를 검색해보겠습니다.
+
+[source,js]
+--------------------------------------------------
+GET /customer/external/1?pretty
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+응답은 다음과 같습니다.
+
+[source,js]
+--------------------------------------------------
+{
+  "_index" : "customer",
+  "_type" : "external",
+  "_id" : "1",
+  "_version" : 1,
+  "found" : true,
+  "_source" : { "name": "John Doe" }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+여기서 특이한 점이라면 `found`라는 필드인데, 요청된 ID 1에 해당하는 문서를 찾았다고 알려줍니다. 또 다른 필드 `_source`는 이전 단계에서 색인화한 전체 JSON 문서를 반환합니다.
+
+=== 색인 삭제
+
+방금 만든 색인을 삭제한 다음 다시 모든 색인을 나열해보겠습니다.
+
+[source,js]
+--------------------------------------------------
+DELETE /customer?pretty
+GET /_cat/indices?v
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+응답은 다음과 같습니다.
+
+[source,txt]
+--------------------------------------------------
+health status index uuid pri rep docs.count docs.deleted store.size pri.store.size
+--------------------------------------------------
+// TESTRESPONSE[_cat]
+
+색인이 성공적으로 삭제되었고 처음 시작했을 때처럼 클러스터에 아무 것도 없는 상태가 되었습니다.
+
+계속하기 전에 지금까지 학습한 몇 가지 API 명령을 좀 더 자세히 살펴보겠습니다.
+
+[source,js]
+--------------------------------------------------
+PUT /customer
+PUT /customer/external/1
+{
+  "name": "John Doe"
+}
+GET /customer/external/1
+DELETE /customer
+--------------------------------------------------
+// CONSOLE
+
+위 명령을 자세히 들여다보면 Elasticsearch에서 데이터에 액세스하는 방식의 패턴이 드러납니다. 이 패턴은 다음과 같이 요약할 수 있습니다.
+
+[source,js]
+--------------------------------------------------
+<REST Verb> /<Index>/<Type>/<ID>
+--------------------------------------------------
+// NOTCONSOLE
+
+이 REST 액세스 패턴은 모든 API 명령에서 보편적으로 나타나므로, 잘 기억해두면 Elasticsearch를 제대로 이해하는 데 도움이 될 것입니다.
+
+== 데이터 수정
+
+Elasticsearch는 실시간에 가깝게 데이터 조작 및 검색 기능을 제공합니다. 기본적으로 데이터를 색인화/업데이트/삭제하는 시점부터 검색 결과에 나타나는 시점까지 1초 정도 걸립니다(새로고침 간격). 이는 트랜잭션이 완료되면 즉시 데이터가 사용 가능해지는 SQL과 같은 다른 플랫폼과 구별되는 중요한 특징입니다.
+
+[float]
+=== 문서 색인화/대체
+
+앞서 단일 문서를 색인화하는 방법을 살펴봤습니다. 그 명령을 다시 실행해볼까요?
+
+[source,js]
+--------------------------------------------------
+PUT /customer/external/1?pretty
+{
+  "name": "John Doe"
+}
+--------------------------------------------------
+// CONSOLE
+
+역시 지정된 문서를 customer 색인, external 유형으로 색인화하고 ID로 1을 지정합니다. 다른 문서(또는 동일한 문서)로 위 명령을 다시 실행한다면 Elasticsearch는 ID가 1인 기존 문서를 새 문서로 대체할 것입니다. 즉 다시 색인화합니다.
+
+[source,js]
+--------------------------------------------------
+PUT /customer/external/1?pretty
+{
+  "name": "Jane Doe"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+위에서는 ID가 1인 문서의 이름이 "John Doe"에서 "Jane Doe"로 바뀝니다. 만약 다른 ID를 사용한다면 새 문서가 색인화되고 색인의 기존 문서는 변동 없이 유지됩니다.
+
+[source,js]
+--------------------------------------------------
+PUT /customer/external/2?pretty
+{
+  "name": "Jane Doe"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+위에서는 새 문서를 색인화하고 ID를 2로 지정합니다.
+
+색인화할 때 ID 부분은 선택 사항입니다. 지정하지 않으면 Elasticsearch에서 임의 ID를 생성하여 문서 색인화에 사용합니다. Elasticsearch에서 생성한 실제 ID(또는 이전의 예에서 명시적으로 지정한 ID)가 색인 API 호출의 일부로 반환됩니다.
+
+이 예는 명시적 ID가 없는 문서를 색인화하는 방법을 보여줍니다.
+
+[source,js]
+--------------------------------------------------
+POST /customer/external?pretty
+{
+  "name": "Jane Doe"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+위 사례에서는 ID를 지정하지 않았으므로 PUT 대신 `POST` 동사를 사용합니다.
+
+=== 문서 업데이트
+
+문서를 색인화하고 대체할 뿐 아니라 업데이트할 수도 있습니다. 사실 Elasticsearch가 해당 위치에서 업데이트를 수행하는 건 아닙니다. 우리가 업데이트를 명령하면 Elasticsearch는 기존 문서를 삭제하고 새 문서를 색인화한 다음 여기에 업데이트를 적용하는 작업을 한꺼번에 수행합니다.
+
+이 예는 (ID가 1인) 이전의 문서에서 이름 필드를 "Jane Doe"로 변경하여 업데이트하는 방법을 보여줍니다.
+
+[source,js]
+--------------------------------------------------
+POST /customer/external/1/_update?pretty
+{
+  "doc": { "name": "Jane Doe" }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+이 예는 (ID가 1인) 이전의 문서에서 이름 필드를 "Jane Doe"로 변경하고 동시에 나이 필드를 추가하여 업데이트하는 방법을 보여줍니다.
+
+[source,js]
+--------------------------------------------------
+POST /customer/external/1/_update?pretty
+{
+  "doc": { "name": "Jane Doe", "age": 20 }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+간단한 스크립트를 사용하여 업데이트할 수도 있습니다. 이 예는 스크립트를 사용하여 나이를 5만큼 늘립니다.
+
+[source,js]
+--------------------------------------------------
+POST /customer/external/1/_update?pretty
+{
+  "script" : "ctx._source.age += 5"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+위 예에서 `ctx._source`는 업데이트하려는 현재 소스 문서입니다.
+
+이 글을 쓰는 시점에서는 한 번에 하나의 문서만 업데이트할 수 있습니다. 향후 Elasticsearch에서 쿼리 조건(예: `SQL UPDATE-WHERE` 문)을 사용하여 여러 문서를 업데이트하는 기능을 제공할 수도 있습니다.
+
+=== 문서 삭제
+
+문서 삭제는 매우 간단합니다. 이 예는 앞서 만든 ID가 2인 문서를 삭제하는 방법을 보여줍니다.
+
+[source,js]
+--------------------------------------------------
+DELETE /customer/external/2?pretty
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+특정 쿼리와 일치하는 모든 문서를 삭제하려면 {ref}/docs-delete-by-query.html[`_delete_by_query` API]의 내용을 참조하십시오.
+Delete By Query API를 사용하여 모든 문서를 삭제하기보다는 아예 색인을 삭제하는 것이 훨씬 더 효율적입니다.
+
+=== 배치 처리
+
+Elasticsearch는 개별 문서를 색인화, 업데이트, 삭제하는 기능뿐 아니라 {ref}/docs-bulk.html[`_bulk` API]를 사용하여 위와 같은 작업을 배치 형태로 수행하는 기능도 제공합니다. 이 기능은 네트워크 왕복을 최소화하면서 최대한 신속하게 여러 작업을 수행할 수 있는 매우 효율적인 메커니즘을 제공한다는 점에서 중요합니다.
+
+간단한 예로 다음 호출은 하나의 벌크 작업으로 문서 2개(ID 1 - John Doe, ID 2 - Jane Doe)를 색인화합니다.
+
+[source,js]
+--------------------------------------------------
+POST /customer/external/_bulk?pretty
+{"index":{"_id":"1"}}
+{"name": "John Doe" }
+{"index":{"_id":"2"}}
+{"name": "Jane Doe" }
+--------------------------------------------------
+// CONSOLE
+
+이 예는 하나의 벌크 작업으로 첫 번째 문서(ID = 1)를 업데이트한 다음 두 번째 문서(ID = 2)를 삭제합니다.
+
+[source,sh]
+--------------------------------------------------
+POST /customer/external/_bulk?pretty
+{"update":{"_id":"1"}}
+{"doc": { "name": "John Doe becomes Jane Doe" } }
+{"delete":{"_id":"2"}}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+위에서 삭제 작업의 경우 그 다음에 소스 문서가 오지 않습니다. 삭제할 문서의 ID만 있으면 되기 때문입니다.
+
+작업 중 하나가 실패하더라도 벌크 API는 실패하지 않습니다. 어떤 이유로 어느 한 작업이 실패한 경우 그 나머지 작업은 계속 처리합니다. 벌크 API가 반환할 때 각 작업의 상태를 (전송 순서와 동일하게) 표시하므로 어떤 작업이 실패했는지 여부를 알 수 있습니다.
+
+== 데이터 탐색
+
+[float]
+=== 샘플 데이터 집합
+
+지금까지 기초적인 내용을 살펴봤으므로 이제 더 사실적인 데이터 집합을 다룰 차례입니다. 고객 은행 계정 정보가 있는 가상의 JSON 문서를 샘플로 준비했습니다. 각 문서는 다음 스키마를 갖습니다.
+
+[source,js]
+--------------------------------------------------
+{
+    "account_number": 0,
+    "balance": 16623,
+    "firstname": "Bradshaw",
+    "lastname": "Mckenzie",
+    "age": 29,
+    "gender": "F",
+    "address": "244 Columbus Place",
+    "employer": "Euron",
+    "email": "bradshawmckenzie@euron.com",
+    "city": "Hobucken",
+    "state": "CO"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+참고로 이 데이터의 출처는 http://www.json-generator.com/[`www.json-generator.com/`]입니다. 모두 임의로 생성된 것이므로 데이터의 실제 값과 의미 체계는 무시해주십시오.
+
+[float]
+=== 샘플 데이터 집합 로드
+
+https://github.com/elastic/elasticsearch/blob/master/docs/src/test/resources/accounts.json?raw=true[여기]에서 샘플 데이터 집합(accounts.json)을 다운로드할 수 있습니다. 다음과 같이 현재 디렉터리에 압축을 풀고 클러스터에 로드하겠습니다.
+
+[source,sh]
+--------------------------------------------------
+curl -H "Content-Type: application/json" -XPOST 'localhost:9200/bank/account/_bulk?pretty&refresh' --data-binary "@accounts.json"
+curl 'localhost:9200/_cat/indices?v'
+--------------------------------------------------
+// NOTCONSOLE
+
+////
+This replicates the above in a document-testing friendly way but isn't visible
+in the docs:
+
+[source,js]
+--------------------------------------------------
+GET /_cat/indices?v
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:bank]
+////
+
+응답은 다음과 같습니다.
+
+[source,js]
+--------------------------------------------------
+health status index uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    128.6kb        128.6kb
+--------------------------------------------------
+// TESTRESPONSE[s/128.6kb/\\d+(\\.\\d+)?[mk]?b/]
+// TESTRESPONSE[s/l7sSYV2cQXmu6_4rJWVIww/.+/ _cat]
+
+방금 한꺼번에 문서 1,000개를 bank 색인, account 유형에 색인화한 것입니다.
+
+=== 검색 API
+
+먼저 몇 가지 간단한 검색을 해보겠습니다. 기본적인 검색 실행 방법으로 2가지가 있습니다.  {ref}/search-uri-request.html[REST 요청 URI]를 통해 검색 매개변수를 보내는것 그리고 {ref}/search-request-body.html[REST 요청 본문]을 통해 보내는 것입니다. 요청 본문 방식은 더 상세한 표현이 가능하고 또한 더 읽기 쉬운 JSON 형식으로 검색을 정의할 수도 있습니다. 여기서는 요청 URI 방식을 한 번 시도해보겠지만, 이 튜토리얼의 나머지 부분에서는 요청 본문 방식만 사용할 것입니다.
+
+검색을 위한 REST API는 `_search` 엔드포인트에서 액세스할 수 있습니다. 이 예는 bank 색인의 모든 문서를 반환합니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search?q=*&sort=account_number:asc&pretty
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+먼저 검색 호출을 자세히 살펴볼까요? bank 색인에서 검색하는 중인데(`_search` 엔드포인트), `q=*` 매개변수를 통해 Elasticsearch에게 색인의 모든 문서를 비교하여 일치 여부를 확인하라고 지시합니다. `sort=account_number:asc` 매개변수는 각 문서의 `account_number` 필드를 기준으로 삼아 오름차순으로 결과를 정렬하도록 지시합니다. `pretty` 매개변수는 역시 Elasticsearch에게 JSON 결과를 pretty-print하여 반환하도록 지시합니다.
+
+다음은 응답의 일부입니다.
+
+[source,js]
+--------------------------------------------------
+{
+  "took" : 63,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 5,
+    "successful" : 5,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : 1000,
+    "max_score" : null,
+    "hits" : [ {
+      "_index" : "bank",
+      "_type" : "account",
+      "_id" : "0",
+      "sort": [0],
+      "_score" : null,
+      "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
+    }, {
+      "_index" : "bank",
+      "_type" : "account",
+      "_id" : "1",
+      "sort": [1],
+      "_score" : null,
+      "_source" : {"account_number":1,"balance":39225,"firstname":"Amber","lastname":"Duke","age":32,"gender":"M","address":"880 Holmes Lane","employer":"Pyrami","email":"amberduke@pyrami.com","city":"Brogan","state":"IL"}
+    }, ...
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took" : 63/"took" : $body.took/]
+// TESTRESPONSE[s/\.\.\./$body.hits.hits.2, $body.hits.hits.3, $body.hits.hits.4, $body.hits.hits.5, $body.hits.hits.6, $body.hits.hits.7, $body.hits.hits.8, $body.hits.hits.9/]
+
+이 응답에서는 다음 부분이 눈에 띕니다.
+
+* `took` – Elasticsearch가 검색을 실행하는 데 걸린 시간(밀리초)
+* `timed_out` – 검색의 시간 초과 여부
+* `_shards` – 검색한 샤드 수 및 검색에 성공/실패한 샤드 수
+* `hits` – 검색 결과
+* `hits.total` – 검색 조건과 일치하는 문서의 총 개수
+* `hits.hits` – 검색 결과의 실제 배열(기본 설정은 처음 10개 문서)
+* `hits.sort` - 결과의 정렬 키(점수 기준 정렬일 경우 표시되지 않음)
+* `hits._score` 및 `max_score` - 지금은 이 필드를 무시하십시오.
+
+위 검색에 요청 본문 방식을 사용할 경우 결과는 다음과 같습니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": { "match_all": {} },
+  "sort": [
+    { "account_number": "asc" }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+URI에서는 `q=*`를 전달했지만 여기서는 `_search` API에 JSON 스타일의 쿼리 요청 본문을 POST합니다. 다음 섹션에서 이 JSON 쿼리에 대해 살펴볼 것입니다.
+
+////
+Hidden response just so we can assert that it is indeed the same but don't have
+to clutter the docs with it:
+
+[source,js]
+--------------------------------------------------
+{
+  "took" : 63,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 5,
+    "successful" : 5,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : 1000,
+    "max_score": null,
+    "hits" : [ {
+      "_index" : "bank",
+      "_type" : "account",
+      "_id" : "0",
+      "sort": [0],
+      "_score": null,
+      "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
+    }, {
+      "_index" : "bank",
+      "_type" : "account",
+      "_id" : "1",
+      "sort": [1],
+      "_score": null,
+      "_source" : {"account_number":1,"balance":39225,"firstname":"Amber","lastname":"Duke","age":32,"gender":"M","address":"880 Holmes Lane","employer":"Pyrami","email":"amberduke@pyrami.com","city":"Brogan","state":"IL"}
+    }, ...
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took" : 63/"took" : $body.took/]
+// TESTRESPONSE[s/\.\.\./$body.hits.hits.2, $body.hits.hits.3, $body.hits.hits.4, $body.hits.hits.5, $body.hits.hits.6, $body.hits.hits.7, $body.hits.hits.8, $body.hits.hits.9/]
+
+////
+
+검색 결과를 얻으면 Elasticsearch는 해당 요청을 처리 완료한 것이므로 어떤 서버측 리소스도 유지하지 않고 결과에 커서를 열지도 않습니다. 이는 초기에 쿼리 결과의 일부를 얻은 다음 일종의 상태 유지 서버측 커서를 사용하여 나머지 결과를 가져오려면 (또는 페이지로 표시하려면) 반복해서 서버로 돌아가야 하는 SQL과 같은 다른 여러 플랫폼과 크게 다른 점입니다.
+
+=== 쿼리 언어 소개
+
+Elasticsearch는 쿼리 실행에 사용할 수 있도록 JSON 스타일의 도메인 전용 언어를 제공합니다. 이를 {ref}/query-dsl.html[Query DSL]이라고 합니다. 이 쿼리 언어는 매우 포괄적이므로 처음에는 부담스러울 수도 있습니다. 하지만 가장 효과적인 학습 방법은 몇 가지 기본적인 예와 함께 시작해보는 것입니다.
+
+마지막 예로 돌아가서 이 쿼리를 실행했습니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": { "match_all": {} }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+위 내용을 자세히 보면 `query` 부분은 쿼리 정의가 무엇인지 알려주며, `match_all` 부분은 실행하려는 쿼리의 유형을 나타낼 뿐입니다. `match_all` 쿼리는 지정된 색인의 모든 문서를 검색하는 것입니다.
+
+`query` 매개변수 외에 다른 매개변수도 전달하여 검색 결과에 영향을 줄 수 있습니다. 위 섹션의 예는 `sort`를 전달했는데, 이번에는 `size`를 전달하겠습니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": { "match_all": {} },
+  "size": 1
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+`size`가 지정되지 않으면 기본값은 10입니다.
+
+이 예에서는 `match_all`을 수행했더니 문서 11 ~ 20이 반환되었습니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": { "match_all": {} },
+  "from": 10,
+  "size": 10
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+`from` 매개변수(0 기반)는 어떤 문서 색인에서 시작할지, `size` 매개변수는 from 매개변수에서 시작하여 몇 개의 문서를 반환할지 지정합니다. 이 기능은 검색 결과의 페이징 구현에 유용합니다. `from`이 지정되지 않으면 기본값은 0입니다.
+
+이 예는 `match_all`을 수행하고 계정 잔액을 기준으로 내림차순으로 결과를 정렬한 다음 상위 10개(기본 크기) 문서를 반환합니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": { "match_all": {} },
+  "sort": { "balance": { "order": "desc" } }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+=== 검색 실행
+
+몇 가지 기본 검색 매개변수를 익혔으므로 쿼리 DSL을 좀 더 자세히 알아보겠습니다. 먼저 반환된 문서 필드를 살펴볼까요? 기본적으로 전체 JSON 문서가 모든 검색의 일부로 반환됩니다. 이를 소스(검색 적중의 `_source` 필드)라고 합니다. 전체 소스 문서가 반환되는 것을 원치 않는다면 소스 의 일부 필드만 반환하도록 요청할 수 있습니다.
+
+이 예는 검색에서 `account_number` 및 `balance`(`_source`의 내부에 있음)의 2개 필드를 반환하는 방법을 보여줍니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": { "match_all": {} },
+  "_source": ["account_number", "balance"]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+위 예는 `_source` 필드를 줄였을 뿐입니다. 여전히 `_source`라는 이름의 필드 하나만 반환하지만, 그 안에는 `account_number` 및 `balance` 필드만 있습니다.
+
+SQL 배경 지식이 있다면 개념상 `SQL SELECT FROM` 필드 목록과 다소 비슷하다는 것을 알 수 있습니다.
+
+쿼리 부분으로 진행할까요? 앞서 `match_all` 쿼리가 모든 문서를 비교하는 데 어떻게 사용되는지 알아봤습니다. {ref}/query-dsl-match-query.html[`match` 쿼리]라는 새로운 쿼리를 소개합니다. 이는 기본 필드 검색 쿼리라고 볼 수 있습니다. 즉 특정 필드 또는 필드 집합에 대해 검색이 수행됩니다.
+
+이 예에서는 번호가 20인 계정이 반환됩니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": { "match": { "account_number": 20 } }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+주소에 "mill"이라는 용어가 있는 모든 계정을 반환합니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": { "match": { "address": "mill" } }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+여기서는 주소에 "mill" 또는 "lane"이라는 용어가 있는 모든 계정을 반환합니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": { "match": { "address": "mill lane" } }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+이 예는 `match`(`match_phrase`)의 변형으로 주소에 "mill lane" 문구가 있는 모든 계정을 반환합니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": { "match_phrase": { "address": "mill lane" } }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+이제 {ref}/query-dsl-bool-query.html[`bool`(Boolean) 쿼리]에 대해 알아보겠습니다. `bool` 쿼리에서는 부울 로직을 사용하여 작은 쿼리로 더 큰 쿼리로 만들 수 있습니다.
+
+이 예는 2개의 `match` 쿼리를 작성하고 주소에 "mill" 및 "lane"이 있는 모든 계정을 반환합니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        { "match": { "address": "mill" } },
+        { "match": { "address": "lane" } }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+위 예에서 `bool must` 절에 지정된 모든 쿼리가 true가 되어야 문서가 일치 항목으로 간주됩니다.
+
+이와 달리 다음 예는 2개의 `match` 쿼리를 작성하고 주소에 "mill" 또는 "lane"이 있는 모든 계정을 반환합니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": {
+    "bool": {
+      "should": [
+        { "match": { "address": "mill" } },
+        { "match": { "address": "lane" } }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+위 예에서 `bool should` 절에 지정된 쿼리 중 하나라도 true가 되면 문서는 일치 항목이 됩니다.
+
+이 예는 2개의 `match` 쿼리를 작성하고 주소에 "mill" 및 "lane"이 없는 모든 계정을 반환합니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": {
+    "bool": {
+      "must_not": [
+        { "match": { "address": "mill" } },
+        { "match": { "address": "lane" } }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+위 예에서 `bool must_not` 절에 지정된 쿼리 중 어느 것도 true가 아닐 때만 문서가 일치 항목이 됩니다.
+
+하나의 `bool` 쿼리 내에 `must`, `should`, `must_not` 절을 동시에 조합할 수 있습니다. 또한 복잡한 다단계 부울 로직처럼 `bool` 절 내에 `bool` 쿼리를 작성할 수 있습니다.
+
+이 예는 나이가 40세이지만 ID(아이다호)에 살고 있지 않은 사람의 모든 계정을 반환합니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        { "match": { "age": "40" } }
+      ],
+      "must_not": [
+        { "match": { "state": "ID" } }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+=== 필터 실행
+
+앞의 섹션에서는 문서 점수(검색 결과의 `_score` 필드)라는 세부 사항을 건너뛰었습니다. 이 점수는 해당 문서가 지정된 검색 쿼리와 얼마나 일치하는지를 상대적으로 나타내는 숫자 값입니다. 점수가 높을수록 문서의 연관성이 높아지고 낮을수록 연관성이 떨어집니다.
+
+그러나 쿼리에서 항상 점수를 생성해야 하는 것은 아닙니다. 이를테면 단지 문서 집합을 "필터링"하는 데 쓰이는 경우도 있습니다. Elasticsearch는 이러한 상황을 탐지하여 불필요한 점수를 계산하지 않도록 자동으로 쿼리 실행을 최적화합니다.
+
+앞의 섹션에서 소개한 {ref}/query-dsl-bool-query.html[`bool` 쿼리]는 `filter` 절도 지원합니다. 점수 계산 방식을 바꾸지 않고도 쿼리를 사용하여 다른 절과 일치할 문서를 제한할 수 있습니다. 예를 들어 {ref}/query-dsl-range-query.html[`range` 쿼리]는 값의 범위로 문서를 필터링할 수 있습니다. 주로 숫자 또는 날짜 필터링에 쓰입니다.
+
+이 예는 부울 쿼리를 사용하여 잔액이 20000 ~ 30000의 범위에 속하는 모든 계정을 반환합니다. 즉 잔액이 20000 이상, 30000 이하인 계정을 찾으려 합니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": {
+    "bool": {
+      "must": { "match_all": {} },
+      "filter": {
+        "range": {
+          "balance": {
+            "gte": 20000,
+            "lte": 30000
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+위 내용을 자세히 살펴보면 부울 쿼리는 `match_all` 쿼리(쿼리 부분)과 `range` 쿼리(필터 부분)를 포함하고 있습니다. 이 쿼리 및 필터 부분을 다른 어떤 쿼리로도 대체할 수 있습니다. 위 예에서는 범위 쿼리가 안성맞춤입니다. 범위에 들어가는 문서가 모두 "동등하게" 일치하기 때문입니다. 즉 어떤 문서도 상대적 연관성이 더 높지 않습니다.
+
+`match_all`, `match`, `bool`, `range` 쿼리 외에도 다양한 쿼리 유형을 사용할 수 있지만 여기서 다루지는 않겠습니다. 이제는 기본 원리를 알고 있으므로 이 지식을 활용하여 어렵지 않게 다른 쿼리 유형을 학습하고 시험해볼 수 있습니다.
+
+=== 집계 실행
+
+집계는 데이터를 그룹화하고 통계치를 얻는 기능입니다. SQL GROUP BY 및 SQL 집계 기능과 대략 같다고 보면 가장 쉽게 이해할 수 있습니다. Elasticsearch에서는 하나의 응답에서 검색 적중을 반환하는 검색을 실행함과 동시에 그와는 별도로 집계 결과를 반환할 수 있습니다. 즉 간결한 API를 사용하여 쿼리와 여러 집계를 실행하고 두 작업(또는 둘 중 하나)의 결과를 한꺼번에 얻어 네트워크 왕복을 피할 수 있다는 점에서 강력하고 효율적입니다.
+
+먼저 이 예는 주를 기준으로 모든 계정을 그룹화하고 내림차순(기본 설정)으로 상위 10개(기본 설정) 주를 반환합니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "size": 0,
+  "aggs": {
+    "group_by_state": {
+      "terms": {
+        "field": "state.keyword"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+위 집계는 개념상 다음 SQL과 비슷합니다.
+
+[source,sh]
+--------------------------------------------------
+SELECT state, COUNT(*) FROM bank GROUP BY state ORDER BY COUNT(*) DESC
+--------------------------------------------------
+
+다음은 응답의 일부입니다.
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 29,
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "failed": 0
+  },
+  "hits" : {
+    "total" : 1000,
+    "max_score" : 0.0,
+    "hits" : [ ]
+  },
+  "aggregations" : {
+    "group_by_state" : {
+      "doc_count_error_upper_bound": 20,
+      "sum_other_doc_count": 770,
+      "buckets" : [ {
+        "key" : "ID",
+        "doc_count" : 27
+      }, {
+        "key" : "TX",
+        "doc_count" : 27
+      }, {
+        "key" : "AL",
+        "doc_count" : 25
+      }, {
+        "key" : "MD",
+        "doc_count" : 25
+      }, {
+        "key" : "TN",
+        "doc_count" : 23
+      }, {
+        "key" : "MA",
+        "doc_count" : 21
+      }, {
+        "key" : "NC",
+        "doc_count" : 21
+      }, {
+        "key" : "ND",
+        "doc_count" : 21
+      }, {
+        "key" : "ME",
+        "doc_count" : 20
+      }, {
+        "key" : "MO",
+        "doc_count" : 20
+      } ]
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 29/"took": $body.took/]
+
+`ID`(아이다호)에 계정 27개, `TX`(텍사스)에 계정 27개, `AL`(앨라배마)에 계정 25개가 있습니다.
+
+응답에서 집계 결과만 보고 싶기 때문에 검색 적중을 표시하지 않도록 `size=0`을 설정했습니다.
+
+이 예는 앞의 집계를 바탕으로 주별 평균 계정 잔액을 계산합니다. 여기서도 개수를 기준으로 내림차순 정렬하여 상위 10개 주만 선택합니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "size": 0,
+  "aggs": {
+    "group_by_state": {
+      "terms": {
+        "field": "state.keyword"
+      },
+      "aggs": {
+        "average_balance": {
+          "avg": {
+            "field": "balance"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+`group_by_state` 집계 내에 `average_balance` 집계를 어떻게 중첩시켰는지 보십시오. 이는 모든 집계의 공통 패턴입니다. 데이터에서 필요한 피벗 요약을 얻고자 임의로 집계 내에 집계를 중첩시킬 수 있습니다.
+
+앞의 집계를 바탕으로 평균 잔액 내림차순으로 정렬해보겠습니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "size": 0,
+  "aggs": {
+    "group_by_state": {
+      "terms": {
+        "field": "state.keyword",
+        "order": {
+          "average_balance": "desc"
+        }
+      },
+      "aggs": {
+        "average_balance": {
+          "avg": {
+            "field": "balance"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+이 예는 연령대(20-29, 30-39, 40-49)를 기준으로, 그 다음에는 성별을 기준으로 삼아 그룹화하고 연령대, 성별 기준 평균 계정 잔액을 구하는 방법을 보여줍니다.
+
+[source,js]
+--------------------------------------------------
+GET /bank/_search
+{
+  "size": 0,
+  "aggs": {
+    "group_by_age": {
+      "range": {
+        "field": "age",
+        "ranges": [
+          {
+            "from": 20,
+            "to": 30
+          },
+          {
+            "from": 30,
+            "to": 40
+          },
+          {
+            "from": 40,
+            "to": 50
+          }
+        ]
+      },
+      "aggs": {
+        "group_by_gender": {
+          "terms": {
+            "field": "gender.keyword"
+          },
+          "aggs": {
+            "average_balance": {
+              "avg": {
+                "field": "balance"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+다른 여러 집계 기능도 있지만 여기서 자세히 다루지는 않겠습니다. 더 자세히 알아보고 싶다면 {ref}/search-aggregations.html[집계 참조 가이드]가 좋은 출발점이 될 것입니다.
+
+== 결론
+
+Elasticsearch는 간단하면서도 복잡한 제품입니다. 지금까지 Elasticsearch의 기초와 원리를 이해하고 몇 가지 REST API와 함께 사용하는 방법도 살펴봤습니다. 이 튜토리얼을 통해 Elasticsearch을 제대로 이해하고 무엇보다도 여기서 얻은 지식을 바탕으로 다른 여러 유익한 기능도 적극 사용해보시길 바랍니다!

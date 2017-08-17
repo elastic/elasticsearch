@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
-import java.util.List;
-import java.util.StringJoiner;
-
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
+
+import java.util.List;
+import java.util.StringJoiner;
 
 public abstract class Function extends NamedExpression {
 
@@ -31,7 +31,7 @@ public abstract class Function extends NamedExpression {
         name = functionName() + functionArgs();
     }
 
-    public List<Expression> arguments() {
+    public final List<Expression> arguments() {
         return children();
     }
 

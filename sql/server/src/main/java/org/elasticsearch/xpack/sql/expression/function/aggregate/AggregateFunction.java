@@ -18,24 +18,24 @@ import static java.util.Collections.singletonList;
 public abstract class AggregateFunction extends Function {
 
     private final Expression field;
-    private final List<Expression> arguments;
+    private final List<Expression> parameters;
 
     AggregateFunction(Location location, Expression field) {
         this(location, field, emptyList());
     }
 
-    AggregateFunction(Location location, Expression field, List<Expression> arguments) {
-        super(location, CollectionUtils.combine(singletonList(field), arguments));
+    AggregateFunction(Location location, Expression field, List<Expression> parameters) {
+        super(location, CollectionUtils.combine(singletonList(field), parameters));
         this.field = field;
-        this.arguments = arguments;
+        this.parameters = parameters;
     }
 
     public Expression field() {
         return field;
     }
 
-    public List<Expression> arguments() {
-        return arguments;
+    public List<Expression> parameters() {
+        return parameters;
     }
 
     public String functionId() {

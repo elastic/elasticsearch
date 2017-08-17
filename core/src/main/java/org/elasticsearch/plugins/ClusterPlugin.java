@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -58,4 +59,17 @@ public interface ClusterPlugin {
     default Map<String, Supplier<ShardsAllocator>> getShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
         return Collections.emptyMap();
     }
+
+    /**
+     * Called when the node is started
+     */
+    default void onNodeStarted() {
+    }
+
+    /**
+     * Returns a map of {@link ClusterState.Custom} supplier that should be invoked to initialize the initial clusterstate.
+     * This allows custom clusterstate extensions to be always present and prevents invariants where clusterstates are published
+     * but customs are not initialized.
+     */
+    default Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() { return Collections.emptyMap(); }
 }

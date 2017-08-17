@@ -65,7 +65,7 @@ public class QueryStringWithAnalyzersTests extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("test")
                 .setQuery(
-                        queryStringQuery("foo.baz").useDisMax(false).defaultOperator(Operator.AND)
+                        queryStringQuery("foo.baz").defaultOperator(Operator.AND)
                                 .field("field1").field("field2")).get();
         assertHitCount(response, 1L);
     }

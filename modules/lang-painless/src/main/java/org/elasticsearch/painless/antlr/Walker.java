@@ -33,7 +33,7 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ScriptInterface;
+import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.antlr.PainlessParser.AfterthoughtContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentsContext;
@@ -174,14 +174,13 @@ import java.util.List;
  */
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
-    public static SSource buildPainlessTree(ScriptInterface mainMethod, String sourceName,
-            String sourceText, CompilerSettings settings, Definition definition,
-            Printer debugStream) {
-        return new Walker(mainMethod, sourceName, sourceText, settings, definition,
-                debugStream).source;
+    public static SSource buildPainlessTree(ScriptClassInfo mainMethod, MainMethodReserved reserved, String sourceName,
+                                            String sourceText, CompilerSettings settings, Definition definition,
+                                            Printer debugStream) {
+        return new Walker(mainMethod, reserved, sourceName, sourceText, settings, definition, debugStream).source;
     }
 
-    private final ScriptInterface scriptInterface;
+    private final ScriptClassInfo scriptClassInfo;
     private final SSource source;
     private final CompilerSettings settings;
     private final Printer debugStream;
@@ -193,9 +192,10 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     private final Globals globals;
     private int syntheticCounter = 0;
 
-    private Walker(ScriptInterface scriptInterface, String sourceName, String sourceText,
-            CompilerSettings settings, Definition definition, Printer debugStream) {
-        this.scriptInterface = scriptInterface;
+    private Walker(ScriptClassInfo scriptClassInfo, MainMethodReserved reserved, String sourceName, String sourceText,
+                   CompilerSettings settings, Definition definition, Printer debugStream) {
+        this.scriptClassInfo = scriptClassInfo;
+        this.reserved.push(reserved);
         this.debugStream = debugStream;
         this.settings = settings;
         this.sourceName = Location.computeSourceName(sourceName, sourceText);
@@ -252,8 +252,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitSource(SourceContext ctx) {
-        reserved.push(new MainMethodReserved());
-
         List<SFunction> functions = new ArrayList<>();
 
         for (FunctionContext function : ctx.function()) {
@@ -266,7 +264,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SSource(scriptInterface, settings, sourceName, sourceText, debugStream, (MainMethodReserved)reserved.pop(),
+        return new SSource(scriptClassInfo, settings, sourceName, sourceText, debugStream, (MainMethodReserved)reserved.pop(),
                            location(ctx), functions, globals, statements);
     }
 

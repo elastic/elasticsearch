@@ -39,6 +39,7 @@ import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Enumeration;
@@ -57,6 +58,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.bootstrap.BootstrapSettings;
+import org.elasticsearch.common.Randomness;
 
 /**
  * A wrapper around a Java KeyStore which provides supplements the keystore with extra metadata.
@@ -68,6 +71,12 @@ import org.apache.lucene.util.SetOnce;
  * multiple threads.
  */
 public class KeyStoreWrapper implements SecureSettings {
+
+    public static final Setting<SecureString> SEED_SETTING = SecureSetting.secureString("keystore.seed", null);
+
+    /** Characters that may be used in the bootstrap seed setting added to all keystores. */
+    private static final char[] SEED_CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" +
+        "~!@#$%^&*-_=+?").toCharArray();
 
     /** An identifier for the type of data that may be stored in a keystore entry. */
     private enum KeyType {
@@ -147,14 +156,27 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /** Constructs a new keystore with the given password. */
-    static KeyStoreWrapper create(char[] password) throws Exception {
+    public static KeyStoreWrapper create(char[] password) throws Exception {
         KeyStoreWrapper wrapper = new KeyStoreWrapper(FORMAT_VERSION, password.length != 0, NEW_KEYSTORE_TYPE,
             NEW_KEYSTORE_STRING_KEY_ALGO, NEW_KEYSTORE_FILE_KEY_ALGO, new HashMap<>(), null);
         KeyStore keyStore = KeyStore.getInstance(NEW_KEYSTORE_TYPE);
         keyStore.load(null, null);
         wrapper.keystore.set(keyStore);
         wrapper.keystorePassword.set(new KeyStore.PasswordProtection(password));
+        addBootstrapSeed(wrapper);
         return wrapper;
+    }
+
+    /** Add the bootstrap seed setting, which may be used as a unique, secure, random value by the node */
+    private static void addBootstrapSeed(KeyStoreWrapper wrapper) throws GeneralSecurityException {
+        SecureRandom random = Randomness.createSecure();
+        int passwordLength = 20; // Generate 20 character passwords
+        char[] characters = new char[passwordLength];
+        for (int i = 0; i < passwordLength; ++i) {
+            characters[i] = SEED_CHARS[random.nextInt(SEED_CHARS.length)];
+        }
+        wrapper.setString(SEED_SETTING.getKey(), characters);
+        Arrays.fill(characters, (char)0);
     }
 
     /**
@@ -253,7 +275,7 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /** Write the keystore to the given config directory. */
-    void save(Path configDir) throws Exception {
+    public void save(Path configDir) throws Exception {
         char[] password = this.keystorePassword.get().getPassword();
 
         SimpleFSDirectory directory = new SimpleFSDirectory(configDir);

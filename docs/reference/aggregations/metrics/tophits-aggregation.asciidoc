@@ -198,7 +198,7 @@ relevancy order of the most relevant document in a bucket.
         "top_hit" : {
           "max": {
             "script": {
-              "inline": "_score"
+              "source": "_score"
             }
           }
         }

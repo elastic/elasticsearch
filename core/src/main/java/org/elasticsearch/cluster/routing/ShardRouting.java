@@ -26,7 +26,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,7 +40,7 @@ import java.util.List;
  * {@link ShardRouting} immutably encapsulates information about shard
  * routings like id, state, version, etc.
  */
-public final class ShardRouting implements Writeable, ToXContent {
+public final class ShardRouting implements Writeable, ToXContentObject {
 
     /**
      * Used if shard size is not available
@@ -82,6 +83,7 @@ public final class ShardRouting implements Writeable, ToXContent {
         assert !(state == ShardRoutingState.UNASSIGNED && unassignedInfo == null) : "unassigned shard must be created with meta";
         assert (state == ShardRoutingState.UNASSIGNED || state == ShardRoutingState.INITIALIZING) == (recoverySource != null) : "recovery source only available on unassigned or initializing shard but was " + state;
         assert recoverySource == null || recoverySource == PeerRecoverySource.INSTANCE || primary : "replica shards always recover from primary";
+        assert (currentNodeId == null) == (state == ShardRoutingState.UNASSIGNED)  : "unassigned shard must not be assigned to a node " + this;
     }
 
     @Nullable

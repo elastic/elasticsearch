@@ -118,32 +118,11 @@ setup() {
     [ "$status" -eq 3 ] || [ "$status" -eq 4 ]
 }
 
-@test "[INIT.D] don't mkdir when it contains a comma" {
-    # Remove these just in case they exist beforehand
-    rm -rf /tmp/aoeu,/tmp/asdf
-    rm -rf /tmp/aoeu,
-    # set DATA_DIR to DATA_DIR=/tmp/aoeu,/tmp/asdf
-    sed -i 's/DATA_DIR=.*/DATA_DIR=\/tmp\/aoeu,\/tmp\/asdf/' /etc/init.d/elasticsearch
-    cat /etc/init.d/elasticsearch | grep "DATA_DIR"
-    run service elasticsearch start
-    if [ "$status" -ne 0 ]; then
-      cat /var/log/elasticsearch/*
-      fail
-    fi
-    wait_for_elasticsearch_status
-    assert_file_not_exist /tmp/aoeu,/tmp/asdf
-    assert_file_not_exist /tmp/aoeu,
-    service elasticsearch stop
-    run service elasticsearch status
-    # precise returns 4, trusty 3
-    [ "$status" -eq 3 ] || [ "$status" -eq 4 ]
-}
-
 @test "[INIT.D] start Elasticsearch with custom JVM options" {
     assert_file_exist $ESENVFILE
-    local es_java_opts=$ES_JAVA_OPTS
-    local es_jvm_options=$ES_JVM_OPTIONS
     local temp=`mktemp -d`
+    cp "$ESCONFIG"/elasticsearch.yml "$temp"
+    cp "$ESCONFIG"/log4j2.properties "$temp"
     touch "$temp/jvm.options"
     chown -R elasticsearch:elasticsearch "$temp"
     echo "-Xms512m" >> "$temp/jvm.options"
@@ -153,7 +132,7 @@ setup() {
     # startup since we detect usages of logging before it is configured
     echo "-Dlog4j2.disable.jmx=true" >> "$temp/jvm.options"
     cp $ESENVFILE "$temp/elasticsearch"
-    echo "ES_JVM_OPTIONS=\"$temp/jvm.options\"" >> $ESENVFILE
+    echo "ES_PATH_CONF=\"$temp\"" >> $ESENVFILE
     echo "ES_JAVA_OPTS=\"-XX:-UseCompressedOops\"" >> $ESENVFILE
     service elasticsearch start
     wait_for_elasticsearch_status

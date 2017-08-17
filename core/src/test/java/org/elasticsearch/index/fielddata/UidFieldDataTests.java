@@ -111,18 +111,15 @@ public class UidFieldDataTests extends ESTestCase {
     }
 
     public void testSortedSetValues() throws Exception {
-        AtomicOrdinalsFieldData fd = new UidIndexFieldData.UidAtomicFieldData(new BytesRef("type#"), new DummyAtomicOrdinalsFieldData());
-        SortedSetDocValues dv = fd.getOrdinalsValues();
+        AtomicFieldData fd = new UidIndexFieldData.UidAtomicFieldData(new BytesRef("type#"), new DummyAtomicOrdinalsFieldData());
+        SortedBinaryDocValues dv = fd.getBytesValues();
         assertTrue(dv.advanceExact(30));
-        assertEquals(30, dv.nextOrd());
-        assertEquals(SortedSetDocValues.NO_MORE_ORDS, dv.nextOrd());
-        assertEquals(new BytesRef("type#030"), dv.lookupOrd(30));
-        assertEquals(30, dv.lookupTerm(new BytesRef("type#030")));
-        assertEquals(-1 - 31, dv.lookupTerm(new BytesRef("type#0305")));
+        assertEquals(1, dv.docValueCount());
+        assertEquals(new BytesRef("type#030"), dv.nextValue());
     }
 
     public void testScriptValues() throws IOException {
-        AtomicOrdinalsFieldData fd = new UidIndexFieldData.UidAtomicFieldData(new BytesRef("type#"), new DummyAtomicOrdinalsFieldData());
+        AtomicFieldData fd = new UidIndexFieldData.UidAtomicFieldData(new BytesRef("type#"), new DummyAtomicOrdinalsFieldData());
         ScriptDocValues<?> values = fd.getScriptValues();
         values.setNextDocId(30);
         assertEquals(Collections.singletonList("type#030"), values);

@@ -18,10 +18,13 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -65,6 +68,8 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.mockito.Matchers;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -103,9 +108,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
         IndexFieldDataService ifds = new IndexFieldDataService(indexSettings,
                 new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
                 }), circuitBreakerService, mapperService);
-        when(searchContext.fieldData()).thenReturn(ifds);
+        when(searchContext.getForField(Mockito.any(MappedFieldType.class))).thenAnswer(new Answer<Object>() {
+            @Override
+            public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
+                return ifds.getForField((MappedFieldType) invocationOnMock.getArguments()[0]);
+            }
+        });
 
-        SearchLookup searchLookup = new SearchLookup(mapperService, ifds, new String[]{"type"});
+        SearchLookup searchLookup = new SearchLookup(mapperService, ifds::getForField, new String[]{"type"});
         when(searchContext.lookup()).thenReturn(searchLookup);
 
         QueryShardContext queryShardContext = queryShardContextMock(mapperService, fieldTypes, circuitBreakerService);
@@ -191,9 +201,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(queryShardContext.getMapperService()).thenReturn(mapperService);
         for (MappedFieldType fieldType : fieldTypes) {
             when(queryShardContext.fieldMapper(fieldType.name())).thenReturn(fieldType);
-            when(queryShardContext.getForField(fieldType)).then(invocation -> fieldType.fielddataBuilder().build(
-                    mapperService.getIndexSettings(), fieldType, new IndexFieldDataCache.None(), circuitBreakerService,
-                    mapperService));
+            when(queryShardContext.getForField(fieldType)).then(invocation -> fieldType.fielddataBuilder(mapperService.getIndexSettings()
+                .getIndex().getName())
+                .build(mapperService.getIndexSettings(), fieldType, new IndexFieldDataCache.None(), circuitBreakerService, mapperService));
         }
         NestedScope nestedScope = new NestedScope();
         when(queryShardContext.isFilter()).thenCallRealMethod();
@@ -296,6 +306,32 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     protected static DirectoryReader wrap(DirectoryReader directoryReader) throws IOException {
         return ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(new Index("_index", "_na_"), 0));
+    }
+
+    /**
+     * Added to randomly run with more assertions on the index searcher level,
+     * like {@link org.apache.lucene.util.LuceneTestCase#newSearcher(IndexReader)}, which can't be used because it also
+     * wraps in the IndexSearcher's IndexReader with other implementations that we can't handle. (e.g. ParallelCompositeReader)
+     */
+    protected static IndexSearcher newIndexSearcher(IndexReader indexReader) {
+        if (randomBoolean()) {
+            return new AssertingIndexSearcher(random(), indexReader);
+        } else {
+            return new IndexSearcher(indexReader);
+        }
+    }
+
+    /**
+     * Added to randomly run with more assertions on the index reader level,
+     * like {@link org.apache.lucene.util.LuceneTestCase#wrapReader(IndexReader)}, which can't be used because it also
+     * wraps in the IndexReader with other implementations that we can't handle. (e.g. ParallelCompositeReader)
+     */
+    protected static IndexReader maybeWrapReaderEs(DirectoryReader reader) throws IOException {
+        if (randomBoolean()) {
+            return new AssertingDirectoryReader(reader);
+        } else {
+            return reader;
+        }
     }
 
     @After

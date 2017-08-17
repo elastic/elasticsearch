@@ -60,20 +60,20 @@ POST ledger/_search?size=0
         "profit": {
             "scripted_metric": {
                 "init_script" : {
-                    "stored": "my_init_script"
+                    "id": "my_init_script"
                 },
                 "map_script" : {
-                    "stored": "my_map_script"
+                    "id": "my_map_script"
                 },
                 "combine_script" : {
-                    "stored": "my_combine_script"
+                    "id": "my_combine_script"
                 },
                 "params": {
                     "field": "amount", <1>
                     "_agg": {}        <2>
                 },
                 "reduce_script" : {
-                    "stored": "my_reduce_script"
+                    "id": "my_reduce_script"
                 }
             }
         }
@@ -176,6 +176,7 @@ No params object was specified so the default params object is used:
     "_agg" : {}
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 ===== After init_script
 
@@ -191,6 +192,7 @@ Shard A::
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 Shard B::
 +
@@ -202,6 +204,7 @@ Shard B::
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 ===== After map_script
 
@@ -217,6 +220,7 @@ Shard A::
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 Shard B::
 +
@@ -228,6 +232,7 @@ Shard B::
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 ===== After combine_script
 
@@ -248,6 +253,7 @@ The reduce_script receives an `_aggs` array containing the result of the combine
     120
 ]
 --------------------------------------------------
+// NOTCONSOLE
 
 It reduces the responses for the shards down to a final overall profit figure (by summing the values) and returns this as the result of the aggregation to
 produce the response:
@@ -264,6 +270,7 @@ produce the response:
    }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 ==== Other Parameters
 
@@ -278,3 +285,10 @@ params::           Optional. An object whose contents will be passed as variable
     "_agg" : {}
 }
 --------------------------------------------------
+// NOTCONSOLE
+
+==== Empty Buckets
+
+If a parent bucket of the scripted metric aggregation does not collect any documents an empty aggregation response will be returned from the
+shard with a `null` value. In this case the `reduce_script`'s `_aggs` variable will contain `null` as a response from that shard.  
+`reduce_script`'s should therefore expect and deal with `null` responses from shards.  

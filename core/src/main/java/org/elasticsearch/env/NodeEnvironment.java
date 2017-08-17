@@ -199,7 +199,6 @@ public final class NodeEnvironment  implements Closeable {
             int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
             for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
                 for (int dirIndex = 0; dirIndex < environment.dataFiles().length; dirIndex++) {
-                    Path dataDirWithClusterName = environment.dataWithClusterFiles()[dirIndex];
                     Path dataDir = environment.dataFiles()[dirIndex];
                     Path dir = resolveNodePath(dataDir, possibleLockId);
                     Files.createDirectories(dir);
@@ -211,7 +210,8 @@ public final class NodeEnvironment  implements Closeable {
                             nodePaths[dirIndex] = new NodePath(dir);
                             nodeLockId = possibleLockId;
                         } catch (LockObtainFailedException ex) {
-                            startupTraceLogger.trace("failed to obtain node lock on {}", dir.toAbsolutePath());
+                            startupTraceLogger.trace(
+                                    new ParameterizedMessage("failed to obtain node lock on {}", dir.toAbsolutePath()), ex);
                             // release all the ones that were obtained up until now
                             releaseAndNullLocks(locks);
                             break;
@@ -901,11 +901,12 @@ public final class NodeEnvironment  implements Closeable {
         final NodePath[] nodePaths = nodePaths();
         for (NodePath nodePath : nodePaths) {
             assert Files.isDirectory(nodePath.path) : nodePath.path + " is not a directory";
-            final Path src = nodePath.path.resolve("__es__.tmp");
-            final Path target = nodePath.path.resolve("__es__.final");
+            final Path src = nodePath.path.resolve(TEMP_FILE_NAME + ".tmp");
+            final Path target = nodePath.path.resolve(TEMP_FILE_NAME + ".final");
             try {
+                Files.deleteIfExists(src);
                 Files.createFile(src);
-                Files.move(src, target, StandardCopyOption.ATOMIC_MOVE);
+                Files.move(src, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException ex) {
                 throw new IllegalStateException("atomic_move is not supported by the filesystem on path ["
                         + nodePath.path
@@ -1005,19 +1006,19 @@ public final class NodeEnvironment  implements Closeable {
         }
     }
 
+    // package private for testing
+    static final String TEMP_FILE_NAME = ".es_temp_file";
+
     private static void tryWriteTempFile(Path path) throws IOException {
         if (Files.exists(path)) {
-            Path resolve = path.resolve(".es_temp_file");
-            boolean tempFileCreated = false;
+            Path resolve = path.resolve(TEMP_FILE_NAME);
             try {
+                // delete any lingering file from a previous failure
+                Files.deleteIfExists(resolve);
                 Files.createFile(resolve);
-                tempFileCreated = true;
+                Files.delete(resolve);
             } catch (IOException ex) {
-                throw new IOException("failed to write in data directory [" + path + "] write permission is required", ex);
-            } finally {
-                if (tempFileCreated) {
-                    Files.deleteIfExists(resolve);
-                }
+                throw new IOException("failed to test writes in data directory [" + path + "] write permission is required", ex);
             }
         }
     }

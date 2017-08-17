@@ -21,6 +21,11 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
+import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
+import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
+import org.elasticsearch.index.similarity.ScriptedSimilarity.Term;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -81,6 +86,25 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(ExecutableScript.class)) {
             ExecutableScript.Factory factory = mockCompiled::createExecutableScript;
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(TemplateScript.class)) {
+            TemplateScript.Factory factory = vars -> {
+                // TODO: need a better way to implement all these new contexts
+                // this is just a shim to act as an executable script just as before
+                ExecutableScript execScript = mockCompiled.createExecutableScript(vars);
+                    return new TemplateScript(vars) {
+                        @Override
+                        public String execute() {
+                            return (String) execScript.run();
+                        }
+                    };
+                };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(SimilarityScript.class)) {
+            SimilarityScript.Factory factory = mockCompiled::createSimilarityScript;
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(SimilarityWeightScript.class)) {
+            SimilarityWeightScript.Factory factory = mockCompiled::createSimilarityWeightScript;
+            return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }
@@ -116,7 +140,7 @@ public class MockScriptEngine implements ScriptEngine {
             return new MockExecutableScript(context, script != null ? script : ctx -> source);
         }
 
-        public SearchScript createSearchScript(Map<String, Object> params, SearchLookup lookup) {
+        public SearchScript.LeafFactory createSearchScript(Map<String, Object> params, SearchLookup lookup) {
             Map<String, Object> context = new HashMap<>();
             if (options != null) {
                 context.putAll(options); // TODO: remove this once scripts know to look for options under options key
@@ -127,6 +151,14 @@ public class MockScriptEngine implements ScriptEngine {
                 context.put("params", params);
             }
             return new MockSearchScript(lookup, context, script != null ? script : ctx -> source);
+        }
+
+        public SimilarityScript createSimilarityScript() {
+            return new MockSimilarityScript(script != null ? script : ctx -> 42d);
+        }
+
+        public SimilarityWeightScript createSimilarityWeightScript() {
+            return new MockSimilarityWeightScript(script != null ? script : ctx -> 42d);
         }
     }
 
@@ -151,7 +183,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    public class MockSearchScript implements SearchScript {
+    public class MockSearchScript implements SearchScript.LeafFactory {
 
         private final Function<Map<String, Object>, Object> script;
         private final Map<String, Object> vars;
@@ -164,7 +196,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
 
         @Override
-        public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
+        public SearchScript newInstance(LeafReaderContext context) throws IOException {
             LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
 
             Map<String, Object> ctx = new HashMap<>(leafLookup.asMap());
@@ -172,7 +204,7 @@ public class MockScriptEngine implements ScriptEngine {
                 ctx.putAll(vars);
             }
 
-            return new LeafSearchScript() {
+            return new SearchScript(vars, lookup, context) {
                 @Override
                 public Object run() {
                     return script.apply(ctx);
@@ -202,18 +234,50 @@ public class MockScriptEngine implements ScriptEngine {
                 public void setDocument(int doc) {
                     leafLookup.setDocument(doc);
                 }
-
-                @Override
-                public void setSource(Map<String, Object> source) {
-                    leafLookup.source().setSource(source);
-                }
-
             };
         }
 
         @Override
-        public boolean needsScores() {
+        public boolean needs_score() {
             return true;
+        }
+    }
+
+    public class MockSimilarityScript extends SimilarityScript {
+
+        private final Function<Map<String, Object>, Object> script;
+
+        MockSimilarityScript(Function<Map<String, Object>, Object> script) {
+            this.script = script;
+        }
+
+        @Override
+        public double execute(double weight, Query query, Field field, Term term, Doc doc) throws IOException {
+            Map<String, Object> map = new HashMap<>();
+            map.put("weight", weight);
+            map.put("query", query);
+            map.put("field", field);
+            map.put("term", term);
+            map.put("doc", doc);
+            return ((Number) script.apply(map)).doubleValue();
+        }
+    }
+
+    public class MockSimilarityWeightScript extends SimilarityWeightScript {
+
+        private final Function<Map<String, Object>, Object> script;
+
+        MockSimilarityWeightScript(Function<Map<String, Object>, Object> script) {
+            this.script = script;
+        }
+
+        @Override
+        public double execute(Query query, Field field, Term term) throws IOException {
+            Map<String, Object> map = new HashMap<>();
+            map.put("query", query);
+            map.put("field", field);
+            map.put("term", term);
+            return ((Number) script.apply(map)).doubleValue();
         }
     }
 

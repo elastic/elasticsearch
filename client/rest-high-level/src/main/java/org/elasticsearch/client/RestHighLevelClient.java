@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.HttpEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -36,8 +36,11 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.action.main.MainResponse;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.CheckedFunction;
@@ -46,17 +49,16 @@ import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
-import org.elasticsearch.join.aggregations.ParsedChildren;
+import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilter;
-import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.filters.ParsedFilters;
+import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.ParsedGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
@@ -71,12 +73,12 @@ import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.nested.ParsedNested;
 import org.elasticsearch.search.aggregations.bucket.nested.ParsedReverseNested;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.ParsedDateRange;
+import org.elasticsearch.search.aggregations.bucket.range.ParsedGeoDistance;
 import org.elasticsearch.search.aggregations.bucket.range.ParsedRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.date.ParsedDateRange;
-import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.geodistance.ParsedGeoDistance;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.ParsedSampler;
 import org.elasticsearch.search.aggregations.bucket.significant.ParsedSignificantLongTerms;
@@ -89,8 +91,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedLongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
-import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
-import org.elasticsearch.search.aggregations.matrix.stats.ParsedMatrixStats;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.ParsedAvg;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregationBuilder;
@@ -139,11 +139,13 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -177,8 +179,9 @@ public class RestHighLevelClient {
      */
     protected RestHighLevelClient(RestClient restClient, List<NamedXContentRegistry.Entry> namedXContentEntries) {
         this.client = Objects.requireNonNull(restClient);
-        this.registry = new NamedXContentRegistry(Stream.of(getDefaultNamedXContents().stream(), namedXContentEntries.stream())
-                .flatMap(Function.identity()).collect(toList()));
+        this.registry = new NamedXContentRegistry(
+                Stream.of(getDefaultNamedXContents().stream(), getProvidedNamedXContents().stream(), namedXContentEntries.stream())
+                    .flatMap(Function.identity()).collect(toList()));
     }
 
     /**
@@ -325,14 +328,57 @@ public class RestHighLevelClient {
         performRequestAsyncAndParseEntity(searchRequest, Request::search, SearchResponse::fromXContent, listener, emptySet(), headers);
     }
 
-    private <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
+    /**
+     * Executes a search using the Search Scroll api
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
+     * API on elastic.co</a>
+     */
+    public SearchResponse searchScroll(SearchScrollRequest searchScrollRequest, Header... headers) throws IOException {
+        return performRequestAndParseEntity(searchScrollRequest, Request::searchScroll, SearchResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously executes a search using the Search Scroll api
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
+     * API on elastic.co</a>
+     */
+    public void searchScrollAsync(SearchScrollRequest searchScrollRequest, ActionListener<SearchResponse> listener, Header... headers) {
+        performRequestAsyncAndParseEntity(searchScrollRequest, Request::searchScroll, SearchResponse::fromXContent,
+                listener, emptySet(), headers);
+    }
+
+    /**
+     * Clears one or more scroll ids using the Clear Scroll api
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
+     * Clear Scroll API on elastic.co</a>
+     */
+    public ClearScrollResponse clearScroll(ClearScrollRequest clearScrollRequest, Header... headers) throws IOException {
+        return performRequestAndParseEntity(clearScrollRequest, Request::clearScroll, ClearScrollResponse::fromXContent,
+                emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously clears one or more scroll ids using the Clear Scroll api
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
+     * Clear Scroll API on elastic.co</a>
+     */
+    public void clearScrollAsync(ClearScrollRequest clearScrollRequest, ActionListener<ClearScrollResponse> listener, Header... headers) {
+        performRequestAsyncAndParseEntity(clearScrollRequest, Request::clearScroll, ClearScrollResponse::fromXContent,
+                listener, emptySet(), headers);
+    }
+
+    protected <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
                                                                             CheckedFunction<Req, Request, IOException> requestConverter,
                                                                             CheckedFunction<XContentParser, Resp, IOException> entityParser,
                                                                             Set<Integer> ignores, Header... headers) throws IOException {
         return performRequest(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser), ignores, headers);
     }
 
-    <Req extends ActionRequest, Resp> Resp performRequest(Req request,
+    protected <Req extends ActionRequest, Resp> Resp performRequest(Req request,
                                                           CheckedFunction<Req, Request, IOException> requestConverter,
                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
                                                           Set<Integer> ignores, Header... headers) throws IOException {
@@ -349,11 +395,16 @@ public class RestHighLevelClient {
                 try {
                     return responseConverter.apply(e.getResponse());
                 } catch (Exception innerException) {
+                    //the exception is ignored as we now try to parse the response as an error.
+                    //this covers cases like get where 404 can either be a valid document not found response,
+                    //or an error for which parsing is completely different. We try to consider the 404 response as a valid one
+                    //first. If parsing of the response breaks, we fall back to parsing it as an error.
                     throw parseResponseException(e);
                 }
             }
             throw parseResponseException(e);
         }
+
         try {
             return responseConverter.apply(response);
         } catch(Exception e) {
@@ -361,7 +412,7 @@ public class RestHighLevelClient {
         }
     }
 
-    private <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
+    protected <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
                                                                  CheckedFunction<Req, Request, IOException> requestConverter,
                                                                  CheckedFunction<XContentParser, Resp, IOException> entityParser,
                                                                  ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {
@@ -369,7 +420,7 @@ public class RestHighLevelClient {
                 listener, ignores, headers);
     }
 
-    <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
+    protected <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
                                                                CheckedFunction<Req, Request, IOException> requestConverter,
                                                                CheckedFunction<Response, Resp, IOException> responseConverter,
                                                                ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {
@@ -519,8 +570,6 @@ public class RestHighLevelClient {
         map.put(SignificantLongTerms.NAME, (p, c) -> ParsedSignificantLongTerms.fromXContent(p, (String) c));
         map.put(SignificantStringTerms.NAME, (p, c) -> ParsedSignificantStringTerms.fromXContent(p, (String) c));
         map.put(ScriptedMetricAggregationBuilder.NAME, (p, c) -> ParsedScriptedMetric.fromXContent(p, (String) c));
-        map.put(ChildrenAggregationBuilder.NAME, (p, c) -> ParsedChildren.fromXContent(p, (String) c));
-        map.put(MatrixStatsAggregationBuilder.NAME, (p, c) -> ParsedMatrixStats.fromXContent(p, (String) c));
         List<NamedXContentRegistry.Entry> entries = map.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
                 .collect(Collectors.toList());
@@ -530,6 +579,17 @@ public class RestHighLevelClient {
                 (parser, context) -> PhraseSuggestion.fromXContent(parser, (String)context)));
         entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(CompletionSuggestion.NAME),
                 (parser, context) -> CompletionSuggestion.fromXContent(parser, (String)context)));
+        return entries;
+    }
+
+    /**
+     * Loads and returns the {@link NamedXContentRegistry.Entry} parsers provided by plugins.
+     */
+    static List<NamedXContentRegistry.Entry> getProvidedNamedXContents() {
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
+        for (NamedXContentProvider service : ServiceLoader.load(NamedXContentProvider.class)) {
+            entries.addAll(service.getNamedXContentParsers());
+        }
         return entries;
     }
 }

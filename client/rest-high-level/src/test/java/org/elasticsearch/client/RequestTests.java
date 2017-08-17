@@ -19,16 +19,18 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.entity.ByteArrayEntity;
+import org.elasticsearch.client.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
@@ -40,6 +42,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -714,10 +717,42 @@ public class RequestTests extends ESTestCase {
         if (searchSourceBuilder == null) {
             assertNull(request.entity);
         } else {
-            BytesReference expectedBytes = XContentHelper.toXContent(searchSourceBuilder, XContentType.JSON, false);
-            assertEquals(XContentType.JSON.mediaType(), request.entity.getContentType().getValue());
-            assertEquals(expectedBytes, new BytesArray(EntityUtils.toByteArray(request.entity)));
+            assertToXContentBody(searchSourceBuilder, request.entity);
         }
+    }
+
+    public void testSearchScroll() throws IOException {
+        SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
+        searchScrollRequest.scrollId(randomAlphaOfLengthBetween(5, 10));
+        if (randomBoolean()) {
+            searchScrollRequest.scroll(randomPositiveTimeValue());
+        }
+        Request request = Request.searchScroll(searchScrollRequest);
+        assertEquals("GET", request.method);
+        assertEquals("/_search/scroll", request.endpoint);
+        assertEquals(0, request.params.size());
+        assertToXContentBody(searchScrollRequest, request.entity);
+        assertEquals(Request.REQUEST_BODY_CONTENT_TYPE.mediaType(), request.entity.getContentType().getValue());
+    }
+
+    public void testClearScroll() throws IOException {
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+        int numScrolls = randomIntBetween(1, 10);
+        for (int i = 0; i < numScrolls; i++) {
+            clearScrollRequest.addScrollId(randomAlphaOfLengthBetween(5, 10));
+        }
+        Request request = Request.clearScroll(clearScrollRequest);
+        assertEquals("DELETE", request.method);
+        assertEquals("/_search/scroll", request.endpoint);
+        assertEquals(0, request.params.size());
+        assertToXContentBody(clearScrollRequest, request.entity);
+        assertEquals(Request.REQUEST_BODY_CONTENT_TYPE.mediaType(), request.entity.getContentType().getValue());
+    }
+
+    private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
+        BytesReference expectedBytes = XContentHelper.toXContent(expectedBody, Request.REQUEST_BODY_CONTENT_TYPE, false);
+        assertEquals(XContentType.JSON.mediaType(), actualEntity.getContentType().getValue());
+        assertEquals(expectedBytes, new BytesArray(EntityUtils.toByteArray(actualEntity)));
     }
 
     public void testParams() {

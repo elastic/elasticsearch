@@ -25,13 +25,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class FieldDataStats implements Streamable, ToXContent {
+public class FieldDataStats implements Streamable, ToXContentFragment {
 
     private static final String FIELDDATA = "fielddata";
     private static final String MEMORY_SIZE = "memory_size";

@@ -30,7 +30,6 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 
 public class NodeEnvironmentEvilTests extends ESTestCase {
@@ -75,7 +74,7 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
             IOException ioException = expectThrows(IOException.class, () -> {
                 new NodeEnvironment(build, new Environment(build));
             });
-            assertTrue(ioException.getMessage(), ioException.getMessage().startsWith("failed to write in data directory"));
+            assertTrue(ioException.getMessage(), ioException.getMessage().startsWith("failed to test writes in data directory"));
         }
     }
 
@@ -100,7 +99,7 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
             IOException ioException = expectThrows(IOException.class, () -> {
                 new NodeEnvironment(build, new Environment(build));
             });
-            assertTrue(ioException.getMessage(), ioException.getMessage().startsWith("failed to write in data directory"));
+            assertTrue(ioException.getMessage(), ioException.getMessage().startsWith("failed to test writes in data directory"));
         }
     }
 }

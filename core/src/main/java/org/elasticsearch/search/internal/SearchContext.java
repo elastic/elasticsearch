@@ -34,7 +34,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -210,7 +210,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract BitsetFilterCache bitsetFilterCache();
 
-    public abstract IndexFieldDataService fieldData();
+    public abstract <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType);
 
     public abstract TimeValue timeout();
 
@@ -239,6 +239,13 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract SearchContext trackScores(boolean trackScores);
 
     public abstract boolean trackScores();
+
+    public abstract SearchContext trackTotalHits(boolean trackTotalHits);
+
+    /**
+     * Indicates if the total hit count for the query should be tracked. Defaults to <tt>true</tt>
+     */
+    public abstract boolean trackTotalHits();
 
     public abstract SearchContext searchAfter(FieldDoc searchAfter);
 

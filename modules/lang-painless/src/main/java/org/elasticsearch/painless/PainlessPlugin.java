@@ -43,7 +43,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin {
 
     @Override
     public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-        return new PainlessScriptEngine(settings);
+        return new PainlessScriptEngine(settings, contexts);
     }
 
     @Override

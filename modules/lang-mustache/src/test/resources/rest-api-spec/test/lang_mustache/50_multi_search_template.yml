@@ -39,21 +39,21 @@ setup:
       msearch_template:
         body:
           - index: index_*
-          - inline: '{"query": {"match": {"foo": "{{value}}"} } }'
+          - source: '{"query": {"match": {"foo": "{{value}}"} } }'
             params:
               value: "foo"
           - index: index_*
-          - inline: '{"query": {"match": {"{{field}}": "{{value}}"} } }'
+          - source: '{"query": {"match": {"{{field}}": "{{value}}"} } }'
             params:
               field: "foo"
               value: "bar"
           - index: _all
-          - inline: '{"query": {"{{query_type}}": {{query_content}} } }'
+          - source: '{"query": {"{{query_type}}": {{query_content}} } }'
             params:
               query_type: "match_all"
               query_content: "{}"
           - index: _all
-          - inline:
+          - source:
               query:
                 match: {foo: "{{text}}"}
               size: 0
@@ -75,25 +75,25 @@ setup:
         body:
           # Search 0 is OK
           - index: index_*
-          - inline: '{"query": {"match": {"foo": "{{value}}"} } }'
+          - source: '{"query": {"match": {"foo": "{{value}}"} } }'
             params:
               value: "foo"
           # Search 1 has an unclosed JSON template
           - index: index_*
-          - inline: '{"query": {"match": {'
+          - source: '{"query": {"match": {'
             params:
               field: "foo"
               value: "bar"
           # Search 2 is OK
           - index: _all
-          - inline:
+          - source:
               query:
                 match: {foo: "{{text}}"}
             params:
               text: "baz"
           # Search 3 has an unknown query type
           - index: index_*
-          - inline: '{"query": {"{{query_type}}": {} }' # Unknown query type
+          - source: '{"query": {"{{query_type}}": {} }' # Unknown query type
             params:
               query_type: "unknown"
 
@@ -113,15 +113,15 @@ setup:
         body:
           # Search 0 is OK
           - index: index_*
-          - inline: '{"query": {"match": {"foo": "{{value}}"} } }'
+          - source: '{"query": {"match": {"foo": "{{value}}"} } }'
             params:
               value: "foo"
           # Search 1 has not template
           - index: _all
-          - inline: ""
+          - source: ""
           # Search 2 is OK
           - index: index_*
-          - inline: '{"query": {"match": {"foo": "{{value}}"} } }'
+          - source: '{"query": {"match": {"foo": "{{value}}"} } }'
             params:
               value: "bar"
 
@@ -129,9 +129,9 @@ setup:
 "Basic multi-search using stored template":
 
   - do:
-      put_template:
+      put_script:
         id: stored_template_1
-        body: {"template": {"query": {"match": {"{{field}}": "{{value}}" }}}}
+        body: { "script": { "lang" : "mustache", "source": { "query": {"match": {"{{field}}": "{{value}}" }}}}}
   - match: { acknowledged: true }
 
   - do:
@@ -156,4 +156,3 @@ setup:
   - match:  { responses.0.hits.total:     2  }
   - match:  { responses.1.hits.total:     1  }
   - match:  { responses.2.hits.total:     1  }
-

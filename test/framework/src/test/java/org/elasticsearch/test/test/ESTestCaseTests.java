@@ -20,6 +20,7 @@
 package org.elasticsearch.test.test;
 
 import junit.framework.AssertionFailedError;
+
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -55,7 +56,8 @@ public class ESTestCaseTests extends ESTestCase {
             });
             fail("expected assertion error");
         } catch (AssertionFailedError assertFailed) {
-            assertEquals("Unexpected exception type, expected IllegalArgumentException", assertFailed.getMessage());
+            assertEquals("Unexpected exception type, expected IllegalArgumentException but got java.lang.IllegalStateException: bad state",
+                    assertFailed.getMessage());
             assertNotNull(assertFailed.getCause());
             assertEquals("bad state", assertFailed.getCause().getMessage());
         }
@@ -65,7 +67,8 @@ public class ESTestCaseTests extends ESTestCase {
             fail("expected assertion error");
         } catch (AssertionFailedError assertFailed) {
             assertNull(assertFailed.getCause());
-            assertEquals("Expected exception IllegalArgumentException", assertFailed.getMessage());
+            assertEquals("Expected exception IllegalArgumentException but no exception was thrown",
+                    assertFailed.getMessage());
         }
     }
 
@@ -97,16 +100,20 @@ public class ESTestCaseTests extends ESTestCase {
                 builder.field("field2", "value2");
                 {
                     builder.startObject("object1");
-                    builder.field("inner1", "value1");
-                    builder.field("inner2", "value2");
-                    builder.field("inner3", "value3");
+                    {
+                        builder.field("inner1", "value1");
+                        builder.field("inner2", "value2");
+                        builder.field("inner3", "value3");
+                    }
                     builder.endObject();
                 }
                 {
                     builder.startObject("object2");
-                    builder.field("inner4", "value4");
-                    builder.field("inner5", "value5");
-                    builder.field("inner6", "value6");
+                    {
+                        builder.field("inner4", "value4");
+                        builder.field("inner5", "value5");
+                        builder.field("inner6", "value6");
+                    }
                     builder.endObject();
                 }
             }

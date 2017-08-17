@@ -19,7 +19,7 @@
 
 package org.elasticsearch.aliases;
 
-import org.apache.lucene.search.join.ScoreMode;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
@@ -49,6 +49,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -63,7 +64,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_ME
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
@@ -425,6 +425,25 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         AliasesExistResponse response = admin().indices().prepareAliasesExist(aliases).get();
         assertThat(response.exists(), equalTo(false));
+
+        logger.info("--> creating index [foo_foo] and [bar_bar]");
+        assertAcked(prepareCreate("foo_foo"));
+        assertAcked(prepareCreate("bar_bar"));
+        ensureGreen();
+
+        logger.info("--> adding [foo] alias to [foo_foo] and [bar_bar]");
+        assertAcked(admin().indices().prepareAliases().addAlias("foo_foo", "foo"));
+        assertAcked(admin().indices().prepareAliases().addAlias("bar_bar", "foo"));
+
+        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.remove().index("foo*").alias("foo")).execute().get());
+
+        assertTrue(admin().indices().prepareAliasesExist("foo").get().exists());
+        assertFalse(admin().indices().prepareAliasesExist("foo").setIndices("foo_foo").get().exists());
+        assertTrue(admin().indices().prepareAliasesExist("foo").setIndices("bar_bar").get().exists());
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> admin().indices().prepareAliases()
+                .addAliasAction(AliasActions.remove().index("foo").alias("foo")).execute().actionGet());
+        assertEquals("The provided expression [foo] matches an alias, specify the corresponding concrete indices instead.",
+                iae.getMessage());
     }
 
     public void testWaitForAliasCreationMultipleShards() throws Exception {
@@ -551,20 +570,24 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> getting alias1");
         GetAliasesResponse getResponse = admin().indices().prepareGetAliases("alias1").get();
         assertThat(getResponse, notNullValue());
-        assertThat(getResponse.getAliases().size(), equalTo(1));
+        assertThat(getResponse.getAliases().size(), equalTo(5));
         assertThat(getResponse.getAliases().get("foobar").size(), equalTo(1));
         assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).alias(), equalTo("alias1"));
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+        assertTrue(getResponse.getAliases().get("test").isEmpty());
+        assertTrue(getResponse.getAliases().get("test123").isEmpty());
+        assertTrue(getResponse.getAliases().get("foobarbaz").isEmpty());
+        assertTrue(getResponse.getAliases().get("bazbar").isEmpty());
         AliasesExistResponse existsResponse = admin().indices().prepareAliasesExist("alias1").get();
         assertThat(existsResponse.exists(), equalTo(true));
 
         logger.info("--> getting all aliases that start with alias*");
         getResponse = admin().indices().prepareGetAliases("alias*").get();
         assertThat(getResponse, notNullValue());
-        assertThat(getResponse.getAliases().size(), equalTo(1));
+        assertThat(getResponse.getAliases().size(), equalTo(5));
         assertThat(getResponse.getAliases().get("foobar").size(), equalTo(2));
         assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).alias(), equalTo("alias1"));
@@ -576,6 +599,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(getResponse.getAliases().get("foobar").get(1).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(1).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(1).getSearchRouting(), nullValue());
+        assertTrue(getResponse.getAliases().get("test").isEmpty());
+        assertTrue(getResponse.getAliases().get("test123").isEmpty());
+        assertTrue(getResponse.getAliases().get("foobarbaz").isEmpty());
+        assertTrue(getResponse.getAliases().get("bazbar").isEmpty());
         existsResponse = admin().indices().prepareAliasesExist("alias*").get();
         assertThat(existsResponse.exists(), equalTo(true));
 
@@ -660,12 +687,13 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> getting f* for index *bar");
         getResponse = admin().indices().prepareGetAliases("f*").addIndices("*bar").get();
         assertThat(getResponse, notNullValue());
-        assertThat(getResponse.getAliases().size(), equalTo(1));
+        assertThat(getResponse.getAliases().size(), equalTo(2));
         assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).alias(), equalTo("foo"));
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+        assertTrue(getResponse.getAliases().get("bazbar").isEmpty());
         existsResponse = admin().indices().prepareAliasesExist("f*")
                 .addIndices("*bar").get();
         assertThat(existsResponse.exists(), equalTo(true));
@@ -674,13 +702,14 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> getting f* for index *bac");
         getResponse = admin().indices().prepareGetAliases("foo").addIndices("*bac").get();
         assertThat(getResponse, notNullValue());
-        assertThat(getResponse.getAliases().size(), equalTo(1));
+        assertThat(getResponse.getAliases().size(), equalTo(2));
         assertThat(getResponse.getAliases().get("foobar").size(), equalTo(1));
         assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).alias(), equalTo("foo"));
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+        assertTrue(getResponse.getAliases().get("bazbar").isEmpty());
         existsResponse = admin().indices().prepareAliasesExist("foo")
                 .addIndices("*bac").get();
         assertThat(existsResponse.exists(), equalTo(true));
@@ -713,7 +742,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 .removeAlias("foobar", "foo"));
 
         getResponse = admin().indices().prepareGetAliases("foo").addIndices("foobar").get();
-        assertThat(getResponse.getAliases().isEmpty(), equalTo(true));
+        for (final ObjectObjectCursor<String, List<AliasMetaData>> entry : getResponse.getAliases()) {
+            assertTrue(entry.value.isEmpty());
+        }
         existsResponse = admin().indices().prepareAliasesExist("foo").addIndices("foobar").get();
         assertThat(existsResponse.exists(), equalTo(false));
     }
@@ -783,6 +814,21 @@ public class IndexAliasesIT extends ESIntegTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias2]"));
         }
+    }
+
+    public void testAliasesCanBeAddedToIndicesOnly() throws Exception {
+        logger.info("--> creating index [2017-05-20]");
+        assertAcked(prepareCreate("2017-05-20"));
+        ensureGreen();
+
+        logger.info("--> adding [week_20] alias to [2017-05-20]");
+        assertAcked(admin().indices().prepareAliases().addAlias("2017-05-20", "week_20"));
+
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> admin().indices().prepareAliases()
+                .addAliasAction(AliasActions.add().index("week_20").alias("tmp")).execute().actionGet());
+        assertEquals("The provided expression [week_20] matches an alias, specify the corresponding concrete indices instead.",
+                iae.getMessage());
+        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.add().index("2017-05-20").alias("tmp")).execute().get());
     }
 
     // Before 2.0 alias filters were parsed at alias creation time, in order
@@ -862,6 +908,28 @@ public class IndexAliasesIT extends ESIntegTestCase {
         } finally {
             disableIndexBlock("test", SETTING_BLOCKS_METADATA);
         }
+    }
+
+    public void testAliasActionRemoveIndex() throws InterruptedException, ExecutionException {
+        assertAcked(prepareCreate("foo_foo"));
+        assertAcked(prepareCreate("bar_bar"));
+        assertAcked(admin().indices().prepareAliases().addAlias("foo_foo", "foo"));
+        assertAcked(admin().indices().prepareAliases().addAlias("bar_bar", "foo"));
+
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> client().admin().indices().prepareAliases().removeIndex("foo").execute().actionGet());
+        assertEquals("The provided expression [foo] matches an alias, specify the corresponding concrete indices instead.",
+                iae.getMessage());
+
+        assertAcked(client().admin().indices().prepareAliases().removeIndex("foo*").execute().get());
+        assertFalse(client().admin().indices().prepareExists("foo_foo").execute().actionGet().isExists());
+        assertTrue(admin().indices().prepareAliasesExist("foo").get().exists());
+        assertTrue(client().admin().indices().prepareExists("bar_bar").execute().actionGet().isExists());
+        assertTrue(admin().indices().prepareAliasesExist("foo").setIndices("bar_bar").get().exists());
+
+        assertAcked(client().admin().indices().prepareAliases().removeIndex("bar_bar"));
+        assertFalse(admin().indices().prepareAliasesExist("foo").get().exists());
+        assertFalse(client().admin().indices().prepareExists("bar_bar").execute().actionGet().isExists());
     }
 
     public void testRemoveIndexAndReplaceWithAlias() throws InterruptedException, ExecutionException {

@@ -29,17 +29,39 @@ public interface SignificantTerms extends MultiBucketsAggregation, Iterable<Sign
 
     interface Bucket extends MultiBucketsAggregation.Bucket {
 
+        /**
+         * @return The significant score for the subset
+         */
         double getSignificanceScore();
 
-        Number getKeyAsNumber();
-
+        /**
+         * @return The number of docs in the subset containing a particular term.
+         * This number is equal to the document count of the bucket.
+         */
         long getSubsetDf();
 
+        /**
+         * @return The numbers of docs in the subset (also known as "foreground set").
+         * This number is equal to the document count of the containing aggregation.
+         */
+        long getSubsetSize();
+
+        /**
+         * @return The number of docs in the superset containing a particular term (also
+         * known as the "background count" of the bucket)
+         */
         long getSupersetDf();
 
+        /**
+         * @return The numbers of docs in the superset (ordinarily the background count
+         * of the containing aggregation).
+         */
         long getSupersetSize();
 
-        long getSubsetSize();
+        /**
+         * @return The key, expressed as a number
+         */
+        Number getKeyAsNumber();
     }
 
     @Override

@@ -27,6 +27,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.List;
@@ -79,18 +81,21 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
 
     @Override
     public Query newDefaultQuery(String text) {
-        BooleanQuery.Builder bq = new BooleanQuery.Builder();
+        List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             try {
                 Query q = createBooleanQuery(entry.getKey(), text, super.getDefaultOperator());
                 if (q != null) {
-                    bq.add(wrapWithBoost(q, entry.getValue()), BooleanClause.Occur.SHOULD);
+                    disjuncts.add(wrapWithBoost(q, entry.getValue()));
                 }
             } catch (RuntimeException e) {
                 rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq.build());
+        if (disjuncts.size() == 1) {
+            return disjuncts.get(0);
+        }
+        return new DisjunctionMaxQuery(disjuncts, 1.0f);
     }
 
     /**
@@ -99,23 +104,26 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      */
     @Override
     public Query newFuzzyQuery(String text, int fuzziness) {
-        BooleanQuery.Builder bq = new BooleanQuery.Builder();
+        List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
             try {
                 final BytesRef term = getAnalyzer().normalize(fieldName, text);
                 Query query = new FuzzyQuery(new Term(fieldName, term), fuzziness);
-                bq.add(wrapWithBoost(query, entry.getValue()), BooleanClause.Occur.SHOULD);
+                disjuncts.add(wrapWithBoost(query, entry.getValue()));
             } catch (RuntimeException e) {
                 rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq.build());
+        if (disjuncts.size() == 1) {
+            return disjuncts.get(0);
+        }
+        return new DisjunctionMaxQuery(disjuncts, 1.0f);
     }
 
     @Override
     public Query newPhraseQuery(String text, int slop) {
-        BooleanQuery.Builder bq = new BooleanQuery.Builder();
+        List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             try {
                 String field = entry.getKey();
@@ -129,13 +137,16 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                 Float boost = entry.getValue();
                 Query q = createPhraseQuery(field, text, slop);
                 if (q != null) {
-                    bq.add(wrapWithBoost(q, boost), BooleanClause.Occur.SHOULD);
+                    disjuncts.add(wrapWithBoost(q, boost));
                 }
             } catch (RuntimeException e) {
                 rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq.build());
+        if (disjuncts.size() == 1) {
+            return disjuncts.get(0);
+        }
+        return new DisjunctionMaxQuery(disjuncts, 1.0f);
     }
 
     /**
@@ -144,25 +155,28 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      */
     @Override
     public Query newPrefixQuery(String text) {
-        BooleanQuery.Builder bq = new BooleanQuery.Builder();
+        List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
             try {
                 if (settings.analyzeWildcard()) {
                     Query analyzedQuery = newPossiblyAnalyzedQuery(fieldName, text);
                     if (analyzedQuery != null) {
-                        bq.add(wrapWithBoost(analyzedQuery, entry.getValue()), BooleanClause.Occur.SHOULD);
+                        disjuncts.add(wrapWithBoost(analyzedQuery, entry.getValue()));
                     }
                 } else {
                     Term term = new Term(fieldName, getAnalyzer().normalize(fieldName, text));
                     Query query = new PrefixQuery(term);
-                    bq.add(wrapWithBoost(query, entry.getValue()), BooleanClause.Occur.SHOULD);
+                    disjuncts.add(wrapWithBoost(query, entry.getValue()));
                 }
             } catch (RuntimeException e) {
                 return rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq.build());
+        if (disjuncts.size() == 1) {
+            return disjuncts.get(0);
+        }
+        return new DisjunctionMaxQuery(disjuncts, 1.0f);
     }
 
     /**
@@ -286,6 +300,8 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         private boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;
         /** Specifies a suffix, if any, to apply to field names for phrase matching. */
         private String quoteFieldSuffix = null;
+        /** Whether phrase queries should be automatically generated for multi terms synonyms. */
+        private boolean autoGenerateSynonymsPhraseQuery = true;
 
         /**
          * Generates default {@link Settings} object (uses ROOT locale, does
@@ -298,6 +314,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             this.lenient = other.lenient;
             this.analyzeWildcard = other.analyzeWildcard;
             this.quoteFieldSuffix = other.quoteFieldSuffix;
+            this.autoGenerateSynonymsPhraseQuery = other.autoGenerateSynonymsPhraseQuery;
         }
 
         /** Specifies whether to use lenient parsing, defaults to false. */
@@ -335,9 +352,21 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             return quoteFieldSuffix;
         }
 
+        public void autoGenerateSynonymsPhraseQuery(boolean value) {
+            this.autoGenerateSynonymsPhraseQuery = value;
+        }
+
+        /**
+         * Whether phrase queries should be automatically generated for multi terms synonyms.
+         * Defaults to <tt>true</tt>.
+         */
+        public boolean autoGenerateSynonymsPhraseQuery() {
+            return autoGenerateSynonymsPhraseQuery;
+        }
+
         @Override
         public int hashCode() {
-            return Objects.hash(lenient, analyzeWildcard, quoteFieldSuffix);
+            return Objects.hash(lenient, analyzeWildcard, quoteFieldSuffix, autoGenerateSynonymsPhraseQuery);
         }
 
         @Override
@@ -349,8 +378,10 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                 return false;
             }
             Settings other = (Settings) obj;
-            return Objects.equals(lenient, other.lenient) && Objects.equals(analyzeWildcard, other.analyzeWildcard)
-                    && Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix);
+            return Objects.equals(lenient, other.lenient) &&
+                Objects.equals(analyzeWildcard, other.analyzeWildcard) &&
+                Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix) &&
+                Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery);
         }
     }
 }

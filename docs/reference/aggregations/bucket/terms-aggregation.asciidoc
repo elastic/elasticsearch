@@ -197,8 +197,6 @@ could have the 4th highest document count.
 
 ==== Per bucket document count error
 
-experimental[]
-
 The second error value can be enabled by setting the `show_term_doc_count_error` parameter to true. This shows an error value
 for each term returned by the aggregation which represents the 'worst case' error in the document count and can be useful when
 deciding on a value for the `shard_size` parameter. This is calculated by summing the document counts for the last term returned
@@ -460,7 +458,7 @@ Generating the terms using a script:
         "genres" : {
             "terms" : {
                 "script" : {
-                    "inline": "doc['genre'].value",
+                    "source": "doc['genre'].value",
                     "lang": "painless"
                 }
             }
@@ -478,7 +476,7 @@ This will interpret the `script` parameter as an `inline` script with the defaul
         "genres" : {
             "terms" : {
                 "script" : {
-                    "stored": "my_script",
+                    "id": "my_script",
                     "params": {
                         "field": "genre"
                     }
@@ -499,7 +497,7 @@ This will interpret the `script` parameter as an `inline` script with the defaul
             "terms" : {
                 "field" : "gender",
                 "script" : {
-                    "inline" : "'Genre: ' +_value"
+                    "source" : "'Genre: ' +_value"
                     "lang" : "painless"
                 }
             }
@@ -728,8 +726,6 @@ collection mode need to replay the query on the second pass but only for the doc
 [[search-aggregations-bucket-terms-aggregation-execution-hint]]
 ==== Execution hint
 
-experimental[The automated execution optimization is experimental, so this parameter is provided temporarily as a way to override the default behaviour]
-
 There are different mechanisms by which terms aggregations can be executed:
 
  - by using field values directly in order to aggregate data per-bucket (`map`)
@@ -767,7 +763,7 @@ in inner aggregations.
 }
 --------------------------------------------------
 
-<1> experimental[] the possible values are `map`, `global_ordinals`, `global_ordinals_hash` and `global_ordinals_low_cardinality`
+<1> The possible values are `map`, `global_ordinals`, `global_ordinals_hash` and `global_ordinals_low_cardinality`
 
 Please note that Elasticsearch will ignore this execution hint if it is not applicable and that there is no backward compatibility guarantee on these hints.
 

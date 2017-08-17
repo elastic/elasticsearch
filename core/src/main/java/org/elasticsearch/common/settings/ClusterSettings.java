@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -71,7 +72,6 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.monitor.jvm.JvmGcMonitorService;
 import org.elasticsearch.monitor.jvm.JvmService;
@@ -91,8 +91,6 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportSettings;
-import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Arrays;
@@ -200,6 +198,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING,
                     DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
                     DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING,
                     DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
                     DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
                     DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
@@ -270,12 +269,20 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING,
                     HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
                     Transport.TRANSPORT_TCP_COMPRESS,
-                    TransportSettings.TRANSPORT_PROFILES_SETTING,
-                    TransportSettings.HOST,
-                    TransportSettings.PUBLISH_HOST,
-                    TransportSettings.BIND_HOST,
-                    TransportSettings.PUBLISH_PORT,
-                    TransportSettings.PORT,
+                    TcpTransport.HOST,
+                    TcpTransport.PUBLISH_HOST,
+                    TcpTransport.BIND_HOST,
+                    TcpTransport.PUBLISH_PORT,
+                    TcpTransport.PORT,
+                    TcpTransport.BIND_HOST_PROFILE,
+                    TcpTransport.PUBLISH_HOST_PROFILE,
+                    TcpTransport.PUBLISH_PORT_PROFILE,
+                    TcpTransport.PORT_PROFILE,
+                    TcpTransport.TCP_NO_DELAY_PROFILE,
+                    TcpTransport.TCP_KEEP_ALIVE_PROFILE,
+                    TcpTransport.TCP_REUSE_ADDRESS_PROFILE,
+                    TcpTransport.TCP_SEND_BUFFER_SIZE_PROFILE,
+                    TcpTransport.TCP_RECEIVE_BUFFER_SIZE_PROFILE,
                     TcpTransport.CONNECTIONS_PER_NODE_RECOVERY,
                     TcpTransport.CONNECTIONS_PER_NODE_BULK,
                     TcpTransport.CONNECTIONS_PER_NODE_REG,
@@ -292,12 +299,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     NetworkService.GLOBAL_NETWORK_HOST_SETTING,
                     NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING,
                     NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING,
-                    NetworkService.TcpSettings.TCP_NO_DELAY,
-                    NetworkService.TcpSettings.TCP_KEEP_ALIVE,
-                    NetworkService.TcpSettings.TCP_REUSE_ADDRESS,
-                    NetworkService.TcpSettings.TCP_SEND_BUFFER_SIZE,
-                    NetworkService.TcpSettings.TCP_RECEIVE_BUFFER_SIZE,
-                    NetworkService.TcpSettings.TCP_CONNECT_TIMEOUT,
+                    NetworkService.TCP_NO_DELAY,
+                    NetworkService.TCP_KEEP_ALIVE,
+                    NetworkService.TCP_REUSE_ADDRESS,
+                    NetworkService.TCP_SEND_BUFFER_SIZE,
+                    NetworkService.TCP_RECEIVE_BUFFER_SIZE,
+                    NetworkService.TCP_CONNECT_TIMEOUT,
                     IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
                     IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
                     ScriptService.SCRIPT_CACHE_SIZE_SETTING,
@@ -314,12 +321,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HunspellService.HUNSPELL_IGNORE_CASE,
                     HunspellService.HUNSPELL_DICTIONARY_OPTIONS,
                     IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT,
-                    Environment.DEFAULT_PATH_CONF_SETTING,
-                    Environment.PATH_CONF_SETTING,
-                    Environment.DEFAULT_PATH_DATA_SETTING,
                     Environment.PATH_DATA_SETTING,
                     Environment.PATH_HOME_SETTING,
-                    Environment.DEFAULT_PATH_LOGS_SETTING,
                     Environment.PATH_LOGS_SETTING,
                     Environment.PATH_REPO_SETTING,
                     Environment.PATH_SHARED_DATA_SETTING,
@@ -365,13 +368,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ThreadContext.DEFAULT_HEADERS_SETTING,
                     ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING,
                     ESLoggerFactory.LOG_LEVEL_SETTING,
-                    TribeService.BLOCKS_METADATA_SETTING,
-                    TribeService.BLOCKS_WRITE_SETTING,
-                    TribeService.BLOCKS_WRITE_INDICES_SETTING,
-                    TribeService.BLOCKS_READ_INDICES_SETTING,
-                    TribeService.BLOCKS_METADATA_INDICES_SETTING,
-                    TribeService.ON_CONFLICT_SETTING,
-                    TribeService.TRIBE_NAME_SETTING,
                     NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
                     NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING,
                     OsService.REFRESH_INTERVAL_SETTING,
@@ -395,6 +391,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     BootstrapSettings.MEMORY_LOCK_SETTING,
                     BootstrapSettings.SYSTEM_CALL_FILTER_SETTING,
                     BootstrapSettings.CTRLHANDLER_SETTING,
+                    KeyStoreWrapper.SEED_SETTING,
                     IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
                     IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING,
                     IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING,
@@ -408,6 +405,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
                     FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
                     Node.BREAKER_TYPE_KEY,
-                    IngestService.NEW_INGEST_DATE_FORMAT
+                    IndexGraveyard.SETTING_MAX_TOMBSTONES
             )));
 }

@@ -52,11 +52,11 @@ public class UidFieldTypeTests extends FieldTypeTestCase {
     public void testTermsQueryWhenTypesAreEnabled() throws Exception {
         QueryShardContext context = Mockito.mock(QueryShardContext.class);
         Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_6_0) // to allow for multipel types
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                .put("index.mapping.single_type", false).build();
+                .build();
         IndexMetaData indexMetaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(indexSettings).build();
         IndexSettings mockSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
         Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
@@ -75,11 +75,11 @@ public class UidFieldTypeTests extends FieldTypeTestCase {
     public void testTermsQueryWhenTypesAreDisabled() throws Exception {
         QueryShardContext context = Mockito.mock(QueryShardContext.class);
         Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, true)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_6_0)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                .put("index.mapping.single_type", true).build();
+                .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
         IndexMetaData indexMetaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(indexSettings).build();
         IndexSettings mockSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
         Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
@@ -88,6 +88,7 @@ public class UidFieldTypeTests extends FieldTypeTestCase {
         Collection<String> types = Collections.emptySet();
         Mockito.when(mapperService.types()).thenReturn(types);
         Mockito.when(context.getMapperService()).thenReturn(mapperService);
+        Mockito.when(context.indexVersionCreated()).thenReturn(indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null));
 
         MappedFieldType ft = UidFieldMapper.defaultFieldType(mockSettings);
         ft.setName(UidFieldMapper.NAME);
@@ -98,6 +99,36 @@ public class UidFieldTypeTests extends FieldTypeTestCase {
         Mockito.when(mapperService.types()).thenReturn(types);
         query = ft.termQuery("type#id", context);
         assertEquals(new TermInSetQuery("_id", new BytesRef("id")), query);
+        query = ft.termQuery("type2#id", context);
+        assertEquals(new TermInSetQuery("_id"), query);
+    }
+
+    public void testTermsQuery() throws Exception {
+        QueryShardContext context = Mockito.mock(QueryShardContext.class);
+        Settings indexSettings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
+        IndexMetaData indexMetaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(indexSettings).build();
+        IndexSettings mockSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
+
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        Collection<String> types = Collections.emptySet();
+        Mockito.when(mapperService.types()).thenReturn(types);
+        Mockito.when(context.getMapperService()).thenReturn(mapperService);
+        Mockito.when(context.indexVersionCreated()).thenReturn(indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null));
+
+        MappedFieldType ft = UidFieldMapper.defaultFieldType(mockSettings);
+        ft.setName(UidFieldMapper.NAME);
+        Query query = ft.termQuery("type#id", context);
+        assertEquals(new MatchNoDocsQuery(), query);
+
+        types = Collections.singleton("type");
+        Mockito.when(mapperService.types()).thenReturn(types);
+        query = ft.termQuery("type#id", context);
+        assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);
         query = ft.termQuery("type2#id", context);
         assertEquals(new TermInSetQuery("_id"), query);
     }

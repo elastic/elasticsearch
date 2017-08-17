@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.test.ESTestCase;
@@ -35,6 +34,7 @@ import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
@@ -172,6 +172,21 @@ public class MultiSearchRequestTests extends ESTestCase {
                 request.maxConcurrentSearchRequests(randomIntBetween(Integer.MIN_VALUE, 0)));
     }
 
+    public void testMsearchTerminatedByNewline() throws Exception {
+        String mserchAction = StreamsUtils.copyToStringFromClasspath("/org/elasticsearch/action/search/simple-msearch5.json");
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+                .withContent(new BytesArray(mserchAction.getBytes(StandardCharsets.UTF_8)), XContentType.JSON).build();
+        IllegalArgumentException expectThrows = expectThrows(IllegalArgumentException.class,
+                () -> RestMultiSearchAction.parseRequest(restRequest, true));
+        assertEquals("The msearch request must be terminated by a newline [\n]", expectThrows.getMessage());
+
+        String mserchActionWithNewLine = mserchAction + "\n";
+        RestRequest restRequestWithNewLine = new FakeRestRequest.Builder(xContentRegistry())
+                .withContent(new BytesArray(mserchActionWithNewLine.getBytes(StandardCharsets.UTF_8)), XContentType.JSON).build();
+        MultiSearchRequest msearchRequest = RestMultiSearchAction.parseRequest(restRequestWithNewLine, true);
+        assertEquals(3, msearchRequest.requests().size());
+    }
+
     private MultiSearchRequest parseMultiSearchRequest(String sample) throws IOException {
         byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
@@ -182,6 +197,6 @@ public class MultiSearchRequestTests extends ESTestCase {
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(singletonList(new NamedXContentRegistry.Entry(QueryBuilder.class,
-                new ParseField(MatchAllQueryBuilder.NAME), (p, c) -> MatchAllQueryBuilder.fromXContent((QueryParseContext) c))));
+                new ParseField(MatchAllQueryBuilder.NAME), (p, c) -> MatchAllQueryBuilder.fromXContent(p))));
     }
 }

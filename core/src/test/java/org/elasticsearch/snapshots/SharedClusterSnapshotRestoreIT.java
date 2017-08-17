@@ -541,9 +541,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         if(testScript) {
             logger.info("-->  creating test script");
             assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setLang(MockScriptEngine.NAME)
                 .setId("foobar")
-                .setContent(new BytesArray("{\"script\":\"1\"}"), XContentType.JSON));
+                .setContent(new BytesArray(
+                    "{\"script\": { \"lang\": \"" + MockScriptEngine.NAME + "\", \"source\": \"1\"} }"), XContentType.JSON));
         }
 
         logger.info("--> snapshot without global state");
@@ -572,7 +572,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         if (testScript) {
             logger.info("-->  delete test script");
-            assertAcked(client().admin().cluster().prepareDeleteStoredScript(MockScriptEngine.NAME, "foobar").get());
+            assertAcked(client().admin().cluster().prepareDeleteStoredScript("foobar").get());
         }
 
         logger.info("--> try restoring cluster state from snapshot without global state");
@@ -601,7 +601,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         if (testScript) {
             logger.info("--> check that script is restored");
-            GetStoredScriptResponse getStoredScriptResponse = client().admin().cluster().prepareGetStoredScript(MockScriptEngine.NAME, "foobar").get();
+            GetStoredScriptResponse getStoredScriptResponse = client().admin().cluster().prepareGetStoredScript("foobar").get();
             assertNotNull(getStoredScriptResponse.getSource());
         }
 
@@ -631,7 +631,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
 
         if (testScript) {
-            assertAcked(client().admin().cluster().prepareDeleteStoredScript(MockScriptEngine.NAME, "foobar").get());
+            assertAcked(client().admin().cluster().prepareDeleteStoredScript("foobar").get());
         }
 
         getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
@@ -646,7 +646,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
         assertFalse(client().admin().cluster().prepareGetPipeline("barbaz").get().isFound());
-        assertNull(client().admin().cluster().prepareGetStoredScript(MockScriptEngine.NAME, "foobar").get().getSource());
+        assertNull(client().admin().cluster().prepareGetStoredScript("foobar").get().getSource());
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits(), equalTo(100L));
 
     }
@@ -2252,9 +2252,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             public ClusterState execute(ClusterState currentState) {
                 // Simulate orphan snapshot
                 ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shards = ImmutableOpenMap.builder();
-                shards.put(new ShardId(idxName, "_na_", 0), new ShardSnapshotStatus("unknown-node", State.ABORTED));
-                shards.put(new ShardId(idxName, "_na_", 1), new ShardSnapshotStatus("unknown-node", State.ABORTED));
-                shards.put(new ShardId(idxName, "_na_", 2), new ShardSnapshotStatus("unknown-node", State.ABORTED));
+                shards.put(new ShardId(idxName, "_na_", 0), new ShardSnapshotStatus("unknown-node", State.ABORTED, "aborted"));
+                shards.put(new ShardId(idxName, "_na_", 1), new ShardSnapshotStatus("unknown-node", State.ABORTED, "aborted"));
+                shards.put(new ShardId(idxName, "_na_", 2), new ShardSnapshotStatus("unknown-node", State.ABORTED, "aborted"));
                 List<Entry> entries = new ArrayList<>();
                 entries.add(new Entry(new Snapshot(repositoryName,
                                                    createSnapshotResponse.getSnapshotInfo().snapshotId()),

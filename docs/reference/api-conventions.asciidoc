@@ -20,8 +20,8 @@ API, unless otherwise specified.
 
 Most APIs that refer to an `index` parameter support execution across multiple indices,
 using simple `test1,test2,test3` notation (or `_all` for all indices). It also
-support wildcards, for example: `test*` or `*test` or `te*t` or `*test*`, and the ability to "add" (`+`)
-and "remove" (`-`), for example: `+test*,-test3`.
+support wildcards, for example: `test*` or `*test` or `te*t` or `*test*`, and the
+ability to "exclude" (`-`), for example: `test*,-test3`.
 
 All multi indices API support the following url query string parameters:
 
@@ -202,7 +202,7 @@ one or more maths expressions:
 * `-1d` - subtract one day
 * `/d`  - round down to the nearest day
 
-The supported time units differ than those supported by <<time-units, time units>> for durations.
+The supported time units differ from those supported by <<time-units, time units>> for durations.
 The supported units are:
 
 [horizontal]

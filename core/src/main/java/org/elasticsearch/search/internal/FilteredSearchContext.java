@@ -28,7 +28,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -262,8 +262,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public IndexFieldDataService fieldData() {
-        return in.fieldData();
+    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
+        return in.getForField(fieldType);
     }
 
     @Override
@@ -319,6 +319,16 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public boolean trackScores() {
         return in.trackScores();
+    }
+
+    @Override
+    public SearchContext trackTotalHits(boolean trackTotalHits) {
+        return in.trackTotalHits(trackTotalHits);
+    }
+
+    @Override
+    public boolean trackTotalHits() {
+        return in.trackTotalHits();
     }
 
     @Override

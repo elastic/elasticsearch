@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -86,7 +87,8 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
  */
 public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>> {
     protected final Logger logger;
-    protected final WorkingBulkByScrollTask task;
+    protected final BulkByScrollTask task;
+    protected final WorkerBulkByScrollTaskState worker;
     protected final ThreadPool threadPool;
     protected final ScriptService scriptService;
     protected final ClusterState clusterState;
@@ -113,16 +115,22 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      */
     private final BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> scriptApplier;
 
-    public AbstractAsyncBulkByScrollAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+    public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                                            ThreadPool threadPool, Request mainRequest, ScriptService scriptService,
                                            ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
         this(task, logger, client, threadPool, mainRequest, scriptService, clusterState, listener, client.settings());
     }
 
-    public AbstractAsyncBulkByScrollAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+    public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
             ThreadPool threadPool, Request mainRequest, ScriptService scriptService, ClusterState clusterState,
             ActionListener<BulkByScrollResponse> listener, Settings settings) {
+
         this.task = task;
+        if (!task.isWorker()) {
+            throw new IllegalArgumentException("Given task [" + task.getId() + "] must have a child worker");
+        }
+        this.worker = task.getWorkerState();
+
         this.logger = logger;
         this.client = client;
         this.settings = settings;
@@ -132,7 +140,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         this.mainRequest = mainRequest;
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
-        bulkRetry = new Retry(EsRejectedExecutionException.class, BackoffPolicy.wrap(backoffPolicy, task::countBulkRetry), threadPool);
+        bulkRetry = new Retry(EsRejectedExecutionException.class, BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
         scrollSource = buildScrollableResultSource(backoffPolicy);
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
         /*
@@ -216,7 +224,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy) {
-        return new ClientScrollableHitSource(logger, backoffPolicy, threadPool, task::countSearchRetry, this::finishHim, client,
+        return new ClientScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry, this::finishHim, client,
                 mainRequest.getSearchRequest());
     }
 
@@ -232,7 +240,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * Start the action by firing the initial search request.
      */
     public void start() {
+        logger.debug("[{}]: starting", task.getId());
         if (task.isCancelled()) {
+            logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);
             return;
         }
@@ -251,7 +261,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * @param response the scroll response to process
      */
     void onScrollResponse(TimeValue lastBatchStartTime, int lastBatchSize, ScrollableHitSource.Response response) {
+        logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), response.getHits().size());
         if (task.isCancelled()) {
+            logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);
             return;
         }
@@ -267,7 +279,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         if (mainRequest.getSize() > 0) {
             total = min(total, mainRequest.getSize());
         }
-        task.setTotal(total);
+        worker.setTotal(total);
         AbstractRunnable prepareBulkRequestRunnable = new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
@@ -284,7 +296,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             }
         };
         prepareBulkRequestRunnable = (AbstractRunnable) threadPool.getThreadContext().preserveContext(prepareBulkRequestRunnable);
-        task.delayPrepareBulkRequest(threadPool, lastBatchStartTime, lastBatchSize, prepareBulkRequestRunnable);
+        worker.delayPrepareBulkRequest(threadPool, lastBatchStartTime, lastBatchSize, prepareBulkRequestRunnable);
     }
 
     /**
@@ -293,7 +305,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * thread may be blocked by the user script.
      */
     void prepareBulkRequest(TimeValue thisBatchStartTime, ScrollableHitSource.Response response) {
+        logger.debug("[{}]: preparing bulk request", task.getId());
         if (task.isCancelled()) {
+            logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);
             return;
         }
@@ -301,11 +315,11 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             refreshAndFinish(emptyList(), emptyList(), false);
             return;
         }
-        task.countBatch();
+        worker.countBatch();
         List<? extends ScrollableHitSource.Hit> hits = response.getHits();
         if (mainRequest.getSize() != SIZE_ALL_MATCHES) {
             // Truncate the hits if we have more than the request size
-            long remaining = max(0, mainRequest.getSize() - task.getSuccessfullyProcessed());
+            long remaining = max(0, mainRequest.getSize() - worker.getSuccessfullyProcessed());
             if (remaining < hits.size()) {
                 hits = hits.subList(0, (int) remaining);
             }
@@ -320,10 +334,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
         request.timeout(mainRequest.getTimeout());
         request.waitForActiveShards(mainRequest.getWaitForActiveShards());
-        if (logger.isDebugEnabled()) {
-            logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
-                    new ByteSizeValue(request.estimatedSizeInBytes()));
-        }
         sendBulkRequest(thisBatchStartTime, request);
     }
 
@@ -331,7 +341,12 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * Send a bulk request, handling retries.
      */
     void sendBulkRequest(TimeValue thisBatchStartTime, BulkRequest request) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("[{}]: sending [{}] entry, [{}] bulk request", task.getId(), request.requests().size(),
+                    new ByteSizeValue(request.estimatedSizeInBytes()));
+        }
         if (task.isCancelled()) {
+            logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);
             return;
         }
@@ -353,7 +368,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      */
     void onBulkResponse(TimeValue thisBatchStartTime, BulkResponse response) {
         try {
-            List<Failure> failures = new ArrayList<Failure>();
+            List<Failure> failures = new ArrayList<>();
             Set<String> destinationIndicesThisBatch = new HashSet<>();
             for (BulkItemResponse item : response) {
                 if (item.isFailed()) {
@@ -364,16 +379,16 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                     case CREATE:
                     case INDEX:
                         if (item.getResponse().getResult() == DocWriteResponse.Result.CREATED) {
-                            task.countCreated();
+                            worker.countCreated();
                         } else {
-                            task.countUpdated();
+                            worker.countUpdated();
                         }
                         break;
                     case UPDATE:
-                        task.countUpdated();
+                        worker.countUpdated();
                         break;
                     case DELETE:
-                        task.countDeleted();
+                        worker.countDeleted();
                         break;
                 }
                 // Track the indexes we've seen so we can refresh them if requested
@@ -381,6 +396,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             }
 
             if (task.isCancelled()) {
+                logger.debug("[{}]: Finishing early because the task was cancelled", task.getId());
                 finishHim(null);
                 return;
             }
@@ -392,7 +408,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 return;
             }
 
-            if (mainRequest.getSize() != SIZE_ALL_MATCHES && task.getSuccessfullyProcessed() >= mainRequest.getSize()) {
+            if (mainRequest.getSize() != SIZE_ALL_MATCHES && worker.getSuccessfullyProcessed() >= mainRequest.getSize()) {
                 // We've processed all the requested docs.
                 refreshAndFinish(emptyList(), emptyList(), false);
                 return;
@@ -412,10 +428,11 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      */
     void startNextScroll(TimeValue lastBatchStartTime, TimeValue now, int lastBatchSize) {
         if (task.isCancelled()) {
+            logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);
             return;
         }
-        TimeValue extraKeepAlive = task.throttleWaitTime(lastBatchStartTime, now, lastBatchSize);
+        TimeValue extraKeepAlive = worker.throttleWaitTime(lastBatchStartTime, now, lastBatchSize);
         scrollSource.startNextScroll(extraKeepAlive, response -> {
             onScrollResponse(lastBatchStartTime, lastBatchSize, response);
         });
@@ -423,7 +440,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     private void recordFailure(Failure failure, List<Failure> failures) {
         if (failure.getStatus() == CONFLICT) {
-            task.countVersionConflict();
+            worker.countVersionConflict();
             if (false == mainRequest.isAbortOnVersionConflict()) {
                 return;
             }
@@ -442,6 +459,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
         RefreshRequest refresh = new RefreshRequest();
         refresh.indices(destinationIndices.toArray(new String[destinationIndices.size()]));
+        logger.debug("[{}]: refreshing", task.getId());
         client.admin().indices().refresh(refresh, new ActionListener<RefreshResponse>() {
             @Override
             public void onResponse(RefreshResponse response) {
@@ -461,6 +479,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * @param failure if non null then the request failed catastrophically with this exception
      */
     protected void finishHim(Exception failure) {
+        logger.debug(() -> new ParameterizedMessage("[{}]: finishing with a catastrophic failure", task.getId()), failure);
         finishHim(failure, emptyList(), emptyList(), false);
     }
 
@@ -473,6 +492,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      */
     protected void finishHim(Exception failure, List<Failure> indexingFailures,
             List<SearchFailure> searchFailures, boolean timedOut) {
+        logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
         scrollSource.close(() -> {
             if (failure == null) {
                 BulkByScrollResponse response = buildResponse(
@@ -746,9 +766,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     /**
      * Apply a {@link Script} to a {@link RequestWrapper}
      */
-    public abstract class ScriptApplier implements BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> {
+    public abstract static class ScriptApplier implements BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> {
 
-        private final WorkingBulkByScrollTask task;
+        private final WorkerBulkByScrollTaskState taskWorker;
         private final ScriptService scriptService;
         private final Script script;
         private final Map<String, Object> params;
@@ -756,9 +776,11 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         private ExecutableScript executable;
         private Map<String, Object> context;
 
-        public ScriptApplier(WorkingBulkByScrollTask task, ScriptService scriptService, Script script,
+        public ScriptApplier(WorkerBulkByScrollTaskState taskWorker,
+                             ScriptService scriptService,
+                             Script script,
                              Map<String, Object> params) {
-            this.task = task;
+            this.taskWorker = taskWorker;
             this.scriptService = scriptService;
             this.script = script;
             this.params = params;
@@ -851,7 +873,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         protected RequestWrapper<?> scriptChangedOpType(RequestWrapper<?> request, OpType oldOpType, OpType newOpType) {
             switch (newOpType) {
             case NOOP:
-                task.countNoop();
+                taskWorker.countNoop();
                 return null;
             case DELETE:
                 RequestWrapper<DeleteRequest> delete = wrap(new DeleteRequest(request.getIndex(), request.getType(), request.getId()));

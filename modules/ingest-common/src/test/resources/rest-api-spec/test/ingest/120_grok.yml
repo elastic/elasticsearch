@@ -154,3 +154,10 @@ teardown:
   - length: { docs.0.doc._ingest: 2 }
   - match: { docs.0.doc._ingest._grok_match_index: "1" }
   - is_true: docs.0.doc._ingest.timestamp
+
+---
+"Test Grok Patterns Retrieval":
+  - do:
+      ingest.processor.grok: {}
+  - length: { patterns: 303 }
+  - match: { patterns.PATH: "(?:%{UNIXPATH}|%{WINPATH})" }

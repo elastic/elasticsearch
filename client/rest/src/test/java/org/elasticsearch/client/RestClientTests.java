@@ -19,9 +19,12 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.Header;
-import org.apache.http.HttpHost;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.impl.nio.client.CloseableHttpAsyncClient;
+
+import java.net.URI;
+import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -74,6 +77,22 @@ public class RestClientTests extends RestClientTestCase {
             fail("should have failed because of wrong endpoint");
         } catch (IllegalArgumentException exception) {
             assertEquals("Expected scheme name at index 0: ::http:///", exception.getMessage());
+        }
+    }
+
+    public void testBuildUriLeavesPathUntouched() {
+        {
+            URI uri = RestClient.buildUri("/foo$bar", "/index/type/id", Collections.<String, String>emptyMap());
+            assertEquals("/foo$bar/index/type/id", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri(null, "/foo$bar/ty/pe/i/d", Collections.<String, String>emptyMap());
+            assertEquals("/foo$bar/ty/pe/i/d", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri(null, "/index/type/id", Collections.singletonMap("foo$bar", "x/y/z"));
+            assertEquals("/index/type/id", uri.getPath());
+            assertEquals("foo$bar=x/y/z", uri.getQuery());
         }
     }
 

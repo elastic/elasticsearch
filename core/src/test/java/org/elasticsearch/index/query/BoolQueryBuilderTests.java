@@ -409,13 +409,32 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         boolQueryBuilder.must(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()).toString()));
         QueryBuilder rewritten = boolQueryBuilder.rewrite(createShardContext());
         BoolQueryBuilder expected = new BoolQueryBuilder();
-        expected.must(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()));
+        expected.must(new MatchAllQueryBuilder());
         assertEquals(expected, rewritten);
 
         expected = new BoolQueryBuilder();
         expected.must(new MatchAllQueryBuilder());
         QueryBuilder rewrittenAgain = rewritten.rewrite(createShardContext());
         assertEquals(rewrittenAgain, expected);
-        assertEquals(QueryBuilder.rewriteQuery(boolQueryBuilder, createShardContext()), expected);
+        assertEquals(Rewriteable.rewrite(boolQueryBuilder, createShardContext()), expected);
+    }
+
+    public void testRewriteWithMatchNone() throws IOException {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.must(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchNoneQueryBuilder().toString()).toString()));
+        QueryBuilder rewritten = boolQueryBuilder.rewrite(createShardContext());
+        assertEquals(new MatchNoneQueryBuilder(), rewritten);
+
+        boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.must(new TermQueryBuilder("foo","bar"));
+        boolQueryBuilder.filter(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchNoneQueryBuilder().toString()).toString()));
+        rewritten = boolQueryBuilder.rewrite(createShardContext());
+        assertEquals(new MatchNoneQueryBuilder(), rewritten);
+
+        boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.must(new TermQueryBuilder("foo","bar"));
+        boolQueryBuilder.filter(new BoolQueryBuilder().should(new TermQueryBuilder("foo","bar")).filter(new MatchNoneQueryBuilder()));
+        rewritten = Rewriteable.rewrite(boolQueryBuilder, createShardContext());
+        assertEquals(new MatchNoneQueryBuilder(), rewritten);
     }
 }

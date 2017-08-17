@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -126,7 +127,7 @@ public class GetIndexIT extends ESIntegTestCase {
 
     public void testSimpleMixedFeatures() {
         int numFeatures = randomIntBetween(1, Feature.values().length);
-        List<Feature> features = new ArrayList<Feature>(numFeatures);
+        List<Feature> features = new ArrayList<>(numFeatures);
         for (int i = 0; i < numFeatures; i++) {
             features.add(randomFrom(Feature.values()));
         }
@@ -155,7 +156,7 @@ public class GetIndexIT extends ESIntegTestCase {
 
     public void testEmptyMixedFeatures() {
         int numFeatures = randomIntBetween(1, Feature.values().length);
-        List<Feature> features = new ArrayList<Feature>(numFeatures);
+        List<Feature> features = new ArrayList<>(numFeatures);
         for (int i = 0; i < numFeatures; i++) {
             features.add(randomFrom(Feature.values()));
         }
@@ -281,6 +282,8 @@ public class GetIndexIT extends ESIntegTestCase {
 
     private void assertEmptyAliases(GetIndexResponse response) {
         assertThat(response.aliases(), notNullValue());
-        assertThat(response.aliases().isEmpty(), equalTo(true));
+        for (final ObjectObjectCursor<String, List<AliasMetaData>> entry : response.getAliases()) {
+            assertTrue(entry.value.isEmpty());
+        }
     }
 }

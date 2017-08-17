@@ -8,13 +8,13 @@ the same pattern:
 -------------------------------------
   "script": {
     "lang":   "...",  <1>
-    "inline" | "stored": "...", <2>
+    "source" | "id": "...", <2>
     "params": { ... } <3>
   }
 -------------------------------------
 // NOTCONSOLE
 <1> The language the script is written in, which defaults to `painless`.
-<2> The script itself which may be specified as `inline` or `stored`.
+<2> The script itself which may be specified as `source` for an inline script or `id` for a stored script.
 <3> Any named parameters that should be passed into the script.
 
 For example, the following script is used in a search request to return a
@@ -33,7 +33,7 @@ GET my_index/_search
     "my_doubled_field": {
       "script": {
         "lang":   "expression",
-        "inline": "doc['my_field'] * multiplier",
+        "source": "doc['my_field'] * multiplier",
         "params": {
           "multiplier": 2
         }
@@ -55,10 +55,10 @@ GET my_index/_search
     setting `script.default_lang` to the appropriate language.
 
 
-`inline`, `stored`::
+`source`, `id`::
 
     Specifies the source of the script.  An `inline` script is specified
-    `inline` as in the example above. A `stored` script is specified `stored`
+    `source` as in the example above. A `stored` script is specified `id`
     and is retrieved from the cluster state (see <<modules-scripting-stored-scripts,Stored Scripts>>).
 
 
@@ -82,7 +82,7 @@ multipliers, don't hard-code the multiplier into the script:
 
 [source,js]
 ----------------------
-  "inline": "doc['my_field'] * 2"
+  "source": "doc['my_field'] * 2"
 ----------------------
 // NOTCONSOLE
 
@@ -90,7 +90,7 @@ Instead, pass it in as a named parameter:
 
 [source,js]
 ----------------------
-  "inline": "doc['my_field'] * multiplier",
+  "source": "doc['my_field'] * multiplier",
   "params": {
     "multiplier": 2
   }
@@ -115,28 +115,6 @@ minute will be compiled. You can change this setting dynamically by setting
 Scripts may be stored in and retrieved from the cluster state using the
 `_scripts` end-point.
 
-==== Deprecated Namespace
-
-The namespace for stored scripts using both `lang` and `id` as a unique
-identifier has been deprecated.  The new namespace for stored scripts will
-only use `id`. Stored scripts with the same `id`, but different `lang`'s
-will no longer be allowed in 6.0.  To comply with the new namespace for
-stored scripts, existing stored scripts should be deleted and put again.
-Any scripts that share an `id` but have different `lang`s will need to
-be re-named.  For example, take the following:
-
-"id": "example", "lang": "painless"
-"id": "example", "lang": "expressions"
-
-The above scripts will conflict under the new namespace since the id's are
-the same.  At least one will have to be re-named to comply with the new
-namespace of only `id`.
-
-As a final caveat, stored search templates and stored scripts share
-the same namespace, so if a search template has the same `id` as a
-stored script, one of the two will have to be re-named as well using
-delete and put requests.
-
 ==== Request Examples
 
 The following are examples of using a stored script that lives at
@@ -150,7 +128,7 @@ POST _scripts/calculate-score
 {
   "script": {
     "lang": "painless",
-    "code": "Math.log(_score * 2) + params.my_modifier"
+    "source": "Math.log(_score * 2) + params.my_modifier"
   }
 }
 -----------------------------------
@@ -165,7 +143,7 @@ GET _scripts/calculate-score
 // CONSOLE
 // TEST[continued]
 
-Stored scripts can be used by specifying the `stored` parameters as follows:
+Stored scripts can be used by specifying the `id` parameters as follows:
 
 [source,js]
 --------------------------------------------------
@@ -174,7 +152,7 @@ GET _search
   "query": {
     "script": {
       "script": {
-        "stored": "calculate-score",
+        "id": "calculate-score",
         "params": {
           "my_modifier": 2
         }

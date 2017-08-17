@@ -24,21 +24,15 @@ apply plugin: 'elasticsearch.docs-test'
  * only remove entries from this list. When it is empty we'll remove it
  * entirely and have a party! There will be cake and everything.... */
 buildRestTests.expectedUnconvertedCandidates = [
-  'reference/aggregations/bucket/iprange-aggregation.asciidoc',
   'reference/aggregations/bucket/nested-aggregation.asciidoc',
   'reference/aggregations/bucket/range-aggregation.asciidoc',
   'reference/aggregations/bucket/reverse-nested-aggregation.asciidoc',
   'reference/aggregations/bucket/significantterms-aggregation.asciidoc',
   'reference/aggregations/bucket/terms-aggregation.asciidoc',
   'reference/aggregations/matrix/stats-aggregation.asciidoc',
-  'reference/aggregations/metrics/extendedstats-aggregation.asciidoc',
-  'reference/aggregations/metrics/percentile-aggregation.asciidoc',
-  'reference/aggregations/metrics/percentile-rank-aggregation.asciidoc',
-  'reference/aggregations/metrics/scripted-metric-aggregation.asciidoc',
   'reference/aggregations/metrics/tophits-aggregation.asciidoc',
   'reference/cluster/allocation-explain.asciidoc',
   'reference/cluster/nodes-info.asciidoc',
-  'reference/cluster/nodes-stats.asciidoc',
   'reference/cluster/pending.asciidoc',
   'reference/cluster/state.asciidoc',
   'reference/cluster/stats.asciidoc',
@@ -52,7 +46,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/indices/recovery.asciidoc',
   'reference/indices/segments.asciidoc',
   'reference/indices/shard-stores.asciidoc',
-  'reference/search/field-stats.asciidoc',
   'reference/search/profile.asciidoc',
 ]
 
@@ -151,6 +144,14 @@ buildRestTests.setups['host'] = '''
         metric: [ http ]
   - is_true: nodes.$master.http.publish_address
   - set: {nodes.$master.http.publish_address: host}
+'''
+
+buildRestTests.setups['node'] = '''
+  # Fetch the node name. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - is_true: master_node
+  - set: { master_node: node_name }
 '''
 
 // Used by scripted metric docs
@@ -421,7 +422,7 @@ buildRestTests.setups['stored_example_script'] = '''
   - do:
       put_script:
         id: "my_script"
-        body: { "script": { "lang": "painless", "code": "doc[params.field].value" } }
+        body: { "script": { "lang": "painless", "source": "doc[params.field].value" } }
   - match: { acknowledged: true }
 '''
 
@@ -429,24 +430,115 @@ buildRestTests.setups['stored_scripted_metric_script'] = '''
   - do:
       put_script:
         id: "my_init_script"
-        body: { "script": { "lang": "painless", "code": "params._agg.transactions = []" } }
+        body: { "script": { "lang": "painless", "source": "params._agg.transactions = []" } }
   - match: { acknowledged: true }
-  
+
   - do:
       put_script:
         id: "my_map_script"
-        body: { "script": { "lang": "painless", "code": "params._agg.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)" } }
+        body: { "script": { "lang": "painless", "source": "params._agg.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)" } }
   - match: { acknowledged: true }
 
   - do:
       put_script:
         id: "my_combine_script"
-        body: { "script": { "lang": "painless", "code": "double profit = 0;for (t in params._agg.transactions) { profit += t; } return profit" } }
+        body: { "script": { "lang": "painless", "source": "double profit = 0;for (t in params._agg.transactions) { profit += t; } return profit" } }
   - match: { acknowledged: true }
 
   - do:
       put_script:
         id: "my_reduce_script"
-        body: { "script": { "lang": "painless", "code": "double profit = 0;for (a in params._aggs) { profit += a; } return profit" } }
+        body: { "script": { "lang": "painless", "source": "double profit = 0;for (a in params._aggs) { profit += a; } return profit" } }
   - match: { acknowledged: true }
 '''
+
+// Used by analyze api
+buildRestTests.setups['analyze_sample'] = '''
+  - do:
+        indices.create:
+          index: analyze_sample
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+              analysis:
+                normalizer:
+                  my_normalizer:
+                    type: custom
+                    filter: [lowercase]
+            mappings:
+              tweet:
+                properties:
+                  obj1.field1:
+                    type: text'''
+
+// Used by percentile/percentile-rank aggregations
+buildRestTests.setups['latency'] = '''
+  - do:
+        indices.create:
+          index: latency
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              data:
+                properties:
+                  load_time:
+                    type: long
+  - do:
+        bulk:
+          index: latency
+          type: data
+          refresh: true
+          body: |'''
+
+
+for (int i = 0; i < 100; i++) {
+  def value = i
+  if (i % 10) {
+    value = i*10
+  }
+  buildRestTests.setups['latency'] += """
+            {"index":{}}
+            {"load_time": "$value"}"""
+}
+
+// Used by iprange agg
+buildRestTests.setups['iprange'] = '''
+  - do:
+        indices.create:
+          index: ip_addresses
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              data:
+                properties:
+                  ip:
+                    type: ip
+  - do:
+        bulk:
+          index: ip_addresses
+          type: data
+          refresh: true
+          body: |'''
+
+
+for (int i = 0; i < 255; i++) {
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "10.0.0.$i"}"""
+}
+for (int i = 0; i < 5; i++) {
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "9.0.0.$i"}"""
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "11.0.0.$i"}"""
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "12.0.0.$i"}"""
+}

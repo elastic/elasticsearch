@@ -24,21 +24,23 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class InternalScriptedMetricTests extends InternalAggregationTestCase<InternalScriptedMetric> {
@@ -184,5 +186,56 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         } else {
             assertEquals(expected, actual);
         }
+    }
+
+    @Override
+    protected Predicate<String> excludePathsFromXContentInsertion() {
+        return path -> path.contains(CommonFields.VALUE.getPreferredName());
+    }
+
+    @Override
+    protected InternalScriptedMetric mutateInstance(InternalScriptedMetric instance) throws IOException {
+        String name = instance.getName();
+        Object value = instance.aggregation();
+        Script reduceScript = instance.reduceScript;
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 3)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            Object newValue = randomValue(valueTypes, 0);
+            while ((newValue == null && value == null) || (newValue != null && newValue.equals(value))) {
+                int levels = randomIntBetween(1, 3);
+                Supplier[] valueTypes = new Supplier[levels];
+                for (int i = 0; i < levels; i++) {
+                    if (i < levels - 1) {
+                        valueTypes[i] = randomFrom(nestedValueSuppliers);
+                    } else {
+                        // the last one needs to be a leaf value, not map or
+                        // list
+                        valueTypes[i] = randomFrom(leafValueSuppliers);
+                    }
+                }
+                newValue = randomValue(valueTypes, 0);
+            }
+            value = newValue;
+            break;
+        case 2:
+            reduceScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, REDUCE_SCRIPT_NAME + "-mutated", Collections.emptyMap());
+            break;
+        case 3:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalScriptedMetric(name, value, reduceScript, pipelineAggregators, metaData);
     }
 }

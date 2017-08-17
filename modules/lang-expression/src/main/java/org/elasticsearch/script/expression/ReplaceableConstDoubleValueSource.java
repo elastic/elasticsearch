@@ -67,4 +67,9 @@ final class ReplaceableConstDoubleValueSource extends DoubleValuesSource {
     public void setValue(double v) {
         fv.setValue(v);
     }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName();
+    }
 }

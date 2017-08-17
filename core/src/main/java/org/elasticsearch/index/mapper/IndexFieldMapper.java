@@ -77,10 +77,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
         public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0_alpha3)) {
-                throw new MapperParsingException(NAME + " is not configurable");
-            }
-            return new Builder(parserContext.mapperService().fullName(NAME));
+            throw new MapperParsingException(NAME + " is not configurable");
         }
 
         @Override
@@ -123,7 +120,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
          */
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            if (isSameIndex(value, context.index().getName())) {
+            if (isSameIndex(value, context.getFullyQualifiedIndexName())) {
                 return Queries.newMatchAllQuery();
             } else {
                 return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName() + " vs. " + value);
@@ -136,14 +133,15 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 return super.termsQuery(values, context);
             }
             for (Object value : values) {
-                if (isSameIndex(value, context.index().getName())) {
+                if (isSameIndex(value, context.getFullyQualifiedIndexName())) {
                     // No need to OR these clauses - we can only logically be
                     // running in the context of just one of these index names.
                     return Queries.newMatchAllQuery();
                 }
             }
             // None of the listed index names are this one
-            return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName() + " vs. " + values);
+            return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.getFullyQualifiedIndexName()
+                + " vs. " + values);
         }
 
         private boolean isSameIndex(Object value, String indexName) {
@@ -156,8 +154,8 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
-            return new ConstantIndexFieldData.Builder(mapperService -> mapperService.index().getName());
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+            return new ConstantIndexFieldData.Builder(mapperService -> fullyQualifiedIndexName);
         }
     }
 

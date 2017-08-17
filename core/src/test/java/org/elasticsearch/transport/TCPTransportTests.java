@@ -158,16 +158,16 @@ public class TCPTransportTests extends ESTestCase {
         TcpTransport.ensureVersionCompatibility(Version.fromString("5.0.0"), Version.fromString("6.0.0"), true);
         IllegalStateException ise = expectThrows(IllegalStateException.class, () ->
             TcpTransport.ensureVersionCompatibility(Version.fromString("5.0.0"), Version.fromString("6.0.0"), false));
-        assertEquals("Received message from unsupported version: [5.0.0] minimal compatible version is: [5.4.0]", ise.getMessage());
+        assertEquals("Received message from unsupported version: [5.0.0] minimal compatible version is: [5.6.0]", ise.getMessage());
 
         ise = expectThrows(IllegalStateException.class, () ->
             TcpTransport.ensureVersionCompatibility(Version.fromString("2.3.0"), Version.fromString("6.0.0"), true));
-        assertEquals("Received handshake message from unsupported version: [2.3.0] minimal compatible version is: [5.4.0]",
+        assertEquals("Received handshake message from unsupported version: [2.3.0] minimal compatible version is: [5.6.0]",
             ise.getMessage());
 
         ise = expectThrows(IllegalStateException.class, () ->
             TcpTransport.ensureVersionCompatibility(Version.fromString("2.3.0"), Version.fromString("6.0.0"), false));
-        assertEquals("Received message from unsupported version: [2.3.0] minimal compatible version is: [5.4.0]",
+        assertEquals("Received message from unsupported version: [2.3.0] minimal compatible version is: [5.6.0]",
             ise.getMessage());
     }
 
@@ -191,7 +191,7 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void closeChannels(List channel) throws IOException {
+                protected void closeChannels(List channel, boolean blocking) throws IOException {
 
                 }
 
@@ -224,8 +224,9 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) throws IOException {
-                    return new NodeChannels(node, new Object[profile.getNumConnections()], profile, c -> {});
+                protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile,
+                                                         Consumer onChannelClose) throws IOException {
+                    return new NodeChannels(node, new Object[profile.getNumConnections()], profile);
                 }
 
                 @Override
@@ -234,14 +235,14 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                public long serverOpen() {
+                public long getNumOpenServerConnections() {
                     return 0;
                 }
 
                 @Override
                 public NodeChannels getConnection(DiscoveryNode node) {
                     return new NodeChannels(node, new Object[MockTcpTransport.LIGHT_PROFILE.getNumConnections()],
-                        MockTcpTransport.LIGHT_PROFILE, c -> {});
+                        MockTcpTransport.LIGHT_PROFILE);
                 }
             };
             DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);

@@ -97,7 +97,7 @@ GET /_cat/indices/twitter?pri&v&h=health,index,pri,rep,docs.count,mt
 
 Might look like:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 health index   pri rep docs.count mt pri.mt
 yellow twitter   1   1 1200       16     16
@@ -115,7 +115,7 @@ GET /_cat/indices?v&h=i,tm&s=tm:desc
 
 Might look like:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 i         tm
 twitter   8.1gb

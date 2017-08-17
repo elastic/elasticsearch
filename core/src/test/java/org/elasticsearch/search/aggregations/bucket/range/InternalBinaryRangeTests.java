@@ -29,6 +29,8 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -37,29 +39,35 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
     private List<Tuple<BytesRef, BytesRef>> ranges;
 
     @Override
+    protected int minNumberOfBuckets() {
+        return 1;
+    }
+
+    @Override
     public void setUp() throws Exception {
         super.setUp();
 
-        final int numRanges = randomIntBetween(1, 10);
-        ranges = new ArrayList<>(numRanges);
+        List<Tuple<BytesRef, BytesRef>> listOfRanges = new ArrayList<>();
+        if (randomBoolean()) {
+            listOfRanges.add(Tuple.tuple(null, new BytesRef(randomAlphaOfLength(15))));
+        }
+        if (randomBoolean()) {
+            listOfRanges.add(Tuple.tuple(new BytesRef(randomAlphaOfLength(15)), null));
+        }
+        if (randomBoolean()) {
+            listOfRanges.add(Tuple.tuple(null, null));
+        }
 
+        final int numRanges = Math.max(0, randomNumberOfBuckets() - listOfRanges.size());
         for (int i = 0; i < numRanges; i++) {
             BytesRef[] values = new BytesRef[2];
             values[0] = new BytesRef(randomAlphaOfLength(15));
             values[1] = new BytesRef(randomAlphaOfLength(15));
             Arrays.sort(values);
-            ranges.add(Tuple.tuple(values[0], values[1]));
+            listOfRanges.add(Tuple.tuple(values[0], values[1]));
         }
-
-        if (randomBoolean()) {
-            ranges.add(Tuple.tuple(null, new BytesRef(randomAlphaOfLength(15))));
-        }
-        if (randomBoolean()) {
-            ranges.add(Tuple.tuple(new BytesRef(randomAlphaOfLength(15)), null));
-        }
-        if (randomBoolean()) {
-            ranges.add(Tuple.tuple(null, null));
-        }
+        Collections.shuffle(listOfRanges, random());
+        ranges = Collections.unmodifiableList(listOfRanges);
     }
 
     @Override
@@ -114,5 +122,39 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
     @Override
     protected Class<? extends ParsedMultiBucketAggregation.ParsedBucket> parsedRangeBucketClass() {
         return ParsedBinaryRange.ParsedBucket.class;
+    }
+
+    @Override
+    protected InternalBinaryRange mutateInstance(InternalBinaryRange instance) {
+        String name = instance.getName();
+        DocValueFormat format = instance.format;
+        boolean keyed = instance.keyed;
+        List<InternalBinaryRange.Bucket> buckets = instance.getBuckets();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 3)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            keyed = keyed == false;
+            break;
+        case 2:
+            buckets = new ArrayList<>(buckets);
+            buckets.add(new InternalBinaryRange.Bucket(format, keyed, "range_a", new BytesRef(randomAlphaOfLengthBetween(1, 20)),
+                    new BytesRef(randomAlphaOfLengthBetween(1, 20)), randomNonNegativeLong(), InternalAggregations.EMPTY));
+            break;
+        case 3:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators, metaData);
     }
 }

@@ -56,13 +56,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     private final String masterNodeId;
     private final String localNodeId;
     private final Version minNonClientNodeVersion;
+    private final Version maxNonClientNodeVersion;
     private final Version maxNodeVersion;
     private final Version minNodeVersion;
 
     private DiscoveryNodes(ImmutableOpenMap<String, DiscoveryNode> nodes, ImmutableOpenMap<String, DiscoveryNode> dataNodes,
                            ImmutableOpenMap<String, DiscoveryNode> masterNodes, ImmutableOpenMap<String, DiscoveryNode> ingestNodes,
-                           String masterNodeId, String localNodeId, Version minNonClientNodeVersion, Version maxNodeVersion,
-                           Version minNodeVersion) {
+                           String masterNodeId, String localNodeId, Version minNonClientNodeVersion, Version maxNonClientNodeVersion,
+                           Version maxNodeVersion, Version minNodeVersion) {
         this.nodes = nodes;
         this.dataNodes = dataNodes;
         this.masterNodes = masterNodes;
@@ -70,6 +71,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         this.masterNodeId = masterNodeId;
         this.localNodeId = localNodeId;
         this.minNonClientNodeVersion = minNonClientNodeVersion;
+        this.maxNonClientNodeVersion = maxNonClientNodeVersion;
         this.minNodeVersion = minNodeVersion;
         this.maxNodeVersion = maxNodeVersion;
     }
@@ -234,10 +236,23 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     /**
      * Returns the version of the node with the oldest version in the cluster that is not a client node
      *
+     * If there are no non-client nodes, Version.CURRENT will be returned.
+     *
      * @return the oldest version in the cluster
      */
     public Version getSmallestNonClientNodeVersion() {
         return minNonClientNodeVersion;
+    }
+
+    /**
+     * Returns the version of the node with the youngest version in the cluster that is not a client node.
+     *
+     * If there are no non-client nodes, Version.CURRENT will be returned.
+     *
+     * @return the youngest version in the cluster
+     */
+    public Version getLargestNonClientNodeVersion() {
+        return maxNonClientNodeVersion;
     }
 
     /**
@@ -252,7 +267,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     /**
      * Returns the version of the node with the youngest version in the cluster
      *
-     * @return the oldest version in the cluster
+     * @return the youngest version in the cluster
      */
     public Version getMaxNodeVersion() {
         return maxNodeVersion;
@@ -652,28 +667,40 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             ImmutableOpenMap.Builder<String, DiscoveryNode> dataNodesBuilder = ImmutableOpenMap.builder();
             ImmutableOpenMap.Builder<String, DiscoveryNode> masterNodesBuilder = ImmutableOpenMap.builder();
             ImmutableOpenMap.Builder<String, DiscoveryNode> ingestNodesBuilder = ImmutableOpenMap.builder();
-            Version minNodeVersion = Version.CURRENT;
-            Version maxNodeVersion = Version.CURRENT;
-            Version minNonClientNodeVersion = Version.CURRENT;
+            Version minNodeVersion = null;
+            Version maxNodeVersion = null;
+            Version minNonClientNodeVersion = null;
+            Version maxNonClientNodeVersion = null;
             for (ObjectObjectCursor<String, DiscoveryNode> nodeEntry : nodes) {
                 if (nodeEntry.value.isDataNode()) {
                     dataNodesBuilder.put(nodeEntry.key, nodeEntry.value);
-                    minNonClientNodeVersion = Version.min(minNonClientNodeVersion, nodeEntry.value.getVersion());
                 }
                 if (nodeEntry.value.isMasterNode()) {
                     masterNodesBuilder.put(nodeEntry.key, nodeEntry.value);
-                    minNonClientNodeVersion = Version.min(minNonClientNodeVersion, nodeEntry.value.getVersion());
+                }
+                final Version version = nodeEntry.value.getVersion();
+                if (nodeEntry.value.isDataNode() || nodeEntry.value.isMasterNode()) {
+                    if (minNonClientNodeVersion == null) {
+                        minNonClientNodeVersion = version;
+                        maxNonClientNodeVersion = version;
+                    } else {
+                        minNonClientNodeVersion = Version.min(minNonClientNodeVersion, version);
+                        maxNonClientNodeVersion = Version.max(maxNonClientNodeVersion, version);
+                    }
                 }
                 if (nodeEntry.value.isIngestNode()) {
                     ingestNodesBuilder.put(nodeEntry.key, nodeEntry.value);
                 }
-                minNodeVersion = Version.min(minNodeVersion, nodeEntry.value.getVersion());
-                maxNodeVersion = Version.max(maxNodeVersion, nodeEntry.value.getVersion());
+                minNodeVersion = minNodeVersion == null ? version : Version.min(minNodeVersion, version);
+                maxNodeVersion = maxNodeVersion == null ? version : Version.max(maxNodeVersion, version);
             }
 
             return new DiscoveryNodes(
                 nodes.build(), dataNodesBuilder.build(), masterNodesBuilder.build(), ingestNodesBuilder.build(),
-                masterNodeId, localNodeId, minNonClientNodeVersion, maxNodeVersion, minNodeVersion
+                masterNodeId, localNodeId, minNonClientNodeVersion == null ? Version.CURRENT : minNonClientNodeVersion,
+                maxNonClientNodeVersion == null ? Version.CURRENT : maxNonClientNodeVersion,
+                maxNodeVersion == null ? Version.CURRENT : maxNodeVersion,
+                minNodeVersion == null ? Version.CURRENT : minNodeVersion
             );
         }
 

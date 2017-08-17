@@ -30,7 +30,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -347,7 +347,7 @@ public final class IndexGraveyard implements MetaData.Custom {
     /**
      * An individual tombstone entry for representing a deleted index.
      */
-    public static final class Tombstone implements ToXContent, Writeable {
+    public static final class Tombstone implements ToXContentObject, Writeable {
 
         private static final String INDEX_KEY = "index";
         private static final String DELETE_DATE_IN_MILLIS_KEY = "delete_date_in_millis";

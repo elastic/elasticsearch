@@ -25,11 +25,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class QueryCacheStats implements Streamable, ToXContent {
+public class QueryCacheStats implements Streamable, ToXContentFragment {
 
     long ramBytesUsed;
     long hitCount;

@@ -29,6 +29,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -81,7 +82,6 @@ import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -101,6 +101,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexCache indexCache;
     private final MapperService mapperService;
     private final NamedXContentRegistry xContentRegistry;
+    private final NamedWriteableRegistry namedWriteableRegistry;
     private final SimilarityService similarityService;
     private final EngineFactory engineFactory;
     private final IndexWarmer warmer;
@@ -112,6 +113,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final List<SearchOperationListener> searchOperationListeners;
     private volatile AsyncRefreshTask refreshTask;
     private volatile AsyncTranslogFSync fsyncTask;
+
+    // don't convert to Setting<> and register... we only set this in tests and register via a plugin
+    private final String INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING = "index.translog.retention.check_interval";
+
+    private final AsyncTrimTranslogTask trimTranslogTask;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
@@ -138,15 +144,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             MapperRegistry mapperRegistry,
             IndicesFieldDataCache indicesFieldDataCache,
             List<SearchOperationListener> searchOperationListeners,
-            List<IndexingOperationListener> indexingOperationListeners) throws IOException {
+            List<IndexingOperationListener> indexingOperationListeners,
+            NamedWriteableRegistry namedWriteableRegistry) throws IOException {
         super(indexSettings);
         this.indexSettings = indexSettings;
         this.xContentRegistry = xContentRegistry;
         this.similarityService = similarityService;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         this.mapperService = new MapperService(indexSettings, registry.build(indexSettings), xContentRegistry, similarityService,
             mapperRegistry,
             // we parse all percolator queries as they would be parsed on shard 0
-            () -> newQueryShardContext(0, null, System::currentTimeMillis));
+            () -> newQueryShardContext(0, null, System::currentTimeMillis, null));
         this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
         if (indexSettings.getIndexSortConfig().hasIndexSort()) {
             // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
@@ -168,7 +176,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexStore = indexStore;
         indexFieldData.setListener(new FieldDataCacheListener(this));
         this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
-        this.warmer = new IndexWarmer(indexSettings.getSettings(), threadPool,
+        this.warmer = new IndexWarmer(indexSettings.getSettings(), threadPool, indexFieldData,
             bitsetFilterCache.createListener(threadPool));
         this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
         this.engineFactory = engineFactory;
@@ -178,6 +186,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
         // kick off async ops for the first shard in this index
         this.refreshTask = new AsyncRefreshTask(this);
+        this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         rescheduleFsyncTask(indexSettings.getTranslogDurability());
     }
 
@@ -226,10 +235,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return indexCache;
     }
 
-    public IndexFieldDataService fieldData() {
-        return indexFieldData;
-    }
-
     public IndexAnalyzers getIndexAnalyzers() {
         return this.mapperService.getIndexAnalyzers();
     }
@@ -263,7 +268,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     }
                 }
             } finally {
-                IOUtils.close(bitsetFilterCache, indexCache, indexFieldData, mapperService, refreshTask, fsyncTask);
+                IOUtils.close(bitsetFilterCache, indexCache, indexFieldData, mapperService, refreshTask, fsyncTask, trimTranslogTask);
             }
         }
     }
@@ -358,7 +363,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock,
                     new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
             indexShard = new IndexShard(routing, this.indexSettings, path, store, indexSortSupplier,
-                indexCache, mapperService, similarityService, indexFieldData, engineFactory,
+                indexCache, mapperService, similarityService, engineFactory,
                 eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
                     searchOperationListeners, indexingOperationListeners);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
@@ -462,12 +467,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * Passing a {@code null} {@link IndexReader} will return a valid context, however it won't be able to make
      * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
      */
-    public QueryShardContext newQueryShardContext(int shardId, IndexReader indexReader, LongSupplier nowInMillis) {
+    public QueryShardContext newQueryShardContext(int shardId, IndexReader indexReader, LongSupplier nowInMillis, String clusterAlias) {
         return new QueryShardContext(
-            shardId, indexSettings, indexCache.bitsetFilterCache(), indexFieldData, mapperService(),
+            shardId, indexSettings, indexCache.bitsetFilterCache(), indexFieldData::getForField, mapperService(),
                 similarityService(), scriptService, xContentRegistry,
-                client, indexReader,
-            nowInMillis);
+               namedWriteableRegistry, client, indexReader,
+            nowInMillis, clusterAlias);
     }
 
     /**
@@ -514,7 +519,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
 
         @Override
-        public void handle(ShardLock lock) {
+        public void accept(ShardLock lock) {
             try {
                 assert lock.getShardId().equals(shardId) : "shard id mismatch, expected: " + shardId + " but got: " + lock.getShardId();
                 onShardClose(lock);
@@ -630,7 +635,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         } finally {
             refreshTask = new AsyncRefreshTask(this);
         }
-
     }
 
     public interface ShardStoreDeleter {
@@ -671,25 +675,37 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private void maybeRefreshEngine() {
         if (indexSettings.getRefreshInterval().millis() > 0) {
             for (IndexShard shard : this.shards.values()) {
-                switch (shard.state()) {
-                    case CREATED:
-                    case RECOVERING:
-                    case CLOSED:
-                        continue;
-                    case POST_RECOVERY:
-                    case STARTED:
-                    case RELOCATED:
-                        try {
-                            if (shard.isRefreshNeeded()) {
-                                shard.refresh("schedule");
-                            }
-                        } catch (IndexShardClosedException | AlreadyClosedException ex) {
-                            // fine - continue;
+                if (shard.isReadAllowed()) {
+                    try {
+                        if (shard.isRefreshNeeded()) {
+                            shard.refresh("schedule");
                         }
-                        continue;
-                    default:
-                        throw new IllegalStateException("unknown state: " + shard.state());
+                    } catch (IndexShardClosedException | AlreadyClosedException ex) {
+                        // fine - continue;
+                    }
                 }
+            }
+        }
+    }
+
+    private void maybeTrimTranslog() {
+        for (IndexShard shard : this.shards.values()) {
+            switch (shard.state()) {
+                case CREATED:
+                case RECOVERING:
+                case CLOSED:
+                    continue;
+                case POST_RECOVERY:
+                case STARTED:
+                case RELOCATED:
+                    try {
+                        shard.trimTranslog();
+                    } catch (IndexShardClosedException | AlreadyClosedException ex) {
+                        // fine - continue;
+                    }
+                    continue;
+                default:
+                    throw new IllegalStateException("unknown state: " + shard.state());
             }
         }
     }
@@ -838,12 +854,68 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    final class AsyncTrimTranslogTask extends BaseAsyncTask {
+
+        AsyncTrimTranslogTask(IndexService indexService) {
+            super(indexService, indexService.getIndexSettings()
+                .getSettings().getAsTime(INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING, TimeValue.timeValueMinutes(10)));
+        }
+
+        @Override
+        protected void runInternal() {
+            indexService.maybeTrimTranslog();
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.GENERIC;
+        }
+
+        @Override
+        public String toString() {
+            return "trim_translog";
+        }
+    }
+
     AsyncRefreshTask getRefreshTask() { // for tests
         return refreshTask;
     }
 
     AsyncTranslogFSync getFsyncTask() { // for tests
         return fsyncTask;
+    }
+
+    /**
+     * Clears the caches for the given shard id if the shard is still allocated on this node
+     */
+    public boolean clearCaches(boolean queryCache, boolean fieldDataCache, String...fields) {
+        boolean clearedAtLeastOne = false;
+        if (queryCache) {
+            clearedAtLeastOne = true;
+            indexCache.query().clear("api");
+        }
+        if (fieldDataCache) {
+            clearedAtLeastOne = true;
+            if (fields.length == 0) {
+                indexFieldData.clear();
+            } else {
+                for (String field : fields) {
+                    indexFieldData.clearField(field);
+                }
+            }
+        }
+        if (clearedAtLeastOne == false) {
+            if (fields.length ==  0) {
+                indexCache.clear("api");
+                indexFieldData.clear();
+            } else {
+                // only clear caches relating to the specified fields
+                for (String field : fields) {
+                    indexFieldData.clearField(field);
+                }
+            }
+        }
+        return clearedAtLeastOne;
     }
 
 }

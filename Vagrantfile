@@ -33,11 +33,15 @@ Vagrant.configure(2) do |config|
       [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
     SHELL
   end
-  # Wheezy's backports don't contain Openjdk 8 and the backflips required to
-  # get the sun jdk on there just aren't worth it. We have jessie for testing
-  # debian and it works fine.
+  # Wheezy's backports don't contain Openjdk 8 and the backflips
+  # required to get the sun jdk on there just aren't worth it. We have
+  # jessie and stretch for testing debian and it works fine.
   config.vm.define "debian-8" do |config|
     config.vm.box = "elastic/debian-8-x86_64"
+    deb_common config
+  end
+  config.vm.define "debian-9" do |config|
+    config.vm.box = "elastic/debian-9-x86_64"
     deb_common config
   end
   config.vm.define "centos-6" do |config|
@@ -60,8 +64,8 @@ Vagrant.configure(2) do |config|
     config.vm.box = "elastic/fedora-25-x86_64"
     dnf_common config
   end
-  config.vm.define "opensuse-13" do |config|
-    config.vm.box = "elastic/opensuse-13-x86_64"
+  config.vm.define "opensuse-42" do |config|
+    config.vm.box = "elastic/opensuse-42-x86_64"
     opensuse_common config
   end
   config.vm.define "sles-12" do |config|
@@ -268,7 +272,7 @@ def provision(config,
     installed gradle || {
       echo "==> Installing Gradle"
       curl -sS -o /tmp/gradle.zip -L https://services.gradle.org/distributions/gradle-3.3-bin.zip
-      unzip /tmp/gradle.zip -d /opt
+      unzip -q /tmp/gradle.zip -d /opt
       rm -rf /tmp/gradle.zip
       ln -s /opt/gradle-3.3/bin/gradle /usr/bin/gradle
       # make nfs mounted gradle home dir writeable

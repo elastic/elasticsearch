@@ -25,9 +25,9 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -36,9 +36,9 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -47,7 +47,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
-import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.rescore.RescoreBuilder;
@@ -67,6 +66,7 @@ import java.util.function.Function;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
@@ -615,7 +615,7 @@ public class TopHitsIT extends ESIntegTestCase {
 
             assertThat(hit.getMatchedQueries()[0], equalTo("test"));
 
-            SearchHitField field = hit.field("field1");
+            DocumentField field = hit.field("field1");
             assertThat(field.getValue().toString(), equalTo("5"));
 
             assertThat(hit.getSourceAsMap().get("text").toString(), equalTo("some text to entertain"));
@@ -728,7 +728,7 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(searchHits.getTotalHits(), equalTo(1L));
         assertThat(searchHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(searchHits.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
-        assertThat((Integer) searchHits.getAt(0).getSourceAsMap().get("date"), equalTo(1));
+        assertThat(extractValue("comments.date", searchHits.getAt(0).getSourceAsMap()), equalTo(1));
 
         bucket = terms.getBucketByKey("b");
         assertThat(bucket.getDocCount(), equalTo(2L));
@@ -737,10 +737,10 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(searchHits.getTotalHits(), equalTo(2L));
         assertThat(searchHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(searchHits.getAt(0).getNestedIdentity().getOffset(), equalTo(1));
-        assertThat((Integer) searchHits.getAt(0).getSourceAsMap().get("date"), equalTo(2));
+        assertThat(extractValue("comments.date", searchHits.getAt(0).getSourceAsMap()), equalTo(2));
         assertThat(searchHits.getAt(1).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(searchHits.getAt(1).getNestedIdentity().getOffset(), equalTo(0));
-        assertThat((Integer) searchHits.getAt(1).getSourceAsMap().get("date"), equalTo(3));
+        assertThat(extractValue("comments.date", searchHits.getAt(1).getSourceAsMap()), equalTo(3));
 
         bucket = terms.getBucketByKey("c");
         assertThat(bucket.getDocCount(), equalTo(1L));
@@ -749,7 +749,7 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(searchHits.getTotalHits(), equalTo(1L));
         assertThat(searchHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(searchHits.getAt(0).getNestedIdentity().getOffset(), equalTo(1));
-        assertThat((Integer) searchHits.getAt(0).getSourceAsMap().get("date"), equalTo(4));
+        assertThat(extractValue("comments.date", searchHits.getAt(0).getSourceAsMap()), equalTo(4));
     }
 
     public void testTopHitsInSecondLayerNested() throws Exception {
@@ -802,49 +802,49 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(topReviewers.getHits().getHits().length, equalTo(7));
 
         assertThat(topReviewers.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat((String) topReviewers.getHits().getAt(0).getSourceAsMap().get("name"), equalTo("user a"));
+        assertThat(extractValue("comments.reviewers.name", topReviewers.getHits().getAt(0).getSourceAsMap()), equalTo("user a"));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getChild().getOffset(), equalTo(0));
 
         assertThat(topReviewers.getHits().getAt(1).getId(), equalTo("1"));
-        assertThat((String) topReviewers.getHits().getAt(1).getSourceAsMap().get("name"), equalTo("user b"));
+        assertThat(extractValue("comments.reviewers.name", topReviewers.getHits().getAt(1).getSourceAsMap()), equalTo("user b"));
         assertThat(topReviewers.getHits().getAt(1).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(1).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(topReviewers.getHits().getAt(1).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
         assertThat(topReviewers.getHits().getAt(1).getNestedIdentity().getChild().getOffset(), equalTo(1));
 
         assertThat(topReviewers.getHits().getAt(2).getId(), equalTo("1"));
-        assertThat((String) topReviewers.getHits().getAt(2).getSourceAsMap().get("name"), equalTo("user c"));
+        assertThat(extractValue("comments.reviewers.name", topReviewers.getHits().getAt(2).getSourceAsMap()), equalTo("user c"));
         assertThat(topReviewers.getHits().getAt(2).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(2).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(topReviewers.getHits().getAt(2).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
         assertThat(topReviewers.getHits().getAt(2).getNestedIdentity().getChild().getOffset(), equalTo(2));
 
         assertThat(topReviewers.getHits().getAt(3).getId(), equalTo("1"));
-        assertThat((String) topReviewers.getHits().getAt(3).getSourceAsMap().get("name"), equalTo("user c"));
+        assertThat(extractValue("comments.reviewers.name", topReviewers.getHits().getAt(3).getSourceAsMap()), equalTo("user c"));
         assertThat(topReviewers.getHits().getAt(3).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(3).getNestedIdentity().getOffset(), equalTo(1));
         assertThat(topReviewers.getHits().getAt(3).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
         assertThat(topReviewers.getHits().getAt(3).getNestedIdentity().getChild().getOffset(), equalTo(0));
 
         assertThat(topReviewers.getHits().getAt(4).getId(), equalTo("1"));
-        assertThat((String) topReviewers.getHits().getAt(4).getSourceAsMap().get("name"), equalTo("user d"));
+        assertThat(extractValue("comments.reviewers.name", topReviewers.getHits().getAt(4).getSourceAsMap()), equalTo("user d"));
         assertThat(topReviewers.getHits().getAt(4).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(4).getNestedIdentity().getOffset(), equalTo(1));
         assertThat(topReviewers.getHits().getAt(4).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
         assertThat(topReviewers.getHits().getAt(4).getNestedIdentity().getChild().getOffset(), equalTo(1));
 
         assertThat(topReviewers.getHits().getAt(5).getId(), equalTo("1"));
-        assertThat((String) topReviewers.getHits().getAt(5).getSourceAsMap().get("name"), equalTo("user e"));
+        assertThat(extractValue("comments.reviewers.name", topReviewers.getHits().getAt(5).getSourceAsMap()), equalTo("user e"));
         assertThat(topReviewers.getHits().getAt(5).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(5).getNestedIdentity().getOffset(), equalTo(1));
         assertThat(topReviewers.getHits().getAt(5).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
         assertThat(topReviewers.getHits().getAt(5).getNestedIdentity().getChild().getOffset(), equalTo(2));
 
         assertThat(topReviewers.getHits().getAt(6).getId(), equalTo("2"));
-        assertThat((String) topReviewers.getHits().getAt(6).getSourceAsMap().get("name"), equalTo("user f"));
+        assertThat(extractValue("comments.reviewers.name", topReviewers.getHits().getAt(6).getSourceAsMap()), equalTo("user f"));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
@@ -852,7 +852,7 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
     public void testNestedFetchFeatures() {
-        String hlType = randomFrom("plain", "fvh", "postings");
+        String hlType = randomFrom("plain", "fvh", "unified");
         HighlightBuilder.Field hlField = new HighlightBuilder.Field("comments.message")
                 .highlightQuery(matchQuery("comments.message", "comment"))
                 .forceSource(randomBoolean()) // randomly from stored field or _source
@@ -893,14 +893,14 @@ public class TopHitsIT extends ESIntegTestCase {
 
         assertThat(searchHit.getMatchedQueries(), arrayContaining("test"));
 
-        SearchHitField field = searchHit.field("comments.user");
+        DocumentField field = searchHit.field("comments.user");
         assertThat(field.getValue().toString(), equalTo("a"));
 
         field = searchHit.field("script");
         assertThat(field.getValue().toString(), equalTo("5"));
 
         assertThat(searchHit.getSourceAsMap().size(), equalTo(1));
-        assertThat(XContentMapValues.extractValue("comments.message", searchHit.getSourceAsMap()), equalTo("some comment"));
+        assertThat(extractValue("comments.message", searchHit.getSourceAsMap()), equalTo("some comment"));
     }
 
     public void testTopHitsInNested() throws Exception {
@@ -933,7 +933,7 @@ public class TopHitsIT extends ESIntegTestCase {
             for (int j = 0; j < 3; j++) {
                 assertThat(searchHits.getAt(j).getNestedIdentity().getField().string(), equalTo("comments"));
                 assertThat(searchHits.getAt(j).getNestedIdentity().getOffset(), equalTo(0));
-                assertThat((Integer) searchHits.getAt(j).getSourceAsMap().get("id"), equalTo(0));
+                assertThat(extractValue("comments.id", searchHits.getAt(j).getSourceAsMap()), equalTo(0));
 
                 HighlightField highlightField = searchHits.getAt(j).getHighlightFields().get("comments.message");
                 assertThat(highlightField.getFragments().length, equalTo(1));

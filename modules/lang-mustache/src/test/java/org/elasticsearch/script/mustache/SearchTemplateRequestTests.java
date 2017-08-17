@@ -38,7 +38,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
 
     public void testParseInlineTemplate() throws Exception {
         String source = "{" +
-                "    'inline' : {\n" +
+                "    'source' : {\n" +
                 "    'query': {\n" +
                 "      'terms': {\n" +
                 "        'status': [\n" +
@@ -59,7 +59,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
 
     public void testParseInlineTemplateWithParams() throws Exception {
         String source = "{" +
-                "    'inline' : {" +
+                "    'source' : {" +
                 "      'query': { 'match' : { '{{my_field}}' : '{{my_value}}' } }," +
                 "      'size' : '{{my_size}}'" +
                 "    }," +
@@ -80,7 +80,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
     }
 
     public void testParseInlineTemplateAsString() throws Exception {
-        String source = "{'inline' : '{\\\"query\\\":{\\\"bool\\\":{\\\"must\\\":{\\\"match\\\":{\\\"foo\\\":\\\"{{text}}\\\"}}}}}'}";
+        String source = "{'source' : '{\\\"query\\\":{\\\"bool\\\":{\\\"must\\\":{\\\"match\\\":{\\\"foo\\\":\\\"{{text}}\\\"}}}}}'}";
 
         SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
         assertThat(request.getScript(), equalTo("{\"query\":{\"bool\":{\"must\":{\"match\":{\"foo\":\"{{text}}\"}}}}}"));
@@ -90,7 +90,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testParseInlineTemplateAsStringWithParams() throws Exception {
-        String source = "{'inline' : '{\\\"query\\\":{\\\"match\\\":{\\\"{{field}}\\\":\\\"{{value}}\\\"}}}', " +
+        String source = "{'source' : '{\\\"query\\\":{\\\"match\\\":{\\\"{{field}}\\\":\\\"{{value}}\\\"}}}', " +
                 "'params': {'status': ['pending', 'published']}}";
 
         SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));

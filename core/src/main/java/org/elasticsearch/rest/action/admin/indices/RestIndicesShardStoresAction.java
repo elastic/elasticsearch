@@ -50,6 +50,11 @@ public class RestIndicesShardStoresAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "indices_shard_stores_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesShardStoresRequest indicesShardStoresRequest = new IndicesShardStoresRequest(
                 Strings.splitStringByCommaToArray(request.param("index")));

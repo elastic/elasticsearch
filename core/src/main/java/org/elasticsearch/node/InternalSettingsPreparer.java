@@ -24,10 +24,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 import org.elasticsearch.cli.Terminal;
@@ -37,8 +35,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
-
-import static org.elasticsearch.common.Strings.cleanPath;
 
 public class InternalSettingsPreparer {
 
@@ -67,7 +63,7 @@ public class InternalSettingsPreparer {
      * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
      */
     public static Environment prepareEnvironment(Settings input, Terminal terminal) {
-        return prepareEnvironment(input, terminal, Collections.emptyMap());
+        return prepareEnvironment(input, terminal, Collections.emptyMap(), null);
     }
 
     /**
@@ -75,16 +71,18 @@ public class InternalSettingsPreparer {
      * and then replacing all property placeholders. If a {@link Terminal} is provided and configuration settings are loaded,
      * settings with a value of <code>${prompt.text}</code> or <code>${prompt.secret}</code> will result in a prompt for
      * the setting to the user.
-     * @param input The custom settings to use. These are not overwritten by settings in the configuration file.
-     * @param terminal the Terminal to use for input/output
-     * @param properties Map of properties key/value pairs (usually from the command-line)
+     *
+     * @param input      the custom settings to use; these are not overwritten by settings in the configuration file
+     * @param terminal   the Terminal to use for input/output
+     * @param properties map of properties key/value pairs (usually from the command-line)
+     * @param configPath path to config directory; (use null to indicate the default)
      * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
      */
-    public static Environment prepareEnvironment(Settings input, Terminal terminal, Map<String, String> properties) {
+    public static Environment prepareEnvironment(Settings input, Terminal terminal, Map<String, String> properties, Path configPath) {
         // just create enough settings to build the environment, to get the config dir
         Settings.Builder output = Settings.builder();
         initializeSettings(output, input, properties);
-        Environment environment = new Environment(output.build());
+        Environment environment = new Environment(output.build(), configPath);
 
         if (Files.exists(environment.configFile().resolve("elasticsearch.yaml"))) {
             throw new SettingsException("elasticsearch.yaml was deprecated in 5.5.0 and must be renamed to elasticsearch.yml");
@@ -108,11 +106,11 @@ public class InternalSettingsPreparer {
         initializeSettings(output, input, properties);
         finalizeSettings(output, terminal);
 
-        environment = new Environment(output.build());
+        environment = new Environment(output.build(), configPath);
 
         // we put back the path.logs so we can use it in the logging configuration file
-        output.put(Environment.PATH_LOGS_SETTING.getKey(), cleanPath(environment.logsFile().toAbsolutePath().toString()));
-        return new Environment(output.build());
+        output.put(Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile().toAbsolutePath().normalize().toString());
+        return new Environment(output.build(), configPath);
     }
 
     /**

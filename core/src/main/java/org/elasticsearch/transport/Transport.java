@@ -75,11 +75,6 @@ public interface Transport extends LifecycleComponent {
      */
     void disconnectFromNode(DiscoveryNode node);
 
-    /**
-     * Returns count of currently open connections
-     */
-    long serverOpen();
-
     List<String> getLocalAddresses();
 
     default CircuitBreaker getInFlightRequestBreaker() {
@@ -109,6 +104,8 @@ public interface Transport extends LifecycleComponent {
      * {@link #connectToNode(DiscoveryNode, ConnectionProfile, CheckedBiConsumer)}.
      */
     Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException;
+
+    TransportStats getStats();
 
     /**
      * A unidirectional connection to a {@link DiscoveryNode}

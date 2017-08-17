@@ -19,6 +19,25 @@
 
 package org.elasticsearch.test.rest.yaml;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.Version;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
+import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
+import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
+import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
+import org.elasticsearch.test.rest.yaml.section.DoSection;
+import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
+import org.junit.AfterClass;
+import org.junit.Before;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,29 +48,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.apache.http.HttpHost;
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
-import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
-import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
-import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
-import org.elasticsearch.test.rest.yaml.section.DoSection;
-import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
-import org.junit.AfterClass;
-import org.junit.Before;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch clients against against an elasticsearch cluster.
@@ -123,8 +119,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                     throw ex;
                 }
             }
-            ClientYamlTestClient clientYamlTestClient =
-                new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
+            ClientYamlTestClient clientYamlTestClient = initClientYamlTestClient(restSpec, restClient, hosts, esVersion);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
             String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
@@ -140,31 +135,20 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         // admin context must be available for @After always, regardless of whether the test was blacklisted
         adminExecutionContext.clear();
 
-        //skip test if it matches one of the blacklist globs
-        for (BlacklistedPathPatternMatcher blacklistedPathMatcher : blacklistPathMatchers) {
-            String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
-            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher
-                    .isSuffixMatch(testPath));
-        }
-
         restTestExecutionContext.clear();
+    }
 
-        //skip test if the whole suite (yaml file) is disabled
-        assumeFalse(testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-                testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-        //skip test if the whole suite (yaml file) is disabled
-        assumeFalse(testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-                testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-        //skip test if test section is disabled
-        assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-                testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+    protected ClientYamlTestClient initClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient,
+                                                            List<HttpHost> hosts, Version esVersion) throws IOException {
+        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
     }
 
     @Override
     protected void afterIfFailed(List<Throwable> errors) {
         // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
         logger.info("Stash dump on failure [{}]",
-                XContentHelper.toString(restTestExecutionContext.stash()).replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
+                Strings.toString(restTestExecutionContext.stash(), true, true)
+                        .replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
         super.afterIfFailed(errors);
     }
 
@@ -308,6 +292,23 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     }
 
     public void test() throws IOException {
+        //skip test if it matches one of the blacklist globs
+        for (BlacklistedPathPatternMatcher blacklistedPathMatcher : blacklistPathMatchers) {
+            String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
+            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher
+                .isSuffixMatch(testPath));
+        }
+
+        //skip test if the whole suite (yaml file) is disabled
+        assumeFalse(testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
+            testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+        //skip test if the whole suite (yaml file) is disabled
+        assumeFalse(testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
+            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+        //skip test if test section is disabled
+        assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
+            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+
         //let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
             throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");

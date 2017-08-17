@@ -20,19 +20,23 @@
 package org.elasticsearch.painless;
 
 import junit.framework.AssertionFailedError;
-
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -45,7 +49,7 @@ public abstract class ScriptTestCase extends ESTestCase {
 
     @Before
     public void setup() {
-        scriptEngine = new PainlessScriptEngine(scriptEngineSettings());
+        scriptEngine = new PainlessScriptEngine(scriptEngineSettings(), scriptContexts());
     }
 
     /**
@@ -53,6 +57,17 @@ public abstract class ScriptTestCase extends ESTestCase {
      */
     protected Settings scriptEngineSettings() {
         return Settings.EMPTY;
+    }
+
+    /**
+     * Script contexts used to build the script engine. Override to customize which script contexts are available.
+     */
+    protected Collection<ScriptContext<?>> scriptContexts() {
+        Collection<ScriptContext<?>> contexts = new ArrayList<>();
+        contexts.add(SearchScript.CONTEXT);
+        contexts.add(ExecutableScript.CONTEXT);
+
+        return contexts;
     }
 
     /** Compiles and returns the result of {@code script} */
@@ -77,12 +92,11 @@ public abstract class ScriptTestCase extends ESTestCase {
         // test for ambiguity errors before running the actual script if picky is true
         if (picky) {
             Definition definition = Definition.BUILTINS;
-            ScriptInterface scriptInterface = new ScriptInterface(definition, GenericElasticsearchScript.class);
+            ScriptClassInfo scriptClassInfo = new ScriptClassInfo(definition, GenericElasticsearchScript.class);
             CompilerSettings pickySettings = new CompilerSettings();
             pickySettings.setPicky(true);
             pickySettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(scriptEngineSettings()));
-            Walker.buildPainlessTree(scriptInterface, getTestName(), script, pickySettings,
-                    definition, null);
+            Walker.buildPainlessTree(scriptClassInfo, new MainMethodReserved(), getTestName(), script, pickySettings, definition, null);
         }
         // test actual script execution
         ExecutableScript.Factory factory = scriptEngine.compile(null, script, ExecutableScript.CONTEXT, compileParams);

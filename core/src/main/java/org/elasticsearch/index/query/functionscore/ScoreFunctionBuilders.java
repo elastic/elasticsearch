@@ -75,16 +75,8 @@ public class ScoreFunctionBuilders {
         return (new ScriptScoreFunctionBuilder(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, script, emptyMap())));
     }
 
-    public static RandomScoreFunctionBuilder randomFunction(int seed) {
-        return (new RandomScoreFunctionBuilder()).seed(seed);
-    }
-
-    public static RandomScoreFunctionBuilder randomFunction(long seed) {
-        return (new RandomScoreFunctionBuilder()).seed(seed);
-    }
-
-    public static RandomScoreFunctionBuilder randomFunction(String seed) {
-        return (new RandomScoreFunctionBuilder()).seed(seed);
+    public static RandomScoreFunctionBuilder randomFunction() {
+        return new RandomScoreFunctionBuilder();
     }
     
     public static WeightBuilder weightFactorFunction(float weight) {

@@ -231,9 +231,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
             builder.putCustom(type, customIndexMetaData);
         }
-        if (in.getVersion().onOrAfter(Version.V_5_0_0_beta1)) {
-            builder.version(in.readOptionalVInt());
-        }
+        builder.version(in.readOptionalVInt());
         return builder.build();
     }
 
@@ -265,9 +263,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             out.writeString(cursor.key);
             cursor.value.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_5_0_0_beta1)) {
-            out.writeOptionalVInt(version);
-        }
+        out.writeOptionalVInt(version);
     }
 
     public static class Builder {
@@ -387,6 +383,14 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 throws IOException {
             builder.startObject(indexTemplateMetaData.name());
 
+            toInnerXContent(indexTemplateMetaData, builder, params);
+
+            builder.endObject();
+        }
+
+        public static void toInnerXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, ToXContent.Params params)
+            throws IOException {
+
             builder.field("order", indexTemplateMetaData.order());
             if (indexTemplateMetaData.version() != null) {
                 builder.field("version", indexTemplateMetaData.version());
@@ -429,8 +433,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             for (ObjectCursor<AliasMetaData> cursor : indexTemplateMetaData.aliases().values()) {
                 AliasMetaData.Builder.toXContent(cursor.value, builder, params);
             }
-            builder.endObject();
-
             builder.endObject();
         }
 

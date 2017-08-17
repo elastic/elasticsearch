@@ -75,6 +75,7 @@ both index and query time.
   "_shards": {
     "total": 5,
     "successful": 5,
+    "skipped" : 0,
     "failed": 0
   },
   "hits": {
@@ -121,7 +122,7 @@ GET index/_search
     }
   }
 }
---------------------------------
+----------------------------
 // CONSOLE
 // TEST[continued]
 
@@ -135,6 +136,7 @@ returns
   "_shards": {
     "total": 5,
     "successful": 5,
+    "skipped" : 0,
     "failed": 0
   },
   "hits": {

@@ -75,6 +75,7 @@ public class WeightFactorFunction extends ScoreFunction {
         return Explanation.match(getWeight(), "weight");
     }
 
+    @Override
     public float getWeight() {
         return weight;
     }

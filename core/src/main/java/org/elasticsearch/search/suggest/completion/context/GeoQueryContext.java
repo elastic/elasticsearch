@@ -24,10 +24,9 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -42,7 +41,7 @@ import static org.elasticsearch.search.suggest.completion.context.GeoContextMapp
 /**
  * Defines the query context for {@link GeoContextMapping}
  */
-public final class GeoQueryContext implements ToXContent {
+public final class GeoQueryContext implements ToXContentObject {
     public static final String NAME = "geo";
 
     private final GeoPoint geoPoint;
@@ -124,8 +123,7 @@ public final class GeoQueryContext implements ToXContent {
         GEO_CONTEXT_PARSER.declareDouble(GeoQueryContext.Builder::setLon, new ParseField("lon"));
     }
 
-    public static GeoQueryContext fromXContent(QueryParseContext context) throws IOException {
-        XContentParser parser = context.parser();
+    public static GeoQueryContext fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         GeoQueryContext.Builder builder = new Builder();
         if (token == XContentParser.Token.START_OBJECT) {

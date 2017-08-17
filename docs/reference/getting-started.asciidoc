@@ -47,7 +47,6 @@ A node can be configured to join a specific cluster by the cluster name. By defa
 
 In a single cluster, you can have as many nodes as you want. Furthermore, if there are no other Elasticsearch nodes currently running on your network, starting a single node will by default form a new single-node cluster named `elasticsearch`.
 
-[sect2]
 [float]
 === Index
 
@@ -58,7 +57,9 @@ In a single cluster, you can define as many indexes as you want.
 [float]
 === Type
 
-Within an index, you can define one or more types. A type is a logical category/partition of your index whose semantics is completely up to you. In general, a type is defined for documents that have a set of common fields. For example, let's assume you run a blogging platform and store all your data in a single index. In this index, you may define a type for user data, another type for blog data, and yet another type for comments data.
+deprecated[6.0.0,See <<removal-of-types>>]
+
+A type used to be a logical category/partition of your index to allow you to store different types of documents in the same index, eg one type for users, another type for blog posts.  It is no longer possible to create multiple types in an index, and the whole concept of types will be removed in a later version.  See <<removal-of-types>> for more.
 
 [float]
 === Document
@@ -97,7 +98,7 @@ The number of shards and replicas can be defined per index at the time the index
 By default, each index in Elasticsearch is allocated 5 primary shards and 1 replica which means that if you have at least two nodes in your cluster, your index will have 5 primary shards and another 5 replica shards (1 complete replica) for a total of 10 shards per index.
 
 NOTE: Each Elasticsearch shard is a Lucene index.  There is a maximum number of documents you can have in a single Lucene index.  As of https://issues.apache.org/jira/browse/LUCENE-5843[`LUCENE-5843`], the limit is `2,147,483,519` (= Integer.MAX_VALUE - 128) documents.
-You can monitor shard sizes using the <<cat-shards,`_cat/shards`>> api.
+You can monitor shard sizes using the {ref}/cat-shards.html[`_cat/shards`] API.
 
 With that out of the way, let's get started with the fun part...
 
@@ -111,9 +112,14 @@ java -version
 echo $JAVA_HOME
 --------------------------------------------------
 
-Once we have Java set up, we can then download and run Elasticsearch. The binaries are available from http://www.elastic.co/downloads[`www.elastic.co/downloads`] along with all the releases that have been made in the past. For each release, you have a choice among a `zip` or `tar` archive, or a `DEB` or `RPM` package. For simplicity, let's use the tar file.
+Once we have Java set up, we can then download and run Elasticsearch. The binaries are available from http://www.elastic.co/downloads[`www.elastic.co/downloads`] along with all the releases that have been made in the past. For each release, you have a choice among a `zip` or `tar` archive, a `DEB` or `RPM` package, or a Windows `MSI` installation package.
 
-Let's download the Elasticsearch {version} tar as follows (Windows users should download the zip package):
+[float]
+=== Installation example with tar
+
+For simplicity, let's use the {ref}/zip-targz.html[tar] file.
+
+Let's download the Elasticsearch {version} tar as follows:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
@@ -121,7 +127,7 @@ curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{v
 --------------------------------------------------
 // NOTCONSOLE
 
-Then extract it as follows (Windows users should unzip the zip package):
+Then extract it as follows:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
@@ -135,14 +141,74 @@ It will then create a bunch of files and folders in your current directory. We t
 cd elasticsearch-{version}/bin
 --------------------------------------------------
 
-And now we are ready to start our node and single cluster (Windows users should run the elasticsearch.bat file):
+And now we are ready to start our node and single cluster:
 
 [source,sh]
 --------------------------------------------------
 ./elasticsearch
 --------------------------------------------------
 
-If everything goes well, you should see a bunch of messages that look like below:
+[float]
+=== Installation example with MSI Windows Installer
+
+For Windows users, we recommend using the {ref}/windows.html[MSI Installer package]. The package contains a graphical user interface (GUI) that guides you through the installation process.
+
+First, download the Elasticsearch {version} MSI from
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.msi.
+
+Then double-click the downloaded file to launch the GUI. Within the first screen, select the deployment directories:
+
+[[getting-started-msi-installer-locations]]
+image::images/msi_installer/msi_installer_locations.png[]
+
+Then select whether to install as a service or start Elasticsearch manually as needed.
+To align with the tar example, choose not to install as a service:
+
+[[getting-started-msi-installer-service]]
+image::images/msi_installer/msi_installer_no_service.png[]
+
+For configuration, simply leave the default values:
+
+[[getting-started-msi-installer-configuration]]
+image::images/msi_installer/msi_installer_configuration.png[]
+
+Again, to align with the tar example, uncheck all plugins to not install any plugins:
+
+[[getting-started-msi-installer-plugins]]
+image::images/msi_installer/msi_installer_plugins.png[]
+
+After clicking the install button, Elasticsearch will be installed:
+
+[[getting-started-msi-installer-success]]
+image::images/msi_installer/msi_installer_success.png[]
+
+By default, Elasticsearch will be installed at `%PROGRAMFILES%\Elastic\Elasticsearch`. Navigate here and go into the bin directory as follows:
+
+**with Command Prompt:**
+
+[source,sh]
+--------------------------------------------------
+cd %PROGRAMFILES%\Elastic\Elasticsearch\bin
+--------------------------------------------------
+
+**with PowerShell:**
+
+[source,powershell]
+--------------------------------------------------
+cd $env:PROGRAMFILES\Elastic\Elasticsearch\bin
+--------------------------------------------------
+
+And now we are ready to start our node and single cluster:
+
+[source,sh]
+--------------------------------------------------
+.\elasticsearch.exe
+--------------------------------------------------
+
+[float]
+=== Successfully running node
+
+If everything goes well with installation, you should see a bunch of messages that look like below:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
@@ -198,8 +264,8 @@ Now that we have our node (and cluster) up and running, the next step is to unde
 
 Let's start with a basic health check, which we can use to see how our cluster is doing. We'll be using curl to do this but you can use any tool that allows you to make HTTP/REST calls. Let's assume that we are still on the same node where we started Elasticsearch on and open another command shell window.
 
-To check the cluster health, we will be using the <<cat,`_cat` API>>. You can
-run the command below in {kibana}/console-kibana.html[Kibana's Console]
+To check the cluster health, we will be using the {ref}/cat.html[`_cat` API]. You can
+run the command below in {kibana-ref}/console-kibana.html[Kibana's Console]
 by clicking "VIEW IN CONSOLE" or with `curl` by clicking the "COPY AS CURL"
 link below and pasting it into a terminal.
 
@@ -294,13 +360,11 @@ You might also notice that the customer index has a yellow health tagged to it. 
 
 === Index and Query a Document
 
-Let's now put something into our customer index. Remember previously that in order to index a document, we must tell Elasticsearch which type in the index it should go to.
-
-Let's index a simple customer document into the customer index, "external" type, with an ID of 1 as follows:
+Let's now put something into our customer index. We'll index a simple customer document into the customer index, with an ID of 1 as follows:
 
 [source,js]
 --------------------------------------------------
-PUT /customer/external/1?pretty
+PUT /customer/doc/1?pretty
 {
   "name": "John Doe"
 }
@@ -309,11 +373,11 @@ PUT /customer/external/1?pretty
 
 And the response:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
 {
   "_index" : "customer",
-  "_type" : "external",
+  "_type" : "doc",
   "_id" : "1",
   "_version" : 1,
   "result" : "created",
@@ -322,14 +386,13 @@ And the response:
     "successful" : 1,
     "failed" : 0
   },
-  "created" : true,
   "_seq_no" : 0,
   "_primary_term" : 1
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_seq_no" : 0/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
-From the above, we can see that a new customer document was successfully created inside the customer index and the external type. The document also has an internal id of 1 which we specified at index time.
+From the above, we can see that a new customer document was successfully created inside the customer index. The document also has an internal id of 1 which we specified at index time.
 
 It is important to note that Elasticsearch does not require you to explicitly create an index first before you can index documents into it. In the previous example, Elasticsearch will automatically create the customer index if it didn't already exist beforehand.
 
@@ -337,7 +400,7 @@ Let's now retrieve that document that we just indexed:
 
 [source,js]
 --------------------------------------------------
-GET /customer/external/1?pretty
+GET /customer/doc/1?pretty
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -348,7 +411,7 @@ And the response:
 --------------------------------------------------
 {
   "_index" : "customer",
-  "_type" : "external",
+  "_type" : "doc",
   "_id" : "1",
   "_version" : 1,
   "found" : true,
@@ -386,11 +449,11 @@ Before we move on, let's take a closer look again at some of the API commands th
 [source,js]
 --------------------------------------------------
 PUT /customer
-PUT /customer/external/1
+PUT /customer/doc/1
 {
   "name": "John Doe"
 }
-GET /customer/external/1
+GET /customer/doc/1
 DELETE /customer
 --------------------------------------------------
 // CONSOLE
@@ -416,18 +479,18 @@ We've previously seen how we can index a single document. Let's recall that comm
 
 [source,js]
 --------------------------------------------------
-PUT /customer/external/1?pretty
+PUT /customer/doc/1?pretty
 {
   "name": "John Doe"
 }
 --------------------------------------------------
 // CONSOLE
 
-Again, the above will index the specified document into the customer index, external type, with the ID of 1. If we then executed the above command again with a different (or same) document, Elasticsearch will replace (i.e. reindex) a new document on top of the existing one with the ID of 1:
+Again, the above will index the specified document into the customer index, with the ID of 1. If we then executed the above command again with a different (or same) document, Elasticsearch will replace (i.e. reindex) a new document on top of the existing one with the ID of 1:
 
 [source,js]
 --------------------------------------------------
-PUT /customer/external/1?pretty
+PUT /customer/doc/1?pretty
 {
   "name": "Jane Doe"
 }
@@ -439,7 +502,7 @@ The above changes the name of the document with the ID of 1 from "John Doe" to "
 
 [source,js]
 --------------------------------------------------
-PUT /customer/external/2?pretty
+PUT /customer/doc/2?pretty
 {
   "name": "Jane Doe"
 }
@@ -455,7 +518,7 @@ This example shows how to index a document without an explicit ID:
 
 [source,js]
 --------------------------------------------------
-POST /customer/external?pretty
+POST /customer/doc?pretty
 {
   "name": "Jane Doe"
 }
@@ -473,7 +536,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 
 [source,js]
 --------------------------------------------------
-POST /customer/external/1/_update?pretty
+POST /customer/doc/1/_update?pretty
 {
   "doc": { "name": "Jane Doe" }
 }
@@ -485,7 +548,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 
 [source,js]
 --------------------------------------------------
-POST /customer/external/1/_update?pretty
+POST /customer/doc/1/_update?pretty
 {
   "doc": { "name": "Jane Doe", "age": 20 }
 }
@@ -497,7 +560,7 @@ Updates can also be performed by using simple scripts. This example uses a scrip
 
 [source,js]
 --------------------------------------------------
-POST /customer/external/1/_update?pretty
+POST /customer/doc/1/_update?pretty
 {
   "script" : "ctx._source.age += 5"
 }
@@ -515,24 +578,24 @@ Deleting a document is fairly straightforward. This example shows how to delete 
 
 [source,js]
 --------------------------------------------------
-DELETE /customer/external/2?pretty
+DELETE /customer/doc/2?pretty
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
 
-See the <<docs-delete-by-query>> to delete all documents matching a specific query.
+See the {ref}/docs-delete-by-query.html[`_delete_by_query` API] to delete all documents matching a specific query.
 It is worth noting that it is much more efficient to delete a whole index
 instead of deleting all documents with the Delete By Query API.
 
 === Batch Processing
 
-In addition to being able to index, update, and delete individual documents, Elasticsearch also provides the ability to perform any of the above operations in batches using the <<docs-bulk,`_bulk` API>>. This functionality is important in that it provides a very efficient mechanism to do multiple operations as fast as possible with as few network roundtrips as possible.
+In addition to being able to index, update, and delete individual documents, Elasticsearch also provides the ability to perform any of the above operations in batches using the {ref}/docs-bulk.html[`_bulk` API]. This functionality is important in that it provides a very efficient mechanism to do multiple operations as fast as possible with as few network roundtrips as possible.
 
 As a quick example, the following call indexes two documents (ID 1 - John Doe and ID 2 - Jane Doe) in one bulk operation:
 
 [source,js]
 --------------------------------------------------
-POST /customer/external/_bulk?pretty
+POST /customer/doc/_bulk?pretty
 {"index":{"_id":"1"}}
 {"name": "John Doe" }
 {"index":{"_id":"2"}}
@@ -544,7 +607,7 @@ This example updates the first document (ID of 1) and then deletes the second do
 
 [source,sh]
 --------------------------------------------------
-POST /customer/external/_bulk?pretty
+POST /customer/doc/_bulk?pretty
 {"update":{"_id":"1"}}
 {"doc": { "name": "John Doe becomes Jane Doe" } }
 {"delete":{"_id":"2"}}
@@ -609,7 +672,7 @@ GET /_cat/indices?v
 
 And the response:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 health status index uuid                   pri rep docs.count docs.deleted store.size pri.store.size
 yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    128.6kb        128.6kb
@@ -621,7 +684,7 @@ Which means that we just successfully bulk indexed 1000 documents into the bank 
 
 === The Search API
 
-Now let's start with some simple searches. There are two basic ways to run searches: one is by sending search parameters through the <<search-uri-request,REST request URI>> and the other by sending them through the <<search-request-body,REST request body>>. The request body method allows you to be more expressive and also to define your searches in a more readable JSON format. We'll try one example of the request URI method but for the remainder of this tutorial, we will exclusively be using the request body method.
+Now let's start with some simple searches. There are two basic ways to run searches: one is by sending search parameters through the {ref}/search-uri-request.html[REST request URI] and the other by sending them through the {ref}/search-request-body.html[REST request body]. The request body method allows you to be more expressive and also to define your searches in a more readable JSON format. We'll try one example of the request URI method but for the remainder of this tutorial, we will exclusively be using the request body method.
 
 The REST API for search is accessible from the `_search` endpoint. This example returns all documents in the bank index:
 
@@ -644,6 +707,7 @@ And the response (partially shown):
   "_shards" : {
     "total" : 5,
     "successful" : 5,
+    "skipped" : 0,
     "failed" : 0
   },
   "hits" : {
@@ -711,6 +775,7 @@ to clutter the docs with it:
   "_shards" : {
     "total" : 5,
     "successful" : 5,
+    "skipped" : 0,
     "failed" : 0
   },
   "hits" : {
@@ -744,7 +809,7 @@ It is important to understand that once you get your search results back, Elasti
 
 === Introducing the Query Language
 
-Elasticsearch provides a JSON-style domain-specific language that you can use to execute queries. This is referred to as the <<query-dsl,Query DSL>>. The query language is quite comprehensive and can be intimidating at first glance but the best way to actually learn it is to start with a few basic examples.
+Elasticsearch provides a JSON-style domain-specific language that you can use to execute queries. This is referred to as the {ref}/query-dsl.html[Query DSL]. The query language is quite comprehensive and can be intimidating at first glance but the best way to actually learn it is to start with a few basic examples.
 
 Going back to our last example, we executed this query:
 
@@ -827,7 +892,7 @@ Note that the above example simply reduces the `_source` field. It will still on
 
 If you come from a SQL background, the above is somewhat similar in concept to the `SQL SELECT FROM` field list.
 
-Now let's move on to the query part. Previously, we've seen how the `match_all` query is used to match all documents. Let's now introduce a new query called the <<query-dsl-match-query,`match` query>>, which can be thought of as a basic fielded search query (i.e. a search done against a specific field or set of fields).
+Now let's move on to the query part. Previously, we've seen how the `match_all` query is used to match all documents. Let's now introduce a new query called the {ref}/query-dsl-match-query.html[`match` query], which can be thought of as a basic fielded search query (i.e. a search done against a specific field or set of fields).
 
 This example returns the account numbered 20:
 
@@ -877,7 +942,7 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
-Let's now introduce the <<query-dsl-bool-query,`bool`(ean) query>>. The `bool` query allows us to compose smaller queries into bigger queries using boolean logic.
+Let's now introduce the {ref}/query-dsl-bool-query.html[`bool` query]. The `bool` query allows us to compose smaller queries into bigger queries using boolean logic.
 
 This example composes two `match` queries and returns all accounts containing "mill" and "lane" in the address:
 
@@ -971,7 +1036,7 @@ In the previous section, we skipped over a little detail called the document sco
 
 But queries do not always need to produce scores, in particular when they are only used for "filtering" the document set. Elasticsearch detects these situations and automatically optimizes query execution in order not to compute useless scores.
 
-The <<query-dsl-bool-query,`bool` query>> that we introduced in the previous section also supports `filter` clauses which allow to use a query to restrict the documents that will be matched by other clauses, without changing how scores are computed. As an example, let's introduce the <<query-dsl-range-query,`range` query>>, which allows us to filter documents by a range of values. This is generally used for numeric or date filtering.
+The {ref}/query-dsl-bool-query.html[`bool` query] that we introduced in the previous section also supports `filter` clauses which allow to use a query to restrict the documents that will be matched by other clauses, without changing how scores are computed. As an example, let's introduce the {ref}/query-dsl-range-query.html[`range` query], which allows us to filter documents by a range of values. This is generally used for numeric or date filtering.
 
 This example uses a bool query to return all accounts with balances between 20000 and 30000, inclusive. In other words, we want to find accounts with a balance that is greater than or equal to 20000 and less than or equal to 30000.
 
@@ -1041,6 +1106,7 @@ And the response (partially shown):
   "_shards": {
     "total": 5,
     "successful": 5,
+    "skipped" : 0,
     "failed": 0
   },
   "hits" : {
@@ -1198,7 +1264,7 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
-There are many other aggregations capabilities that we won't go into detail here. The <<search-aggregations,aggregations reference guide>> is a great starting point if you want to do further experimentation.
+There are many other aggregations capabilities that we won't go into detail here. The {ref}/search-aggregations.html[aggregations reference guide] is a great starting point if you want to do further experimentation.
 
 == Conclusion
 

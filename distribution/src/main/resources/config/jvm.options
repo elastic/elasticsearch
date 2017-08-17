@@ -39,18 +39,15 @@
 
 ## optimizations
 
-# disable calls to System#gc
--XX:+DisableExplicitGC
-
 # pre-touch memory pages used by the JVM during initialization
 -XX:+AlwaysPreTouch
 
 ## basic
 
-# force the server VM (remove on 32-bit client JVMs)
+# force the server VM
 -server
 
-# explicitly set the stack size (reduce to 320k on 32-bit client JVMs)
+# explicitly set the stack size
 -Xss1m
 
 # set to headless, just in case

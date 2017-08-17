@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.main;
 
-import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
@@ -30,71 +28,20 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class MainActionTests extends ESTestCase {
-
-    public void testMainResponseSerialization() throws IOException {
-        final String nodeName = "node1";
-        final ClusterName clusterName = new ClusterName("cluster1");
-        final String clusterUUID = randomAlphaOfLengthBetween(10, 20);
-        final boolean available = randomBoolean();
-        final Version version = Version.CURRENT;
-        final Build build = Build.CURRENT;
-
-        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, clusterUUID, build, available);
-        BytesStreamOutput streamOutput = new BytesStreamOutput();
-        mainResponse.writeTo(streamOutput);
-        final MainResponse serialized = new MainResponse();
-        serialized.readFrom(streamOutput.bytes().streamInput());
-
-        assertThat(serialized.getNodeName(), equalTo(nodeName));
-        assertThat(serialized.getClusterName(), equalTo(clusterName));
-        assertThat(serialized.getBuild(), equalTo(build));
-        assertThat(serialized.isAvailable(), equalTo(available));
-        assertThat(serialized.getVersion(), equalTo(version));
-    }
-
-    public void testMainResponseXContent() throws IOException {
-        String clusterUUID = randomAlphaOfLengthBetween(10, 20);
-        final MainResponse mainResponse = new MainResponse("node1", Version.CURRENT, new ClusterName("cluster1"), clusterUUID,
-                Build.CURRENT, false);
-        final String expected = "{" +
-                "\"name\":\"node1\"," +
-                "\"cluster_name\":\"cluster1\"," +
-                "\"cluster_uuid\":\"" + clusterUUID + "\"," +
-                "\"version\":{" +
-                "\"number\":\"" + Version.CURRENT.toString() + "\"," +
-                "\"build_hash\":\"" + Build.CURRENT.shortHash() + "\"," +
-                "\"build_date\":\"" + Build.CURRENT.date() + "\"," +
-                "\"build_snapshot\":" + Build.CURRENT.isSnapshot() +
-                ",\"lucene_version\":\"" + Version.CURRENT.luceneVersion.toString() +
-                "\"}," +
-                "\"tagline\":\"You Know, for Search\"}";
-
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        mainResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        String xContent = builder.string();
-
-        assertEquals(expected, xContent);
-    }
 
     public void testMainActionClusterAvailable() {
         final ClusterService clusterService = mock(ClusterService.class);

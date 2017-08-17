@@ -24,6 +24,7 @@ import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
 import org.elasticsearch.Build;
+import org.elasticsearch.Version;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
@@ -62,7 +63,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
             .withRequiredArg()
             .withValuesConvertedBy(new PathConverter());
         quietOption = parser.acceptsAll(Arrays.asList("q", "quiet"),
-            "Turns off standard ouput/error streams logging in console")
+            "Turns off standard output/error streams logging in console")
             .availableUnless(versionOption)
             .availableUnless(daemonizeOption);
     }
@@ -92,15 +93,21 @@ class Elasticsearch extends EnvironmentAwareCommand {
     }
 
     @Override
+    protected boolean shouldConfigureLoggingWithoutConfig() {
+        /*
+         * If we allow logging to be configured without a config before we are ready to read the log4j2.properties file, then we will fail
+         * to detect uses of logging before it is properly configured.
+         */
+        return false;
+    }
+
+    @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws UserException {
         if (options.nonOptionArguments().isEmpty() == false) {
             throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
         }
         if (options.has(versionOption)) {
-            if (options.has(daemonizeOption) || options.has(pidfileOption)) {
-                throw new UserException(ExitCodes.USAGE, "Elasticsearch version option is mutually exclusive with any other option");
-            }
-            terminal.println("Version: " + org.elasticsearch.Version.CURRENT
+            terminal.println("Version: " + Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot())
                     + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date()
                     + ", JVM: " + JvmInfo.jvmInfo().version());
             return;

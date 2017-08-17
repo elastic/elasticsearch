@@ -44,7 +44,7 @@
         id:      1
         body:    { "text": "test" }
   - do:
-      catch: /size should be greater than 0 if the request is limited to some number of documents or -1 if it isn't but it was \[-4\]/
+      catch: /\[size\] parameter cannot be negative, found \[-4\]/
       delete_by_query:
         index: test
         size: -4
@@ -126,7 +126,7 @@
 ---
 "junk in slices fails":
   - do:
-      catch: /Failed to parse int parameter \[slices\] with value \[junk\]/
+      catch: /\[slices\] must be a positive integer or the string "auto"/
       delete_by_query:
         slices: junk
         index: test
@@ -136,7 +136,7 @@
 ---
 "zero slices fails":
   - do:
-      catch: /\[slices\] must be at least 1/
+      catch: /\[slices\] must be a positive integer or the string "auto"/
       delete_by_query:
         slices: 0
         index: test

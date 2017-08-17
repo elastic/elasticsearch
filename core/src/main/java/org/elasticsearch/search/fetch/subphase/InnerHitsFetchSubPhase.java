@@ -22,6 +22,7 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -64,9 +65,10 @@ public final class InnerHitsFetchSubPhase implements FetchSubPhase {
                     docIdsToLoad[j] = topDoc.scoreDocs[j].doc;
                 }
                 innerHits.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
+                innerHits.setUid(new Uid(hit.getType(), hit.getId()));
                 fetchPhase.execute(innerHits);
                 FetchSearchResult fetchResult = innerHits.fetchResult();
-                SearchHit[] internalHits = fetchResult.fetchResult().hits().internalHits();
+                SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
                 for (int j = 0; j < internalHits.length; j++) {
                     ScoreDoc scoreDoc = topDoc.scoreDocs[j];
                     SearchHit searchHitFields = internalHits[j];

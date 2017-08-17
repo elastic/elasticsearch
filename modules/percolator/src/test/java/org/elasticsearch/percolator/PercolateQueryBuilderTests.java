@@ -35,7 +35,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -44,6 +43,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.SearchContext;
@@ -52,7 +53,6 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -86,13 +86,16 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         queryField = randomAlphaOfLength(4);
-        docType = randomAlphaOfLength(4);
-        mapperService.merge("query_type", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("query_type",
+        String docType = "doc";
+        mapperService.merge(docType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(docType,
                 queryField, "type=percolator"
         ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mapperService.merge(docType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(docType,
                 STRING_FIELD_NAME, "type=text"
         ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        if (mapperService.getIndexSettings().isSingleType() == false) {
+            PercolateQueryBuilderTests.docType = docType;
+        }
     }
 
     @Override
@@ -104,7 +107,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         documentSource = randomSource();
         if (indexedDocument) {
             indexedDocumentIndex = randomAlphaOfLength(4);
-            indexedDocumentType = randomAlphaOfLength(4);
+            indexedDocumentType = "doc";
             indexedDocumentId = randomAlphaOfLength(4);
             indexedDocumentRouting = randomAlphaOfLength(4);
             indexedDocumentPreference = randomAlphaOfLength(4);
@@ -150,7 +153,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     protected void doAssertLuceneQuery(PercolateQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, Matchers.instanceOf(PercolateQuery.class));
         PercolateQuery percolateQuery = (PercolateQuery) query;
-        assertThat(percolateQuery.getDocumentType(), Matchers.equalTo(queryBuilder.getDocumentType()));
+        assertThat(docType, Matchers.equalTo(queryBuilder.getDocumentType()));
         assertThat(percolateQuery.getDocumentSource(), Matchers.equalTo(documentSource));
     }
 
@@ -159,7 +162,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         PercolateQueryBuilder pqb = doCreateTestQueryBuilder(true);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> pqb.toQuery(createShardContext()));
         assertThat(e.getMessage(), equalTo("query builder must be rewritten first"));
-        QueryBuilder rewrite = pqb.rewrite(createShardContext());
+        QueryBuilder rewrite = rewriteAndFetch(pqb, createShardContext());
         PercolateQueryBuilder geoShapeQueryBuilder =
             new PercolateQueryBuilder(pqb.getField(), pqb.getDocumentType(), documentSource, XContentType.JSON);
         assertEquals(geoShapeQueryBuilder, rewrite);
@@ -168,7 +171,8 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     public void testIndexedDocumentDoesNotExist() throws IOException {
         indexedDocumentExists = false;
         PercolateQueryBuilder pqb = doCreateTestQueryBuilder(true);
-        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> pqb.rewrite(createShardContext()));
+        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> rewriteAndFetch(pqb,
+            createShardContext()));
         String expectedString = "indexed document [" + indexedDocumentIndex + "/" + indexedDocumentType + "/" +
                 indexedDocumentId +  "] couldn't be found";
         assertThat(e.getMessage() , equalTo(expectedString));
@@ -187,10 +191,6 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         assertThat(e.getMessage(), equalTo("[field] is a required argument"));
 
         e = expectThrows(IllegalArgumentException.class,
-            () -> new PercolateQueryBuilder("_field", null, new BytesArray("{}"), XContentType.JSON));
-        assertThat(e.getMessage(), equalTo("[document_type] is a required argument"));
-
-        e = expectThrows(IllegalArgumentException.class,
             () -> new PercolateQueryBuilder("_field", "_document_type", null, null));
         assertThat(e.getMessage(), equalTo("[document] is a required argument"));
 
@@ -198,11 +198,6 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
             new PercolateQueryBuilder(null, null, "_index", "_type", "_id", null, null, null);
         });
         assertThat(e.getMessage(), equalTo("[field] is a required argument"));
-
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            new PercolateQueryBuilder("_field", null, "_index", "_type", "_id", null, null, null);
-        });
-        assertThat(e.getMessage(), equalTo("[document_type] is a required argument"));
 
         e = expectThrows(IllegalArgumentException.class, () -> {
             new PercolateQueryBuilder("_field", "_document_type", null, "_type", "_id", null, null, null);
@@ -221,9 +216,15 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     public void testFromJsonNoDocumentType() throws IOException {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> parseQuery("{\"percolate\" : { \"document\": {}}"));
-        assertThat(e.getMessage(), equalTo("[percolate] query is missing required [document_type] parameter"));
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder queryBuilder = parseQuery("{\"percolate\" : { \"document\": {}, \"field\":\"" + queryField + "\"}}");
+        if (indexVersionCreated.before(Version.V_6_0_0_alpha1)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> queryBuilder.toQuery(queryShardContext));
+            assertThat(e.getMessage(), equalTo("[percolate] query is missing required [document_type] parameter"));
+        } else {
+            queryBuilder.toQuery(queryShardContext);
+        }
     }
 
     public void testCreateMultiDocumentSearcher() throws Exception {
@@ -247,26 +248,6 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         assertThat(result.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
     }
 
-    public void testSerializationBwc() throws IOException {
-        final byte[] data = Base64.getDecoder().decode("P4AAAAAFZmllbGQEdHlwZQAAAAAAAA57ImZvbyI6ImJhciJ9AAAAAA==");
-        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
-        try (StreamInput in = StreamInput.wrap(data)) {
-            in.setVersion(version);
-            PercolateQueryBuilder queryBuilder = new PercolateQueryBuilder(in);
-            assertEquals("type", queryBuilder.getDocumentType());
-            assertEquals("field", queryBuilder.getField());
-            assertEquals("{\"foo\":\"bar\"}", queryBuilder.getDocument().utf8ToString());
-            assertEquals(XContentType.JSON, queryBuilder.getXContentType());
-
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
-                queryBuilder.writeTo(out);
-                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
-            }
-        }
-    }
-
     private static BytesReference randomSource() {
         try {
             XContentBuilder xContent = XContentFactory.jsonBuilder();
@@ -285,5 +266,14 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     @Override
     protected boolean builderGeneratesCacheableQueries() {
         return false;
+    }
+
+    public void testSerializationFailsUnlessFetched() throws IOException {
+        QueryBuilder builder = doCreateTestQueryBuilder(true);
+        QueryBuilder queryBuilder = Rewriteable.rewrite(builder, createShardContext());
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> queryBuilder.writeTo(new BytesStreamOutput(10)));
+        assertEquals(ise.getMessage(), "supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
+        builder = rewriteAndFetch(builder, createShardContext());
+        builder.writeTo(new BytesStreamOutput(10));
     }
 }

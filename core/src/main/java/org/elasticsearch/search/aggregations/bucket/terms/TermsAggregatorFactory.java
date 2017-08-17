@@ -27,20 +27,21 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalOrder;
+import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
-import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -53,7 +54,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private boolean showTermDocCountError;
 
-    public TermsAggregatorFactory(String name,
+    TermsAggregatorFactory(String name,
                                   ValuesSourceConfig<ValuesSource> config,
                                   BucketOrder order,
                                   IncludeExclude includeExclude,
@@ -91,6 +92,17 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                 return aggregation;
             }
         };
+    }
+
+    private static boolean isAggregationSort(BucketOrder order) {
+        if (order instanceof InternalOrder.Aggregation) {
+            return true;
+        } else if (order instanceof InternalOrder.CompoundOrder) {
+            InternalOrder.CompoundOrder compoundOrder = (CompoundOrder) order;
+            return compoundOrder.orderElements().stream().anyMatch(TermsAggregatorFactory::isAggregationSort);
+        } else {
+            return false;
+        }
     }
 
     @Override
@@ -139,10 +151,17 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                 // to be unbounded and most instances may only aggregate few
                 // documents, so use hashed based
                 // global ordinals to keep the bucket ords dense.
+
                 // Additionally, if using partitioned terms the regular global
                 // ordinals would be sparse so we opt for hash
+
+                // Finally if we are sorting by sub aggregations, then these
+                // aggregations cannot be deferred, so global_ordinals_hash is
+                // a safer choice as we won't use memory for sub aggregations
+                // for buckets that are not collected.
                 if (Aggregator.descendsFromBucketAggregator(parent) ||
-                        (includeExclude != null && includeExclude.isPartitionBased())) {
+                        (includeExclude != null && includeExclude.isPartitionBased()) ||
+                        isAggregationSort(order)) {
                     execution = ExecutionMode.GLOBAL_ORDINALS_HASH;
                 } else {
                     if (factories == AggregatorFactories.EMPTY) {
@@ -359,7 +378,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                     return mode;
                 }
             }
-            throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of " + values());
+            throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of " + Arrays.toString(values()));
         }
 
         private final ParseField parseField;

@@ -55,7 +55,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge("nested_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("nested_doc",
+        mapperService.merge("doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("doc",
                 STRING_FIELD_NAME, "type=text",
                 INT_FIELD_NAME, "type=integer",
                 DOUBLE_FIELD_NAME, "type=double",
@@ -157,6 +157,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 "              \"fuzzy_transpositions\" : true,\n" +
                 "              \"lenient\" : false,\n" +
                 "              \"zero_terms_query\" : \"NONE\",\n" +
+                "              \"auto_generate_synonyms_phrase_query\" : true,\n" +
                 "              \"boost\" : 1.0\n" +
                 "            }\n" +
                 "          }\n" +

@@ -19,11 +19,19 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
+import org.elasticsearch.client.http.nio.entity.NStringEntity;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.join.aggregations.Children;
 import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
@@ -37,6 +45,7 @@ import org.elasticsearch.search.aggregations.matrix.stats.MatrixStats;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
@@ -46,10 +55,14 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 
 public class SearchIT extends ESRestHighLevelClientTestCase {
@@ -161,7 +174,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
-        assertThat(searchResponse.getTook().nanos(), greaterThan(0L));
         assertEquals(5, searchResponse.getHits().totalHits);
         assertEquals(0, searchResponse.getHits().getHits().length);
         assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
@@ -244,7 +256,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
-        assertThat(searchResponse.getTook().nanos(), greaterThan(0L));
         assertEquals(5, searchResponse.getHits().totalHits);
         assertEquals(0, searchResponse.getHits().getHits().length);
         assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
@@ -258,26 +269,27 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(5, matrixStats.getFieldCount("num2"));
         assertEquals(29d, matrixStats.getMean("num2"), 0d);
         assertEquals(330d, matrixStats.getVariance("num2"), 0d);
-        assertEquals(-0.13568039346585542, matrixStats.getSkewness("num2"), 0d);
+        assertEquals(-0.13568039346585542, matrixStats.getSkewness("num2"), 1.0e-16);
         assertEquals(1.3517561983471074, matrixStats.getKurtosis("num2"), 0d);
         assertEquals(-767.5, matrixStats.getCovariance("num", "num2"), 0d);
         assertEquals(-0.9876336291667923, matrixStats.getCorrelation("num", "num2"), 0d);
     }
 
     public void testSearchWithParentJoin() throws IOException {
+        final String indexName = "child_example";
         StringEntity parentMapping = new StringEntity("{\n" +
                 "    \"mappings\": {\n" +
-                "        \"answer\" : {\n" +
-                "            \"_parent\" : {\n" +
-                "                \"type\" : \"question\"\n" +
+                "        \"qa\" : {\n" +
+                "            \"properties\" : {\n" +
+                "                \"qa_join_field\" : {\n" +
+                "                    \"type\" : \"join\",\n" +
+                "                    \"relations\" : { \"question\" : \"answer\" }\n" +
+                "                }\n" +
                 "            }\n" +
                 "        }\n" +
-                "    },\n" +
-                "    \"settings\": {\n" +
-                "        \"index.mapping.single_type\": false" +
-                "    }\n" +
+                "    }" +
                 "}", ContentType.APPLICATION_JSON);
-        client().performRequest("PUT", "/child_example", Collections.emptyMap(), parentMapping);
+        client().performRequest("PUT", "/" + indexName, Collections.emptyMap(), parentMapping);
         StringEntity questionDoc = new StringEntity("{\n" +
                 "    \"body\": \"<p>I have Windows 2003 server and i bought a new Windows 2008 server...\",\n" +
                 "    \"title\": \"Whats the best way to file transfer my site from server to a newer one?\",\n" +
@@ -285,9 +297,10 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 "        \"windows-server-2003\",\n" +
                 "        \"windows-server-2008\",\n" +
                 "        \"file-transfer\"\n" +
-                "    ]\n" +
+                "    ],\n" +
+                "    \"qa_join_field\" : \"question\"\n" +
                 "}", ContentType.APPLICATION_JSON);
-        client().performRequest("PUT", "/child_example/question/1", Collections.emptyMap(), questionDoc);
+        client().performRequest("PUT", "/" + indexName + "/qa/1", Collections.emptyMap(), questionDoc);
         StringEntity answerDoc1 = new StringEntity("{\n" +
                 "    \"owner\": {\n" +
                 "        \"location\": \"Norfolk, United Kingdom\",\n" +
@@ -295,9 +308,13 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 "        \"id\": 48\n" +
                 "    },\n" +
                 "    \"body\": \"<p>Unfortunately you're pretty much limited to FTP...\",\n" +
+                "    \"qa_join_field\" : {\n" +
+                "        \"name\" : \"answer\",\n" +
+                "        \"parent\" : \"1\"\n" +
+                "    },\n" +
                 "    \"creation_date\": \"2009-05-04T13:45:37.030\"\n" +
                 "}", ContentType.APPLICATION_JSON);
-        client().performRequest("PUT", "child_example/answer/1", Collections.singletonMap("parent", "1"), answerDoc1);
+        client().performRequest("PUT", "/" + indexName + "/qa/2", Collections.singletonMap("routing", "1"), answerDoc1);
         StringEntity answerDoc2 = new StringEntity("{\n" +
                 "    \"owner\": {\n" +
                 "        \"location\": \"Norfolk, United Kingdom\",\n" +
@@ -305,9 +322,13 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 "        \"id\": 49\n" +
                 "    },\n" +
                 "    \"body\": \"<p>Use Linux...\",\n" +
+                "    \"qa_join_field\" : {\n" +
+                "        \"name\" : \"answer\",\n" +
+                "        \"parent\" : \"1\"\n" +
+                "    },\n" +
                 "    \"creation_date\": \"2009-05-05T13:45:37.030\"\n" +
                 "}", ContentType.APPLICATION_JSON);
-        client().performRequest("PUT", "/child_example/answer/2", Collections.singletonMap("parent", "1"), answerDoc2);
+        client().performRequest("PUT", "/" + indexName + "/qa/3", Collections.singletonMap("routing", "1"), answerDoc2);
         client().performRequest("POST", "/_refresh");
 
         TermsAggregationBuilder leafTermAgg = new TermsAggregationBuilder("top-names", ValueType.STRING)
@@ -317,14 +338,13 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 .size(10).subAggregation(childrenAgg);
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.size(0).aggregation(termsAgg);
-        SearchRequest searchRequest = new SearchRequest("child_example");
+        SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.source(searchSourceBuilder);
 
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
-        assertThat(searchResponse.getTook().nanos(), greaterThan(0L));
         assertEquals(3, searchResponse.getHits().totalHits);
         assertEquals(0, searchResponse.getHits().getHits().length);
         assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
@@ -385,8 +405,67 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testSearchScroll() throws Exception {
+
+        for (int i = 0; i < 100; i++) {
+            XContentBuilder builder = jsonBuilder().startObject().field("field", i).endObject();
+            HttpEntity entity = new NStringEntity(builder.string(), ContentType.APPLICATION_JSON);
+            client().performRequest("PUT", "test/type1/" + Integer.toString(i), Collections.emptyMap(), entity);
+        }
+        client().performRequest("POST", "/test/_refresh");
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(35).sort("field", SortOrder.ASC);
+        SearchRequest searchRequest = new SearchRequest("test").scroll(TimeValue.timeValueMinutes(2)).source(searchSourceBuilder);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+
+        try {
+            long counter = 0;
+            assertSearchHeader(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(35));
+            for (SearchHit hit : searchResponse.getHits()) {
+                assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
+            }
+
+            searchResponse = execute(new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2)),
+                    highLevelClient()::searchScroll, highLevelClient()::searchScrollAsync);
+
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(35));
+            for (SearchHit hit : searchResponse.getHits()) {
+                assertEquals(counter++, ((Number) hit.getSortValues()[0]).longValue());
+            }
+
+            searchResponse = execute(new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2)),
+                    highLevelClient()::searchScroll, highLevelClient()::searchScrollAsync);
+
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(30));
+            for (SearchHit hit : searchResponse.getHits()) {
+                assertEquals(counter++, ((Number) hit.getSortValues()[0]).longValue());
+            }
+        } finally {
+            ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+            clearScrollRequest.addScrollId(searchResponse.getScrollId());
+            ClearScrollResponse clearScrollResponse = execute(clearScrollRequest,
+                    // Not using a method reference to work around https://bugs.eclipse.org/bugs/show_bug.cgi?id=517951
+                    (request, headers) -> highLevelClient().clearScroll(request, headers),
+                    (request, listener, headers) -> highLevelClient().clearScrollAsync(request, listener, headers));
+            assertThat(clearScrollResponse.getNumFreed(), greaterThan(0));
+            assertTrue(clearScrollResponse.isSucceeded());
+
+            SearchScrollRequest scrollRequest = new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2));
+            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> execute(scrollRequest,
+                    highLevelClient()::searchScroll, highLevelClient()::searchScrollAsync));
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+            assertThat(exception.getRootCause(), instanceOf(ElasticsearchException.class));
+            ElasticsearchException rootCause = (ElasticsearchException) exception.getRootCause();
+            assertThat(rootCause.getMessage(), containsString("No search context found for"));
+        }
+    }
+
     private static void assertSearchHeader(SearchResponse searchResponse) {
-        assertThat(searchResponse.getTook().nanos(), greaterThan(0L));
+        assertThat(searchResponse.getTook().nanos(), greaterThanOrEqualTo(0L));
         assertEquals(0, searchResponse.getFailedShards());
         assertThat(searchResponse.getTotalShards(), greaterThan(0));
         assertEquals(searchResponse.getTotalShards(), searchResponse.getSuccessfulShards());

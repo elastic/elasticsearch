@@ -91,6 +91,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
@@ -263,58 +264,64 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 customs.put(entry.getKey(), entry.getValue());
                             }
 
-                            // apply templates, merging the mappings into the request mapping if exists
-                            for (IndexTemplateMetaData template : templates) {
-                                templateNames.add(template.getName());
-                                for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
-                                    String mappingString = cursor.value.string();
-                                    if (mappings.containsKey(cursor.key)) {
-                                        XContentHelper.mergeDefaults(mappings.get(cursor.key),
+                            final Index shrinkFromIndex = request.shrinkFrom();
+
+                            if (shrinkFromIndex == null) {
+                                // apply templates, merging the mappings into the request mapping if exists
+                                for (IndexTemplateMetaData template : templates) {
+                                    templateNames.add(template.getName());
+                                    for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
+                                        String mappingString = cursor.value.string();
+                                        if (mappings.containsKey(cursor.key)) {
+                                            XContentHelper.mergeDefaults(mappings.get(cursor.key),
                                                 MapperService.parseMapping(xContentRegistry, mappingString));
-                                    } else {
-                                        mappings.put(cursor.key,
-                                            MapperService.parseMapping(xContentRegistry, mappingString));
+                                        } else {
+                                            mappings.put(cursor.key,
+                                                MapperService.parseMapping(xContentRegistry, mappingString));
+                                        }
                                     }
-                                }
-                                // handle custom
-                                for (ObjectObjectCursor<String, Custom> cursor : template.customs()) {
-                                    String type = cursor.key;
-                                    IndexMetaData.Custom custom = cursor.value;
-                                    IndexMetaData.Custom existing = customs.get(type);
-                                    if (existing == null) {
-                                        customs.put(type, custom);
-                                    } else {
-                                        IndexMetaData.Custom merged = existing.mergeWith(custom);
-                                        customs.put(type, merged);
+                                    // handle custom
+                                    for (ObjectObjectCursor<String, Custom> cursor : template.customs()) {
+                                        String type = cursor.key;
+                                        IndexMetaData.Custom custom = cursor.value;
+                                        IndexMetaData.Custom existing = customs.get(type);
+                                        if (existing == null) {
+                                            customs.put(type, custom);
+                                        } else {
+                                            IndexMetaData.Custom merged = existing.mergeWith(custom);
+                                            customs.put(type, merged);
+                                        }
                                     }
-                                }
-                                //handle aliases
-                                for (ObjectObjectCursor<String, AliasMetaData> cursor : template.aliases()) {
-                                    AliasMetaData aliasMetaData = cursor.value;
-                                    //if an alias with same name came with the create index request itself,
-                                    // ignore this one taken from the index template
-                                    if (request.aliases().contains(new Alias(aliasMetaData.alias()))) {
-                                        continue;
-                                    }
-                                    //if an alias with same name was already processed, ignore this one
-                                    if (templatesAliases.containsKey(cursor.key)) {
-                                        continue;
-                                    }
+                                    //handle aliases
+                                    for (ObjectObjectCursor<String, AliasMetaData> cursor : template.aliases()) {
+                                        AliasMetaData aliasMetaData = cursor.value;
+                                        //if an alias with same name came with the create index request itself,
+                                        // ignore this one taken from the index template
+                                        if (request.aliases().contains(new Alias(aliasMetaData.alias()))) {
+                                            continue;
+                                        }
+                                        //if an alias with same name was already processed, ignore this one
+                                        if (templatesAliases.containsKey(cursor.key)) {
+                                            continue;
+                                        }
 
-                                    //Allow templatesAliases to be templated by replacing a token with the name of the index that we are applying it to
-                                    if (aliasMetaData.alias().contains("{index}")) {
-                                        String templatedAlias = aliasMetaData.alias().replace("{index}", request.index());
-                                        aliasMetaData = AliasMetaData.newAliasMetaData(aliasMetaData, templatedAlias);
-                                    }
+                                        //Allow templatesAliases to be templated by replacing a token with the name of the index that we are applying it to
+                                        if (aliasMetaData.alias().contains("{index}")) {
+                                            String templatedAlias = aliasMetaData.alias().replace("{index}", request.index());
+                                            aliasMetaData = AliasMetaData.newAliasMetaData(aliasMetaData, templatedAlias);
+                                        }
 
-                                    aliasValidator.validateAliasMetaData(aliasMetaData, request.index(), currentState.metaData());
-                                    templatesAliases.put(aliasMetaData.alias(), aliasMetaData);
+                                        aliasValidator.validateAliasMetaData(aliasMetaData, request.index(), currentState.metaData());
+                                        templatesAliases.put(aliasMetaData.alias(), aliasMetaData);
+                                    }
                                 }
                             }
                             Settings.Builder indexSettingsBuilder = Settings.builder();
-                            // apply templates, here, in reverse order, since first ones are better matching
-                            for (int i = templates.size() - 1; i >= 0; i--) {
-                                indexSettingsBuilder.put(templates.get(i).settings());
+                            if (shrinkFromIndex == null) {
+                                // apply templates, here, in reverse order, since first ones are better matching
+                                for (int i = templates.size() - 1; i >= 0; i--) {
+                                    indexSettingsBuilder.put(templates.get(i).settings());
+                                }
                             }
                             // now, put the request settings, so they override templates
                             indexSettingsBuilder.put(request.settings());
@@ -339,20 +346,44 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             }
                             indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
                             indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
-                            final Index shrinkFromIndex = request.shrinkFrom();
-                            int routingNumShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettingsBuilder.build());;
-                            if (shrinkFromIndex != null) {
-                                prepareShrinkIndexSettings(currentState, mappings.keySet(), indexSettingsBuilder, shrinkFromIndex,
-                                    request.index());
-                                IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(shrinkFromIndex);
+                            final IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index());
+
+                            final int routingNumShards;
+                            if (shrinkFromIndex == null) {
+                                routingNumShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettingsBuilder.build());
+                            } else {
+                                final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(shrinkFromIndex);
                                 routingNumShards = sourceMetaData.getRoutingNumShards();
                             }
+                            tmpImdBuilder.setRoutingNumShards(routingNumShards);
 
-                            Settings actualIndexSettings = indexSettingsBuilder.build();
-                            IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index())
-                                .setRoutingNumShards(routingNumShards);
+                            if (shrinkFromIndex != null) {
+                                prepareShrinkIndexSettings(
+                                        currentState, mappings.keySet(), indexSettingsBuilder, shrinkFromIndex, request.index());
+                            }
+                            final Settings actualIndexSettings = indexSettingsBuilder.build();
+                            tmpImdBuilder.settings(actualIndexSettings);
+
+                            if (shrinkFromIndex != null) {
+                                /*
+                                 * We need to arrange that the primary term on all the shards in the shrunken index is at least as large as
+                                 * the maximum primary term on all the shards in the source index. This ensures that we have correct
+                                 * document-level semantics regarding sequence numbers in the shrunken index.
+                                 */
+                                final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(shrinkFromIndex);
+                                final long primaryTerm =
+                                        IntStream
+                                                .range(0, sourceMetaData.getNumberOfShards())
+                                                .mapToLong(sourceMetaData::primaryTerm)
+                                                .max()
+                                                .getAsLong();
+                                for (int shardId = 0; shardId < tmpImdBuilder.numberOfShards(); shardId++) {
+                                    tmpImdBuilder.primaryTerm(shardId, primaryTerm);
+                                }
+                            }
+
                             // Set up everything, now locally create the index to see that things are ok, and apply
-                            final IndexMetaData tmpImd = tmpImdBuilder.settings(actualIndexSettings).build();
+                            final IndexMetaData tmpImd = tmpImdBuilder.build();
                             ActiveShardCount waitForActiveShards = request.waitForActiveShards();
                             if (waitForActiveShards == ActiveShardCount.DEFAULT) {
                                 waitForActiveShards = tmpImd.getWaitForActiveShards();
@@ -384,7 +415,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                             // the context is only used for validation so it's fine to pass fake values for the shard id and the current
                             // timestamp
-                            final QueryShardContext queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L);
+                            final QueryShardContext queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L, null);
 
                             for (Alias alias : request.aliases()) {
                                 if (Strings.hasLength(alias.filter())) {
@@ -408,6 +439,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(request.index())
                                 .settings(actualIndexSettings)
                                 .setRoutingNumShards(routingNumShards);
+
+                            for (int shardId = 0; shardId < tmpImd.getNumberOfShards(); shardId++) {
+                                indexMetaDataBuilder.primaryTerm(shardId, tmpImd.primaryTerm(shardId));
+                            }
+
                             for (MappingMetaData mappingMd : mappingsMetaData.values()) {
                                 indexMetaDataBuilder.putMapping(mappingMd);
                             }

@@ -23,9 +23,11 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -51,7 +53,7 @@ public class RangeAggregator extends BucketsAggregator {
     public static final ParseField RANGES_FIELD = new ParseField("ranges");
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
 
-    public static class Range implements Writeable, ToXContent {
+    public static class Range implements Writeable, ToXContentObject {
         public static final ParseField KEY_FIELD = new ParseField("key");
         public static final ParseField FROM_FIELD = new ParseField("from");
         public static final ParseField TO_FIELD = new ParseField("to");
@@ -90,8 +92,27 @@ public class RangeAggregator extends BucketsAggregator {
             out.writeDouble(to);
         }
 
+        public double getFrom() {
+            return this.from;
+        }
 
-        protected Range(String key, Double from, String fromAsStr, Double to, String toAsStr) {
+        public double getTo() {
+            return this.to;
+        }
+
+        public String getFromAsString() {
+            return this.fromAsStr;
+        }
+
+        public String getToAsString() {
+            return this.toAsStr;
+        }
+
+        public String getKey() {
+            return this.key;
+        }
+
+        public Range(String key, Double from, String fromAsStr, Double to, String toAsStr) {
             this.key = key;
             this.from = from == null ? Double.NEGATIVE_INFINITY : from;
             this.fromAsStr = fromAsStr;
@@ -106,19 +127,6 @@ public class RangeAggregator extends BucketsAggregator {
         @Override
         public String toString() {
             return "[" + from + " to " + to + ")";
-        }
-
-        public Range process(DocValueFormat parser, SearchContext context) {
-            assert parser != null;
-            Double from = this.from;
-            Double to = this.to;
-            if (fromAsStr != null) {
-                from = parser.parseDouble(fromAsStr, false, context.getQueryShardContext()::nowInMillis);
-            }
-            if (toAsStr != null) {
-                to = parser.parseDouble(toAsStr, false, context.getQueryShardContext()::nowInMillis);
-            }
-            return new Range(key, from, fromAsStr, to, toAsStr);
         }
 
         public static Range fromXContent(XContentParser parser) throws IOException {
@@ -137,6 +145,8 @@ public class RangeAggregator extends BucketsAggregator {
                         from = parser.doubleValue();
                     } else if (TO_FIELD.match(currentFieldName)) {
                         to = parser.doubleValue();
+                    } else {
+                        XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if (FROM_FIELD.match(currentFieldName)) {
@@ -145,7 +155,18 @@ public class RangeAggregator extends BucketsAggregator {
                         toAsStr = parser.text();
                     } else if (KEY_FIELD.match(currentFieldName)) {
                         key = parser.text();
+                    } else {
+                        XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
                     }
+                } else if (token == XContentParser.Token.VALUE_NULL) {
+                    if (FROM_FIELD.match(currentFieldName) || TO_FIELD.match(currentFieldName)
+                            || KEY_FIELD.match(currentFieldName)) {
+                        // ignore null value
+                    } else {
+                        XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    }
+                } else {
+                    XContentParserUtils.throwUnknownToken(token, parser.getTokenLocation());
                 }
             }
             return new Range(key, from, fromAsStr, to, toAsStr);

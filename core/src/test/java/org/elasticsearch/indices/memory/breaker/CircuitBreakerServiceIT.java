@@ -78,7 +78,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Integration tests for InternalCircuitBreakerService
  */
-@ClusterScope(scope = TEST, randomDynamicTemplates = false, numClientNodes = 0, maxNumDataNodes = 1)
+@ClusterScope(scope = TEST, numClientNodes = 0, maxNumDataNodes = 1)
 public class CircuitBreakerServiceIT extends ESIntegTestCase {
     /** Reset all breaker settings back to their defaults */
     private void reset() {
@@ -381,16 +381,13 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
     /** Issues a cache clear and waits 30 seconds for the field data breaker to be cleared */
     public void clearFieldData() throws Exception {
         client().admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                NodesStatsResponse resp = client().admin().cluster().prepareNodesStats()
-                        .clear().setBreaker(true).get(new TimeValue(15, TimeUnit.SECONDS));
-                for (NodeStats nStats : resp.getNodes()) {
-                    assertThat("fielddata breaker never reset back to 0",
-                            nStats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(),
-                            equalTo(0L));
-                }
+        assertBusy(() -> {
+            NodesStatsResponse resp = client().admin().cluster().prepareNodesStats()
+                    .clear().setBreaker(true).get(new TimeValue(15, TimeUnit.SECONDS));
+            for (NodeStats nStats : resp.getNodes()) {
+                assertThat("fielddata breaker never reset back to 0",
+                        nStats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(),
+                        equalTo(0L));
             }
         }, 30, TimeUnit.SECONDS);
     }

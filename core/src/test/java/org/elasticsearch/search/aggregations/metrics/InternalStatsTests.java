@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.metrics.stats.ParsedStats;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -95,6 +96,62 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
     @Override
     protected Writeable.Reader<InternalStats> instanceReader() {
         return InternalStats::new;
+    }
+
+    @Override
+    protected InternalStats mutateInstance(InternalStats instance) {
+        String name = instance.getName();
+        long count = instance.getCount();
+        double sum = instance.getSum();
+        double min = instance.getMin();
+        double max = instance.getMax();
+        DocValueFormat formatter = instance.format;
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 5)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            if (Double.isFinite(count)) {
+                count += between(1, 100);
+            } else {
+                count = between(1, 100);
+            }
+            break;
+        case 2:
+            if (Double.isFinite(sum)) {
+                sum += between(1, 100);
+            } else {
+                sum = between(1, 100);
+            }
+            break;
+        case 3:
+            if (Double.isFinite(min)) {
+                min += between(1, 100);
+            } else {
+                min = between(1, 100);
+            }
+            break;
+        case 4:
+            if (Double.isFinite(max)) {
+                max += between(1, 100);
+            } else {
+                max = between(1, 100);
+            }
+            break;
+        case 5:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalStats(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
     }
 }
 

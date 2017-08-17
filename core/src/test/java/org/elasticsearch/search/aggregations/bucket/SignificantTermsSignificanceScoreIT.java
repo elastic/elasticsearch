@@ -27,9 +27,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -116,7 +116,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                                     .significanceHeuristic(new SimpleHeuristic())
                                     .minDocCount(1)
                             )
-                    );                        
+                    );
         }else
         {
             request = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
@@ -128,9 +128,9 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                                     .significanceHeuristic(new SimpleHeuristic())
                                     .minDocCount(1)
                             )
-                    );            
+                    );
         }
-        
+
         SearchResponse response = request.execute().actionGet();
         assertSearchResponse(response);
         StringTerms classes = response.getAggregations().get("class");
@@ -177,7 +177,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         @Override
         public List<SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>> getSignificanceHeuristics() {
             return singletonList(new SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>(SimpleHeuristic.NAME,
-                    SimpleHeuristic::new, (context) -> SimpleHeuristic.parse(context)));
+                    SimpleHeuristic::new, (parser) -> SimpleHeuristic.parse(parser)));
         }
 
         @Override
@@ -257,9 +257,9 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             return subsetFreq / subsetSize > supersetFreq / supersetSize ? 2.0 : 1.0;
         }
 
-        public static SignificanceHeuristic parse(QueryParseContext context)
+        public static SignificanceHeuristic parse(XContentParser parser)
                 throws IOException, QueryShardException {
-            context.parser().nextToken();
+            parser.nextToken();
             return new SimpleHeuristic();
         }
     }
@@ -268,23 +268,23 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         String type = randomBoolean() ? "text" : "long";
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         SharedSignificantTermsTestMethods.index01Docs(type, settings, this);
-        
+
         SearchRequestBuilder request;
         if ("text".equals(type) && randomBoolean() ) {
             // Use significant_text on text fields but occasionally run with alternative of
             // significant_terms on legacy fieldData=true too.
             request = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
                     .addAggregation(terms("class").field(CLASS_FIELD)
-                            .subAggregation(significantText("sig_terms", TEXT_FIELD)));            
+                            .subAggregation(significantText("sig_terms", TEXT_FIELD)));
         } else {
             request = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
                     .addAggregation(terms("class").field(CLASS_FIELD)
-                            .subAggregation(significantTerms("sig_terms").field(TEXT_FIELD)));            
+                            .subAggregation(significantTerms("sig_terms").field(TEXT_FIELD)));
         }
-        
+
         SearchResponse response = request.execute().actionGet();
-        
-        
+
+
         assertSearchResponse(response);
         StringTerms classes = response.getAggregations().get("class");
         assertThat(classes.getBuckets().size(), equalTo(2));
@@ -310,6 +310,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                 + "\"doc_count\":4,"
                 + "\"sig_terms\":{"
                 + "\"doc_count\":4,"
+                + "\"bg_count\":7,"
                 + "\"buckets\":["
                 + "{"
                 + "\"key\":" + (type.equals("long") ? "0," : "\"0\",")
@@ -325,6 +326,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                 + "\"doc_count\":3,"
                 + "\"sig_terms\":{"
                 + "\"doc_count\":3,"
+                + "\"bg_count\":7,"
                 + "\"buckets\":["
                 + "{"
                 + "\"key\":" + (type.equals("long") ? "1," : "\"1\",")
@@ -366,8 +368,8 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "1").setSource(TEXT_FIELD, text, CLASS_FIELD, "1"));
         }
         indexRandom(true, false, indexRequestBuilderList);
-        
-        
+
+
         SearchRequestBuilder request;
         if (randomBoolean() ) {
             request = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
@@ -377,7 +379,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                         .subAggregation(
                                 significantTerms("sig_terms")
                                         .field(TEXT_FIELD)
-                                        .minDocCount(1)));            
+                                        .minDocCount(1)));
         }else
         {
             request = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
@@ -386,9 +388,9 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                             .field(CLASS_FIELD)
                             .subAggregation(
                                     significantText("sig_terms", TEXT_FIELD)
-                                            .minDocCount(1)));            
+                                            .minDocCount(1)));
         }
-        
+
         request.execute().actionGet();
 
     }
@@ -407,7 +409,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     // 2. filter buckets and set the background to the other class and set is_background false
     // both should yield exact same result
     public void testBackgroundVsSeparateSet(SignificanceHeuristic significanceHeuristicExpectingSuperset,
-                                            SignificanceHeuristic significanceHeuristicExpectingSeparateSets, 
+                                            SignificanceHeuristic significanceHeuristicExpectingSeparateSets,
                                             String type) throws Exception {
 
         final boolean useSigText = randomBoolean() && type.equals("text");
@@ -420,7 +422,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                                     significantText("sig_terms", TEXT_FIELD)
                                             .minDocCount(1)
                                             .significanceHeuristic(
-                                                    significanceHeuristicExpectingSuperset)));            
+                                                    significanceHeuristicExpectingSuperset)));
         }else
         {
             request1 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
@@ -431,12 +433,12 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                                             .field(TEXT_FIELD)
                                             .minDocCount(1)
                                             .significanceHeuristic(
-                                                    significanceHeuristicExpectingSuperset)));                        
+                                                    significanceHeuristicExpectingSuperset)));
         }
-        
+
         SearchResponse response1 = request1.execute().actionGet();
         assertSearchResponse(response1);
-        
+
         SearchRequestBuilder request2;
         if (useSigText) {
             request2 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
@@ -449,7 +451,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                             .subAggregation(significantText("sig_terms", TEXT_FIELD)
                                     .minDocCount(1)
                                     .backgroundFilter(QueryBuilders.termQuery(CLASS_FIELD, "0"))
-                                    .significanceHeuristic(significanceHeuristicExpectingSeparateSets)));            
+                                    .significanceHeuristic(significanceHeuristicExpectingSeparateSets)));
         }else
         {
             request2 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
@@ -464,9 +466,9 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                                     .field(TEXT_FIELD)
                                     .minDocCount(1)
                                     .backgroundFilter(QueryBuilders.termQuery(CLASS_FIELD, "0"))
-                                    .significanceHeuristic(significanceHeuristicExpectingSeparateSets)));                        
+                                    .significanceHeuristic(significanceHeuristicExpectingSeparateSets)));
         }
-        
+
         SearchResponse response2 = request2.execute().actionGet();
 
         StringTerms classes = response1.getAggregations().get("class");
@@ -511,17 +513,17 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                             .field("text")
                             .executionHint(randomExecutionHint())
                             .significanceHeuristic(heuristic)
-                            .minDocCount(1).shardSize(1000).size(1000)));            
+                            .minDocCount(1).shardSize(1000).size(1000)));
         }else
         {
             request = client().prepareSearch("test")
                     .addAggregation(terms("class").field("class").subAggregation(significantText("mySignificantTerms", "text")
                             .significanceHeuristic(heuristic)
-                            .minDocCount(1).shardSize(1000).size(1000)));                        
-        }        
+                            .minDocCount(1).shardSize(1000).size(1000)));
+        }
         SearchResponse response = request.execute().actionGet();
-        assertSearchResponse(response);        
-        
+        assertSearchResponse(response);
+
         assertSearchResponse(response);
         StringTerms classes = response.getAggregations().get("class");
         assertThat(classes.getBuckets().size(), equalTo(2));
@@ -578,14 +580,14 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         String type = randomBoolean() ? "text" : "long";
         indexRandomFrequencies01(type);
         ScriptHeuristic scriptHeuristic = getScriptSignificanceHeuristic();
-        
+
         SearchRequestBuilder request;
         if ("text".equals(type) && randomBoolean()) {
             request = client().prepareSearch(INDEX_NAME)
                     .addAggregation(terms("class").field(CLASS_FIELD)
                             .subAggregation(significantText("mySignificantTerms", TEXT_FIELD)
                             .significanceHeuristic(scriptHeuristic)
-                            .minDocCount(1).shardSize(2).size(2)));            
+                            .minDocCount(1).shardSize(2).size(2)));
         }else
         {
             request = client().prepareSearch(INDEX_NAME)
@@ -594,10 +596,10 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                             .field(TEXT_FIELD)
                             .executionHint(randomExecutionHint())
                             .significanceHeuristic(scriptHeuristic)
-                            .minDocCount(1).shardSize(2).size(2)));                        
-        }        
+                            .minDocCount(1).shardSize(2).size(2)));
+        }
         SearchResponse response = request.execute().actionGet();
-        assertSearchResponse(response);           
+        assertSearchResponse(response);
         for (Terms.Bucket classBucket : ((Terms) response.getAggregations().get("class")).getBuckets()) {
             SignificantTerms sigTerms = classBucket.getAggregations().get("mySignificantTerms");
             for (SignificantTerms.Bucket bucket : sigTerms.getBuckets()) {
@@ -664,8 +666,8 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
         // Test that a request using a script does not get cached
         ScriptHeuristic scriptHeuristic = getScriptSignificanceHeuristic();
-        boolean useSigText = randomBoolean();        
-        SearchResponse r; 
+        boolean useSigText = randomBoolean();
+        SearchResponse r;
         if (useSigText) {
             r = client().prepareSearch("cache_test_idx").setSize(0)
                     .addAggregation(significantText("foo", "s").significanceHeuristic(scriptHeuristic)).get();
@@ -694,7 +696,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(1L));
     }
-    
-    
+
+
 
 }

@@ -27,6 +27,8 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -35,7 +37,8 @@ import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -55,7 +58,6 @@ import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -79,7 +81,7 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 /**
  * An immutable settings implementation.
  */
-public final class Settings implements ToXContent {
+public final class Settings implements ToXContentFragment {
 
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
@@ -219,7 +221,7 @@ public final class Settings implements ToXContent {
      */
     public Settings getByPrefix(String prefix) {
         return new Settings(new FilteredMap(this.settings, (k) -> k.startsWith(prefix), prefix), secureSettings == null ? null :
-            new PrefixedSecureSettings(secureSettings, s -> prefix + s, s -> s.startsWith(prefix)));
+            new PrefixedSecureSettings(secureSettings, prefix, s -> s.startsWith(prefix)));
     }
 
     /**
@@ -227,7 +229,7 @@ public final class Settings implements ToXContent {
      */
     public Settings filter(Predicate<String> predicate) {
         return new Settings(new FilteredMap(this.settings, predicate, null), secureSettings == null ? null :
-            new PrefixedSecureSettings(secureSettings, UnaryOperator.identity(), predicate));
+            new PrefixedSecureSettings(secureSettings, "", predicate));
     }
 
     /**
@@ -318,6 +320,15 @@ public final class Settings implements ToXContent {
         } catch (NumberFormatException e) {
             throw new SettingsException("Failed to parse long setting [" + setting + "] with value [" + sValue + "]", e);
         }
+    }
+
+    /**
+     * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
+     * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
+     * {@link Setting} object constructed in, for example, {@link org.elasticsearch.env.Environment}.
+     */
+    static class DeprecationLoggerHolder {
+        static DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(Settings.class));
     }
 
     /**
@@ -507,35 +518,21 @@ public final class Settings implements ToXContent {
     }
 
     private Map<String, Settings> getGroupsInternal(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
-        // we don't really care that it might happen twice
-        Map<String, Map<String, String>> map = new LinkedHashMap<>();
-        for (Object o : settings.keySet()) {
-            String setting = (String) o;
-            if (setting.startsWith(settingPrefix)) {
-                String nameValue = setting.substring(settingPrefix.length());
-                int dotIndex = nameValue.indexOf('.');
-                if (dotIndex == -1) {
-                    if (ignoreNonGrouped) {
-                        continue;
-                    }
-                    throw new SettingsException("Failed to get setting group for [" + settingPrefix + "] setting prefix and setting ["
-                            + setting + "] because of a missing '.'");
+        Settings prefixSettings = getByPrefix(settingPrefix);
+        Map<String, Settings> groups = new HashMap<>();
+        for (String groupName : prefixSettings.names()) {
+            Settings groupSettings = prefixSettings.getByPrefix(groupName + ".");
+            if (groupSettings.isEmpty()) {
+                if (ignoreNonGrouped) {
+                    continue;
                 }
-                String name = nameValue.substring(0, dotIndex);
-                String value = nameValue.substring(dotIndex + 1);
-                Map<String, String> groupSettings = map.get(name);
-                if (groupSettings == null) {
-                    groupSettings = new LinkedHashMap<>();
-                    map.put(name, groupSettings);
-                }
-                groupSettings.put(value, get(setting));
+                throw new SettingsException("Failed to get setting group for [" + settingPrefix + "] setting prefix and setting ["
+                    + settingPrefix + groupName + "] because of a missing '.'");
             }
+            groups.put(groupName, groupSettings);
         }
-        Map<String, Settings> retVal = new LinkedHashMap<>();
-        for (Map.Entry<String, Map<String, String>> entry : map.entrySet()) {
-            retVal.put(entry.getKey(), new Settings(Collections.unmodifiableMap(entry.getValue()), secureSettings));
-        }
-        return Collections.unmodifiableMap(retVal);
+
+        return Collections.unmodifiableMap(groups);
     }
     /**
      * Returns group settings for the given setting prefix.
@@ -624,8 +621,10 @@ public final class Settings implements ToXContent {
     }
 
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
-        out.writeVInt(settings.size());
-        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+        // pull getAsMap() to exclude secure settings in size()
+        Set<Map.Entry<String, String>> entries = settings.getAsMap().entrySet();
+        out.writeVInt(entries.size());
+        for (Map.Entry<String, String> entry : entries) {
             out.writeString(entry.getKey());
             out.writeOptionalString(entry.getValue());
         }
@@ -721,9 +720,18 @@ public final class Settings implements ToXContent {
             return map.get(key);
         }
 
+        /** Return the current secure settings, or {@code null} if none have been set. */
+        public SecureSettings getSecureSettings() {
+            return secureSettings.get();
+        }
+
         public Builder setSecureSettings(SecureSettings secureSettings) {
             if (secureSettings.isLoaded() == false) {
                 throw new IllegalStateException("Secure settings must already be loaded");
+            }
+            if (this.secureSettings.get() != null) {
+                throw new IllegalArgumentException("Secure settings already set. Existing settings: " +
+                    this.secureSettings.get().getSettingNames() + ", new settings: " + secureSettings.getSettingNames());
             }
             this.secureSettings.set(secureSettings);
             return this;
@@ -1276,13 +1284,15 @@ public final class Settings implements ToXContent {
 
     private static class PrefixedSecureSettings implements SecureSettings {
         private final SecureSettings delegate;
-        private final UnaryOperator<String> keyTransform;
+        private final UnaryOperator<String> addPrefix;
+        private final UnaryOperator<String> removePrefix;
         private final Predicate<String> keyPredicate;
         private final SetOnce<Set<String>> settingNames = new SetOnce<>();
 
-        PrefixedSecureSettings(SecureSettings delegate, UnaryOperator<String> keyTransform, Predicate<String> keyPredicate) {
+        PrefixedSecureSettings(SecureSettings delegate, String prefix, Predicate<String> keyPredicate) {
             this.delegate = delegate;
-            this.keyTransform = keyTransform;
+            this.addPrefix = s -> prefix + s;
+            this.removePrefix = s -> s.substring(prefix.length());
             this.keyPredicate = keyPredicate;
         }
 
@@ -1295,7 +1305,8 @@ public final class Settings implements ToXContent {
         public Set<String> getSettingNames() {
             synchronized (settingNames) {
                 if (settingNames.get() == null) {
-                    Set<String> names = delegate.getSettingNames().stream().filter(keyPredicate).collect(Collectors.toSet());
+                    Set<String> names = delegate.getSettingNames().stream()
+                        .filter(keyPredicate).map(removePrefix).collect(Collectors.toSet());
                     settingNames.set(Collections.unmodifiableSet(names));
                 }
             }
@@ -1304,12 +1315,12 @@ public final class Settings implements ToXContent {
 
         @Override
         public SecureString getString(String setting) throws GeneralSecurityException{
-            return delegate.getString(keyTransform.apply(setting));
+            return delegate.getString(addPrefix.apply(setting));
         }
 
         @Override
         public InputStream getFile(String setting) throws GeneralSecurityException{
-            return delegate.getFile(keyTransform.apply(setting));
+            return delegate.getFile(addPrefix.apply(setting));
         }
 
         @Override

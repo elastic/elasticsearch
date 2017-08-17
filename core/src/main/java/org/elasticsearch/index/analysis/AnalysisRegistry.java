@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -35,7 +34,6 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
-import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -43,7 +41,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -73,6 +70,7 @@ public final class AnalysisRegistry implements Closeable {
                             Map<String, AnalysisProvider<TokenizerFactory>> tokenizers,
                             Map<String, AnalysisProvider<AnalyzerProvider<?>>> analyzers,
                             Map<String, AnalysisProvider<AnalyzerProvider<?>>> normalizers,
+                            Map<String, PreConfiguredCharFilter> preConfiguredCharFilters,
                             Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters,
                             Map<String, PreConfiguredTokenizer> preConfiguredTokenizers) {
         this.environment = environment;
@@ -81,7 +79,7 @@ public final class AnalysisRegistry implements Closeable {
         this.tokenizers = unmodifiableMap(tokenizers);
         this.analyzers = unmodifiableMap(analyzers);
         this.normalizers = unmodifiableMap(normalizers);
-        prebuiltAnalysis = new PrebuiltAnalysis(preConfiguredTokenFilters, preConfiguredTokenizers);
+        prebuiltAnalysis = new PrebuiltAnalysis(preConfiguredCharFilters, preConfiguredTokenFilters, preConfiguredTokenizers);
     }
 
     /**
@@ -179,7 +177,7 @@ public final class AnalysisRegistry implements Closeable {
 
     public Map<String, CharFilterFactory> buildCharFilterFactories(IndexSettings indexSettings) throws IOException {
         final Map<String, Settings> charFiltersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_CHAR_FILTER);
-        return buildMapping(Component.CHAR_FILTER, indexSettings, charFiltersSettings, charFilters, prebuiltAnalysis.charFilterFactories);
+        return buildMapping(Component.CHAR_FILTER, indexSettings, charFiltersSettings, charFilters, prebuiltAnalysis.preConfiguredCharFilterFactories);
     }
 
     public Map<String, AnalyzerProvider<?>> buildAnalyzerFactories(IndexSettings indexSettings) throws IOException {
@@ -318,12 +316,12 @@ public final class AnalysisRegistry implements Closeable {
                 T factory = null;
                 if (typeName == null) {
                     if (currentSettings.get("tokenizer") != null) {
-                        factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings);
+                        factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings, environment);
                     } else {
                         throw new IllegalArgumentException(component + " [" + name + "] must specify either an analyzer type, or a tokenizer");
                     }
                 } else if (typeName.equals("custom")) {
-                    factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings);
+                    factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings, environment);
                 }
                 if (factory != null) {
                     factories.put(name, factory);
@@ -396,13 +394,13 @@ public final class AnalysisRegistry implements Closeable {
         final Map<String, AnalysisModule.AnalysisProvider<AnalyzerProvider<?>>> analyzerProviderFactories;
         final Map<String, ? extends AnalysisProvider<TokenFilterFactory>> preConfiguredTokenFilters;
         final Map<String, ? extends AnalysisProvider<TokenizerFactory>> preConfiguredTokenizers;
-        final Map<String, AnalysisModule.AnalysisProvider<CharFilterFactory>> charFilterFactories;
+        final Map<String, ? extends AnalysisProvider<CharFilterFactory>> preConfiguredCharFilterFactories;
 
         private PrebuiltAnalysis(
+                Map<String, PreConfiguredCharFilter> preConfiguredCharFilters,
                 Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters,
                 Map<String, PreConfiguredTokenizer> preConfiguredTokenizers) {
             Map<String, PreBuiltAnalyzerProviderFactory> analyzerProviderFactories = new HashMap<>();
-            Map<String, PreBuiltCharFilterFactoryFactory> charFilterFactories = new HashMap<>();
 
             // Analyzers
             for (PreBuiltAnalyzers preBuiltAnalyzerEnum : PreBuiltAnalyzers.values()) {
@@ -410,22 +408,14 @@ public final class AnalysisRegistry implements Closeable {
                 analyzerProviderFactories.put(name, new PreBuiltAnalyzerProviderFactory(name, AnalyzerScope.INDICES, preBuiltAnalyzerEnum.getAnalyzer(Version.CURRENT)));
             }
 
-            // Char Filters
-            for (PreBuiltCharFilters preBuiltCharFilter : PreBuiltCharFilters.values()) {
-                String name = preBuiltCharFilter.name().toLowerCase(Locale.ROOT);
-                charFilterFactories.put(name, new PreBuiltCharFilterFactoryFactory(preBuiltCharFilter.getCharFilterFactory(Version.CURRENT)));
-            }
-            // Char filter aliases
-            charFilterFactories.put("htmlStrip", new PreBuiltCharFilterFactoryFactory(PreBuiltCharFilters.HTML_STRIP.getCharFilterFactory(Version.CURRENT)));
-
             this.analyzerProviderFactories = Collections.unmodifiableMap(analyzerProviderFactories);
-            this.charFilterFactories = Collections.unmodifiableMap(charFilterFactories);
+            this.preConfiguredCharFilterFactories = preConfiguredCharFilters;
             this.preConfiguredTokenFilters = preConfiguredTokenFilters;
             this.preConfiguredTokenizers = preConfiguredTokenizers;
         }
 
         public AnalysisModule.AnalysisProvider<CharFilterFactory> getCharFilterFactory(String name) {
-            return charFilterFactories.get(name);
+            return preConfiguredCharFilterFactories.get(name);
         }
 
         public AnalysisModule.AnalysisProvider<TokenFilterFactory> getTokenFilterFactory(String name) {
@@ -474,7 +464,7 @@ public final class AnalysisRegistry implements Closeable {
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
             processNormalizerFactory(deprecationLogger, indexSettings, entry.getKey(), entry.getValue(), normalizers,
-                    tokenFilterFactoryFactories, charFilterFactoryFactories);
+                    tokenizerFactoryFactories.get("keyword"), tokenFilterFactoryFactories, charFilterFactoryFactories);
         }
         for (Map.Entry<String, NamedAnalyzer> entry : analyzerAliases.entrySet()) {
             String key = entry.getKey();
@@ -504,14 +494,8 @@ public final class AnalysisRegistry implements Closeable {
             throw new IllegalArgumentException("no default analyzer configured");
         }
         if (analyzers.containsKey("default_index")) {
-            final Version createdVersion = indexSettings.getIndexVersionCreated();
-            if (createdVersion.onOrAfter(Version.V_5_0_0_alpha1)) {
-                throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use [index.analysis.analyzer.default] instead for index [" + index.getName() + "]");
-            } else {
-                deprecationLogger.deprecated("setting [index.analysis.analyzer.default_index] is deprecated, use [index.analysis.analyzer.default] instead for index [{}]", index.getName());
-            }
+            throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use [index.analysis.analyzer.default] instead for index [" + index.getName() + "]");
         }
-        NamedAnalyzer defaultIndexAnalyzer = analyzers.containsKey("default_index") ? analyzers.get("default_index") : defaultAnalyzer;
         NamedAnalyzer defaultSearchAnalyzer = analyzers.containsKey("default_search") ? analyzers.get("default_search") : defaultAnalyzer;
         NamedAnalyzer defaultSearchQuoteAnalyzer = analyzers.containsKey("default_search_quote") ? analyzers.get("default_search_quote") : defaultSearchAnalyzer;
 
@@ -520,7 +504,7 @@ public final class AnalysisRegistry implements Closeable {
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
-        return new IndexAnalyzers(indexSettings, defaultIndexAnalyzer, defaultSearchAnalyzer, defaultSearchQuoteAnalyzer,
+        return new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultSearchAnalyzer, defaultSearchQuoteAnalyzer,
             unmodifiableMap(analyzers), unmodifiableMap(normalizers));
     }
 
@@ -571,20 +555,7 @@ public final class AnalysisRegistry implements Closeable {
         // TODO: remove alias support completely when we no longer support pre 5.0 indices
         final String analyzerAliasKey = "index.analysis.analyzer." + name + ".alias";
         if (indexSettings.getSettings().get(analyzerAliasKey) != null) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_0_0_beta1)) {
-                // do not allow alias creation if the index was created on or after v5.0 alpha6
-                throw new IllegalArgumentException("setting [" + analyzerAliasKey + "] is not supported");
-            }
-
-            // the setting is now removed but we only support it for loading indices created before v5.0
-            deprecationLogger.deprecated("setting [{}] is only allowed on index [{}] because it was created before 5.x; " +
-                "analyzer aliases can no longer be created on new indices.", analyzerAliasKey, indexSettings.getIndex().getName());
-            Set<String> aliases = Sets.newHashSet(indexSettings.getSettings().getAsArray(analyzerAliasKey));
-            for (String alias : aliases) {
-                if (analyzerAliases.putIfAbsent(alias, analyzer) != null) {
-                    throw new IllegalStateException("alias [" + alias + "] is already used by [" + analyzerAliases.get(alias).name() + "]");
-                }
-            }
+            throw new IllegalArgumentException("setting [" + analyzerAliasKey + "] is not supported");
         }
     }
 
@@ -593,10 +564,11 @@ public final class AnalysisRegistry implements Closeable {
             String name,
             AnalyzerProvider<?> normalizerFactory,
             Map<String, NamedAnalyzer> normalizers,
+            TokenizerFactory keywordTokenizerFactory,
             Map<String, TokenFilterFactory> tokenFilters,
             Map<String, CharFilterFactory> charFilters) {
         if (normalizerFactory instanceof CustomNormalizerProvider) {
-            ((CustomNormalizerProvider) normalizerFactory).build(name, charFilters, tokenFilters);
+            ((CustomNormalizerProvider) normalizerFactory).build(name, keywordTokenizerFactory, charFilters, tokenFilters);
         }
         Analyzer normalizerF = normalizerFactory.get();
         if (normalizerF == null) {

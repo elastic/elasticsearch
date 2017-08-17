@@ -9,13 +9,7 @@
 #JAVA_HOME=
 
 # Elasticsearch configuration directory
-#CONF_DIR=${path.conf}
-
-# Elasticsearch data directory
-#DATA_DIR=/var/lib/elasticsearch
-
-# Elasticsearch logs directory
-#LOG_DIR=/var/log/elasticsearch
+ES_PATH_CONF=${path.conf}
 
 # Elasticsearch PID directory
 #PID_DIR=/var/run/elasticsearch

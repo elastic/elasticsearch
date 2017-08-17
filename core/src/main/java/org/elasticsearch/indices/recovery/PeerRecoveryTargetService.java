@@ -48,7 +48,6 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryRef;
@@ -83,6 +82,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         public static final String PREPARE_TRANSLOG = "internal:index/shard/recovery/prepare_translog";
         public static final String FINALIZE = "internal:index/shard/recovery/finalize";
         public static final String WAIT_CLUSTERSTATE = "internal:index/shard/recovery/wait_clusterstate";
+        public static final String HANDOFF_PRIMARY_CONTEXT = "internal:index/shard/recovery/handoff_primary_context";
     }
 
     private final ThreadPool threadPool;
@@ -117,6 +117,11 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 FinalizeRecoveryRequestHandler());
         transportService.registerRequestHandler(Actions.WAIT_CLUSTERSTATE, RecoveryWaitForClusterStateRequest::new,
             ThreadPool.Names.GENERIC, new WaitForClusterStateRequestHandler());
+        transportService.registerRequestHandler(
+                Actions.HANDOFF_PRIMARY_CONTEXT,
+                RecoveryHandoffPrimaryContextRequest::new,
+                ThreadPool.Names.GENERIC,
+                new HandoffPrimaryContextRequestHandler());
     }
 
     @Override
@@ -351,6 +356,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation());
             final SeqNoStats seqNoStats = recoveryTarget.store().loadSeqNoStats(globalCheckpoint);
             if (seqNoStats.getMaxSeqNo() <= seqNoStats.getGlobalCheckpoint()) {
+                assert seqNoStats.getLocalCheckpoint() <= seqNoStats.getGlobalCheckpoint();
                 /*
                  * Commit point is good for sequence-number based recovery as the maximum sequence number included in it is below the global
                  * checkpoint (i.e., it excludes any operations that may not be on the primary). Recovery will start at the first operation
@@ -412,6 +418,18 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         }
     }
 
+    class HandoffPrimaryContextRequestHandler implements TransportRequestHandler<RecoveryHandoffPrimaryContextRequest> {
+
+        @Override
+        public void messageReceived(final RecoveryHandoffPrimaryContextRequest request, final TransportChannel channel) throws Exception {
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
+                recoveryRef.target().handoffPrimaryContext(request.primaryContext());
+            }
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        }
+
+    }
+
     class TranslogOperationsRequestHandler implements TransportRequestHandler<RecoveryTranslogOperationsRequest> {
 
         @Override
@@ -423,22 +441,10 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 try {
                     recoveryTarget.indexTranslogOperations(request.operations(), request.totalTranslogOps());
                     channel.sendResponse(new RecoveryTranslogOperationsResponse(recoveryTarget.indexShard().getLocalCheckpoint()));
-                } catch (TranslogRecoveryPerformer.BatchOperationException exception) {
-                    MapperException mapperException = (MapperException) ExceptionsHelper.unwrap(exception, MapperException.class);
-                    if (mapperException == null) {
-                        throw exception;
-                    }
+                } catch (MapperException exception) {
                     // in very rare cases a translog replay from primary is processed before a mapping update on this node
                     // which causes local mapping changes since the mapping (clusterstate) might not have arrived on this node.
-                    // we want to wait until these mappings are processed but also need to do some maintenance and roll back the
-                    // number of processed (completed) operations in this batch to ensure accounting is correct.
-                    logger.trace(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "delaying recovery due to missing mapping changes (rolling back stats for [{}] ops)",
-                            exception.completedOperations()),
-                        exception);
-                    final RecoveryState.Translog translog = recoveryTarget.state().getTranslog();
-                    translog.decrementRecoveredOperations(exception.completedOperations()); // do the maintainance and rollback competed ops
+                    logger.debug("delaying recovery due to missing mapping changes", exception);
                     // we do not need to use a timeout here since the entire recovery mechanism has an inactivity protection (it will be
                     // canceled)
                     observer.waitForNextChange(new ClusterStateObserver.Listener() {

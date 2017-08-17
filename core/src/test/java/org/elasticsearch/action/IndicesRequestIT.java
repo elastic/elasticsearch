@@ -66,6 +66,7 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.replication.TransportReplicationActionTests;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
@@ -86,7 +87,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -486,7 +486,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     public void testDeleteIndex() {
         interceptTransportActions(DeleteIndexAction.NAME);
 
-        String[] randomIndicesOrAliases = randomUniqueIndicesOrAliases();
+        String[] randomIndicesOrAliases = randomUniqueIndices();
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(randomIndicesOrAliases);
         assertAcked(internalCluster().coordOnlyNodeClient().admin().indices().delete(deleteIndexRequest).actionGet());
 
@@ -644,17 +644,22 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     private String[] randomUniqueIndicesOrAliases() {
-        Set<String> uniqueIndices = new HashSet<>();
-        int count = randomIntBetween(1, this.indices.size());
-        while (uniqueIndices.size() < count) {
-            uniqueIndices.add(randomFrom(this.indices));
-        }
-        String[] indices = new String[count];
+        String[] uniqueIndices = randomUniqueIndices();
+        String[] indices = new String[uniqueIndices.length];
         int i = 0;
         for (String index : uniqueIndices) {
             indices[i++] = randomBoolean() ? index + "-alias" : index;
         }
         return indices;
+    }
+
+    private String[] randomUniqueIndices() {
+        Set<String> uniqueIndices = new HashSet<>();
+        int count = randomIntBetween(1, this.indices.size());
+        while (uniqueIndices.size() < count) {
+            uniqueIndices.add(randomFrom(this.indices));
+        }
+        return uniqueIndices.toArray(new String[uniqueIndices.size()]);
     }
 
     private static void assertAllRequestsHaveBeenConsumed() {

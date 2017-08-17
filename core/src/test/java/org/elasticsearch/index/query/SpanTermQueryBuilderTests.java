@@ -133,7 +133,7 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
 
     public void testWithMetaDataField() throws IOException {
         QueryShardContext context = createShardContext();
-        for (String field : new String[]{"_type", "_all"}) {
+        for (String field : new String[]{"field1", "field2"}) {
             SpanTermQueryBuilder spanTermQueryBuilder = new SpanTermQueryBuilder(field, "toto");
             Query query = spanTermQueryBuilder.toQuery(context);
             Query expected = new SpanTermQuery(new Term(field, "toto"));

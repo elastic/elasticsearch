@@ -45,7 +45,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.template.CompiledTemplate;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -232,38 +231,21 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         String id = idOrCode;
 
-        // lang may be null when looking up a stored script, so we must get the
-        // source to retrieve the lang before checking if the context is supported
         if (type == ScriptType.STORED) {
-            // search template requests can possibly pass in the entire path instead
-            // of just an id for looking up a stored script, so we parse the path and
-            // check for appropriate errors
-            String[] path = id.split("/");
-
-            if (path.length == 3) {
-                if (lang != null && lang.equals(path[1]) == false) {
-                    throw new IllegalStateException("conflicting script languages, found [" + path[1] + "] but expected [" + lang + "]");
-                }
-
-                id = path[2];
-
-                deprecationLogger.deprecated("use of </lang/id> [" + idOrCode + "] for looking up" +
-                    " stored scripts/templates has been deprecated, use only <id> [" + id + "] instead");
-            } else if (path.length != 1) {
-                throw new IllegalArgumentException("illegal stored script format [" + id + "] use only <id>");
-            }
-
-            // a stored script must be pulled from the cluster state every time in case
+            // * lang and options will both be null when looking up a stored script,
+            // so we must get the source to retrieve the them before checking if the
+            // context is supported
+            // * a stored script must be pulled from the cluster state every time in case
             // the script has been updated since the last compilation
-            StoredScriptSource source = getScriptFromClusterState(id, lang);
+            StoredScriptSource source = getScriptFromClusterState(id);
             lang = source.getLang();
-            idOrCode = source.getCode();
+            idOrCode = source.getSource();
             options = source.getOptions();
         }
 
         // TODO: fix this through some API or something, that's wrong
         // special exception to prevent expressions from compiling as update or mapping scripts
-        boolean expression = "expression".equals(script.getLang());
+        boolean expression = "expression".equals(lang);
         boolean notSupported = context.name.equals(ExecutableScript.UPDATE_CONTEXT.name);
         if (expression && notSupported) {
             throw new UnsupportedOperationException("scripts of type [" + script.getType() + "]," +
@@ -304,7 +286,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 try {
                     // Either an un-cached inline script or indexed script
                     // If the script type is inline the name will be the same as the code for identification in exceptions
-
                     // but give the script engine the chance to be better, give it separate name + source code
                     // for the inline case, then its anonymous: null.
                     if (logger.isTraceEnabled()) {
@@ -328,12 +309,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
             return context.factoryClazz.cast(compiledScript);
         }
-    }
-
-    /** Compiles a template. Note this will be moved to a separate TemplateService in the future. */
-    public CompiledTemplate compileTemplate(Script script, ScriptContext<ExecutableScript.Factory> scriptContext) {
-        ExecutableScript.Factory factory = compile(script, scriptContext);
-        return params -> (String) factory.newInstance(params).run();
     }
 
     /**
@@ -385,23 +360,17 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return contextsAllowed == null || contextsAllowed.isEmpty() == false;
     }
 
-    StoredScriptSource getScriptFromClusterState(String id, String lang) {
-        if (lang != null && isLangSupported(lang) == false) {
-            throw new IllegalArgumentException("unable to get stored script with unsupported lang [" + lang + "]");
-        }
-
+    StoredScriptSource getScriptFromClusterState(String id) {
         ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
 
         if (scriptMetadata == null) {
-            throw new ResourceNotFoundException("unable to find script [" + id + "]" +
-                (lang == null ? "" : " using lang [" + lang + "]") + " in cluster state");
+            throw new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
         }
 
-        StoredScriptSource source = scriptMetadata.getStoredScript(id, lang);
+        StoredScriptSource source = scriptMetadata.getStoredScript(id);
 
         if (source == null) {
-            throw new ResourceNotFoundException("unable to find script [" + id + "]" +
-                (lang == null ? "" : " using lang [" + lang + "]") + " in cluster state");
+            throw new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
         }
 
         return source;
@@ -416,7 +385,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 request.content().length() + "] for script [" + request.id() + "]");
         }
 
-        StoredScriptSource source = StoredScriptSource.parse(request.lang(), request.content(), request.xContentType());
+        StoredScriptSource source = request.source();
 
         if (isLangSupported(source.getLang()) == false) {
             throw new IllegalArgumentException("unable to put stored script with unsupported lang [" + source.getLang() + "]");
@@ -431,14 +400,12 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             } else if (isAnyContextEnabled() == false) {
                 throw new IllegalArgumentException(
                     "cannot put [" + ScriptType.STORED + "] script, no script contexts are enabled");
-            } else {
-                // TODO: executable context here is just a placeholder, replace with optional context name passed into PUT stored script req
-                Object compiled = scriptEngine.compile(request.id(), source.getCode(), ExecutableScript.CONTEXT, Collections.emptyMap());
-
-                if (compiled == null) {
-                    throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]" +
-                        (source.getCode() == null ? "" : " using code [" + source.getCode() + "]"));
+            } else if (request.context() != null) {
+                ScriptContext<?> context = contexts.get(request.context());
+                if (context == null) {
+                    throw new IllegalArgumentException("Unknown context [" + request.context() + "]");
                 }
+                scriptEngine.compile(request.id(), source.getSource(), context, Collections.emptyMap());
             }
         } catch (ScriptException good) {
             throw good;
@@ -467,10 +434,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     public void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request,
                                    ActionListener<DeleteStoredScriptResponse> listener) {
-        if (request.lang() != null && isLangSupported(request.lang()) == false) {
-            throw new IllegalArgumentException("unable to delete stored script with unsupported lang [" + request.lang() +"]");
-        }
-
         clusterService.submitStateUpdateTask("delete-script-" + request.id(),
             new AckedClusterStateUpdateTask<DeleteStoredScriptResponse>(request, listener) {
 
@@ -482,7 +445,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 ScriptMetaData smd = currentState.metaData().custom(ScriptMetaData.TYPE);
-                smd = ScriptMetaData.deleteStoredScript(smd, request.id(), request.lang());
+                smd = ScriptMetaData.deleteStoredScript(smd, request.id());
                 MetaData.Builder mdb = MetaData.builder(currentState.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
 
                 return ClusterState.builder(currentState).metaData(mdb).build();
@@ -494,7 +457,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);
 
         if (scriptMetadata != null) {
-            return scriptMetadata.getStoredScript(request.id(), request.lang());
+            return scriptMetadata.getStoredScript(request.id());
         } else {
             return null;
         }

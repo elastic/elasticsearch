@@ -23,7 +23,6 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.http.HttpHost;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
@@ -64,6 +63,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.http.HttpHost;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -97,8 +97,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -128,6 +126,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -135,7 +134,6 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.AssertingTransportInterceptor;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -410,11 +408,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 randomSettingsBuilder.put("index.codec", CodecService.LUCENE_DEFAULT_CODEC);
             }
 
-            XContentBuilder mappings = null;
-            if (frequently() && randomDynamicTemplates()) {
-                mappings = XContentFactory.jsonBuilder().startObject().startObject("_default_").endObject().endObject();
-            }
-
             for (String setting : randomSettingsBuilder.internalMap().keySet()) {
                 assertThat("non index. prefix setting set on index template, its a node setting...", setting, startsWith("index."));
             }
@@ -435,10 +428,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 .setPatterns(Collections.singletonList("*"))
                 .setOrder(0)
                 .setSettings(randomSettingsBuilder);
-            if (mappings != null) {
-                logger.info("test using _default_ mappings: [{}]", mappings.bytes().utf8ToString());
-                putTemplate.addMapping("_default_", mappings);
-            }
             assertAcked(putTemplate.execute().actionGet());
         }
     }
@@ -1080,7 +1069,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Prints current memory stats as info logging.
      */
     public void logMemoryStats() {
-        logger.info("memory: {}", XContentHelper.toString(client().admin().cluster().prepareNodesStats().clear().setJvm(true).get()));
+        logger.info("memory: {}", Strings.toString(client().admin().cluster().prepareNodesStats().clear().setJvm(true).get(), true, true));
     }
 
     protected void ensureClusterSizeConsistency() {
@@ -1095,14 +1084,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected void ensureClusterStateConsistency() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
-            final NamedWriteableRegistry namedWriteableRegistry;
-            if (isInternalCluster()) {
-                // If it's internal cluster - using existing registry in case plugin registered custom data
-                namedWriteableRegistry = internalCluster().getInstance(NamedWriteableRegistry.class);
-            } else {
-                // If it's external cluster - fall back to the standard set
-                namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-            }
+            final NamedWriteableRegistry namedWriteableRegistry = cluster().getNamedWriteableRegistry();
             ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
             byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
             // remove local node reference
@@ -1591,11 +1573,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
          * ratio in the interval <code>[0..1]</code> is used.
          */
         double transportClientRatio() default -1;
-
-        /**
-         * Return whether or not to enable dynamic templates for the mappings.
-         */
-        boolean randomDynamicTemplates() default true;
     }
 
     private class LatchedActionListener<Response> implements ActionListener<Response> {
@@ -1702,11 +1679,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return annotation == null ? InternalTestCluster.DEFAULT_NUM_CLIENT_NODES : annotation.numClientNodes();
     }
 
-    private boolean randomDynamicTemplates() {
-        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
-        return annotation == null || annotation.randomDynamicTemplates();
-    }
-
     /**
      * This method is used to obtain settings for the <tt>Nth</tt> node in the cluster.
      * Nodes in this cluster are associated with an ordinal number such that nodes can
@@ -1721,14 +1693,27 @@ public abstract class ESIntegTestCase extends ESTestCase {
             // from failing on nodes without enough disk space
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1b")
             .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 2048)
             // by default we never cache below 10k docs in a segment,
             // bypass this limit so that caching gets some testing in
             // integration tests that usually create few documents
             .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), nodeOrdinal % 2 == 0)
             // wait short time for other active shards before actually deleting, default 30s not needed in tests
-            .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(1, TimeUnit.SECONDS));
+            .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(1, TimeUnit.SECONDS))
+            // randomly enable low-level search cancellation to make sure it does not alter results
+            .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), randomBoolean());
+        if (rarely()) {
+            // Sometimes adjust the minimum search thread pool size, causing
+            // QueueResizingEsThreadPoolExecutor to be used instead of a regular
+            // fixed thread pool
+            builder.put("thread_pool.search.min_queue_size", 100);
+        }
         return builder.build();
+    }
+
+    protected Path nodeConfigPath(int nodeOrdinal) {
+        return null;
     }
 
     /**
@@ -1813,8 +1798,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             ArrayList<Class<? extends Plugin>> mocks = new ArrayList<>(mockPlugins);
             // add both mock plugins - local and tcp if they are not there
             // we do this in case somebody overrides getMockPlugins and misses to call super
-            if (mockPlugins.contains(MockTcpTransportPlugin.class) == false) {
-                mocks.add(MockTcpTransportPlugin.class);
+            if (mockPlugins.contains(getTestTransportPlugin()) == false) {
+                mocks.add(getTestTransportPlugin());
             }
             mockPlugins = mocks;
         }
@@ -1827,7 +1812,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected NodeConfigurationSource getNodeConfigSource() {
         Settings.Builder networkSettings = Settings.builder();
         if (addMockTransportService()) {
-            networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
+            networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
         }
 
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
@@ -1835,8 +1820,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder()
                     .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                    .put(networkSettings.build()).
-                        put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
+                    .put(networkSettings.build())
+                    .put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
+            }
+
+            @Override
+            public Path nodeConfigPath(int nodeOrdinal) {
+                return ESIntegTestCase.this.nodeConfigPath(nodeOrdinal);
             }
 
             @Override
@@ -1853,9 +1843,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             @Override
             public Collection<Class<? extends Plugin>> transportClientPlugins() {
                 Collection<Class<? extends Plugin>> plugins = ESIntegTestCase.this.transportClientPlugins();
-                if (plugins.contains(MockTcpTransportPlugin.class) == false) {
+                if (plugins.contains(getTestTransportPlugin()) == false) {
                     plugins = new ArrayList<>(plugins);
-                    plugins.add(MockTcpTransportPlugin.class);
+                    plugins.add(getTestTransportPlugin());
                 }
                 return Collections.unmodifiableCollection(plugins);
             }
@@ -1865,9 +1855,17 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /**
      * Iff this returns true mock transport implementations are used for the test runs. Otherwise not mock transport impls are used.
-     * The defautl is <tt>true</tt>
+     * The default is <tt>true</tt>
      */
     protected boolean addMockTransportService() {
+        return true;
+    }
+
+    /**
+     * Iff this returns true test zen discovery implementations is used for the test runs.
+     * The default is <tt>true</tt>
+     */
+    protected boolean addTestZenDiscovery() {
         return true;
     }
 
@@ -1905,10 +1903,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
 
         if (addMockTransportService()) {
-            mocks.add(MockTcpTransportPlugin.class);
+            mocks.add(getTestTransportPlugin());
         }
 
-        mocks.add(TestZenDiscovery.TestPlugin.class);
+        if (addTestZenDiscovery()) {
+            mocks.add(TestZenDiscovery.TestPlugin.class);
+        }
         mocks.add(TestSeedPlugin.class);
         return Collections.unmodifiableList(mocks);
     }
@@ -2153,10 +2153,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .put(settings)
             .put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath());
 
-        Path configDir = indexDir.resolve("config");
-        if (Files.exists(configDir)) {
-            builder.put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath());
-        }
         return builder.build();
     }
 
@@ -2189,9 +2185,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected static RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
-        final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
-        final List<NodeInfo> nodes = nodeInfos.getNodes();
-        assertFalse(nodeInfos.hasFailures());
+        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
+        assertFalse(nodesInfoResponse.hasFailures());
+        return createRestClient(nodesInfoResponse.getNodes(), httpClientConfigCallback, protocol);
+    }
+
+    protected static RestClient createRestClient(final List<NodeInfo> nodes,
+                                                 RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
         List<HttpHost> hosts = new ArrayList<>();
         for (NodeInfo node : nodes) {
             if (node.getHttp() != null) {

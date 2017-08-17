@@ -55,6 +55,11 @@ directory.  Instead, mappings should be created using the API with:
 * <<indices-put-mapping>>
 * <<indices-templates>>
 
+[role="exclude",id="mapping-parent-field"]
+=== `_parent` field
+
+The `_parent` field has been removed in favour of the <<parent-join,`join` field>>.
+
 [role="exclude",id="modules-memcached"]
 === memcached
 
@@ -366,6 +371,7 @@ the following:
 
 [source,js]
 -------------------------
+## INCORRECT - DEPRECATED SYNTAX, DO NOT USE
 GET _search
 {
   "query": {
@@ -465,7 +471,7 @@ index that make warmers not necessary anymore.
 The index time boost mapping has been replaced with query time boost (see <<mapping-boost>>).
 
 [role="exclude",id="modules-scripting-native"]
-=== Native scripting 
+=== Native scripting
 
 Native scripts have been replaced with writing custom `ScriptEngine` backends (see <<modules-scripting-engine>>).
 
@@ -478,17 +484,17 @@ Using `_index` in scripts has been replaced with writing `ScriptEngine` backends
 === Painless Syntax
 
 See the
-{painless-ref}/painless-language-spec.html[Painless Language Specification]
-in the guide to the {painless-ref}/index.html[Painless Scripting Language].
+{painless}/painless-specification.html[Painless Language Specification]
+in the guide to the {painless}/index.html[Painless Scripting Language].
 
 [role="exclude",id="modules-scripting-painless-debugging"]
 === Painless Debugging
 
-See {painless-ref}/painless-debugging.html[Painless Debugging] in the
-guide to the {painless-ref}/index.html[Painless Scripting Language].
+See {painless}/painless-debugging.html[Painless Debugging] in the
+guide to the {painless}/index.html[Painless Scripting Language].
 
 [role="exclude",id="painless-api-reference"]
 === Painless API Reference
 
-See the {painless-ref}/painless-api-reference.html[Painless API Reference] in
-the guide to the {painless-ref}/index.html[Painless Scripting Language].
+See the {painless}/painless-api-reference.html[Painless API Reference] in
+the guide to the {painless}/index.html[Painless Scripting Language].

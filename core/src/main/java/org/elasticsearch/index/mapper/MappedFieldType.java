@@ -20,14 +20,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.PrefixCodedTerms;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -37,7 +34,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
@@ -102,8 +98,10 @@ public abstract class MappedFieldType extends FieldType {
      *  @throws IllegalArgumentException if the fielddata is not supported on this type.
      *  An IllegalArgumentException is needed in order to return an http error 400
      *  when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
-     **/
-    public IndexFieldData.Builder fielddataBuilder() {
+     *
+     * @param fullyQualifiedIndexName the name of the index this field-data is build for
+     * */
+    public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
 
@@ -326,7 +324,7 @@ public abstract class MappedFieldType extends FieldType {
      */
     public boolean isAggregatable() {
         try {
-            fielddataBuilder();
+            fielddataBuilder("");
             return true;
         } catch (IllegalArgumentException e) {
             return false;
@@ -371,26 +369,6 @@ public abstract class MappedFieldType extends FieldType {
             return null;
         }
         return new ConstantScoreQuery(termQuery(nullValue, null));
-    }
-
-    /**
-     * @return a {@link FieldStats} instance that maps to the type of this
-     * field or {@code null} if the provided index has no stats about the
-     * current field
-     */
-    public FieldStats stats(IndexReader reader) throws IOException {
-        int maxDoc = reader.maxDoc();
-        FieldInfo fi = MultiFields.getMergedFieldInfos(reader).fieldInfo(name());
-        if (fi == null) {
-            return null;
-        }
-        Terms terms = MultiFields.getTerms(reader, name());
-        if (terms == null) {
-            return new FieldStats.Text(maxDoc, 0, -1, -1, isSearchable(), isAggregatable());
-        }
-        FieldStats stats = new FieldStats.Text(maxDoc, terms.getDocCount(),
-            terms.getSumDocFreq(), terms.getSumTotalTermFreq(), isSearchable(), isAggregatable(), terms.getMin(), terms.getMax());
-        return stats;
     }
 
     /**

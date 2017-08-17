@@ -23,14 +23,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -38,13 +35,11 @@ import java.util.Set;
 
 public class SignificantLongTermsTests extends InternalSignificantTermsTestCase {
 
-    private SignificanceHeuristic significanceHeuristic;
     private DocValueFormat format;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        significanceHeuristic = randomSignificanceHeuristic();
         format = randomNumericDocValueFormat();
     }
 
@@ -52,30 +47,20 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
     protected InternalSignificantTerms createTestInstance(String name,
                                                           List<PipelineAggregator> pipelineAggregators,
                                                           Map<String, Object> metaData,
-                                                          InternalAggregations aggregations) {
-        int requiredSize = randomIntBetween(1, 5);
-        int shardSize = requiredSize + 2;
-        final int numBuckets = randomInt(shardSize);
-
-        long globalSubsetSize = 0;
-        long globalSupersetSize = 0;
+                                                          InternalAggregations aggs,
+                                                          int requiredSize, int numBuckets,
+                                                          long subsetSize, int[] subsetDfs,
+                                                          long supersetSize, int[] supersetDfs,
+                                                          SignificanceHeuristic significanceHeuristic) {
 
         List<SignificantLongTerms.Bucket> buckets = new ArrayList<>(numBuckets);
         Set<Long> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
             long term = randomValueOtherThanMany(l -> terms.add(l) == false, random()::nextLong);
-
-            int subsetDf = randomIntBetween(1, 10);
-            int supersetDf = randomIntBetween(subsetDf, 20);
-            int supersetSize = randomIntBetween(supersetDf, 30);
-
-            globalSubsetSize += subsetDf;
-            globalSupersetSize += supersetSize;
-
-            buckets.add(new SignificantLongTerms.Bucket(subsetDf, subsetDf, supersetDf, supersetSize, term, aggregations, format));
+            buckets.add(new SignificantLongTerms.Bucket(subsetDfs[i], subsetSize, supersetDfs[i], supersetSize, term, aggs, format));
         }
-        return new SignificantLongTerms(name, requiredSize, 1L, pipelineAggregators, metaData, format, globalSubsetSize,
-                globalSupersetSize, significanceHeuristic, buckets);
+        return new SignificantLongTerms(name, requiredSize, 1L, pipelineAggregators, metaData, format, subsetSize,
+                supersetSize, significanceHeuristic, buckets);
     }
 
     @Override
@@ -88,11 +73,82 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
         return ParsedSignificantLongTerms.class;
     }
 
-    private static SignificanceHeuristic randomSignificanceHeuristic() {
-        return randomFrom(
-                new JLHScore(),
-                new MutualInformation(randomBoolean(), randomBoolean()),
-                new GND(randomBoolean()),
-                new ChiSquare(randomBoolean(), randomBoolean()));
+    @Override
+    protected InternalSignificantTerms<?, ?> mutateInstance(InternalSignificantTerms<?, ?> instance) {
+        if (instance instanceof SignificantLongTerms) {
+            SignificantLongTerms longTerms = (SignificantLongTerms) instance;
+            String name = longTerms.getName();
+            int requiredSize = longTerms.requiredSize;
+            long minDocCount = longTerms.minDocCount;
+            DocValueFormat format = longTerms.format;
+            long subsetSize = longTerms.getSubsetSize();
+            long supersetSize = longTerms.getSupersetSize();
+            List<SignificantLongTerms.Bucket> buckets = longTerms.getBuckets();
+            SignificanceHeuristic significanceHeuristic = longTerms.significanceHeuristic;
+            List<PipelineAggregator> pipelineAggregators = longTerms.pipelineAggregators();
+            Map<String, Object> metaData = longTerms.getMetaData();
+            switch (between(0, 5)) {
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                requiredSize += between(1, 100);
+                break;
+            case 2:
+                minDocCount += between(1, 100);
+                break;
+            case 3:
+                subsetSize += between(1, 100);
+                break;
+            case 4:
+                supersetSize += between(1, 100);
+                break;
+            case 5:
+                buckets = new ArrayList<>(buckets);
+                buckets.add(new SignificantLongTerms.Bucket(randomLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        randomNonNegativeLong(), randomNonNegativeLong(), InternalAggregations.EMPTY, format));
+                break;
+            case 8:
+                if (metaData == null) {
+                    metaData = new HashMap<>(1);
+                } else {
+                    metaData = new HashMap<>(instance.getMetaData());
+                }
+                metaData.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
+            }
+            return new SignificantLongTerms(name, requiredSize, minDocCount, pipelineAggregators, metaData, format, subsetSize,
+                    supersetSize, significanceHeuristic, buckets);
+        } else {
+            String name = instance.getName();
+            int requiredSize = instance.requiredSize;
+            long minDocCount = instance.minDocCount;
+            List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+            Map<String, Object> metaData = instance.getMetaData();
+            switch (between(0, 3)) {
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                requiredSize += between(1, 100);
+                break;
+            case 2:
+                minDocCount += between(1, 100);
+                break;
+            case 3:
+                if (metaData == null) {
+                    metaData = new HashMap<>(1);
+                } else {
+                    metaData = new HashMap<>(instance.getMetaData());
+                }
+                metaData.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
+            }
+            return new UnmappedSignificantTerms(name, requiredSize, minDocCount, pipelineAggregators, metaData);
+        }
     }
 }

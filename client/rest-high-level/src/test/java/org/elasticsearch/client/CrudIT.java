@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -580,7 +580,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
         BulkResponse bulkResponse = execute(bulkRequest, highLevelClient()::bulk, highLevelClient()::bulkAsync);
         assertEquals(RestStatus.OK, bulkResponse.status());
-        assertTrue(bulkResponse.getTookInMillis() > 0);
+        assertTrue(bulkResponse.getTook().getMillis() > 0);
         assertEquals(nbItems, bulkResponse.getItems().length);
 
         validateBulkResponses(nbItems, errors, bulkResponse, bulkRequest);
@@ -671,7 +671,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         BulkRequest bulkRequest = requestRef.get();
 
         assertEquals(RestStatus.OK, bulkResponse.status());
-        assertTrue(bulkResponse.getTookInMillis() > 0);
+        assertTrue(bulkResponse.getTook().getMillis() > 0);
         assertEquals(nbItems, bulkResponse.getItems().length);
         assertNull(error.get());
 

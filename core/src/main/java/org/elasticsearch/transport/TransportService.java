@@ -203,8 +203,6 @@ public class TransportService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        adapter.rxMetric.clear();
-        adapter.txMetric.clear();
         transport.transportServiceAdapter(adapter);
         transport.start();
 
@@ -292,8 +290,7 @@ public class TransportService extends AbstractLifecycleComponent {
     }
 
     public TransportStats stats() {
-        return new TransportStats(
-            transport.serverOpen(), adapter.rxMetric.count(), adapter.rxMetric.sum(), adapter.txMetric.count(), adapter.txMetric.sum());
+        return transport.getStats();
     }
 
     public BoundTransportAddress boundAddress() {
@@ -527,6 +524,19 @@ public class TransportService extends AbstractLifecycleComponent {
         }
     }
 
+    public final <T extends TransportResponse> void sendChildRequest(final DiscoveryNode node, final String action,
+                                                                     final TransportRequest request, final Task parentTask,
+                                                                     final TransportRequestOptions options,
+                                                                     final TransportResponseHandler<T> handler) {
+        try {
+            Transport.Connection connection = getConnection(node);
+            sendChildRequest(connection, action, request, parentTask, options, handler);
+        } catch (NodeNotConnectedException ex) {
+            // the caller might not handle this so we invoke the handler
+            handler.handleException(ex);
+        }
+    }
+
     public <T extends TransportResponse> void sendChildRequest(final Transport.Connection connection, final String action,
                                                                final TransportRequest request, final Task parentTask,
                                                                final TransportResponseHandler<T> handler) {
@@ -737,19 +747,6 @@ public class TransportService extends AbstractLifecycleComponent {
     }
 
     protected class Adapter implements TransportServiceAdapter {
-
-        final MeanMetric rxMetric = new MeanMetric();
-        final MeanMetric txMetric = new MeanMetric();
-
-        @Override
-        public void addBytesReceived(long size) {
-            rxMetric.inc(size);
-        }
-
-        @Override
-        public void addBytesSent(long size) {
-            txMetric.inc(size);
-        }
 
         @Override
         public void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request,

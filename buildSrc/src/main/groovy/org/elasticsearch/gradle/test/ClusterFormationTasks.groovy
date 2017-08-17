@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.test
 import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
@@ -54,14 +55,24 @@ class ClusterFormationTasks {
      */
     static List<NodeInfo> setup(Project project, String prefix, Task runner, ClusterConfiguration config) {
         File sharedDir = new File(project.buildDir, "cluster/shared")
-        // first we remove everything in the shared cluster directory to ensure there are no leftovers in repos or anything
-        // in theory this should not be necessary but repositories are only deleted in the cluster-state and not on-disk
-        // such that snapshots survive failures / test runs and there is no simple way today to fix that.
-        Task cleanup = project.tasks.create(name: "${prefix}#prepareCluster.cleanShared", type: Delete, dependsOn: config.dependencies) {
-            delete sharedDir
-            doLast {
-                sharedDir.mkdirs()
-            }
+        Object startDependencies = config.dependencies
+        /* First, if we want a clean environment, we remove everything in the
+         * shared cluster directory to ensure there are no leftovers in repos
+         * or anything in theory this should not be necessary but repositories
+         * are only deleted in the cluster-state and not on-disk such that
+         * snapshots survive failures / test runs and there is no simple way
+         * today to fix that. */
+        if (config.cleanShared) {
+          Task cleanup = project.tasks.create(
+            name: "${prefix}#prepareCluster.cleanShared",
+            type: Delete,
+            dependsOn: startDependencies) {
+              delete sharedDir
+              doLast {
+                  sharedDir.mkdirs()
+              }
+          }
+          startDependencies = cleanup
         }
         List<Task> startTasks = []
         List<NodeInfo> nodes = []
@@ -103,7 +114,7 @@ class ClusterFormationTasks {
             }
             NodeInfo node = new NodeInfo(config, i, project, prefix, elasticsearchVersion, sharedDir)
             nodes.add(node)
-            Task dependsOn = startTasks.empty ? cleanup : startTasks.get(0)
+            Object dependsOn = startTasks.empty ? startDependencies : startTasks.get(0)
             startTasks.add(configureNode(project, prefix, runner, dependsOn, node, config, distro, nodes.get(0)))
         }
 
@@ -302,6 +313,11 @@ class ClusterFormationTasks {
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
         esConfig['cluster.routing.allocation.disk.watermark.low'] = '1b'
         esConfig['cluster.routing.allocation.disk.watermark.high'] = '1b'
+        if (Version.fromString(node.nodeVersion).major >= 6) {
+            esConfig['cluster.routing.allocation.disk.watermark.flood_stage'] = '1b'
+        }
+        // increase script compilation limit since tests can rapid-fire script compilations
+        esConfig['script.max_compilations_per_minute'] = 2048
         esConfig.putAll(node.config.settings)
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
@@ -310,7 +326,7 @@ class ClusterFormationTasks {
             if (unicastTransportUri != null) {
                 esConfig['discovery.zen.ping.unicast.hosts'] = "\"${unicastTransportUri}\""
             }
-            File configFile = new File(node.confDir, 'elasticsearch.yml')
+            File configFile = new File(node.pathConf, 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")
             configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')
         }
@@ -335,8 +351,9 @@ class ClusterFormationTasks {
             String key = entry.getKey()
             String name = taskName(parent, node, 'addToKeystore#' + key)
             Task t = configureExecTask(name, project, parentTask, node, esKeystoreUtil, 'add', key, '-x')
+            String settingsValue = entry.getValue() // eval this early otherwise it will not use the right value
             t.doFirst {
-                standardInput = new ByteArrayInputStream(entry.getValue().getBytes(StandardCharsets.UTF_8))
+                standardInput = new ByteArrayInputStream(settingsValue.getBytes(StandardCharsets.UTF_8))
             }
             parentTask = t
         }

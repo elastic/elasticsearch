@@ -1,7 +1,7 @@
 [[analysis-synonym-graph-tokenfilter]]
 === Synonym Graph Token Filter
 
-experimental[]
+experimental[This functionality is marked as experimental in Lucene]
 
 The `synonym_graph` token filter allows to easily handle synonyms,
 including multi-word synonyms correctly during the analysis process.
@@ -50,11 +50,14 @@ PUT /test_index
 The above configures a `search_synonyms` filter, with a path of
 `analysis/synonym.txt` (relative to the `config` location). The
 `search_synonyms` analyzer is then configured with the filter.
-Additional settings are: `ignore_case` (defaults to `false`), and
-`expand` (defaults to `true`).
+Additional settings are: `expand` (defaults to `true`).
+
+[float]
+==== `tokenizer` and `ignore_case` are deprecated
 
 The `tokenizer` parameter controls the tokenizers that will be used to
-tokenize the synonym, and defaults to the `whitespace` tokenizer.
+tokenize the synonym, this parameter is for backwards compatibility for indices that created before 6.0..
+The `ignore_case` parameter works with `tokenizer` parameter only.
 
 Two synonym formats are supported: Solr, WordNet.
 
@@ -65,7 +68,7 @@ The following is a sample format of the file:
 
 [source,synonyms]
 --------------------------------------------------
-include::{docdir}/../src/test/cluster/config/analysis/synonym.txt[]
+include::{es-test-dir}/cluster/config/analysis/synonym.txt[]
 --------------------------------------------------
 
 You can also define synonyms for the filter directly in the

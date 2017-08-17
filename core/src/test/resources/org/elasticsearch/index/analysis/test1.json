@@ -17,10 +17,6 @@
                 },
                 "my":{
                     "type":"myfilter"
-                },
-                "dict_dec":{
-                    "type":"dictionary_decompounder",
-                    "word_list":["donau", "dampf", "schiff", "spargel", "creme", "suppe"]
                 }
             },
             "analyzer":{
@@ -39,14 +35,6 @@
                 "custom6":{
                     "tokenizer":"standard",
                     "position_increment_gap": 256
-                },
-                "czechAnalyzerWithStemmer":{
-                    "tokenizer":"standard",
-                    "filter":["standard", "lowercase", "stop", "czech_stem"]
-                },
-                "decompoundingAnalyzer":{
-                    "tokenizer":"standard",
-                    "filter":["dict_dec"]
                 }
             }
         }

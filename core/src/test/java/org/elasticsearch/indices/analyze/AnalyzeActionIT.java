@@ -26,7 +26,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.core.IsNull;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -91,16 +93,16 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
         assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("this is a test"));
 
-        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("standard").addTokenFilter("lowercase").addTokenFilter("reverse").get();
+        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("standard").addTokenFilter("lowercase").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(4));
         AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
-        assertThat(token.getTerm(), equalTo("siht"));
+        assertThat(token.getTerm(), equalTo("this"));
         token = analyzeResponse.getTokens().get(1);
-        assertThat(token.getTerm(), equalTo("si"));
+        assertThat(token.getTerm(), equalTo("is"));
         token = analyzeResponse.getTokens().get(2);
         assertThat(token.getTerm(), equalTo("a"));
         token = analyzeResponse.getTokens().get(3);
-        assertThat(token.getTerm(), equalTo("tset"));
+        assertThat(token.getTerm(), equalTo("test"));
 
         analyzeResponse = client().admin().indices().prepareAnalyze("of course").setTokenizer("standard").addTokenFilter("stop").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
@@ -257,63 +259,33 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.detail().analyzer().getTokens().length, equalTo(4));
 
         //custom analyzer
-        analyzeResponse = client().admin().indices().prepareAnalyze("<text>THIS IS A TEST</text>")
-            .setExplain(true).addCharFilter("html_strip").setTokenizer("keyword").addTokenFilter("lowercase").get();
+        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST")
+            .setExplain(true).setTokenizer("keyword").addTokenFilter("lowercase").get();
         assertThat(analyzeResponse.detail().analyzer(), IsNull.nullValue());
-        //charfilters
-        assertThat(analyzeResponse.detail().charfilters().length, equalTo(1));
-        assertThat(analyzeResponse.detail().charfilters()[0].getName(), equalTo("html_strip"));
-        assertThat(analyzeResponse.detail().charfilters()[0].getTexts().length, equalTo(1));
-        assertThat(analyzeResponse.detail().charfilters()[0].getTexts()[0], equalTo("\nTHIS IS A TEST\n"));
         //tokenizer
         assertThat(analyzeResponse.detail().tokenizer().getName(), equalTo("keyword"));
         assertThat(analyzeResponse.detail().tokenizer().getTokens().length, equalTo(1));
-        assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getTerm(), equalTo("\nTHIS IS A TEST\n"));
+        assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getTerm(), equalTo("THIS IS A TEST"));
         //tokenfilters
         assertThat(analyzeResponse.detail().tokenfilters().length, equalTo(1));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getName(), equalTo("lowercase"));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens().length, equalTo(1));
-        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[0].getTerm(), equalTo("\nthis is a test\n"));
-
+        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[0].getTerm(), equalTo("this is a test"));
 
         //check other attributes
         analyzeResponse = client().admin().indices().prepareAnalyze("This is troubled")
-            .setExplain(true).setTokenizer("standard").addTokenFilter("snowball").get();
+            .setExplain(true).setTokenizer("standard").addTokenFilter("lowercase").get();
 
         assertThat(analyzeResponse.detail().tokenfilters().length, equalTo(1));
-        assertThat(analyzeResponse.detail().tokenfilters()[0].getName(), equalTo("snowball"));
+        assertThat(analyzeResponse.detail().tokenfilters()[0].getName(), equalTo("lowercase"));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens().length, equalTo(3));
-        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getTerm(), equalTo("troubl"));
+        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getTerm(), equalTo("troubled"));
         String[] expectedAttributesKey = {
             "bytes",
-            "positionLength",
-            "keyword"};
-        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getAttributes().size(), equalTo(expectedAttributesKey.length));
-        Object extendedAttribute;
-
-        for (String key : expectedAttributesKey) {
-            extendedAttribute = analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getAttributes().get(key);
-            assertThat(extendedAttribute, notNullValue());
-        }
-    }
-
-    public void testDetailAnalyzeSpecifyAttributes() throws Exception {
-        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("This is troubled")
-            .setExplain(true).setTokenizer("standard").addTokenFilter("snowball").setAttributes("keyword").get();
-
-        assertThat(analyzeResponse.detail().tokenfilters().length, equalTo(1));
-        assertThat(analyzeResponse.detail().tokenfilters()[0].getName(), equalTo("snowball"));
-        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens().length, equalTo(3));
-        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getTerm(), equalTo("troubl"));
-        String[] expectedAttributesKey = {
-            "keyword"};
-        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getAttributes().size(), equalTo(expectedAttributesKey.length));
-        Object extendedAttribute;
-
-        for (String key : expectedAttributesKey) {
-            extendedAttribute = analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getAttributes().get(key);
-            assertThat(extendedAttribute, notNullValue());
-        }
+            "termFrequency",
+            "positionLength"};
+        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getAttributes().keySet(),
+                equalTo(new HashSet<>(Arrays.asList(expectedAttributesKey))));
     }
 
     public void testDetailAnalyzeWithMultiValues() throws Exception {
@@ -411,7 +383,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getPositionLength(), equalTo(1));
 
         // tokenfilter({"type": "stop", "stopwords": ["foo", "buzz"]})
-        assertThat(analyzeResponse.detail().tokenfilters()[1].getName(), equalTo("_anonymous_tokenfilter_[1]"));
+        assertThat(analyzeResponse.detail().tokenfilters()[1].getName(), equalTo("_anonymous_tokenfilter"));
         assertThat(analyzeResponse.detail().tokenfilters()[1].getTokens().length, equalTo(1));
 
         assertThat(analyzeResponse.detail().tokenfilters()[1].getTokens()[0].getTerm(), equalTo("test"));
@@ -486,6 +458,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(token.getEndOffset(), equalTo(3));
         assertThat(token.getPosition(), equalTo(0));
         assertThat(token.getPositionLength(), equalTo(1));
-
     }
+
+
 }

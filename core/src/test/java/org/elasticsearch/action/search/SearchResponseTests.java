@@ -49,6 +49,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class SearchResponseTests extends ESTestCase {
@@ -78,31 +79,73 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     private SearchResponse createTestItem(ShardSearchFailure... shardSearchFailures) {
-        SearchHits hits = SearchHitsTests.createTestItem();
+        return createTestItem(false, shardSearchFailures);
+    }
+
+    /**
+     * This SearchResponse doesn't include SearchHits, Aggregations, Suggestions, ShardSearchFailures, SearchProfileShardResults
+     * to make it possible to only test properties of the SearchResponse itself
+     */
+    private SearchResponse createMinimalTestItem() {
+        return createTestItem(true);
+    }
+
+    /**
+     * if minimal is set, don't include search hits, aggregations, suggest etc... to make test simpler
+     */
+    private SearchResponse createTestItem(boolean minimal, ShardSearchFailure... shardSearchFailures) {
         boolean timedOut = randomBoolean();
         Boolean terminatedEarly = randomBoolean() ? null : randomBoolean();
         int numReducePhases = randomIntBetween(1, 10);
         long tookInMillis = randomNonNegativeLong();
-        int successfulShards = randomInt();
-        int totalShards = randomInt();
-
-        InternalAggregations aggregations = aggregationsTests.createTestInstance();
-        Suggest suggest = SuggestTests.createTestItem();
-        SearchProfileShardResults profileShardResults = SearchProfileShardResultsTests.createTestItem();
-
-        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, aggregations, suggest, profileShardResults,
+        int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
+        int successfulShards = randomIntBetween(0, totalShards);
+        int skippedShards = randomIntBetween(0, totalShards);
+        InternalSearchResponse internalSearchResponse;
+        if (minimal == false) {
+            SearchHits hits = SearchHitsTests.createTestItem();
+            InternalAggregations aggregations = aggregationsTests.createTestInstance();
+            Suggest suggest = SuggestTests.createTestItem();
+            SearchProfileShardResults profileShardResults = SearchProfileShardResultsTests.createTestItem();
+            internalSearchResponse = new InternalSearchResponse(hits, aggregations, suggest, profileShardResults,
                 timedOut, terminatedEarly, numReducePhases);
-        return new SearchResponse(internalSearchResponse, null, totalShards, successfulShards, tookInMillis, shardSearchFailures);
+        } else {
+            internalSearchResponse = InternalSearchResponse.empty();
+        }
+        return new SearchResponse(internalSearchResponse, null, totalShards, successfulShards, skippedShards, tookInMillis,
+            shardSearchFailures);
     }
 
+    /**
+     * the "_shard/total/failures" section makes it impossible to directly
+     * compare xContent, so we omit it here
+     */
     public void testFromXContent() throws IOException {
-        // the "_shard/total/failures" section makes if impossible to directly compare xContent, so we omit it here
-        SearchResponse response = createTestItem();
+        doFromXContentTestWithRandomFields(createTestItem(), false);
+    }
+
+    /**
+     * This test adds random fields and objects to the xContent rendered out to
+     * ensure we can parse it back to be forward compatible with additions to
+     * the xContent. We test this with a "minimal" SearchResponse, adding random
+     * fields to SearchHits, Aggregations etc... is tested in their own tests
+     */
+    public void testFromXContentWithRandomFields() throws IOException {
+        doFromXContentTestWithRandomFields(createMinimalTestItem(), true);
+    }
+
+    private void doFromXContentTestWithRandomFields(SearchResponse response, boolean addRandomFields) throws IOException {
         XContentType xcontentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         BytesReference originalBytes = toShuffledXContent(response, xcontentType, params, humanReadable);
-        try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
+        BytesReference mutated;
+        if (addRandomFields) {
+            mutated = insertRandomFields(xcontentType, originalBytes, null, random());
+        } else {
+            mutated = originalBytes;
+        }
+        try (XContentParser parser = createParser(xcontentType.xContent(), mutated)) {
             SearchResponse parsed = SearchResponse.fromXContent(parser);
             assertToXContentEquivalent(originalBytes, XContentHelper.toXContent(parsed, xcontentType, params, humanReadable), xcontentType);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
@@ -151,7 +194,7 @@ public class SearchResponseTests extends ESTestCase {
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
         SearchResponse response = new SearchResponse(
-                new InternalSearchResponse(new SearchHits(hits, 100, 1.5f), null, null, null, false, null, 1), null, 0, 0, 0,
+                new InternalSearchResponse(new SearchHits(hits, 100, 1.5f), null, null, null, false, null, 1), null, 0, 0, 0, 0,
                 new ShardSearchFailure[0]);
         StringBuilder expectedString = new StringBuilder();
         expectedString.append("{");
@@ -162,6 +205,7 @@ public class SearchResponseTests extends ESTestCase {
             {
                 expectedString.append("{\"total\":0,");
                 expectedString.append("\"successful\":0,");
+                expectedString.append("\"skipped\":0,");
                 expectedString.append("\"failed\":0},");
             }
             expectedString.append("\"hits\":");

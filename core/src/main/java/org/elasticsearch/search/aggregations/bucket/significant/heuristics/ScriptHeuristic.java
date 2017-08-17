@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
@@ -97,8 +97,9 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public SignificanceHeuristic rewrite(SearchContext context) {
-        return new ExecutableScriptHeuristic(script,
-            context.getQueryShardContext().getExecutableScript(script, ExecutableScript.AGGS_CONTEXT));
+        QueryShardContext shardContext = context.getQueryShardContext();
+        ExecutableScript.Factory compiledScript = shardContext.getScriptService().compile(script, ExecutableScript.AGGS_CONTEXT);
+        return new ExecutableScriptHeuristic(script, compiledScript.newInstance(script.getParams()));
     }
 
 
@@ -147,9 +148,8 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         return Objects.equals(script, other.script);
     }
 
-    public static SignificanceHeuristic parse(QueryParseContext context)
+    public static SignificanceHeuristic parse(XContentParser parser)
             throws IOException, QueryShardException {
-        XContentParser parser = context.parser();
         String heuristicName = parser.currentName();
         Script script = null;
         XContentParser.Token token;

@@ -40,7 +40,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
 
@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -298,16 +299,24 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     }
 
     /**
-     * Get the generic executor service. This executor service {@link Executor#execute(Runnable)} method will run the {@link Runnable} it
-     * is given in the {@link ThreadContext} of the thread that queues it.
+     * Get the generic {@link ExecutorService}. This executor service
+     * {@link Executor#execute(Runnable)} method will run the {@link Runnable} it is given in the
+     * {@link ThreadContext} of the thread that queues it.
+     * <p>
+     * Warning: this {@linkplain ExecutorService} will not throw {@link RejectedExecutionException}
+     * if you submit a task while it shutdown. It will instead silently queue it and not run it.
      */
     public ExecutorService generic() {
         return executor(Names.GENERIC);
     }
 
     /**
-     * Get the executor service with the given name. This executor service's {@link Executor#execute(Runnable)} method will run the
-     * {@link Runnable} it is given in the {@link ThreadContext} of the thread that queues it.
+     * Get the {@link ExecutorService} with the given name. This executor service's
+     * {@link Executor#execute(Runnable)} method will run the {@link Runnable} it is given in the
+     * {@link ThreadContext} of the thread that queues it.
+     * <p>
+     * Warning: this {@linkplain ExecutorService} might not throw {@link RejectedExecutionException}
+     * if you submit a task while it shutdown. It will instead silently queue it and not run it.
      *
      * @param name the name of the executor service to obtain
      * @throws IllegalArgumentException if no executor service with the specified name exists
@@ -573,7 +582,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         }
     }
 
-    public static class Info implements Writeable, ToXContent {
+    public static class Info implements Writeable, ToXContentFragment {
 
         private final String name;
         private final ThreadPoolType type;

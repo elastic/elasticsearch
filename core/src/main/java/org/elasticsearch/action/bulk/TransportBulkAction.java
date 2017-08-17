@@ -25,6 +25,7 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
@@ -289,13 +290,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         case CREATE:
                         case INDEX:
                             IndexRequest indexRequest = (IndexRequest) docWriteRequest;
-                            MappingMetaData mappingMd = null;
                             final IndexMetaData indexMetaData = metaData.index(concreteIndex);
-                            if (indexMetaData != null) {
-                                mappingMd = indexMetaData.mappingOrDefault(indexRequest.type());
-                            }
+                            MappingMetaData mappingMd = indexMetaData.mappingOrDefault(indexRequest.type());
+                            Version indexCreated = indexMetaData.getCreationVersion();
                             indexRequest.resolveRouting(metaData);
-                            indexRequest.process(mappingMd, concreteIndex.getName());
+                            indexRequest.process(indexCreated, mappingMd, concreteIndex.getName());
                             break;
                         case UPDATE:
                             TransportUpdateAction.resolveAndValidateRouting(metaData, concreteIndex.getName(), (UpdateRequest) docWriteRequest);
@@ -569,9 +568,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
             if (itemResponses.isEmpty()) {
                 return ActionListener.wrap(
-                    response -> actionListener.onResponse(
-                        new BulkResponse(response.getItems(), response.getTookInMillis(), ingestTookInMillis)),
-                    actionListener::onFailure);
+                        response -> actionListener.onResponse(new BulkResponse(response.getItems(),
+                                response.getTook().getMillis(), ingestTookInMillis)),
+                        actionListener::onFailure);
             } else {
                 return new IngestBulkResponseListener(ingestTookInMillis, originalSlots, itemResponses, actionListener);
             }
@@ -610,7 +609,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             for (int i = 0; i < items.length; i++) {
                 itemResponses.add(originalSlots[i], response.getItems()[i]);
             }
-            actionListener.onResponse(new BulkResponse(itemResponses.toArray(new BulkItemResponse[itemResponses.size()]), response.getTookInMillis(), ingestTookInMillis));
+            actionListener.onResponse(new BulkResponse(
+                    itemResponses.toArray(new BulkItemResponse[itemResponses.size()]),
+                    response.getTook().getMillis(), ingestTookInMillis));
         }
 
         @Override

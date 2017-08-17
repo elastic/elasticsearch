@@ -47,4 +47,11 @@ public abstract class JoinQueryBuilders {
         return new HasParentQueryBuilder(type, query, score);
     }
 
+    /**
+     * Constructs a new parent id query that returns all child documents of the specified type that
+     * point to the specified id.
+     */
+    public static ParentIdQueryBuilder parentId(String type, String id) {
+        return new ParentIdQueryBuilder(type, id);
+    }
 }

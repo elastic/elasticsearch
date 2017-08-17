@@ -18,12 +18,13 @@
  */
 package org.elasticsearch.test.rest.yaml;
 
-import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -147,5 +148,21 @@ public class ObjectPath {
         }
 
         return list.toArray(new String[list.size()]);
+    }
+
+    /**
+     * Create a new {@link XContentBuilder} from the xContent object underlying this {@link ObjectPath}.
+     * This only works for {@link ObjectPath} instances created from an xContent object, not from nested
+     * substructures. We throw an {@link UnsupportedOperationException} in those cases.
+     */
+    @SuppressWarnings("unchecked")
+    public XContentBuilder toXContentBuilder(XContent xContent) throws IOException {
+        XContentBuilder builder = XContentBuilder.builder(xContent);
+        if (this.object instanceof Map) {
+            builder.map((Map<String, Object>) this.object);
+        } else {
+            throw new UnsupportedOperationException("Only ObjectPath created from a map supported.");
+        }
+        return builder;
     }
 }

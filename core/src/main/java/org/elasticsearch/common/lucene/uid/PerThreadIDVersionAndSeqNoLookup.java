@@ -19,7 +19,6 @@ package org.elasticsearch.common.lucene.uid;
  * under the License.
  */
 
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -43,8 +42,11 @@ import java.io.IOException;
  *  not thread safe, so it is the caller's job to create and use one
  *  instance of this per thread.  Do not use this if a term may appear
  *  in more than one document!  It will only return the first one it
- *  finds. */
-
+ *  finds.
+ *  This class uses live docs, so it should be cached based on the
+ *  {@link org.apache.lucene.index.IndexReader#getReaderCacheHelper() reader cache helper}
+ *  rather than the {@link LeafReader#getCoreCacheHelper() core cache helper}.
+ */
 final class PerThreadIDVersionAndSeqNoLookup {
     // TODO: do we really need to store all this stuff? some if it might not speed up anything.
     // we keep it around for now, to reduce the amount of e.g. hash lookups by field and stuff
@@ -64,8 +66,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
      */
     PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField) throws IOException {
         this.uidField = uidField;
-        Fields fields = reader.fields();
-        Terms terms = fields.terms(uidField);
+        Terms terms = reader.terms(uidField);
         if (terms == null) {
             throw new IllegalArgumentException("reader misses the [" + uidField + "] field");
         }
@@ -79,12 +80,17 @@ final class PerThreadIDVersionAndSeqNoLookup {
         this.readerKey = readerKey;
     }
 
-    /** Return null if id is not found. */
-    public DocIdAndVersion lookupVersion(BytesRef id, Bits liveDocs, LeafReaderContext context)
+    /** Return null if id is not found.
+     * We pass the {@link LeafReaderContext} as an argument so that things
+     * still work with reader wrappers that hide some documents while still
+     * using the same cache key. Otherwise we'd have to disable caching
+     * entirely for these readers.
+     */
+    public DocIdAndVersion lookupVersion(BytesRef id, LeafReaderContext context)
         throws IOException {
         assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
-        int docID = getDocID(id, liveDocs);
+        int docID = getDocID(id, context.reader().getLiveDocs());
 
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
             final NumericDocValues versions = context.reader().getNumericDocValues(VersionFieldMapper.NAME);
@@ -122,10 +128,10 @@ final class PerThreadIDVersionAndSeqNoLookup {
     }
 
     /** Return null if id is not found. */
-    DocIdAndSeqNo lookupSeqNo(BytesRef id, Bits liveDocs, LeafReaderContext context) throws IOException {
+    DocIdAndSeqNo lookupSeqNo(BytesRef id, LeafReaderContext context) throws IOException {
         assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
-        int docID = getDocID(id, liveDocs);
+        int docID = getDocID(id, context.reader().getLiveDocs());
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
             NumericDocValues seqNos = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
             long seqNo;
@@ -137,20 +143,6 @@ final class PerThreadIDVersionAndSeqNoLookup {
             return new DocIdAndSeqNo(docID, seqNo, context);
         } else {
             return null;
-        }
-    }
-
-    /**
-     * returns 0 if the primary term is not found.
-     *
-     * Note that 0 is an illegal primary term. See {@link org.elasticsearch.cluster.metadata.IndexMetaData#primaryTerm(int)}
-     **/
-    long lookUpPrimaryTerm(int docID, LeafReader reader) throws IOException {
-        NumericDocValues primaryTerms = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
-        if (primaryTerms != null && primaryTerms.advanceExact(docID)) {
-            return primaryTerms.longValue();
-        } else {
-            return 0;
         }
     }
 }

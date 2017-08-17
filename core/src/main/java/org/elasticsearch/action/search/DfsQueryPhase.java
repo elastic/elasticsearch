@@ -41,16 +41,16 @@ import java.util.function.Function;
  * @see CountedCollector#onFailure(int, SearchShardTarget, Exception)
  */
 final class DfsQueryPhase extends SearchPhase {
-    private final InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> queryResult;
+    private final InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> queryResult;
     private final SearchPhaseController searchPhaseController;
     private final AtomicArray<DfsSearchResult> dfsSearchResults;
-    private final Function<InitialSearchPhase.SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
+    private final Function<InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final SearchTransportService searchTransportService;
 
     DfsQueryPhase(AtomicArray<DfsSearchResult> dfsSearchResults,
                   SearchPhaseController searchPhaseController,
-                  Function<InitialSearchPhase.SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
+                  Function<InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
                   SearchPhaseContext context) {
         super("dfs_query");
         this.queryResult = searchPhaseController.newSearchPhaseResults(context.getRequest(), context.getNumShards());

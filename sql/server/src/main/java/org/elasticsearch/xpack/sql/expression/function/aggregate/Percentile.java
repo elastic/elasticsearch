@@ -6,17 +6,14 @@
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
-import java.util.Objects;
-
 import static java.util.Collections.singletonList;
 
-public class Percentile extends AggregateFunction implements EnclosedAgg {
+public class Percentile extends NumericAggregate implements EnclosedAgg {
 
     private final Expression percent;
 
@@ -27,9 +24,7 @@ public class Percentile extends AggregateFunction implements EnclosedAgg {
 
     @Override
     protected TypeResolution resolveType() {
-        TypeResolution resolution = field().dataType().isNumeric() ? TypeResolution.TYPE_RESOLVED :
-                    new TypeResolution("Function '%s' cannot be applied on a non-numeric expression ('%s' of type '%s')", 
-                        functionName(), Expressions.name(field()), field().dataType().esName());
+        TypeResolution resolution = super.resolveType();
 
         if (TypeResolution.TYPE_RESOLVED.equals(resolution)) {
             resolution = percent().dataType().isNumeric() ? TypeResolution.TYPE_RESOLVED :
@@ -50,20 +45,5 @@ public class Percentile extends AggregateFunction implements EnclosedAgg {
     @Override
     public String innerName() {
         return "[" + Double.toString(Foldables.doubleValueOf(percent)) + "]";
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        
-        Percentile other = (Percentile) obj;
-        return Objects.equals(field(), other.field())
-                && Objects.equals(percent, other.percent);
     }
 }

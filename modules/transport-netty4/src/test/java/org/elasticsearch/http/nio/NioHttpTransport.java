@@ -44,6 +44,8 @@ import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.netty4.Netty4HttpRequest;
+import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
+import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
@@ -71,10 +73,13 @@ import java.util.function.Consumer;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_RESET_COOKIES;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING;
 import static org.elasticsearch.transport.nio.NioTransport.TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX;
 import static org.elasticsearch.transport.nio.NioTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX;
 
@@ -97,6 +102,7 @@ public class NioHttpTransport extends AbstractLifecycleComponent implements Http
     public static final Setting<ByteSizeValue> SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE =
         Setting.byteSizeSetting("http.tcp.receive_buffer_size", NetworkService.TCP_RECEIVE_BUFFER_SIZE, Setting.Property.NodeScope);
 
+    private final Netty4CorsConfig corsConfig;
     private final PortsRange port;
     private final NetworkService networkService;
     private final BigArrays bigArrays;
@@ -105,18 +111,22 @@ public class NioHttpTransport extends AbstractLifecycleComponent implements Http
     private final Dispatcher dispatcher;
     private final String[] publishHosts;
     private final String bindHosts[];
-    private final Consumer<NioSocketChannel> contextSetter;
-    private final ByteSizeValue maxContentLength;
-    private OpenChannels openChannels;
-    private ArrayList<SocketSelector> socketSelectors;
-    private ArrayList<AcceptingSelector> acceptors;
-    private BoundTransportAddress boundAddress;
+    private final int maxContentLength;
     private final boolean tcpNoDelay;
     private final boolean tcpKeepAlive;
     private final boolean tcpReuseAddress;
     private final int tcpSendBufferSize;
     private final int tcpReceiveBufferSize;
+    private final boolean resetCookies;
+    private final boolean detailedErrorsEnabled;
+    private final boolean pipelining;
+
     private int acceptorNumber;
+    private OpenChannels openChannels;
+    private ArrayList<SocketSelector> socketSelectors;
+    private ArrayList<AcceptingSelector> acceptors;
+    private BoundTransportAddress boundAddress;
+    private volatile Consumer<NioSocketChannel> contextSetter;
 
     public NioHttpTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                             NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
@@ -134,9 +144,12 @@ public class NioHttpTransport extends AbstractLifecycleComponent implements Http
         List<String> httpPublishHost = SETTING_HTTP_PUBLISH_HOST.get(settings);
         this.publishHosts = (httpPublishHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings) : httpPublishHost)
             .toArray(Strings.EMPTY_ARRAY);
-        maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
+        maxContentLength = Math.toIntExact(SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).getBytes());
+        detailedErrorsEnabled = SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings);
+        pipelining = SETTING_PIPELINING.get(settings);
+        resetCookies = SETTING_HTTP_RESET_COOKIES.get(settings);
+        corsConfig = Netty4CorsConfig.buildCorsConfig(settings);
 
-        contextSetter = (c) -> c.setContexts(new HttpReadContext(c, null, null), new TcpWriteContext(c));
         tcpNoDelay = SETTING_HTTP_TCP_NO_DELAY.get(settings);
         tcpKeepAlive = SETTING_HTTP_TCP_KEEP_ALIVE.get(settings);
         tcpReuseAddress = SETTING_HTTP_TCP_REUSE_ADDRESS.get(settings);
@@ -148,6 +161,15 @@ public class NioHttpTransport extends AbstractLifecycleComponent implements Http
     protected void doStart() {
         boolean success = false;
         try {
+            NioHttpNettyAdaptor nettyAdaptor = new NioHttpNettyAdaptor(logger, settings, this::exceptionCaught, corsConfig,
+                maxContentLength);
+            NioHttpRequestHandler handler = new NioHttpRequestHandler(this, xContentRegistry, detailedErrorsEnabled,
+                threadPool.getThreadContext(), pipelining, corsConfig, resetCookies);
+            contextSetter = (c) -> {
+                ESEmbeddedChannel adaptor = nettyAdaptor.getAdaptor(c);
+                c.setContexts(new HttpReadContext(c, adaptor, handler), new HttpWriteContext(c, adaptor));
+            };
+
             this.openChannels = new OpenChannels(logger);
 
             socketSelectors = NioSelectors.socketSelectors(settings, () -> new SocketEventHandler(logger, this::exceptionCaught),
@@ -189,7 +211,7 @@ public class NioHttpTransport extends AbstractLifecycleComponent implements Http
         if (boundTransportAddress == null) {
             return null;
         }
-        return new HttpInfo(boundTransportAddress, maxContentLength.getBytes());
+        return new HttpInfo(boundTransportAddress, maxContentLength);
     }
 
     @Override
@@ -313,7 +335,6 @@ public class NioHttpTransport extends AbstractLifecycleComponent implements Http
                         tcpReuseAddress, tcpSendBufferSize, tcpReceiveBufferSize);
                     ChannelFactory channelFactory = new ChannelFactory(rawChannelFactory, contextSetter);
                     NioServerSocketChannel serverChannel = channelFactory.openNioServerSocketChannel("http-server", address, selector);
-                    selector.scheduleForRegistration(serverChannel);
                     boundSocket.set(serverChannel.getLocalAddress());
                 }
             } catch (Exception e) {

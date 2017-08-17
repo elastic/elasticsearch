@@ -19,6 +19,7 @@
 
 package org.elasticsearch.http.nio;
 
+import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
@@ -116,7 +117,8 @@ public class HttpWriteContextTests extends ESTestCase {
     }
 
     public void testSingleFlush() throws IOException {
-        when(adaptor.popMessage()).thenReturn(new Tuple<>(new BytesArray("message"), listener), null);
+        when(adaptor.popMessage()).thenReturn(new Tuple<>(new BytesArray("message"), listener),
+            (Tuple<BytesReference, ChannelPromise>) null);
 
         List<String> messages = new ArrayList<>();
         when(channel.write(any())).thenAnswer(invocationOnMock -> {
@@ -162,7 +164,8 @@ public class HttpWriteContextTests extends ESTestCase {
     }
 
     public void testPartialFlush() throws IOException {
-        when(adaptor.popMessage()).thenReturn(new Tuple<>(new BytesArray("message"), listener), null);
+        when(adaptor.popMessage()).thenReturn(new Tuple<>(new BytesArray("message"), listener),
+            (Tuple<BytesReference, ChannelPromise>) null);
 
         List<BytesReference> messages = new ArrayList<>();
         AtomicBoolean firstCall = new AtomicBoolean(true);
@@ -200,7 +203,8 @@ public class HttpWriteContextTests extends ESTestCase {
     }
 
     public void testHasQueuedWillConsiderPartialFlush() throws IOException {
-        when(adaptor.popMessage()).thenReturn(new Tuple<>(new BytesArray("message"), listener), null);
+        when(adaptor.popMessage()).thenReturn(new Tuple<>(new BytesArray("message"), listener),
+            (Tuple<BytesReference, ChannelPromise>) null);
         when(channel.write(any())).thenAnswer(invocationOnMock -> {
             NetworkBytesReference[] references = (NetworkBytesReference[]) invocationOnMock.getArguments()[0];
             if (references.length > 1) {

@@ -249,7 +249,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         this.compressionLevel = SETTING_HTTP_COMPRESSION_LEVEL.get(settings);
         this.pipelining = SETTING_PIPELINING.get(settings);
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
-        this.corsConfig = buildCorsConfig(settings);
+        this.corsConfig = Netty4CorsConfig.buildCorsConfig(settings);
 
         // validate max content length
         if (maxContentLength.getBytes() > Integer.MAX_VALUE) {
@@ -371,40 +371,6 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
                 "Please specify a unique port by setting " + SETTING_HTTP_PORT.getKey() + " or " + SETTING_HTTP_PUBLISH_PORT.getKey());
         }
         return publishPort;
-    }
-
-    // package private for testing
-    static Netty4CorsConfig buildCorsConfig(Settings settings) {
-        if (SETTING_CORS_ENABLED.get(settings) == false) {
-            return Netty4CorsConfigBuilder.forOrigins().disable().build();
-        }
-        String origin = SETTING_CORS_ALLOW_ORIGIN.get(settings);
-        final Netty4CorsConfigBuilder builder;
-        if (Strings.isNullOrEmpty(origin)) {
-            builder = Netty4CorsConfigBuilder.forOrigins();
-        } else if (origin.equals(ANY_ORIGIN)) {
-            builder = Netty4CorsConfigBuilder.forAnyOrigin();
-        } else {
-            Pattern p = RestUtils.checkCorsSettingForRegex(origin);
-            if (p == null) {
-                builder = Netty4CorsConfigBuilder.forOrigins(RestUtils.corsSettingAsArray(origin));
-            } else {
-                builder = Netty4CorsConfigBuilder.forPattern(p);
-            }
-        }
-        if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
-            builder.allowCredentials();
-        }
-        String[] strMethods = Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_METHODS.get(settings), ",");
-        HttpMethod[] methods = Arrays.asList(strMethods)
-            .stream()
-            .map(HttpMethod::valueOf)
-            .toArray(size -> new HttpMethod[size]);
-        return builder.allowedRequestMethods(methods)
-            .maxAge(SETTING_CORS_MAX_AGE.get(settings))
-            .allowedRequestHeaders(Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_HEADERS.get(settings), ","))
-            .shortCircuit()
-            .build();
     }
 
     private TransportAddress bindAddress(final InetAddress hostAddress) {

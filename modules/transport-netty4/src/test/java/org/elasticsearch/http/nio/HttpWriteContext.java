@@ -54,9 +54,8 @@ public class HttpWriteContext implements WriteContext {
             listener.onFailure(new ClosedChannelException());
             return;
         }
-        HttpResponse response = (HttpResponse) message;
 
-        WriteOperation writeOperation = new HttpWriteOperation(channel, response, listener);
+        WriteOperation writeOperation = new HttpWriteOperation(channel, message, listener);
         SocketSelector selector = channel.getSelector();
         if (selector.isOnCurrentThread() == false) {
             selector.queueWrite(writeOperation);

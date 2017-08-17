@@ -72,8 +72,8 @@ public class NioHttpRequestHandler {
                 request.headers(),
                 request.trailingHeaders());
         final Netty4HttpRequest httpRequest = new Netty4HttpRequest(xContentRegistry, copy, nettyChannel);
-        final NioHttpChannel httpChannel = new NioHttpChannel(httpRequest, channel, pipelinedRequest, detailedErrorsEnabled, threadContext, corsConfig,
-            resetCookies);
+        final NioHttpChannel httpChannel = new NioHttpChannel(httpRequest, channel, pipelinedRequest, detailedErrorsEnabled, threadContext,
+            corsConfig, resetCookies);
 
         if (request.decoderResult().isSuccess()) {
             transport.dispatchRequest(httpRequest, httpChannel);

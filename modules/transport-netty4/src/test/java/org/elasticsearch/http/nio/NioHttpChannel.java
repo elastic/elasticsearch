@@ -72,14 +72,14 @@ public final class NioHttpChannel extends AbstractRestChannel {
 
     /**
      * @param request               The request that is handled by this channel.
-     * @param channel
+     * @param channel               The channel
      * @param pipelinedRequest      If HTTP pipelining is enabled provide the corresponding pipelined request. May be null if
      *                              HTTP pipelining is disabled.
      * @param detailedErrorsEnabled true iff error messages should include stack traces.
      * @param threadContext         the thread context for the channel
      */
-    public NioHttpChannel(Netty4HttpRequest request, NioSocketChannel channel, HttpPipelinedRequest pipelinedRequest, boolean detailedErrorsEnabled,
-                          ThreadContext threadContext, Netty4CorsConfig corsConfig, boolean resetCookies) {
+    public NioHttpChannel(Netty4HttpRequest request, NioSocketChannel channel, HttpPipelinedRequest pipelinedRequest,
+                          boolean detailedErrorsEnabled, ThreadContext threadContext, Netty4CorsConfig corsConfig, boolean resetCookies) {
         super(request, detailedErrorsEnabled);
         this.channel = request.getChannel();
         this.nettyRequest = request.request();
@@ -131,7 +131,7 @@ public final class NioHttpChannel extends AbstractRestChannel {
 
             addCookies(resp);
 
-            final ChannelPromise promise = channel.newPromise();
+            final ESChannelPromise promise = new ESChannelPromise(channel.newPromise());
 
             if (releaseContent) {
                 promise.addListener(f -> ((Releasable) content).close());
@@ -151,17 +151,7 @@ public final class NioHttpChannel extends AbstractRestChannel {
             } else {
                 msg = resp;
             }
-            nioChannel.getWriteContext().sendMessage(msg, new ActionListener<NioChannel>() {
-                @Override
-                public void onResponse(NioChannel nioChannel) {
-                    promise.setSuccess();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    promise.setFailure(e);
-                }
-            });
+            nioChannel.getWriteContext().sendMessage(msg, promise);
             releaseContent = false;
             releaseBytesStreamOutput = false;
         } finally {

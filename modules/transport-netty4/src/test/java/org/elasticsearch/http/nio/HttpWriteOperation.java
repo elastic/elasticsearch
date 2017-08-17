@@ -19,7 +19,6 @@
 
 package org.elasticsearch.http.nio;
 
-import io.netty.handler.codec.http.HttpResponse;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.transport.nio.WriteOperation;
 import org.elasticsearch.transport.nio.channel.NioChannel;
@@ -27,14 +26,14 @@ import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
 public class HttpWriteOperation extends WriteOperation {
 
-    private final HttpResponse httpResponse;
+    private final Object httpResponse;
 
-    public HttpWriteOperation(NioSocketChannel channel, HttpResponse response, ActionListener<NioChannel> listener) {
+    public HttpWriteOperation(NioSocketChannel channel, Object response, ActionListener<NioChannel> listener) {
         super(channel, listener);
         this.httpResponse = response;
     }
 
-    public HttpResponse getHttpResponse() {
+    public Object getHttpResponse() {
         return httpResponse;
     }
 }

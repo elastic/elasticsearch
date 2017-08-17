@@ -61,7 +61,7 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 /**
  * Tiny helper to send http requests over netty.
  */
-class Netty4HttpClient implements Closeable {
+public class Netty4HttpClient implements Closeable {
 
     static Collection<String> returnHttpResponseBodies(Collection<FullHttpResponse> responses) {
         List<String> list = new ArrayList<>(responses.size());
@@ -71,7 +71,7 @@ class Netty4HttpClient implements Closeable {
         return list;
     }
 
-    static Collection<String> returnOpaqueIds(Collection<FullHttpResponse> responses) {
+    public static Collection<String> returnOpaqueIds(Collection<FullHttpResponse> responses) {
         List<String> list = new ArrayList<>(responses.size());
         for (HttpResponse response : responses) {
             list.add(response.headers().get("X-Opaque-Id"));
@@ -81,7 +81,7 @@ class Netty4HttpClient implements Closeable {
 
     private final Bootstrap clientBootstrap;
 
-    Netty4HttpClient() {
+    public Netty4HttpClient() {
         clientBootstrap = new Bootstrap().channel(NioSocketChannel.class).group(new NioEventLoopGroup());
     }
 

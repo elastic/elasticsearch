@@ -41,10 +41,12 @@ import java.nio.channels.SelectionKey;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -140,11 +142,37 @@ public class HttpReadContextTests extends ESTestCase {
         assertTrue((channel.getSelectionKey().interestOps() & SelectionKey.OP_WRITE) != 0);
     }
 
-    public void testReadIndexesIncremented() {
-        NetworkBytesReference ref = new NetworkBytesReference(new BytesArray(new byte[10]), 10, 5);
-        ByteBuf byteBuf = Unpooled.wrappedBuffer(ref.getReadByteBuffer());
+    public void testMultipleReadsForRequest() throws IOException {
+        byte[] bytes = createMessage(messageLength);
+        byte[] bytes2 = createMessage(messageLength + randomInt(100));
 
-        // TODO: Implement
+        final AtomicInteger bufferCapacity = new AtomicInteger();
+        final AtomicBoolean isFirst = new AtomicBoolean(true);
+        when(channel.read(any(NetworkBytesReference.class))).thenAnswer(invocationOnMock -> {
+            NetworkBytesReference reference = (NetworkBytesReference) invocationOnMock.getArguments()[0];
+            ByteBuffer buffer = reference.getWriteByteBuffer();
+            bufferCapacity.set(reference.getWriteRemaining());
+            int length;
+            if (isFirst.compareAndSet(true, false)) {
+                length = bytes.length;
+                buffer.put(bytes);
+            } else {
+                length = bytes2.length;
+                buffer.put(bytes2);
+            }
+            reference.incrementWrite(length);
+            return length;
+        });
+
+        String uri = "localhost:9090/" + randomAlphaOfLength(8);
+        DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uri);
+        when(adaptor.decode(Unpooled.wrappedBuffer(bytes))).thenReturn(new LinkedList<>());
+        when(adaptor.decode(Unpooled.wrappedBuffer(bytes2))).thenReturn(new LinkedList<>(Collections.singletonList(request)));
+
+        readContext.read();
+        readContext.read();
+
+        verify(handler, times(1)).handleMessage(channel, adaptor, request);
     }
 
     private static byte[] createMessage(int length) {

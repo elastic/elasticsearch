@@ -30,6 +30,7 @@ import org.elasticsearch.transport.nio.channel.ReadContext;
 import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.LinkedList;
 import java.util.Queue;
 
@@ -60,11 +61,11 @@ public class HttpReadContext implements ReadContext {
         }
 
         boolean noPendingPriorToDecode = !nettyPipelineAdaptor.hasMessages();
-        int size = references.size();
 
-        ByteBuf inboundBytes = toByteBuf(size);
+        ByteBuf inboundBytes = toByteBuf(references);
 
         Queue<Object> requests = nettyPipelineAdaptor.decode(inboundBytes);
+        NetworkBytesReference.vectorizedIncrementReadIndexes(references, inboundBytes.readableBytes());
 
         Object msg;
         while ((msg = requests.poll()) != null) {
@@ -78,14 +79,17 @@ public class HttpReadContext implements ReadContext {
         return bytesRead;
     }
 
-    private ByteBuf toByteBuf(int size) {
+    private static ByteBuf toByteBuf(LinkedList<NetworkBytesReference> references) {
+        int size = references.size();
         if (size == 1) {
             return Unpooled.wrappedBuffer(references.getFirst().getReadByteBuffer());
         } else {
             CompositeByteBuf byteBuf = Unpooled.compositeBuffer(size);
             for (NetworkBytesReference reference : references) {
                 // TODO: Do I need to increment reader indexes?
-                byteBuf.addComponent(true, Unpooled.wrappedBuffer(reference.getReadByteBuffer()));
+                ByteBuffer buffer = reference.getReadByteBuffer();
+                ByteBuf component = Unpooled.wrappedBuffer(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
+                byteBuf.addComponent(true, component);
             }
             return byteBuf;
         }

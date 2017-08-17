@@ -55,17 +55,44 @@ setup:
       search:
         body:
           aggs:
-            the_int_sum:
-              sum:
+            distinct_int:
+              cardinality:
                 field: int_field
-            the_double_sum:
-              sum:
+            distinct_double:
+              cardinality:
                 field: double_field
+            distinct_string:
+              cardinality:
+                field: string_field
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match: { aggregations.the_int_sum.value: 304.0 }
-  - match: { aggregations.the_double_sum.value: 304.0 }
+  - match: { aggregations.distinct_int.value: 4 }
+  - match: { aggregations.distinct_double.value: 4 }
+  - match: { aggregations.distinct_string.value: 1 }
+
+  - do:
+      search:
+        body:
+          aggs:
+            distinct_int:
+              cardinality:
+                field: int_field
+                precision_threshold: 100
+            distinct_double:
+              cardinality:
+                field: double_field
+                precision_threshold: 100
+            distinct_string:
+              cardinality:
+                field: string_field
+                precision_threshold: 100
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.distinct_int.value: 4 }
+  - match: { aggregations.distinct_double.value: 4 }
+  - match: { aggregations.distinct_string.value: 1 }
 
 ---
 "Only aggs test":
@@ -75,17 +102,21 @@ setup:
         body:
           size: 0
           aggs:
-            the_int_sum:
-              sum:
+            distinct_int:
+              cardinality:
                 field: int_field
-            the_double_sum:
-              sum:
+            distinct_double:
+              cardinality:
                 field: double_field
+            distinct_string:
+              cardinality:
+                field: string_field
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 0 }
-  - match: { aggregations.the_int_sum.value: 304.0 }
-  - match: { aggregations.the_double_sum.value: 304.0 }
+  - match: { aggregations.distinct_int.value: 4 }
+  - match: { aggregations.distinct_double.value: 4 }
+  - match: { aggregations.distinct_string.value: 1 }
 
 ---
 "Filtered test":
@@ -100,17 +131,21 @@ setup:
                   int_field:
                     gte: 50
           aggs:
-            the_int_sum:
-              sum:
+            distinct_int:
+              cardinality:
                 field: int_field
-            the_double_sum:
-              sum:
+            distinct_double:
+              cardinality:
                 field: double_field
+            distinct_string:
+              cardinality:
+                field: string_field
 
   - match: { hits.total: 3 }
   - length: { hits.hits: 3 }
-  - match: { aggregations.the_int_sum.value: 303.0 }
-  - match: { aggregations.the_double_sum.value: 303.0 }
+  - match: { aggregations.distinct_int.value: 3 }
+  - match: { aggregations.distinct_double.value: 3 }
+  - match: { aggregations.distinct_string.value: 1 }
 
 
 ---
@@ -120,14 +155,14 @@ setup:
       search:
         body:
           aggs:
-            the_missing_sum:
-              sum:
-                field: foo
-                missing: 1
+            distinct_missing:
+              cardinality:
+                field: missing_field
+                missing: "foo"
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match: { aggregations.the_missing_sum.value: 4.0 }
+  - match: { aggregations.distinct_missing.value: 1 }
 
 ---
 "Missing field without missing param":
@@ -136,13 +171,13 @@ setup:
       search:
         body:
           aggs:
-            the_missing_sum:
-              sum:
-                field: foo
+            distinct_missing:
+              cardinality:
+                field: missing_field
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match: { aggregations.the_missing_sum.value: 0.0 }
+  - is_false: aggregations.distinct_missing.value
 
 ---
 "Metadata test":
@@ -151,26 +186,28 @@ setup:
       search:
         body:
           aggs:
-            the_int_sum:
+            distinct_missing:
               meta:
                 foo: bar
-              sum:
+              cardinality:
                 field: int_field
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match: { aggregations.the_int_sum.value: 304.0 }
-  - match: { aggregations.the_int_sum.meta.foo: "bar" }
+  - match: { aggregations.distinct_missing.value: 4 }
+  - match: { aggregations.distinct_missing.meta.foo: "bar" }
 
 ---
-"Aggregating wrong datatype test":
+"Invalid Precision test":
 
   - do:
-      catch: request
+      catch: /\[precisionThreshold\] must be greater than or equal to 0. Found \[-1\] in \[distinct_int\]/
       search:
         body:
           aggs:
-            the_string_sum:
-              sum:
-                field: string_field
+            distinct_int:
+              cardinality:
+                field: int_field
+                precision_threshold: -1
+
 

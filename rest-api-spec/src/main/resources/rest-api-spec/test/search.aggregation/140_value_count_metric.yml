@@ -55,17 +55,21 @@ setup:
       search:
         body:
           aggs:
-            the_int_sum:
-              sum:
+            the_int_value_count:
+              value_count:
                 field: int_field
-            the_double_sum:
-              sum:
+            the_double_value_count:
+              value_count:
                 field: double_field
+            the_string_value_count:
+              value_count:
+                field: string_field
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match: { aggregations.the_int_sum.value: 304.0 }
-  - match: { aggregations.the_double_sum.value: 304.0 }
+  - match: { aggregations.the_int_value_count.value: 4 }
+  - match: { aggregations.the_double_value_count.value: 4 }
+  - match: { aggregations.the_string_value_count.value: 4 }
 
 ---
 "Only aggs test":
@@ -75,17 +79,21 @@ setup:
         body:
           size: 0
           aggs:
-            the_int_sum:
-              sum:
+            the_int_value_count:
+              value_count:
                 field: int_field
-            the_double_sum:
-              sum:
+            the_double_value_count:
+              value_count:
                 field: double_field
+            the_string_value_count:
+              value_count:
+                field: string_field
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 0 }
-  - match: { aggregations.the_int_sum.value: 304.0 }
-  - match: { aggregations.the_double_sum.value: 304.0 }
+  - match: { aggregations.the_int_value_count.value: 4 }
+  - match: { aggregations.the_double_value_count.value: 4 }
+  - match: { aggregations.the_string_value_count.value: 4 }
 
 ---
 "Filtered test":
@@ -100,17 +108,21 @@ setup:
                   int_field:
                     gte: 50
           aggs:
-            the_int_sum:
-              sum:
+            the_int_value_count:
+              value_count:
                 field: int_field
-            the_double_sum:
-              sum:
+            the_double_value_count:
+              value_count:
                 field: double_field
+            the_string_value_count:
+              value_count:
+                field: string_field
 
   - match: { hits.total: 3 }
   - length: { hits.hits: 3 }
-  - match: { aggregations.the_int_sum.value: 303.0 }
-  - match: { aggregations.the_double_sum.value: 303.0 }
+  - match: { aggregations.the_int_value_count.value: 3 }
+  - match: { aggregations.the_double_value_count.value: 3 }
+  - match: { aggregations.the_string_value_count.value: 3 }
 
 
 ---
@@ -120,14 +132,14 @@ setup:
       search:
         body:
           aggs:
-            the_missing_sum:
-              sum:
+            the_missing_value_count:
+              value_count:
                 field: foo
                 missing: 1
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match: { aggregations.the_missing_sum.value: 4.0 }
+  - match: { aggregations.the_missing_value_count.value: 4 }
 
 ---
 "Missing field without missing param":
@@ -136,13 +148,13 @@ setup:
       search:
         body:
           aggs:
-            the_missing_sum:
-              sum:
+            the_missing_value_count:
+              value_count:
                 field: foo
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match: { aggregations.the_missing_sum.value: 0.0 }
+  - is_false: aggregations.the_missing_value_count.value
 
 ---
 "Metadata test":
@@ -151,26 +163,13 @@ setup:
       search:
         body:
           aggs:
-            the_int_sum:
+            the_int_value_count:
               meta:
                 foo: bar
-              sum:
+              value_count:
                 field: int_field
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match: { aggregations.the_int_sum.value: 304.0 }
-  - match: { aggregations.the_int_sum.meta.foo: "bar" }
-
----
-"Aggregating wrong datatype test":
-
-  - do:
-      catch: request
-      search:
-        body:
-          aggs:
-            the_string_sum:
-              sum:
-                field: string_field
-
+  - match: { aggregations.the_int_value_count.value: 4 }
+  - match: { aggregations.the_int_value_count.meta.foo: "bar" }

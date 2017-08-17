@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.ReadContext;
+import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 
 import java.io.IOException;
 import java.util.LinkedList;
@@ -58,6 +59,7 @@ public class HttpReadContext implements ReadContext {
             return bytesRead;
         }
 
+        boolean noPendingPriorToDecode = !nettyPipelineAdaptor.hasMessages();
         int size = references.size();
 
         ByteBuf inboundBytes = toByteBuf(size);
@@ -67,6 +69,10 @@ public class HttpReadContext implements ReadContext {
         Object msg;
         while ((msg = requests.poll()) != null) {
             requestHandler.handleMessage(channel, nettyPipelineAdaptor, msg);
+        }
+
+        if (noPendingPriorToDecode && nettyPipelineAdaptor.hasMessages()) {
+            SelectionKeyUtils.setWriteInterested(channel);
         }
 
         return bytesRead;

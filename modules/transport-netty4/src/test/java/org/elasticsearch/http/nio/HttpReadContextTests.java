@@ -21,20 +21,23 @@ package org.elasticsearch.http.nio;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.buffer.UnpooledByteBufAllocator;
-import io.netty.buffer.UnpooledHeapByteBuf;
+import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
+import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
+import org.elasticsearch.transport.nio.utils.TestSelectionKey;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -63,6 +66,8 @@ public class HttpReadContextTests extends ESTestCase {
 
 
         readContext = new HttpReadContext(channel, adaptor, handler);
+
+        when(channel.getSelectionKey()).thenReturn(new TestSelectionKey(0));
     }
 
     public void testSuccessfulRequest() throws IOException {
@@ -125,9 +130,19 @@ public class HttpReadContextTests extends ESTestCase {
             return bytes.length;
         });
 
-        when(adaptor.decode(Unpooled.wrappedBuffer(bytes))).thenReturn(new LinkedList<>(Arrays.asList()));
+        when(adaptor.decode(Unpooled.wrappedBuffer(bytes))).thenReturn(new LinkedList<>(Collections.emptyList()));
+        when(adaptor.hasMessages()).thenReturn(false, true);
+
+        assertFalse((channel.getSelectionKey().interestOps() & SelectionKey.OP_WRITE) != 0);
 
         readContext.read();
+
+        assertTrue((channel.getSelectionKey().interestOps() & SelectionKey.OP_WRITE) != 0);
+    }
+
+    public void testReadIndexesIncremented() {
+        NetworkBytesReference ref = new NetworkBytesReference(new BytesArray(new byte[10]), 10, 5);
+        ByteBuf byteBuf = Unpooled.wrappedBuffer(ref.getReadByteBuffer());
 
         // TODO: Implement
     }

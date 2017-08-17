@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -58,11 +57,9 @@ public final class PBrace extends AStoreable {
         prefix.expected = prefix.actual;
         prefix = prefix.cast(locals);
 
-        Sort sort = prefix.actual.sort;
-
-        if (sort == Sort.ARRAY) {
+        if (prefix.actual.dimensions > 0) {
             sub = new PSubBrace(location, prefix.actual, index);
-        } else if (sort == Sort.DEF) {
+        } else if (prefix.actual.dynamic) {
             sub = new PSubDefArray(location, index);
         } else if (Map.class.isAssignableFrom(prefix.actual.clazz)) {
             sub = new PSubMapShortcut(location, prefix.actual.struct, index);

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.upgrades;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -14,8 +13,7 @@ import org.elasticsearch.client.http.entity.ContentType;
 import org.elasticsearch.client.http.entity.StringEntity;
 import org.elasticsearch.client.http.util.EntityUtils;
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -28,8 +26,6 @@ import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,6 +52,14 @@ import static org.hamcrest.Matchers.not;
 @TestLogging("org.elasticsearch.client:TRACE")
 public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
 
+    private final StringEntity entity = new StringEntity(watchBuilder()
+            .trigger(schedule(interval("5m")))
+            .input(simpleInput())
+            .condition(AlwaysCondition.INSTANCE)
+            .addAction("_action1", loggingAction("{{ctx.watch_id}}"))
+            .buildAsBytes(XContentType.JSON)
+            .utf8ToString(),
+            ContentType.APPLICATION_JSON);
     private Nodes nodes;
 
     @Before
@@ -114,6 +118,42 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         nodes = buildNodeAndVersions();
         logger.info("Nodes in cluster before test: bwc [{}], new [{}], master [{}]", nodes.getBWCNodes(), nodes.getNewNodes(),
                 nodes.getMaster());
+
+        Map<String, String> params = Collections.singletonMap("error_trace", "true");
+        executeAgainstMasterNode(client -> {
+            // create a watch before each test, most of the time this is just overwriting...
+            assertOK(client.performRequest("PUT", "/_xpack/watcher/watch/my-watch", params, entity));
+            // just a check to see if we can execute a watch, purely optional
+            if (randomBoolean()) {
+                assertOK(client.performRequest("POST", "/_xpack/watcher/watch/my-watch/_execute", params,
+                        new StringEntity("{ \"record_execution\" : true }", ContentType.APPLICATION_JSON)));
+            }
+            if (randomBoolean()) {
+                Map<String, String> ignore404Params = MapBuilder.newMapBuilder(params).put("ignore", "404").immutableMap();
+                Response indexExistsResponse = client.performRequest("HEAD", "/.triggered_watches", ignore404Params);
+                if (indexExistsResponse.getStatusLine().getStatusCode() == 404) {
+                    logger.info("Created triggered watches index to ensure it gets upgraded");
+                    client.performRequest("PUT", "/.triggered_watches");
+                }
+            }
+        });
+
+        // TODO remove me again
+        executeAgainstMasterNode(client -> {
+            Map<String, String> filterPathParams = MapBuilder.newMapBuilder(params)
+                    .put("filter_path", "*.template,*.index_patterns").immutableMap();
+            Response r = client.performRequest("GET", "_template/*watch*", filterPathParams);
+            logger.info("existing watcher templates response [{}]", EntityUtils.toString(r.getEntity(), StandardCharsets.UTF_8));
+        });
+
+        // TODO remove me again
+        // set logging to debug
+        executeAgainstMasterNode(client -> {
+            StringEntity entity = new StringEntity("{ \"transient\" : { \"logger.org.elasticsearch.xpack.watcher\" : \"TRACE\" } }",
+                    ContentType.APPLICATION_JSON);
+            Response response = client.performRequest("PUT", "_cluster/settings", params, entity);
+            logger.info("cluster update settings response [{}]", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+        });
     }
 
     @Override
@@ -142,51 +182,25 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
     }
 
     public void testWatcherRestart() throws Exception {
-        executeAgainstRandomNode(client -> assertOK(client.performRequest("POST", "/_xpack/watcher/_stop")));
-        executeAgainstMasterNode(client -> assertBusy(() -> {
-            try (InputStream is = client.performRequest("GET", "_xpack/watcher/stats").getEntity().getContent()) {
-                // TODO once the serialization fix is in here, we can check for concrete fields if the run against a 5.x or a 6.x node
-                // using a checkedbiconsumer, that provides info against which node the request runs
-                String responseBody = Streams.copyToString(new InputStreamReader(is, Charsets.UTF_8));
-                assertThat(responseBody, not(containsString("\"watcher_state\":\"starting\"")));
-                assertThat(responseBody, not(containsString("\"watcher_state\":\"started\"")));
-                assertThat(responseBody, not(containsString("\"watcher_state\":\"stopping\"")));
-            }
-        }));
-
-        // currently the triggered watches index is not checked by the upgrade API, resulting in an existing index
-        // that has not configured the `index.format: 6`, resulting in watcher not starting
-        Map<String, String> params = new HashMap<>();
-        params.put("error_trace", "true");
-        params.put("ignore", "404");
-        client().performRequest("DELETE", ".triggered_watches", params);
-
         executeUpgradeIfNeeded();
+
+        executeAgainstRandomNode(client -> assertOK(client.performRequest("POST", "/_xpack/watcher/_stop")));
+        ensureWatcherStopped();
 
         executeAgainstRandomNode(client -> assertOK(client.performRequest("POST", "/_xpack/watcher/_start")));
         executeAgainstMasterNode(client -> assertBusy(() -> {
-            try (InputStream is = client.performRequest("GET", "_xpack/watcher/stats").getEntity().getContent()) {
-                // TODO once the serialization fix is in here, we can check for concrete fields if the run against a 5.x or a 6.x node
-                // using a checkedbiconsumer, that provides info against which node the request runs
-                String responseBody = Streams.copyToString(new InputStreamReader(is, Charsets.UTF_8));
-                assertThat(responseBody, not(containsString("\"watcher_state\":\"starting\"")));
-                assertThat(responseBody, not(containsString("\"watcher_state\":\"stopping\"")));
-                assertThat(responseBody, not(containsString("\"watcher_state\":\"stopped\"")));
-            }
+            Response response = client.performRequest("GET", "_xpack/watcher/stats");
+            String responseBody = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
+            // TODO once the serialization fix is in here, we can check for concrete fields if the run against a 5.x or a 6.x node
+            // using a checkedbiconsumer, that provides info against which node the request runs
+            assertThat(responseBody, not(containsString("\"watcher_state\":\"starting\"")));
+            assertThat(responseBody, not(containsString("\"watcher_state\":\"stopping\"")));
+            assertThat(responseBody, not(containsString("\"watcher_state\":\"stopped\"")));
         }));
     }
 
-    public void testWatchCrudApis() throws IOException {
+    public void testWatchCrudApis() throws Exception {
         assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
-
-        BytesReference bytesReference = watchBuilder()
-                .trigger(schedule(interval("5m")))
-                .input(simpleInput())
-                .condition(AlwaysCondition.INSTANCE)
-                .addAction("_action1", loggingAction("{{ctx.watch_id}}"))
-                .buildAsBytes(XContentType.JSON);
-        StringEntity entity = new StringEntity(bytesReference.utf8ToString(),
-                ContentType.APPLICATION_JSON);
 
         // execute upgrade if new nodes are in the cluster
         executeUpgradeIfNeeded();
@@ -201,7 +215,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         });
     }
 
-    public void executeUpgradeIfNeeded() throws IOException {
+    public void executeUpgradeIfNeeded() throws Exception {
         // if new nodes exists, this is a mixed cluster
         boolean only6xNodes = nodes.getBWCVersion().major >= 6;
         final List<Node> nodesToQuery = only6xNodes ? nodes.getBWCNodes() : nodes.getNewNodes();
@@ -212,12 +226,50 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
                 Map<String, String> params = Collections.singletonMap("error_trace", "true");
                 Response assistanceResponse = client().performRequest("GET", "_xpack/migration/assistance", params);
                 String assistanceResponseData = EntityUtils.toString(assistanceResponse.getEntity());
-                logger.info("Assistance response is: [{}]", assistanceResponseData);
+                logger.info("assistance response is: [{}]", assistanceResponseData);
                 Map<String, Object> response = toMap(assistanceResponseData);
                 String watchIndexUpgradeRequired = ObjectPath.evaluate(response, "indices.\\.watches.action_required");
                 String triggeredWatchIndexUpgradeRequired = ObjectPath.evaluate(response, "indices.\\.triggered_watches.action_required");
                 if ("upgrade".equals(watchIndexUpgradeRequired) || "upgrade".equals(triggeredWatchIndexUpgradeRequired)) {
-                    client.performRequest("POST", "_xpack/migration/upgrade/.watches", params);
+                    boolean stopWatcherBeforeUpgrade = randomBoolean();
+                    if (stopWatcherBeforeUpgrade) {
+                        assertOK(client.performRequest("POST", "/_xpack/watcher/_stop"));
+                        logger.info("stopped watcher manually before starting upgrade");
+                    }
+
+                    if (randomBoolean() &&
+                            "upgrade".equals(watchIndexUpgradeRequired) && "upgrade".equals(triggeredWatchIndexUpgradeRequired)) {
+                        Response upgradeResponse =
+                                client.performRequest("POST", "_xpack/migration/upgrade/.watches,.triggered_watches", params);
+                        logger.info("Upgrade .watches/.triggered_watches response is: [{}]",
+                                EntityUtils.toString(upgradeResponse.getEntity()));
+                    } else {
+                        if ("upgrade".equals(watchIndexUpgradeRequired)) {
+                            Response upgradeResponse = client.performRequest("POST", "_xpack/migration/upgrade/.watches", params);
+                            logger.info("Upgrade .watches response is: [{}]", EntityUtils.toString(upgradeResponse.getEntity()));
+                        }
+
+                        if ("upgrade".equals(triggeredWatchIndexUpgradeRequired)) {
+                            Response upgradeResponse = client.performRequest("POST", "_xpack/migration/upgrade/.triggered_watches", params);
+                            logger.info("Upgrade .triggered_watches response is: [{}]", EntityUtils.toString(upgradeResponse.getEntity()));
+                        }
+                    }
+
+                    // show templates after upgrade
+                    executeAgainstMasterNode(c -> {
+                        Map<String, String> filterPathParams = MapBuilder.newMapBuilder(params)
+                                .put("filter_path", "*.template,*.index_patterns").immutableMap();
+                        Response r = c.performRequest("GET", "_template/*watch*", filterPathParams);
+                        logger.info("existing watcher templates response AFTER UPGRADE [{}]",
+                                EntityUtils.toString(r.getEntity(), StandardCharsets.UTF_8));
+                    });
+
+
+                    if (stopWatcherBeforeUpgrade) {
+                        ensureWatcherStopped();
+                        assertOK(client.performRequest("POST", "/_xpack/watcher/_start"));
+                        logger.info("started watcher manually after running upgrade");
+                    }
                 }
             }
         }
@@ -258,8 +310,21 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         }
     }
 
-    private void assertOK(Response response) {
+    private void ensureWatcherStopped() throws Exception {
+        executeAgainstMasterNode(client -> assertBusy(() -> {
+            Response stats = client.performRequest("GET", "_xpack/watcher/stats");
+            String responseBody = EntityUtils.toString(stats.getEntity());
+            assertThat(responseBody, not(containsString("\"watcher_state\":\"starting\"")));
+            assertThat(responseBody, not(containsString("\"watcher_state\":\"started\"")));
+            assertThat(responseBody, not(containsString("\"watcher_state\":\"stopping\"")));
+        }));
+    }
+
+    private void assertOK(Response response) throws IOException {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+        // consume that entity, otherwise the input stream will not be closed
+        // side effect is, that everything needs to be asserted ok directly, you cannot check the body!
+        EntityUtils.consume(response.getEntity());
     }
 
     private Nodes buildNodeAndVersions() throws IOException {

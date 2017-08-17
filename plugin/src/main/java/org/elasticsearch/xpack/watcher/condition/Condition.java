@@ -40,7 +40,7 @@ public abstract class Condition implements ToXContentObject {
         return builder.startObject().endObject();
     }
 
-    public static class Result implements ToXContent { // don't make this final - we can't mock final classes :(
+    public static class Result implements ToXContentObject { // don't make this final - we can't mock final classes :(
 
         public Map<String,Object> getResolvedValues() {
             return resolveValues;

@@ -11,14 +11,13 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.PrintWriter;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
-import java.util.Locale;
 import java.util.Set;
 
 import static java.nio.file.attribute.PosixFilePermission.GROUP_EXECUTE;
@@ -49,8 +48,8 @@ public class SecurityFilesTests extends ESTestCase {
 
         Files.setPosixFilePermissions(path, perms);
 
-        try (PrintWriter writer = new PrintWriter(openAtomicMoveWriter(path))) {
-            writer.printf(Locale.ROOT, "This is a test");
+        try (Writer writer = openAtomicMoveWriter(path)) {
+            writer.write("This is a test");
         }
 
         Set<PosixFilePermission> permissionsAfterWrite = Files.getPosixFilePermissions(path);

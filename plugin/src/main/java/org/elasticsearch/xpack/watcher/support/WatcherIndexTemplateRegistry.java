@@ -48,10 +48,11 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             HISTORY_TEMPLATE_NAME, TRIGGERED_TEMPLATE_NAME, WATCHES_TEMPLATE_NAME
     };
 
+    public static final TemplateConfig TEMPLATE_CONFIG_TRIGGERED_WATCHES = new TemplateConfig(TRIGGERED_TEMPLATE_NAME, "triggered-watches");
+    public static final TemplateConfig TEMPLATE_CONFIG_WATCH_HISTORY = new TemplateConfig(HISTORY_TEMPLATE_NAME, "watch-history");
+    public static final TemplateConfig TEMPLATE_CONFIG_WATCHES = new TemplateConfig(WATCHES_TEMPLATE_NAME, "watches");
     public static final TemplateConfig[] TEMPLATE_CONFIGS = new TemplateConfig[]{
-            new TemplateConfig(TRIGGERED_TEMPLATE_NAME, "triggered-watches"),
-            new TemplateConfig(HISTORY_TEMPLATE_NAME, "watch-history"),
-            new TemplateConfig(WATCHES_TEMPLATE_NAME, "watches")
+            TEMPLATE_CONFIG_TRIGGERED_WATCHES, TEMPLATE_CONFIG_WATCH_HISTORY, TEMPLATE_CONFIG_WATCHES
     };
 
     private final InternalClient client;
@@ -91,7 +92,6 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
                 if (!state.metaData().getTemplates().containsKey(templateName)) {
-
                     logger.debug("adding index template [{}], because it doesn't exist", templateName);
                     putTemplate(template, creationCheck);
                 } else {
@@ -106,10 +106,8 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
             final String templateName = config.getTemplateName();
-            final byte[] template = TemplateUtils.loadTemplate("/" + config.getFileName() + ".json", INDEX_TEMPLATE_VERSION,
-                    Pattern.quote("${xpack.watcher.template.version}")).getBytes(StandardCharsets.UTF_8);
 
-            PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName).source(template, XContentType.JSON);
+            PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName).source(config.load(), XContentType.JSON);
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
             client.admin().indices().putTemplate(request, new ActionListener<PutIndexTemplateResponse>() {
                 @Override
@@ -134,7 +132,7 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
         private final String templateName;
         private String fileName;
 
-        public TemplateConfig(String templateName, String fileName) {
+        TemplateConfig(String templateName, String fileName) {
             this.templateName = templateName;
             this.fileName = fileName;
         }
@@ -145,6 +143,13 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
 
         public String getTemplateName() {
             return templateName;
+        }
+
+        public byte[] load() {
+            String template = TemplateUtils.loadTemplate("/" + fileName + ".json", INDEX_TEMPLATE_VERSION,
+                    Pattern.quote("${xpack.watcher.template.version}"));
+            assert template != null && template.length() > 0;
+            return template.getBytes(StandardCharsets.UTF_8);
         }
     }
 }

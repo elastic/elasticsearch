@@ -5,20 +5,21 @@
  */
 package org.elasticsearch.xpack.security.action.rolemapping;
 
-import java.io.IOException;
-
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * Response when adding/updating a role-mapping.
  *
  * @see org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class PutRoleMappingResponse extends ActionResponse implements ToXContent {
+public class PutRoleMappingResponse extends ActionResponse implements ToXContentObject {
 
     private boolean created;
 

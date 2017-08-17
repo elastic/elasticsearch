@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
@@ -134,7 +133,6 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.security.bootstrap.BootstrapElasticPassword;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
@@ -220,6 +218,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
     private final SetOnce<AuditTrailService> auditTrailService = new SetOnce<>();
     private final SetOnce<SecurityContext> securityContext = new SetOnce<>();
     private final SetOnce<ThreadContext> threadContext = new SetOnce<>();
+    private final List<BootstrapCheck> bootstrapChecks;
 
     public Security(Settings settings, Environment env, XPackLicenseState licenseState, SSLService sslService)
                     throws IOException, GeneralSecurityException {
@@ -232,6 +231,20 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         }
         this.licenseState = licenseState;
         this.sslService = sslService;
+        if (enabled) {
+            // we load them all here otherwise we can't access secure settings since they are closed once the checks are
+            // fetched
+            final List<BootstrapCheck> checks = new ArrayList<>();
+            checks.addAll(Arrays.asList(
+                    new SSLBootstrapCheck(sslService, settings, env),
+                    new TokenPassphraseBootstrapCheck(settings),
+                    new TokenSSLBootstrapCheck(settings),
+                    new PkiRealmBootstrapCheck(settings, sslService)));
+            checks.addAll(InternalRealms.getBootstrapChecks(settings));
+            this.bootstrapChecks = Collections.unmodifiableList(checks);
+        } else {
+            this.bootstrapChecks = Collections.emptyList();
+        }
     }
 
     public Collection<Module> nodeModules() {
@@ -394,10 +407,6 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(), authzService, licenseState,
                 sslService, securityContext.get(), destructiveOperations));
 
-        BootstrapElasticPassword bootstrapElasticPassword = new BootstrapElasticPassword(settings, clusterService, reservedRealm,
-                securityLifecycleService);
-        bootstrapElasticPassword.initiatePasswordBootstrap();
-
         return components;
     }
 
@@ -504,18 +513,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
     }
 
     public List<BootstrapCheck> getBootstrapChecks() {
-        if (enabled) {
-            final ArrayList<BootstrapCheck> checks = CollectionUtils.arrayAsArrayList(
-                    new SSLBootstrapCheck(sslService, settings, env),
-                    new TokenPassphraseBootstrapCheck(settings),
-                    new TokenSSLBootstrapCheck(settings),
-                    new PkiRealmBootstrapCheck(settings, sslService)
-            );
-            checks.addAll(InternalRealms.getBootstrapChecks(settings));
-            return checks;
-        } else {
-            return Collections.emptyList();
-        }
+       return bootstrapChecks;
     }
 
     public void onIndexModule(IndexModule module) {

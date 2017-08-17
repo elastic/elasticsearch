@@ -116,6 +116,20 @@ For example:
 
 For information about building the X-Pack Reference, see the README in the x-pack repo.
 
+To build a release notes page for the pull requests in this repository:
+
+* Use the dev-tools/xes-release-notes.pl script.
+* Specify the version label for which you want the release notes.
+* Redirect the output to a new local file.
+
+NOTE: You must have a personal access token called ~/.github_auth with "repo" scope. Use steps similar to "Vault Secret" to create this file. 
+
+For example:
+[source, txt]
+-----
+./dev-tools/xes_release_notes.pl v5.5.2 > ~/tmp/5.5.2.asciidoc
+-----
+
 == Adding Images
 
 When you include an image in the documentation, specify the path relative to the location of the asciidoc file. By convention, we put images in an `images` subdirectory.

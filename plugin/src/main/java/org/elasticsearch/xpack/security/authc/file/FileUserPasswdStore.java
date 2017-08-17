@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.security.support.Validation.Users;
 import org.elasticsearch.xpack.security.user.User;
 
 import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -169,9 +169,11 @@ public class FileUserPasswdStore {
     }
 
     public static void writeFile(Map<String, char[]> users, Path path) {
-        try (PrintWriter writer = new PrintWriter(openAtomicMoveWriter(path))) {
+        try (Writer writer = openAtomicMoveWriter(path)) {
             for (Map.Entry<String, char[]> entry : users.entrySet()) {
-                writer.printf(Locale.ROOT, "%s:%s%s", entry.getKey(), new String(entry.getValue()), System.lineSeparator());
+                final String message =
+                        String.format(Locale.ROOT, "%s:%s%s", entry.getKey(), new String(entry.getValue()), System.lineSeparator());
+                writer.write(message);
             }
         } catch (IOException ioe) {
             throw new ElasticsearchException("could not write file [{}], please check file permissions", ioe, path.toAbsolutePath());

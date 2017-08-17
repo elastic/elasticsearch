@@ -71,6 +71,7 @@ public class NativeUsersStore extends AbstractComponent {
     static final String USER_DOC_TYPE = "user";
     public static final String RESERVED_USER_TYPE = "reserved-user";
 
+
     private final Hasher hasher = Hasher.BCRYPT;
     private final InternalClient client;
     private final boolean isTribeNode;
@@ -550,7 +551,8 @@ public class NativeUsersStore extends AbstractComponent {
                             } else if (enabled == null) {
                                 listener.onFailure(new IllegalStateException("enabled must not be null!"));
                             } else if (password.isEmpty()) {
-                                listener.onResponse(new ReservedUserInfo(ReservedRealm.EMPTY_PASSWORD_HASH, enabled, true));
+                                listener.onResponse((enabled ? ReservedRealm.ENABLED_DEFAULT_USER_INFO : ReservedRealm
+                                        .DISABLED_DEFAULT_USER_INFO).deepClone());
                             } else {
                                 listener.onResponse(new ReservedUserInfo(password.toCharArray(), enabled, false));
                             }
@@ -687,7 +689,7 @@ public class NativeUsersStore extends AbstractComponent {
         return docType + "-" + userName;
     }
 
-    static class ReservedUserInfo {
+    static final class ReservedUserInfo {
 
         public final char[] passwordHash;
         public final boolean enabled;
@@ -698,5 +700,10 @@ public class NativeUsersStore extends AbstractComponent {
             this.enabled = enabled;
             this.hasEmptyPassword = hasEmptyPassword;
         }
+
+        ReservedUserInfo deepClone() {
+            return new ReservedUserInfo(Arrays.copyOf(passwordHash, passwordHash.length), enabled, hasEmptyPassword);
+        }
+
     }
 }

@@ -23,16 +23,16 @@ import java.util.concurrent.atomic.AtomicReference;
  * Represents a executor node operation that corresponds to a persistent task
  */
 public class AllocatedPersistentTask extends CancellableTask {
-    private String persistentTaskId;
-    private long allocationId;
+    private volatile String persistentTaskId;
+    private volatile long allocationId;
 
     private final AtomicReference<State> state;
     @Nullable
-    private Exception failure;
+    private volatile Exception failure;
 
-    private PersistentTasksService persistentTasksService;
-    private Logger logger;
-    private TaskManager taskManager;
+    private volatile PersistentTasksService persistentTasksService;
+    private volatile Logger logger;
+    private volatile TaskManager taskManager;
 
 
     public AllocatedPersistentTask(long id, String type, String action, String description, TaskId parentTask) {

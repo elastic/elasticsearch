@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.transport.action.execute;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,7 +14,6 @@ import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchReq
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 
 public class ExecuteWatchRequestTests extends ESTestCase {
 
@@ -31,24 +29,5 @@ public class ExecuteWatchRequestTests extends ESTestCase {
         serialized.readFrom(in);
         assertEquals(XContentType.JSON, serialized.getXContentType());
         assertEquals("{}", serialized.getWatchSource().utf8ToString());
-    }
-
-    public void testSerializationBwc() throws IOException {
-        final byte[] data = Base64.getDecoder().decode("ADwDAAAAAAAAAAAAAAAAAAABDnsid2F0Y2giOiJtZSJ9AAAAAAAAAA==");
-        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-                Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
-        try (StreamInput in = StreamInput.wrap(data)) {
-            in.setVersion(version);
-            ExecuteWatchRequest request = new ExecuteWatchRequest();
-            request.readFrom(in);
-            assertEquals(XContentType.JSON, request.getXContentType());
-            assertEquals("{\"watch\":\"me\"}", request.getWatchSource().utf8ToString());
-
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
-                request.writeTo(out);
-                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
-            }
-        }
     }
 }

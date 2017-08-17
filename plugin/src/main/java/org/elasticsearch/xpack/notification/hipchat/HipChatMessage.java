@@ -135,7 +135,7 @@ public class HipChatMessage implements ToXContentObject {
         return builder.endObject();
     }
 
-    public static class Template implements ToXContent {
+    public static class Template implements ToXContentObject {
 
         final TextTemplate body;
         @Nullable final TextTemplate[] rooms;

@@ -10,8 +10,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -27,6 +29,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexTemplateMissingException;
@@ -44,14 +47,16 @@ import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.template.TemplateUtils;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction;
 import org.elasticsearch.xpack.upgrade.rest.RestIndexUpgradeAction;
 import org.elasticsearch.xpack.upgrade.rest.RestIndexUpgradeInfoAction;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.transport.actions.service.WatcherServiceRequest;
-import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsRequest;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -63,6 +68,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.INDEX_TYPE;
@@ -216,7 +222,7 @@ public class Upgrade implements ActionPlugin {
         }
 
         try (SecureString secureString = new SecureString(passwordHash.toCharArray())) {
-            return Hasher.BCRYPT.verify(ReservedRealm.EMPTY_PASSWORD_TEXT, secureString.getChars());
+            return Hasher.BCRYPT.verify(new SecureString("".toCharArray()), secureString.getChars());
         }
     }
 
@@ -225,8 +231,7 @@ public class Upgrade implements ActionPlugin {
                 new IndexUpgradeCheck<Boolean>("watcher",
                         settings,
                         indexMetaData -> {
-                            if (".watches".equals(indexMetaData.getIndex().getName()) ||
-                                    indexMetaData.getAliases().containsKey(".watches")) {
+                            if (indexOrAliasExists(indexMetaData, ".watches") || indexOrAliasExists(indexMetaData, ".triggered_watches")) {
                                 if (checkInternalIndexFormat(indexMetaData)) {
                                     return UpgradeActionRequired.UP_TO_DATE;
                                 } else {
@@ -248,45 +253,124 @@ public class Upgrade implements ActionPlugin {
                 );
     }
 
+    private static boolean indexOrAliasExists(IndexMetaData indexMetaData, String name) {
+        return name.equals(indexMetaData.getIndex().getName()) || indexMetaData.getAliases().containsKey(name);
+    }
+
     private static void preWatcherUpgrade(Client client, ActionListener<Boolean> listener) {
-        ActionListener<DeleteIndexTemplateResponse> triggeredWatchIndexTemplateListener = deleteIndexTemplateListener("triggered_watches",
-                listener, () -> listener.onResponse(true));
-
-        ActionListener<DeleteIndexTemplateResponse> watchIndexTemplateListener = deleteIndexTemplateListener("watches", listener,
-                () -> client.admin().indices().prepareDeleteTemplate("triggered_watches").execute(triggeredWatchIndexTemplateListener));
-
-        new WatcherClient(client).watcherStats(new WatcherStatsRequest(), ActionListener.wrap(
+        new WatcherClient(client).prepareWatcherStats().execute(ActionListener.wrap(
                 stats -> {
                     if (stats.watcherMetaData().manuallyStopped()) {
-                        // don't start watcher after upgrade
-                        listener.onResponse(false);
+                        preWatcherUpgrade(client, listener, false);
                     } else {
-                        // stop watcher
-                        new WatcherClient(client).watcherService(new WatcherServiceRequest().stop(), ActionListener.wrap(
-                                stopResponse -> {
-                                    if (stopResponse.isAcknowledged()) {
-                                        // delete old templates before indexing
-                                        client.admin().indices().prepareDeleteTemplate("watches").execute(watchIndexTemplateListener);
+                        new WatcherClient(client).prepareWatchService().stop().execute(ActionListener.wrap(
+                                watcherServiceResponse -> {
+                                    if (watcherServiceResponse.isAcknowledged()) {
+                                        preWatcherUpgrade(client, listener, true);
+                                        ;
                                     } else {
                                         listener.onFailure(new IllegalStateException("unable to stop watcher service"));
                                     }
-                                }, listener::onFailure
-                        ));
+
+                                },
+                                listener::onFailure));
                     }
-                }, listener::onFailure));
+                },
+                listener::onFailure));
     }
 
-    private static void postWatcherUpgrade(Client client, Boolean shouldStartWatcher, ActionListener<TransportResponse.Empty> listener) {
-        ActionListener<DeleteIndexResponse> deleteTriggeredWatchIndexResponse = ActionListener.wrap(deleteIndexResponse ->
-                startWatcherIfNeeded(shouldStartWatcher, client, listener), e -> {
+    static void preWatcherUpgrade(final Client client, final ActionListener<Boolean> listener, final boolean restart) {
+       // step 8: after recreate triggered watches index, return to caller
+        ActionListener<CreateIndexResponse> returningListener = ActionListener.wrap(r -> {
+            if (r.isAcknowledged()) {
+                listener.onResponse(restart);
+            } else {
+                listener.onFailure(new ElasticsearchException("Creating index [.triggered_watches] was not acknowledged"));
+            }
+        }, listener::onFailure);
+
+        // step 7: after: delete triggered watches index, recreate triggered watches index
+        ActionListener<DeleteIndexResponse> recreateTriggeredWatchesIndexListener = ActionListener.wrap(r -> {
+            if (r.isAcknowledged()) {
+                client.admin().indices().prepareCreate(".triggered_watches").execute(returningListener);
+            } else {
+                listener.onFailure(new ElasticsearchException("Deleting index [.triggered_watches] was not acknowledged"));
+            }
+        }, e -> {
             if (e instanceof IndexNotFoundException) {
-                startWatcherIfNeeded(shouldStartWatcher, client, listener);
+                client.admin().indices().prepareCreate(".triggered_watches").execute(returningListener);
             } else {
                 listener.onFailure(e);
             }
         });
 
-        client.admin().indices().prepareDelete(".triggered_watches").execute(deleteTriggeredWatchIndexResponse);
+        final String legacyTriggeredWatchesTemplateName = "triggered_watches";
+        final String legacyWatchesTemplateName = "watches";
+
+        // step 6: after delete triggered_watches index template, delete triggered watches index
+        ActionListener<DeleteIndexTemplateResponse> deleteTriggeredWatchesIndexListener =
+                deleteIndexTemplateListener(legacyTriggeredWatchesTemplateName, listener,
+                        () -> client.admin().indices().prepareDelete(".triggered_watches").execute(recreateTriggeredWatchesIndexListener));
+
+        // step 5, after delete watches index template: delete triggered_watches index template
+        ActionListener<DeleteIndexTemplateResponse> deleteWatchesTemplateListener =
+                deleteIndexTemplateListener(legacyWatchesTemplateName, listener,
+                        () -> client.admin().indices().prepareDeleteTemplate(legacyTriggeredWatchesTemplateName)
+                                .execute(deleteTriggeredWatchesIndexListener));
+
+        // step 4, after put new .triggered_watches template: delete watches index template
+        ActionListener<PutIndexTemplateResponse> putTriggeredWatchesListener =
+                putIndexTemplateListener(WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME, listener,
+                        () -> client.admin().indices().prepareDeleteTemplate(legacyWatchesTemplateName)
+                                .execute(deleteWatchesTemplateListener));
+
+        // step 3, after put new .watches template: put new .triggered_watches template
+        final byte[] triggeredWatchesTemplate = TemplateUtils.loadTemplate("/triggered-watches.json",
+                WatcherIndexTemplateRegistry.INDEX_TEMPLATE_VERSION,
+                Pattern.quote("${xpack.watcher.template.version}")).getBytes(StandardCharsets.UTF_8);
+
+        ActionListener<PutIndexTemplateResponse> putWatchesTemplateListener =
+                putIndexTemplateListener(WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_NAME, listener,
+                        () -> client.admin().indices().preparePutTemplate(WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME)
+                                .setSource(triggeredWatchesTemplate, XContentType.JSON).execute(putTriggeredWatchesListener));
+
+        // step 2, after delete watch history templates: put new .watches template
+        final byte[] watchesTemplate = TemplateUtils.loadTemplate("/watches.json",
+                WatcherIndexTemplateRegistry.INDEX_TEMPLATE_VERSION,
+                Pattern.quote("${xpack.watcher.template.version}")).getBytes(StandardCharsets.UTF_8);
+
+        ActionListener<DeleteIndexTemplateResponse> deleteWatchHistoryTemplatesListener = deleteIndexTemplateListener("watch_history_*",
+                listener,
+                () -> client.admin().indices().preparePutTemplate(WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_NAME)
+                        .setSource(watchesTemplate, XContentType.JSON)
+                        .execute(putWatchesTemplateListener));
+
+        // step 1, delete watch history index templates
+        client.admin().indices().prepareDeleteTemplate("watch_history_*").execute(deleteWatchHistoryTemplatesListener);
+    }
+
+    private static void postWatcherUpgrade(Client client, Boolean shouldStartWatcher, ActionListener<TransportResponse.Empty> listener) {
+        if (shouldStartWatcher) {
+            // Start the watcher service
+            new WatcherClient(client).watcherService(new WatcherServiceRequest().start(), ActionListener.wrap(
+                    r -> listener.onResponse(TransportResponse.Empty.INSTANCE), listener::onFailure
+            ));
+        } else {
+            listener.onResponse(TransportResponse.Empty.INSTANCE);
+        }
+    }
+
+    private static ActionListener<PutIndexTemplateResponse> putIndexTemplateListener(String name, ActionListener<Boolean> listener,
+                                                                                     Runnable runnable) {
+        return ActionListener.wrap(
+                r -> {
+                    if (r.isAcknowledged()) {
+                        runnable.run();
+                    } else {
+                        listener.onFailure(new ElasticsearchException("Putting [{}] template was not acknowledged", name));
+                    }
+                },
+                listener::onFailure);
     }
 
     private static ActionListener<DeleteIndexTemplateResponse> deleteIndexTemplateListener(String name, ActionListener<Boolean> listener,
@@ -307,16 +391,5 @@ public class Upgrade implements ActionPlugin {
                         listener.onFailure(e);
                     }
                 });
-    }
-
-    private static void startWatcherIfNeeded(Boolean shouldStartWatcher, Client client, ActionListener<TransportResponse.Empty> listener) {
-        if (shouldStartWatcher) {
-            // Start the watcher service
-            new WatcherClient(client).watcherService(new WatcherServiceRequest().start(), ActionListener.wrap(
-                    stopResponse -> listener.onResponse(TransportResponse.Empty.INSTANCE), listener::onFailure
-            ));
-        } else {
-            listener.onResponse(TransportResponse.Empty.INSTANCE);
-        }
     }
 }

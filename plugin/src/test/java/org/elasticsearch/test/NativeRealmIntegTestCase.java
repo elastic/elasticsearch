@@ -6,6 +6,7 @@
 package org.elasticsearch.test;
 
 
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.http.HttpEntity;
 import org.elasticsearch.client.http.entity.ContentType;
 import org.elasticsearch.client.http.message.BasicHeader;
@@ -35,7 +36,6 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
     public void ensureNativeStoresStarted() throws Exception {
         assertSecurityIndexActive();
         if (shouldSetReservedUserPasswords()) {
-            ensureElasticPasswordBootstrapped();
             setupReservedPasswords();
         }
     }
@@ -70,16 +70,29 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
     }
 
     public void setupReservedPasswords() throws IOException {
+        setupReservedPasswords(getRestClient());
+    }
+
+    public void setupReservedPasswords(RestClient restClient) throws IOException {
         logger.info("setting up reserved passwords for test");
-        SecureString defaultPassword = new SecureString("".toCharArray());
+        {
+            String payload = "{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}";
+            HttpEntity entity = new NStringEntity(payload, ContentType.APPLICATION_JSON);
+            BasicHeader authHeader = new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                    UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, BOOTSTRAP_PASSWORD));
+            String route = "/_xpack/security/user/elastic/_password";
+            Response response = restClient.performRequest("PUT", route, Collections.emptyMap(), entity, authHeader);
+            assertEquals(response.getStatusLine().getReasonPhrase(), 200, response.getStatusLine().getStatusCode());
+        }
 
         for (String username : Arrays.asList(KibanaUser.NAME, LogstashSystemUser.NAME)) {
             String payload = "{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}";
             HttpEntity entity = new NStringEntity(payload, ContentType.APPLICATION_JSON);
             BasicHeader authHeader = new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                    UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING));
+                    UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, reservedPassword));
             String route = "/_xpack/security/user/" + username + "/_password";
-            Response response = getRestClient().performRequest("PUT", route, Collections.emptyMap(), entity, authHeader);
+            Response response = restClient.performRequest("PUT", route, Collections.emptyMap(), entity, authHeader);
+            assertEquals(response.getStatusLine().getReasonPhrase(), 200, response.getStatusLine().getStatusCode());
         }
         logger.info("setting up reserved passwords finished");
     }

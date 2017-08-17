@@ -36,6 +36,9 @@ public class RestPutJobAction extends BaseRestHandler {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
         PutJobAction.Request putJobRequest = PutJobAction.Request.parseRequest(jobId, parser);
+        putJobRequest.timeout(restRequest.paramAsTime("timeout", putJobRequest.timeout()));
+        putJobRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", putJobRequest.masterNodeTimeout()));
+
         return channel -> client.execute(PutJobAction.INSTANCE, putJobRequest, new RestToXContentListener<>(channel));
     }
 

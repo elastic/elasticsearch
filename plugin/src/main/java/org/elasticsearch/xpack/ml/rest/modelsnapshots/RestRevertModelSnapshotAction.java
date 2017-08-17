@@ -47,6 +47,9 @@ public class RestRevertModelSnapshotAction extends BaseRestHandler {
             request.setDeleteInterveningResults(restRequest
                     .paramAsBoolean(RevertModelSnapshotAction.Request.DELETE_INTERVENING.getPreferredName(), DELETE_INTERVENING_DEFAULT));
         }
+        request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
+        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+
         return channel -> client.execute(RevertModelSnapshotAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
     }
 }

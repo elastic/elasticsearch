@@ -12,7 +12,6 @@ integTestRunner {
 
 integTestCluster {
     plugin ':x-pack-elasticsearch:plugin'
-    keystoreSetting 'bootstrap.password', 'x-pack-test-password'
     setupCommand 'setupTestAdmin',
             'bin/x-pack/users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
     waitCondition = { node, ant ->

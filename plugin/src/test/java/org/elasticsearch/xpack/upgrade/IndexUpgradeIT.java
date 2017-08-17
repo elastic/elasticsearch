@@ -6,26 +6,49 @@
 package org.elasticsearch.xpack.upgrade;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction.Response;
+import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
@@ -131,5 +154,84 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
 
         // but calling on a particular index should fail
         assertThrows(client().prepareExecute(IndexUpgradeInfoAction.INSTANCE).setIndices("test"), IndexNotFoundException.class);
+    }
+
+    public void testPreWatcherUpgrade() throws Exception {
+        try {
+            client().admin().indices().prepareCreate(".triggered_watches").get();
+        } catch (IndexCreationException e) {}
+
+        GetIndexResponse indexResponse = client().admin().indices().prepareGetIndex().setIndices(".triggered_watches").get();
+        String creationDate = indexResponse.getSettings().get(".triggered_watches").get("index.creation_date");
+        assertThat(creationDate, is(notNullValue()));
+
+        Settings templateSettings = Settings.builder().put("index.number_of_shards", 2).build();
+        // create legacy triggered watch template
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().preparePutTemplate("triggered_watches")
+                    .setSettings(templateSettings).setTemplate(".triggered_watches*")
+                    .get());
+        }
+
+        // create legacy watches template
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().preparePutTemplate("watches")
+                    .setSettings(templateSettings).setTemplate(".watches*")
+                    .get());
+        }
+
+        // create old watch history template
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().preparePutTemplate("watch_history_foo")
+                    .setSettings(templateSettings).setTemplate("watch_history-*")
+                    .get());
+        }
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<Boolean> listener = ActionListener.wrap(
+                r -> latch.countDown(),
+                e -> {
+                    latch.countDown();
+                    exception.set(e);
+                });
+
+        // use the internal client from the master, instead of client(), so we dont have to deal with remote transport exceptions
+        // and it works like the real implementation
+        InternalClient client = internalCluster().getInstance(InternalClient.class, internalCluster().getMasterName());
+        Upgrade.preWatcherUpgrade(client, listener, false);
+
+        assertThat("Latch was not counted down", latch.await(10, TimeUnit.SECONDS), is(true));
+        assertThat(exception.get(), is(nullValue()));
+
+        // ensure old index templates are gone, new ones are created
+        assertIndexTemplatesAfterUpdate();
+
+        // expect the index to be recreated with a new creation date
+        GetIndexResponse newIndexResponse = client().admin().indices().prepareGetIndex().setIndices(".triggered_watches").get();
+        String newCreationDate = newIndexResponse.getSettings().get(".triggered_watches").get("index.creation_date");
+        assertThat(creationDate, not(is(newCreationDate)));
+        // last let's be sure that the watcher index template registry does not add back any template by accident with the current state
+        Settings settings = internalCluster().getInstance(Settings.class, internalCluster().getMasterName());
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, internalCluster().getMasterName());
+        WatcherIndexTemplateRegistry registry =
+                new WatcherIndexTemplateRegistry(settings, clusterService, threadPool, client);
+
+        ClusterState state = clusterService.state();
+        ClusterChangedEvent event = new ClusterChangedEvent("whatever", state, state);
+        registry.clusterChanged(event);
+        assertIndexTemplatesAfterUpdate();
+    }
+
+    private void assertIndexTemplatesAfterUpdate() {
+        GetIndexTemplatesResponse templatesResponse = client().admin().indices().prepareGetTemplates().get();
+        List<String> templateNames = templatesResponse.getIndexTemplates().stream().map(IndexTemplateMetaData::getName)
+                .collect(Collectors.toList());
+        assertThat(templateNames, not(hasItem(startsWith("watch_history"))));
+        assertThat(templateNames, not(hasItem("triggered_watches")));
+        assertThat(templateNames, not(hasItem("watches")));
+        assertThat(templateNames, hasItem(".watches"));
+        assertThat(templateNames, hasItem(".triggered_watches"));
     }
 }

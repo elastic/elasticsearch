@@ -9,6 +9,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -18,7 +19,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
-import org.elasticsearch.xpack.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
@@ -46,16 +46,16 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public static final String TYPE = "reserved";
 
-    public static final SecureString EMPTY_PASSWORD_TEXT = new SecureString("".toCharArray());
-    static final char[] EMPTY_PASSWORD_HASH = Hasher.BCRYPT.hash(EMPTY_PASSWORD_TEXT);
-
-    private static final ReservedUserInfo DEFAULT_USER_INFO = new ReservedUserInfo(EMPTY_PASSWORD_HASH, true, true);
-    private static final ReservedUserInfo DISABLED_USER_INFO = new ReservedUserInfo(EMPTY_PASSWORD_HASH, false, true);
+    private final ReservedUserInfo bootstrapUserInfo;
+    static final char[] EMPTY_PASSWORD_HASH = Hasher.BCRYPT.hash(new SecureString("".toCharArray()));
+    static final ReservedUserInfo DISABLED_DEFAULT_USER_INFO = new ReservedUserInfo(EMPTY_PASSWORD_HASH, false, true);
+    static final ReservedUserInfo ENABLED_DEFAULT_USER_INFO = new ReservedUserInfo(EMPTY_PASSWORD_HASH, true, true);
 
     public static final Setting<Boolean> ACCEPT_DEFAULT_PASSWORD_SETTING = Setting.boolSetting(
             Security.setting("authc.accept_default_password"), true, Setting.Property.NodeScope, Setting.Property.Filtered,
             Setting.Property.Deprecated);
-    public static final Setting<SecureString> BOOTSTRAP_ELASTIC_PASSWORD = SecureSetting.secureString("bootstrap.password", null);
+    public static final Setting<SecureString> BOOTSTRAP_ELASTIC_PASSWORD = SecureSetting.secureString("bootstrap.password",
+            KeyStoreWrapper.SEED_SETTING);
 
     private final NativeUsersStore nativeUsersStore;
     private final AnonymousUser anonymousUser;
@@ -71,6 +71,9 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         this.anonymousUser = anonymousUser;
         this.anonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.securityLifecycleService = securityLifecycleService;
+        final char[] hash = BOOTSTRAP_ELASTIC_PASSWORD.get(settings).length() == 0 ? EMPTY_PASSWORD_HASH :
+                Hasher.BCRYPT.hash(BOOTSTRAP_ELASTIC_PASSWORD.get(settings));
+        bootstrapUserInfo = new ReservedUserInfo(hash, true, hash == EMPTY_PASSWORD_HASH);
     }
 
     @Override
@@ -86,16 +89,16 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                     try {
                         if (userInfo.hasEmptyPassword) {
                             result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
-                        } else if (verifyPassword(userInfo, token)) {
+                        } else if (Hasher.BCRYPT.verify(token.credentials(), userInfo.passwordHash)) {
                             final User user = getUser(token.principal(), userInfo);
                             result = AuthenticationResult.success(user);
                         } else {
                             result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
                         }
                     } finally {
-                        if (userInfo.passwordHash != EMPTY_PASSWORD_HASH) {
-                            Arrays.fill(userInfo.passwordHash, (char) 0);
-                        }
+                        assert userInfo.passwordHash != DISABLED_DEFAULT_USER_INFO.passwordHash : "default user info must be cloned";
+                        assert userInfo.passwordHash != bootstrapUserInfo.passwordHash : "bootstrap user info must be cloned";
+                        Arrays.fill(userInfo.passwordHash, (char) 0);
                     }
                 } else {
                     result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
@@ -104,13 +107,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 listener.onResponse(result);
             }, listener::onFailure));
         }
-    }
-
-    private boolean verifyPassword(ReservedUserInfo userInfo, UsernamePasswordToken token) {
-        if (Hasher.BCRYPT.verify(token.credentials(), userInfo.passwordHash)) {
-            return true;
-        }
-        return false;
     }
 
     @Override
@@ -146,31 +142,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
             default:
                 return AnonymousUser.isAnonymousUsername(username, settings);
         }
-    }
-
-    public synchronized void bootstrapElasticUserCredentials(SecureString passwordHash, ActionListener<Boolean> listener) {
-        getUserInfo(ElasticUser.NAME, new ActionListener<ReservedUserInfo>() {
-            @Override
-            public void onResponse(ReservedUserInfo reservedUserInfo) {
-                if (reservedUserInfo == null) {
-                    listener.onFailure(new IllegalStateException("unexpected state: ReservedUserInfo was null"));
-                } else if (reservedUserInfo.hasEmptyPassword) {
-                    ChangePasswordRequest changePasswordRequest = new ChangePasswordRequest();
-                    changePasswordRequest.username(ElasticUser.NAME);
-                    changePasswordRequest.passwordHash(passwordHash.getChars());
-                    nativeUsersStore.changePassword(changePasswordRequest,
-                            ActionListener.wrap(v -> listener.onResponse(true), listener::onFailure));
-
-                } else {
-                    listener.onResponse(false);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
     }
 
     private User getUser(String username, ReservedUserInfo userInfo) {
@@ -219,16 +190,21 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
+
     private void getUserInfo(final String username, ActionListener<ReservedUserInfo> listener) {
         if (userIsDefinedForCurrentSecurityMapping(username) == false) {
             logger.debug("Marking user [{}] as disabled because the security mapping is not at the required version", username);
-            listener.onResponse(DISABLED_USER_INFO);
+            listener.onResponse(DISABLED_DEFAULT_USER_INFO.deepClone());
         } else if (securityLifecycleService.isSecurityIndexExisting() == false) {
-            listener.onResponse(DEFAULT_USER_INFO);
+            listener.onResponse(bootstrapUserInfo.deepClone());
         } else {
             nativeUsersStore.getReservedUserInfo(username, ActionListener.wrap((userInfo) -> {
                 if (userInfo == null) {
-                    listener.onResponse(DEFAULT_USER_INFO);
+                    if (ElasticUser.NAME.equals(username)) {
+                        listener.onResponse(bootstrapUserInfo.deepClone());
+                    } else {
+                        listener.onResponse(ENABLED_DEFAULT_USER_INFO.deepClone());
+                    }
                 } else {
                     listener.onResponse(userInfo);
                 }

@@ -17,6 +17,7 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
@@ -191,15 +192,16 @@ public class SetupPasswordTool extends MultiCommand {
 
         void setupOptions(OptionSet options, Environment env) throws Exception {
             client = clientFunction.apply(env);
-            KeyStoreWrapper keyStore = keyStoreFunction.apply(env);
-            String providedUrl = urlOption.value(options);
-            url = providedUrl == null ? client.getDefaultURL() : providedUrl;
-            setShouldPrompt(options);
+            try (KeyStoreWrapper keyStore = keyStoreFunction.apply(env)) {
+                String providedUrl = urlOption.value(options);
+                url = providedUrl == null ? client.getDefaultURL() : providedUrl;
+                setShouldPrompt(options);
 
-            // TODO: We currently do  not support keystore passwords
-            keyStore.decrypt(new char[0]);
-
-            elasticUserPassword = keyStore.getString(ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.getKey());
+                // TODO: We currently do  not support keystore passwords
+                keyStore.decrypt(new char[0]);
+                Settings build = Settings.builder().setSecureSettings(keyStore).build();
+                elasticUserPassword = ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.get(build);
+            }
         }
 
         private void setParser() {
@@ -232,7 +234,7 @@ public class SetupPasswordTool extends MultiCommand {
 
             try {
                 String route = url + "/_xpack/security/user/" + user + "/_password";
-                String response = client.postURL("PUT", route, elasticUser, elasticUserPassword, buildPayload(password));
+                client.postURL("PUT", route, elasticUser, elasticUserPassword, buildPayload(password));
                 callback.accept(user, password);
                 if (isSuperUser) {
                     elasticUserPassword = password;

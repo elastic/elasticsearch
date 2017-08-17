@@ -44,6 +44,7 @@ import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedResponse;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.netty4.ByteBufBytesReference;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.transport.nio.channel.CloseFuture;
 import org.elasticsearch.transport.nio.channel.NioChannel;
@@ -182,6 +183,33 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
 
         assertEquals(HttpResponseStatus.OK, response.status());
         assertEquals(HttpVersion.HTTP_1_1, response.protocolVersion());
+    }
+
+    public void testEncodedMessageIsReleasedWhenPromiseCompleted() {
+        ESEmbeddedChannel channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
+
+        prepareAdaptorForResponse(channelAdaptor);
+
+        HttpResponse defaultFullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+
+        channelAdaptor.writeOutbound(defaultFullHttpResponse);
+        Tuple<BytesReference, ChannelPromise> encodedMessage = channelAdaptor.popMessage();
+
+        ByteBufBytesReference reference = (ByteBufBytesReference) encodedMessage.v1();
+
+        ByteBuf byteBuf = reference.toByteBuf();
+        assertEquals(1, byteBuf.refCnt());
+        byteBuf.retain();
+        assertEquals(2, byteBuf.refCnt());
+
+        if (randomBoolean()) {
+            encodedMessage.v2().setSuccess();
+        } else {
+            encodedMessage.v2().setFailure(new ClosedChannelException());
+        }
+
+        assertEquals(1, byteBuf.refCnt());
+        assertTrue(byteBuf.release());
     }
 
     public void testResponsesAreClearedOnClose() {

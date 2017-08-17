@@ -45,7 +45,9 @@ public class ESEmbeddedChannel extends EmbeddedChannel {
                 // intercept the promise and pass a different promise back to the rest of the pipeline.
 
                 try {
-                    BytesReference bytesReference = Netty4Utils.toBytesReference((ByteBuf) msg);
+                    ByteBuf message = (ByteBuf) msg;
+                    BytesReference bytesReference = Netty4Utils.toBytesReference(message);
+                    promise.addListener((f) -> message.release());
                     messages.add(new Tuple<>(bytesReference, promise));
                 } catch (Exception e) {
                     promise.setFailure(e);

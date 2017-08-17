@@ -189,7 +189,8 @@ public class RethrottleTests extends ReindexTestCase {
                 if (e.getCause() instanceof IllegalArgumentException) {
                     failures.add(e);
                 } else {
-                    throw new AssertionError("rethrottling task [" + taskToRethrottle.getId() + "] failed: encountered unexpected exception", e);
+                    throw new AssertionError(
+                        "rethrottling task [" + taskToRethrottle.getId() + "] failed: encountered unexpected exception", e);
                 }
             } catch (AssertionError e) {
                 failures.add(e);

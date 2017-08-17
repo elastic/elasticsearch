@@ -25,7 +25,6 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Sort;
 
 import java.util.Objects;
 import java.util.Set;
@@ -61,7 +60,7 @@ final class PSubMapShortcut extends AStoreable {
         getter = struct.methods.get(new Definition.MethodKey("get", 1));
         setter = struct.methods.get(new Definition.MethodKey("put", 2));
 
-        if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1)) {
+        if (getter != null && (getter.rtn.clazz == void.class || getter.arguments.size() != 1)) {
             throw createError(new IllegalArgumentException("Illegal map get shortcut for type [" + struct.name + "]."));
         }
 
@@ -135,7 +134,7 @@ final class PSubMapShortcut extends AStoreable {
 
         setter.write(writer);
 
-        writer.writePop(setter.rtn.sort.size);
+        writer.writePop(setter.rtn.type.getSize());
     }
 
     @Override

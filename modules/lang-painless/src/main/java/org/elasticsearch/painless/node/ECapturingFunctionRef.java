@@ -64,7 +64,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     void analyze(Locals locals) {
         captured = locals.getVariable(location, variable);
         if (expected == null) {
-            if (captured.type.sort == Definition.Sort.DEF) {
+            if (captured.type.dynamic) {
                 // dynamic implementation
                 defPointer = "D" + variable + "." + call + ",1";
             } else {
@@ -75,7 +75,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
         } else {
             defPointer = null;
             // static case
-            if (captured.type.sort != Definition.Sort.DEF) {
+            if (captured.type.dynamic == false) {
                 try {
                     ref = new FunctionRef(locals.getDefinition(), expected, captured.type.name, call, 1);
 

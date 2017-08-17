@@ -10,8 +10,8 @@ import org.elasticsearch.xpack.sql.tree.Location;
 
 public class VarPop extends NumericAggregate implements ExtendedStatsEnclosed {
 
-    public VarPop(Location location, Expression argument) {
-        super(location, argument);
+    public VarPop(Location location, Expression field) {
+        super(location, field);
     }
 
     @Override

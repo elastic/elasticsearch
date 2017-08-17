@@ -10,8 +10,8 @@ import org.elasticsearch.xpack.sql.tree.Location;
 
 public class StddevPop extends NumericAggregate implements ExtendedStatsEnclosed {
 
-    public StddevPop(Location location, Expression argument) {
-        super(location, argument);
+    public StddevPop(Location location, Expression field) {
+        super(location, field);
     }
 
     @Override

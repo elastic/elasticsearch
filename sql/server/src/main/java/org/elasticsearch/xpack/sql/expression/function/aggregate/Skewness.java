@@ -10,8 +10,8 @@ import org.elasticsearch.xpack.sql.tree.Location;
 
 public class Skewness extends NumericAggregate implements MatrixStatsEnclosed {
 
-    public Skewness(Location location, Expression argument) {
-        super(location, argument);
+    public Skewness(Location location, Expression field) {
+        super(location, field);
     }
 
     @Override

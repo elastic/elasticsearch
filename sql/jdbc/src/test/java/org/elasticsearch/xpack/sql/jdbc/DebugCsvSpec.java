@@ -7,16 +7,20 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.sql.jdbc.framework.JdbcTestUtils;
 
 import java.nio.file.Path;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.List;
 
-public abstract class DebugCsvSpec extends CsvSpecIT {
+@TestLogging("org.elasticsearch.xpack.sql:TRACE")
+public class DebugCsvSpec extends CsvSpecIT {
 
     @ParametersFactory(shuffle = false, argumentFormatting = SqlSpecIT.PARAM_FORMATTING) // NOCOMMIT are we sure?!
     public static List<Object[]> readScriptSpec() throws Exception {
-        JdbcTestUtils.sqlLogging();
+        //JdbcTestUtils.sqlLogging();
 
         CsvSpecParser parser = new CsvSpecParser();
         return readScriptSpec("/debug.csv-spec", parser);
@@ -26,11 +30,8 @@ public abstract class DebugCsvSpec extends CsvSpecIT {
         super(groupName, testName, lineNumber, source, testCase);
     }
 
-    //    @Override
-    //    public void assertResults(ResultSet expected, ResultSet actual) throws SQLException {
-    //        Logger logger = Loggers.getLogger("org.elasticsearch.xpack.sql.test");
-    //        Loggers.setLevel(logger, "INFO");
-    //
-    //        JdbcTestUtils.resultSetToLogger(logger, actual);
-    //    }
+    @Override
+    public void assertResults(ResultSet expected, ResultSet actual) throws SQLException {
+        JdbcTestUtils.resultSetToLogger(logger, actual);
+    }
 }

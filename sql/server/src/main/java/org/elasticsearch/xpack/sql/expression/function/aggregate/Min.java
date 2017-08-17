@@ -11,8 +11,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 public class Min extends NumericAggregate implements EnclosedAgg {
 
-    public Min(Location location, Expression argument) {
-        super(location, argument);
+    public Min(Location location, Expression field) {
+        super(location, field);
     }
 
     @Override

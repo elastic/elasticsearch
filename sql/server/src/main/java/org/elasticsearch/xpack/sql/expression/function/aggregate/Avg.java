@@ -10,8 +10,8 @@ import org.elasticsearch.xpack.sql.tree.Location;
 
 public class Avg extends NumericAggregate implements EnclosedAgg {
 
-    public Avg(Location location, Expression argument) {
-        super(location, argument);
+    public Avg(Location location, Expression field) {
+        super(location, field);
     }
 
     @Override

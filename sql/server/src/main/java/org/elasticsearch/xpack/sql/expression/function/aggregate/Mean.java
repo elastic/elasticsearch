@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.sql.type.DataTypes;
 
 public class Mean extends NumericAggregate implements MatrixStatsEnclosed {
 
-    public Mean(Location location, Expression argument) {
-        super(location, argument);
+    public Mean(Location location, Expression field) {
+        super(location, field);
     }
 
     @Override

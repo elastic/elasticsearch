@@ -91,6 +91,10 @@ public class CsvSpecIT extends SpecBaseIntegrationTestCase {
         }
     }
 
+    protected void assertResults(ResultSet expected, ResultSet actual) throws SQLException {
+        assertResultSets(expected, actual);
+    }
+
     private ResultSet executeJdbcQuery(Connection con, String query) throws SQLException {
         Statement statement = con.createStatement();
         //statement.setFetchSize(randomInt(10));

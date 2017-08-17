@@ -26,6 +26,11 @@ public class Count extends NumericAggregate implements DistinctAware {
     }
 
     @Override
+    protected TypeResolution resolveType() {
+        return TypeResolution.TYPE_RESOLVED;
+    }
+
+    @Override
     public DataType dataType() {
         return DataTypes.LONG;
     }

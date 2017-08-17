@@ -11,8 +11,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 public class Max extends NumericAggregate implements EnclosedAgg {
 
-    public Max(Location location, Expression argument) {
-        super(location, argument);
+    public Max(Location location, Expression field) {
+        super(location, field);
     }
 
     @Override

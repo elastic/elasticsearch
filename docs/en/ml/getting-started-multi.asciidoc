@@ -213,6 +213,12 @@ typical and actual values and the influencers that contributed to the anomaly.
 image::images/ml-gs-job2-explorer-table.jpg["Job results table"]
 
 Notice that there are anomalies for both detectors, that is to say for both the
-`high_mean(response)` and the `sum(total)` metrics in this time interval. By
+`high_mean(response)` and the `sum(total)` metrics in this time interval. The
+table aggregates the anomalies to show the highest severity anomaly per detector
+and entity, which is the by, over, or partition field value that is displayed
+in the **found for** column. To view all the anomalies without any aggregation,
+set the **Interval** to `Show all`.
+
+By
 investigating multiple metrics in a single job, you might see relationships
 between events in your data that would otherwise be overlooked.

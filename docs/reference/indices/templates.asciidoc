@@ -2,8 +2,9 @@
 == Index Templates
 
 Index templates allow you to define templates that will automatically be
-applied when new indices are created. The templates include both settings and
-mappings, and a list of patterns that control whether the template should be
+applied when new indices are created. The templates include both 
+<<index-modules-settings,settings>> and <<mapping,mappings>>
+and a simple pattern template that controls whether the template should be 
 applied to the new index.
 
 NOTE: Templates are only applied at index creation time.  Changing a template

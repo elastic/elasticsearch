@@ -201,7 +201,7 @@ setup() {
     # startup since we detect usages of logging before it is configured
     echo "-Dlog4j2.disable.jmx=true" >> "$temp/jvm.options"
     cp $ESENVFILE "$temp/elasticsearch"
-    echo "CONF_DIR=\"$temp\"" >> $ESENVFILE
+    echo "ES_PATH_CONF=\"$temp\"" >> $ESENVFILE
     echo "ES_JAVA_OPTS=\"-XX:-UseCompressedOops\"" >> $ESENVFILE
     service elasticsearch start
     wait_for_elasticsearch_status
@@ -234,5 +234,15 @@ setup() {
     [ "$max_open_files" == "65536" ]
     local max_address_space=$(cat /proc/$pid/limits | grep "Max address space" | awk '{ print $4 }')
     [ "$max_address_space" == "unlimited" ]
+    systemctl stop elasticsearch.service
+}
+
+@test "[SYSTEMD] test runtime directory" {
+    clean_before_test
+    install_package
+    sudo rm -rf /var/run/elasticsearch
+    systemctl start elasticsearch.service
+    wait_for_elasticsearch_status
+    [ -d /var/run/elasticsearch ]
     systemctl stop elasticsearch.service
 }

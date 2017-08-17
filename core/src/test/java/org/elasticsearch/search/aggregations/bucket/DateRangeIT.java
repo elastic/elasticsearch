@@ -1014,17 +1014,20 @@ public class DateRangeIT extends ESIntegTestCase {
         assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
 
-        // however, e-notation should and fractional parts provided as string
-        // should be parsed and error if not compatible
-        Exception e = expectThrows(Exception.class, () -> client().prepareSearch(indexName).setSize(0)
-                .addAggregation(dateRange("date_range").field("date").addRange("1.0e3", "3.0e3").addRange("3.0e3", "4.0e3")).get());
-        assertThat(e.getCause(), instanceOf(ElasticsearchParseException.class));
-        assertEquals("failed to parse date field [1.0e3] with format [epoch_second]", e.getCause().getMessage());
+        // also e-notation and floats provided as string also be truncated (see: #14641)
+        searchResponse = client().prepareSearch(indexName).setSize(0)
+                .addAggregation(dateRange("date_range").field("date").addRange("1.0e3", "3.0e3").addRange("3.0e3", "4.0e3")).get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
+        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
 
-        e = expectThrows(Exception.class, () -> client().prepareSearch(indexName).setSize(0)
-                .addAggregation(dateRange("date_range").field("date").addRange("1000.123", "3000.8").addRange("3000.8", "4000.3")).get());
-        assertThat(e.getCause(), instanceOf(ElasticsearchParseException.class));
-        assertEquals("failed to parse date field [1000.123] with format [epoch_second]", e.getCause().getMessage());
+        searchResponse = client().prepareSearch(indexName).setSize(0)
+                .addAggregation(dateRange("date_range").field("date").addRange("1000.123", "3000.8").addRange("3000.8", "4000.3")).get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
+        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
 
         // using different format should work when to/from is compatible with
         // format in aggregation

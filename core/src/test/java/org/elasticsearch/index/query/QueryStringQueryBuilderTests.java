@@ -160,6 +160,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         if (randomBoolean()) {
             queryStringQueryBuilder.timeZone(randomDateTimeZone().getID());
         }
+        if (randomBoolean()) {
+            queryStringQueryBuilder.autoGenerateSynonymsPhraseQuery(randomBoolean());
+        }
         queryStringQueryBuilder.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
         return queryStringQueryBuilder;
     }
@@ -375,6 +378,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
             queryParser.setDefaultOperator(op.toQueryParserOperator());
             queryParser.setForceAnalyzer(new MockSynonymAnalyzer());
+            queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(false);
 
             // simple multi-term
             Query query = queryParser.parse("guinea pig");
@@ -392,6 +396,21 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                             .build(),
                             defaultOp).build();
             assertThat(query, Matchers.equalTo(expectedQuery));
+
+            queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(true);
+            // simple multi-term with phrase query
+            query = queryParser.parse("guinea pig");
+            expectedQuery = new BooleanQuery.Builder()
+                    .add(new BooleanQuery.Builder()
+                            .add(new PhraseQuery.Builder()
+                                .add(new Term(STRING_FIELD_NAME, "guinea"))
+                                .add(new Term(STRING_FIELD_NAME, "pig"))
+                                .build(), Occur.SHOULD)
+                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), Occur.SHOULD)
+                            .build(), defaultOp)
+                    .build();
+            assertThat(query, Matchers.equalTo(expectedQuery));
+            queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(false);
 
             // simple with additional tokens
             query = queryParser.parse("that guinea pig smells");
@@ -850,6 +869,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "    \"fuzzy_max_expansions\" : 50,\n" +
                 "    \"phrase_slop\" : 0,\n" +
                 "    \"escape\" : false,\n" +
+                "    \"auto_generate_synonyms_phrase_query\" : true,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";

@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
+import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
@@ -93,6 +94,17 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
         };
     }
 
+    private static boolean isAggregationSort(BucketOrder order) {
+        if (order instanceof InternalOrder.Aggregation) {
+            return true;
+        } else if (order instanceof InternalOrder.CompoundOrder) {
+            InternalOrder.CompoundOrder compoundOrder = (CompoundOrder) order;
+            return compoundOrder.orderElements().stream().anyMatch(TermsAggregatorFactory::isAggregationSort);
+        } else {
+            return false;
+        }
+    }
+
     @Override
     protected Aggregator doCreateInternal(ValuesSource valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
@@ -139,10 +151,17 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                 // to be unbounded and most instances may only aggregate few
                 // documents, so use hashed based
                 // global ordinals to keep the bucket ords dense.
+
                 // Additionally, if using partitioned terms the regular global
                 // ordinals would be sparse so we opt for hash
+
+                // Finally if we are sorting by sub aggregations, then these
+                // aggregations cannot be deferred, so global_ordinals_hash is
+                // a safer choice as we won't use memory for sub aggregations
+                // for buckets that are not collected.
                 if (Aggregator.descendsFromBucketAggregator(parent) ||
-                        (includeExclude != null && includeExclude.isPartitionBased())) {
+                        (includeExclude != null && includeExclude.isPartitionBased()) ||
+                        isAggregationSort(order)) {
                     execution = ExecutionMode.GLOBAL_ORDINALS_HASH;
                 } else {
                     if (factories == AggregatorFactories.EMPTY) {

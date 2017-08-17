@@ -25,6 +25,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
@@ -44,6 +46,8 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMa
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
 public class AllFieldMapper extends MetadataFieldMapper {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(AllFieldMapper.class));
 
     public static final String NAME = "_all";
 
@@ -105,8 +109,9 @@ public class AllFieldMapper extends MetadataFieldMapper {
                                                  ParserContext parserContext) throws MapperParsingException {
             if (node.isEmpty() == false &&
                     parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
-                throw new IllegalArgumentException("[_all] is disabled in 6.0. As a replacement, you can use an [copy_to] " +
-                                "on mapping fields to create your own catch all field.");
+                deprecationLogger.deprecated("[_all] is deprecated in 6.0+ and will be removed in 7.0. " +
+                                "As a replacement, you can use [copy_to] on " +
+                                "mapping fields to create your own catch all field.");
             }
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             builder.fieldType().setIndexAnalyzer(parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer());
@@ -140,6 +145,12 @@ public class AllFieldMapper extends MetadataFieldMapper {
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     boolean enabled = TypeParsers.nodeBooleanValueLenient(name, "enabled", fieldNode);
+                    if (enabled && node.isEmpty() == false &&
+                            parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
+                        throw new IllegalArgumentException("Enabling [_all] is disabled in 6.0. " +
+                                        "As a replacement, you can use [copy_to] " +
+                                        "on mapping fields to create your own catch all field.");
+                    }
                     builder.enabled(enabled ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
                     enabledSet = true;
                     iterator.remove();

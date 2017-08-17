@@ -51,3 +51,25 @@ sudo journalctl --unit elasticsearch --since  "2016-10-30 18:17:16"
 
 Check `man journalctl` or https://www.freedesktop.org/software/systemd/man/journalctl.html for
 more command line options.
+
+===== Managing Multiple Instances
+
+Optional systemd service templates are included to better aid in running more
+than one instance on a host.
+This is an non-standard configuration scenario intended for advanced users.
+
+In order to do so, necessary directories and configuration files must be
+created to manage separate instances of Elasticsearch.
+The following bash commands will start three local instances sharing a data
+directory:
+
+[source,sh]
+--------------------------------------------
+sudo echo node.max_local_storage_nodes: 3 >> /etc/elasticsearch/elasticsearch.yml
+sudo echo discovery.zen.minimum_master_nodes: 2 >> /etc/elasticsearch/elasticsearch.yml
+for instance in 1 2 3 ; do
+  sudo mkdir /etc/elasticsearch/$instance
+  sudo cp -p /etc/elasticsearch/*.* /etc/elasticsearch/$instance
+  sudo systemctl start elasticsearch@$instance.service
+done
+--------------------------------------------

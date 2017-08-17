@@ -53,7 +53,7 @@ public class TestAmazonS3 extends AmazonS3Wrapper {
 
     private String randomPrefix;
 
-    ConcurrentMap<String, AtomicLong> accessCounts = new ConcurrentHashMap<String, AtomicLong>();
+    ConcurrentMap<String, AtomicLong> accessCounts = new ConcurrentHashMap<>();
 
     private long incrementAndGet(String path) {
         AtomicLong value = accessCounts.get(path);

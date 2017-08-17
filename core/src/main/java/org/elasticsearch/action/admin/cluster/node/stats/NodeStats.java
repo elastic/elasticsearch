@@ -24,7 +24,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
@@ -45,7 +46,7 @@ import java.util.Map;
 /**
  * Node statistics (dynamic, changes depending on when created).
  */
-public class NodeStats extends BaseNodeResponse implements ToXContent {
+public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
 
     private long timestamp;
 

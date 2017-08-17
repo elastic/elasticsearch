@@ -155,6 +155,9 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
                             }
                             builder.endArray();
                         }
+                        if (segment.attributes != null && segment.attributes.isEmpty() == false) {
+                            builder.field("attributes", segment.attributes);
+                        }
                         builder.endObject();
                     }
                     builder.endObject();

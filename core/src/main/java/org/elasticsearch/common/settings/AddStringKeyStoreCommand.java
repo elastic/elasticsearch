@@ -58,10 +58,17 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
         if (keystore == null) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Elasticsearch keystore not found. Use 'create' command to create one.");
+            if (options.has(forceOption) == false &&
+                terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false) == false) {
+                terminal.println("Exiting without creating keystore.");
+                return;
+            }
+            keystore = KeyStoreWrapper.create(new char[0] /* always use empty passphrase for auto created keystore */);
+            keystore.save(env.configFile());
+            terminal.println("Created elasticsearch keystore in " + env.configFile());
+        } else {
+            keystore.decrypt(new char[0] /* TODO: prompt for password when they are supported */);
         }
-
-        keystore.decrypt(new char[0] /* TODO: prompt for password when they are supported */);
 
         String setting = arguments.value(options);
         if (setting == null) {

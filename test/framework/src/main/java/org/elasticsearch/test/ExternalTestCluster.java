@@ -28,6 +28,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -62,7 +63,7 @@ public final class ExternalTestCluster extends TestCluster {
     private static final AtomicInteger counter = new AtomicInteger();
     public static final String EXTERNAL_CLUSTER_PREFIX = "external_";
 
-    private final Client client;
+    private final MockTransportClient client;
 
     private final InetSocketAddress[] httpAddresses;
 
@@ -95,8 +96,7 @@ public final class ExternalTestCluster extends TestCluster {
             }
         }
         Settings clientSettings = clientSettingsBuilder.build();
-        TransportClient client = new MockTransportClient(clientSettings, pluginClasses);
-
+        MockTransportClient client = new MockTransportClient(clientSettings, pluginClasses);
         try {
             client.addTransportAddresses(transportAddresses);
             NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
@@ -117,6 +117,7 @@ public final class ExternalTestCluster extends TestCluster {
             this.numDataNodes = dataNodes;
             this.numMasterAndDataNodes = masterAndDataNodes;
             this.client = client;
+
             logger.info("Setup ExternalTestCluster [{}] made of [{}] nodes", nodeInfos.getClusterName().value(), size());
         } catch (Exception e) {
             client.close();
@@ -184,6 +185,11 @@ public final class ExternalTestCluster extends TestCluster {
     @Override
     public Iterable<Client> getClients() {
         return Collections.singleton(client);
+    }
+
+    @Override
+    public NamedWriteableRegistry getNamedWriteableRegistry() {
+        return client.getNamedWriteableRegistry();
     }
 
     @Override

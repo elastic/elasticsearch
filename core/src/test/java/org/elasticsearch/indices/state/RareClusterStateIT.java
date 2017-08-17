@@ -172,21 +172,20 @@ public class RareClusterStateIT extends ESIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/14932")
     public void testDeleteCreateInOneBulk() throws Exception {
-        internalCluster().startNodes(2);
+        internalCluster().startMasterOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
-        prepareCreate("test").setSettings(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, true).addMapping("type").get();
+        prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).addMapping("type").get();
         ensureGreen("test");
 
         // now that the cluster is stable, remove publishing timeout
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0")));
-
-        Set<String> nodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
-        nodes.remove(internalCluster().getMasterName());
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0")
+                .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s")));
 
         // block none master node.
-        BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(nodes.iterator().next(), random());
+        BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(dataNode, random());
         internalCluster().setDisruptionScheme(disruption);
         logger.info("--> indexing a doc");
         index("test", "type", "1");
@@ -194,7 +193,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
         disruption.startDisrupting();
         logger.info("--> delete index and recreate it");
         assertFalse(client().admin().indices().prepareDelete("test").setTimeout("200ms").get().isAcknowledged());
-        assertFalse(prepareCreate("test").setTimeout("200ms").setSettings(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, true).get().isAcknowledged());
+        assertFalse(prepareCreate("test").setTimeout("200ms").setSettings(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0,
+            IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "0").get().isAcknowledged());
         logger.info("--> letting cluster proceed");
         disruption.stopDisrupting();
         ensureGreen(TimeValue.timeValueMinutes(30), "test");

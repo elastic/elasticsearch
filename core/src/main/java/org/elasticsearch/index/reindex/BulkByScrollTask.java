@@ -26,7 +26,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -546,7 +547,7 @@ public class BulkByScrollTask extends CancellableTask {
      * The status of a slice of the request. Successful requests store the {@link StatusOrException#status} while failing requests store a
      * {@link StatusOrException#exception}.
      */
-    public static class StatusOrException implements Writeable, ToXContent {
+    public static class StatusOrException implements Writeable, ToXContentObject {
         private final Status status;
         private final Exception exception;
 

@@ -295,6 +295,10 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         }
     }
 
+    public String getName() {
+        return objectParser.getName();
+    }
+
     private Consumer<Target> wrapOrderedModeCallBack(Consumer<Value> callback) {
         return (target) -> {
             if (target.targetObject != null) {

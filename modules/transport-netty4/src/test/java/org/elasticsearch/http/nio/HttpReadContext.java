@@ -87,7 +87,6 @@ public class HttpReadContext implements ReadContext {
         } else {
             CompositeByteBuf byteBuf = Unpooled.compositeBuffer(size);
             for (NetworkBytesReference reference : references) {
-                // TODO: Do I need to increment reader indexes?
                 ByteBuffer buffer = reference.getReadByteBuffer();
                 ByteBuf component = Unpooled.wrappedBuffer(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
                 byteBuf.addComponent(true, component);

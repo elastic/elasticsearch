@@ -56,6 +56,8 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -105,6 +107,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_C
  * Service responsible for submitting create index requests
  */
 public class MetaDataCreateIndexService extends AbstractComponent {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(MetaDataCreateIndexService.class));
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 
@@ -164,6 +168,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
         if (index.contains("#")) {
             throw exceptionCtor.apply(index, "must not contain '#'");
+        }
+        if (index.contains(":")) {
+            deprecationLogger.deprecated("index or alias name [" + index +
+                            "] containing ':' is deprecated and will not be supported in Elasticsearch 7.0+");
         }
         if (index.charAt(0) == '_' || index.charAt(0) == '-' || index.charAt(0) == '+') {
             throw exceptionCtor.apply(index, "must not start with '_', '-', or '+'");

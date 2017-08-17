@@ -31,6 +31,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -163,14 +164,8 @@ public class IpFieldMapper extends FieldMapper {
                 }
                 String term = value.toString();
                 if (term.contains("/")) {
-                    String[] fields = term.split("/");
-                    if (fields.length == 2) {
-                        InetAddress address = InetAddresses.forString(fields[0]);
-                        int prefixLength = Integer.parseInt(fields[1]);
-                        return InetAddressPoint.newPrefixQuery(name(), address, prefixLength);
-                    } else {
-                        throw new IllegalArgumentException("Expected [ip/prefix] but was [" + term + "]");
-                    }
+                    final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(term);
+                    return InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2());
                 }
                 InetAddress address = InetAddresses.forString(term);
                 return InetAddressPoint.newExactQuery(name(), address);

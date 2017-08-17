@@ -16,6 +16,8 @@
 
 package org.elasticsearch.common.network;
 
+import org.elasticsearch.common.collect.Tuple;
+
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -352,6 +354,34 @@ public class InetAddresses {
             return InetAddress.getByAddress(addr);
         } catch (UnknownHostException e) {
             throw new AssertionError(e);
+        }
+    }
+
+    /**
+     * Parse an IP address and its prefix length using the CIDR notation.
+     * @throws IllegalArgumentException if the string is not formatted as {@code ip_address/prefix_length}
+     * @throws IllegalArgumentException if the IP address is an IPv6-mapped ipv4 address
+     * @throws IllegalArgumentException if the prefix length is not in 0-32 for IPv4 addresses and 0-128 for IPv6 addresses
+     * @throws NumberFormatException if the prefix length is not an integer
+     */
+    public static Tuple<InetAddress, Integer> parseCidr(String maskedAddress) {
+        String[] fields = maskedAddress.split("/");
+        if (fields.length == 2) {
+            final String addressString = fields[0];
+            final InetAddress address = forString(addressString);
+            if (addressString.contains(":") && address.getAddress().length == 4) {
+                throw new IllegalArgumentException("CIDR notation is not allowed with IPv6-mapped IPv4 address [" + addressString +
+                        " as it introduces ambiguity as to whether the prefix length should be interpreted as a v4 prefix length or a" +
+                        " v6 prefix length");
+            }
+            final int prefixLength = Integer.parseInt(fields[1]);
+            if (prefixLength < 0 || prefixLength > 8 * address.getAddress().length) {
+                throw new IllegalArgumentException("Illegal prefix length [" + prefixLength + "] in [" + maskedAddress +
+                        "]. Must be 0-32 for IPv4 ranges, 0-128 for IPv6 ranges");
+            }
+            return new Tuple<>(address, prefixLength);
+        } else {
+            throw new IllegalArgumentException("Expected [ip/prefix] but was [" + maskedAddress + "]");
         }
     }
 }

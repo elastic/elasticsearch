@@ -16,7 +16,7 @@ import java.sql.SQLException;
 import java.util.List;
 
 @TestLogging("org.elasticsearch.xpack.sql:TRACE")
-public class DebugCsvSpec extends CsvSpecIT {
+public class DebugCsvSpecIT extends CsvSpecIT {
 
     @ParametersFactory(shuffle = false, argumentFormatting = SqlSpecIT.PARAM_FORMATTING) // NOCOMMIT are we sure?!
     public static List<Object[]> readScriptSpec() throws Exception {
@@ -26,7 +26,7 @@ public class DebugCsvSpec extends CsvSpecIT {
         return readScriptSpec("/debug.csv-spec", parser);
     }
 
-    public DebugCsvSpec(String groupName, String testName, Integer lineNumber, Path source, CsvTestCase testCase) {
+    public DebugCsvSpecIT(String groupName, String testName, Integer lineNumber, Path source, CsvTestCase testCase) {
         super(groupName, testName, lineNumber, source, testCase);
     }
 

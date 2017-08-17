@@ -35,7 +35,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
-import java.util.Locale;
+import java.util.Optional;
 
 /**
  * Allocates an unassigned stale primary shard to a specific node. Use with extreme care as this will result in data loss.
@@ -69,6 +69,11 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
     @Override
     public String name() {
         return NAME;
+    }
+
+    @Override
+    public Optional<String> getMessage() {
+        return Optional.of("Allocated a stale primary for [" + index + "][" + shardId + "] on node [" + node + "]");
     }
 
     public static AllocateStalePrimaryAllocationCommand fromXContent(XContentParser parser) throws IOException {
@@ -114,8 +119,9 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
         }
 
         if (acceptDataLoss == false) {
-            return explainOrThrowRejectedCommand(explain, allocation,
-                "allocating an empty primary for [" + index + "][" + shardId + "] can result in data loss. Please confirm by setting the accept_data_loss parameter to true");
+            String dataLossWarning = "allocating an empty primary for [" + index + "][" + shardId + "] can result in data loss. Please " +
+                "confirm by setting the accept_data_loss parameter to true";
+            return explainOrThrowRejectedCommand(explain, allocation, dataLossWarning);
         }
 
         if (shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE) {
@@ -124,11 +130,7 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
         }
 
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting);
-
-        Decision decision = allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders");
-        String message = String.format(Locale.ROOT, "Allocated a stale primary for [%1$s][%2$s] on node [%3$s]. This action can cause " +
-            "data loss. If the old primary rejoins the cluster, its copy of this shard will be overwritten.", index, shardId, node);
-        return new RerouteExplanation(this, decision, message);
+        return new RerouteExplanation(this, allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders"));
     }
 
 }

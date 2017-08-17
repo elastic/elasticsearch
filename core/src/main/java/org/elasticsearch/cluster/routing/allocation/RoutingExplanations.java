@@ -53,12 +53,12 @@ public class RoutingExplanations implements ToXContentFragment {
     }
 
     /**
-     * Provides feedback from commands with a YES decision that will be displayed to the user after the command has been applied
+     * Provides feedback from commands with a YES decision that should be displayed to the user after the command has been applied
      */
     public List<String> getYesDecisionMessages() {
         return explanations().stream()
             .filter(explanation -> explanation.decisions().type().equals(Decision.Type.YES))
-            .map(RerouteExplanation::message)
+            .map(explanation -> explanation.command().getMessage())
             .filter(Optional::isPresent)
             .map(Optional::get)
             .collect(Collectors.toList());

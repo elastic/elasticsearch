@@ -24,7 +24,7 @@ import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MultiTermQuery;
@@ -740,7 +740,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedDocValuesField(fieldType().name(), binaryValue));
+            fields.add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
         }
     }
 }

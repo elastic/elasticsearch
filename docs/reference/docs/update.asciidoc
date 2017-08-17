@@ -170,7 +170,7 @@ the request was ignored.
    "_type": "type1",
    "_id": "1",
    "_version": 6,
-   "result": noop
+   "result": "noop"
 }
 --------------------------------------------------
 // TESTRESPONSE

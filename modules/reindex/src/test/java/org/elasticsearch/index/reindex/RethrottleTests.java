@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.both;
@@ -171,12 +172,12 @@ public class RethrottleTests extends ReindexTestCase {
                 response.getBatches(), greaterThanOrEqualTo(numSlices));
     }
 
-    private ListTasksResponse rethrottleTask(TaskId taskToRethrottle, float newRequestsPerSecond) {
+    private ListTasksResponse rethrottleTask(TaskId taskToRethrottle, float newRequestsPerSecond) throws Exception {
         // the task isn't ready to be rethrottled until it has figured out how many slices it will use. if we rethrottle when the task is
         // in this state, the request will fail. so we try a few times
-        long start = System.nanoTime();
-        List<Throwable> failures = new ArrayList<>();
-        do {
+        AtomicReference<ListTasksResponse> response = new AtomicReference<>();
+
+        assertBusy(() -> {
             try {
                 ListTasksResponse rethrottleResponse = rethrottle()
                     .setTaskId(taskToRethrottle)
@@ -184,24 +185,18 @@ public class RethrottleTests extends ReindexTestCase {
                     .get();
                 rethrottleResponse.rethrowFailures("Rethrottle");
                 assertThat(rethrottleResponse.getTasks(), hasSize(1));
-                return rethrottleResponse;
+                response.set(rethrottleResponse);
             } catch (ElasticsearchException e) {
+                // if it's the error we're expecting, rethrow as AssertionError so awaitBusy doesn't exit early
                 if (e.getCause() instanceof IllegalArgumentException) {
-                    failures.add(e);
+                    throw new AssertionError("Rethrottle request for task [" + taskToRethrottle.getId() + "] failed");
                 } else {
-                    throw new AssertionError(
-                        "rethrottling task [" + taskToRethrottle.getId() + "] failed: encountered unexpected exception", e);
+                    throw e;
                 }
-            } catch (AssertionError e) {
-                failures.add(e);
             }
-        } while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10));
+        });
 
-        AssertionError e = new AssertionError("rethrottling task [" + taskToRethrottle.getId() + "] failed: tried too many times");
-        for (Throwable failure : failures) {
-            e.addSuppressed(failure);
-        }
-        throw e;
+        return response.get();
     }
 
     private TaskGroup findTaskToRethrottle(String actionName, int sliceCount) {

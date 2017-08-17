@@ -51,7 +51,7 @@ public class HttpReadContext implements ReadContext {
     public int read() throws IOException {
         NetworkBytesReference last = references.peekLast();
         if (last == null || last.hasWriteRemaining() == false) {
-            this.references.add(NetworkBytesReference.wrap(new BytesArray(new byte[DEFAULT_READ_LENGTH])));
+            this.references.add(NetworkBytesReference.wrap(new BytesArray(new byte[ReadContext.DEFAULT_READ_LENGTH])));
         }
 
         int bytesRead = channel.read(references.getLast());

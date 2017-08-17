@@ -60,6 +60,7 @@ List projects = [
   'plugins:repository-gcs',
   'plugins:repository-hdfs',
   'plugins:repository-s3',
+  'plugins:transport-nio',
   'plugins:jvm-example',
   'plugins:store-smb',
   'qa:auto-create-index',

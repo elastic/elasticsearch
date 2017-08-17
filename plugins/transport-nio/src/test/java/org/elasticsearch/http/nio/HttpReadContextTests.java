@@ -19,19 +19,13 @@
 
 package org.elasticsearch.http.nio;
 
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
-import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 import org.elasticsearch.transport.nio.utils.TestSelectionKey;
 import org.junit.Before;
 

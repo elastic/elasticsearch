@@ -173,10 +173,10 @@ public class NioHttpTransport extends AbstractLifecycleComponent implements Http
             this.openChannels = new OpenChannels(logger);
 
             socketSelectors = NioSelectors.socketSelectors(settings, () -> new SocketEventHandler(logger, this::exceptionCaught),
-                NIO_HTTP_WORKER_COUNT.get(settings), TRANSPORT_WORKER_THREAD_NAME_PREFIX);
+                NIO_HTTP_WORKER_COUNT.get(settings), NioTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX);
 
             acceptors = NioSelectors.acceptingSelectors(logger, settings, openChannels, socketSelectors,
-                NIO_HTTP_ACCEPTOR_COUNT.get(settings), TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX);
+                NIO_HTTP_ACCEPTOR_COUNT.get(settings), NioTransport.TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX);
 
             this.boundAddress = createBoundHttpAddress();
             if (logger.isInfoEnabled()) {

@@ -7,7 +7,9 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -40,6 +42,8 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -83,10 +87,16 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
                     new SecuritySettingsSource(defaultMaxNumberOfNodes(), useGeneratedSSL, createTempDir(), Scope.SUITE) {
                         @Override
                         public Settings nodeSettings(int nodeOrdinal) {
-                            return Settings.builder()
+                            Settings.Builder builder = Settings.builder()
                                     .put(super.nodeSettings(nodeOrdinal))
-                                    .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                                    .build();
+                                    .put(NetworkModule.HTTP_ENABLED.getKey(), true);
+
+                            if (builder.getSecureSettings() == null) {
+                                builder.setSecureSettings(new MockSecureSettings());
+                            }
+                            ((MockSecureSettings) builder.getSecureSettings()).setString("bootstrap.password",
+                                    BOOTSTRAP_PASSWORD.toString());
+                            return builder.build();
                         }
 
                         @Override
@@ -296,19 +306,19 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
     }
 
     public void testThatTribeCanAuthenticateElasticUser() throws Exception {
-        setupTribeNode(Settings.EMPTY);
         ensureElasticPasswordBootstrapped(internalCluster());
+        setupTribeNode(Settings.EMPTY);
         assertTribeNodeHasAllIndices();
         ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue("elastic", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING)))
+                UsernamePasswordToken.basicAuthHeaderValue("elastic", getReservedPassword())))
                 .admin().cluster().prepareHealth().get();
         assertNoTimeout(response);
     }
 
     public void testThatTribeCanAuthenticateElasticUserWithChangedPassword() throws Exception {
-        setupTribeNode(Settings.EMPTY);
         InternalTestCluster cluster = randomBoolean() ? internalCluster() : cluster2;
         ensureElasticPasswordBootstrapped(cluster);
+        setupTribeNode(Settings.EMPTY);
         securityClient(cluster.client()).prepareChangePassword("elastic", "password".toCharArray()).get();
 
         assertTribeNodeHasAllIndices();
@@ -319,9 +329,9 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
     }
 
     public void testThatTribeClustersHaveDifferentPasswords() throws Exception {
-        setupTribeNode(Settings.EMPTY);
         ensureElasticPasswordBootstrapped(internalCluster());
         ensureElasticPasswordBootstrapped(cluster2);
+        setupTribeNode(Settings.EMPTY);
         securityClient().prepareChangePassword("elastic", "password".toCharArray()).get();
         securityClient(cluster2.client()).prepareChangePassword("elastic", "password2".toCharArray()).get();
 
@@ -380,14 +390,15 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
 
     public void testUsersInNonPreferredClusterOnly() throws Exception {
         final String preferredTribe = randomBoolean() ? "t1" : "t2";
+        // only create users in the non preferred client
+        final InternalTestCluster nonPreferredCluster = "t1".equals(preferredTribe) ? cluster2 : internalCluster();
+        ensureElasticPasswordBootstrapped(nonPreferredCluster);
         setupTribeNode(Settings.builder().put("tribe.on_conflict", "prefer_" + preferredTribe).build());
         final int randomUsers = scaledRandomIntBetween(3, 8);
 
         List<String> shouldBeSuccessfulUsers = new ArrayList<>();
 
-        // only create users in the non preferred client
-        final InternalTestCluster nonPreferredCluster = "t1".equals(preferredTribe) ? cluster2 : internalCluster();
-        ensureElasticPasswordBootstrapped(nonPreferredCluster);
+
         for (int i = 0; i < randomUsers; i++) {
             final String username = "user" + i;
             PutUserResponse response =
@@ -402,6 +413,16 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
                     UsernamePasswordToken.basicAuthHeaderValue(username, new SecureString("password".toCharArray()))))
                     .admin().cluster().prepareHealth().get();
             assertNoTimeout(response);
+        }
+    }
+
+    private void ensureElasticPasswordBootstrapped(InternalTestCluster cluster) {
+        NodesInfoResponse nodesInfoResponse = cluster.client().admin().cluster().prepareNodesInfo().get();
+        assertFalse(nodesInfoResponse.hasFailures());
+        try (RestClient restClient = createRestClient(nodesInfoResponse.getNodes(), null, "http")) {
+            setupReservedPasswords(restClient);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -467,11 +488,12 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
 
     public void testRetrieveRolesOnNonPreferredClusterOnly() throws Exception {
         final String preferredTribe = randomBoolean() ? "t1" : "t2";
+        final InternalTestCluster nonPreferredCluster = "t1".equals(preferredTribe) ? cluster2 : internalCluster();
+        ensureElasticPasswordBootstrapped(nonPreferredCluster);
         setupTribeNode(Settings.builder().put("tribe.on_conflict", "prefer_" + preferredTribe).build());
         final int randomRoles = scaledRandomIntBetween(3, 8);
         List<String> shouldBeSuccessfulRoles = new ArrayList<>();
-        final InternalTestCluster nonPreferredCluster = "t1".equals(preferredTribe) ? cluster2 : internalCluster();
-        ensureElasticPasswordBootstrapped(nonPreferredCluster);
+
         Client nonPreferredClient = nonPreferredCluster.client();
 
         for (int i = 0; i < randomRoles; i++) {

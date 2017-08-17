@@ -216,7 +216,7 @@ public class Upgrade implements ActionPlugin {
         }
 
         try (SecureString secureString = new SecureString(passwordHash.toCharArray())) {
-            return Hasher.BCRYPT.verify(ReservedRealm.EMPTY_PASSWORD_TEXT, secureString.getChars());
+            return Hasher.BCRYPT.verify(new SecureString("".toCharArray()), secureString.getChars());
         }
     }
 

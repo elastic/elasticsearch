@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
@@ -266,7 +267,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
     /**
      * A record that represents a single running persistent task
      */
-    public static class PersistentTask<P extends PersistentTaskParams> implements Writeable, ToXContent {
+    public static class PersistentTask<P extends PersistentTaskParams> implements Writeable, ToXContentObject {
         private final String id;
         private final long allocationId;
         private final String taskName;

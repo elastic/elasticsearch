@@ -69,7 +69,7 @@ public class HttpReadContextTests extends ESTestCase {
 
         readContext = new HttpReadContext(channel, adaptor, handler);
 
-        when(channel.getSelectionKey()).thenReturn(new TestSelectionKey(0));
+        when(channel.getSelectionKey()).thenReturn(new TestSelectionKey(SelectionKey.OP_READ));
     }
 
     public void testSuccessfulRequest() throws IOException {

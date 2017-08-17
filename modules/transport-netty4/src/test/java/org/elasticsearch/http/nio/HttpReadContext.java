@@ -60,19 +60,20 @@ public class HttpReadContext implements ReadContext {
             return bytesRead;
         }
 
-        boolean noPendingPriorToDecode = !nettyPipelineAdaptor.hasMessages();
+        boolean noPendingWritesPriorToDecode = !nettyPipelineAdaptor.hasMessages();
 
         ByteBuf inboundBytes = toByteBuf(references);
 
+        int readDelta = inboundBytes.readableBytes();
         Queue<Object> requests = nettyPipelineAdaptor.decode(inboundBytes);
-        NetworkBytesReference.vectorizedIncrementReadIndexes(references, inboundBytes.readableBytes());
+        NetworkBytesReference.vectorizedIncrementReadIndexes(references, readDelta);
 
         Object msg;
         while ((msg = requests.poll()) != null) {
             requestHandler.handleMessage(channel, nettyPipelineAdaptor, msg);
         }
 
-        if (noPendingPriorToDecode && nettyPipelineAdaptor.hasMessages()) {
+        if (noPendingWritesPriorToDecode && nettyPipelineAdaptor.hasMessages()) {
             SelectionKeyUtils.setWriteInterested(channel);
         }
 

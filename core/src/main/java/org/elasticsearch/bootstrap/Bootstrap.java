@@ -35,7 +35,6 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
@@ -220,7 +219,7 @@ final class Bootstrap {
         };
     }
 
-    private static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
+    static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
         final KeyStoreWrapper keystore;
         try {
             keystore = KeyStoreWrapper.load(initialEnv.configFile());
@@ -231,7 +230,9 @@ final class Bootstrap {
         try {
             if (keystore == null) {
                 // create it, we always want one! we use an empty passphrase, but a user can change this later if they want.
-                KeyStoreWrapper.create(new char[0]);
+                KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create(new char[0]);
+                keyStoreWrapper.save(initialEnv.configFile());
+                return keyStoreWrapper;
             } else {
                 keystore.decrypt(new char[0] /* TODO: read password from stdin */);
             }

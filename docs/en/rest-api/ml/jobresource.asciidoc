@@ -39,6 +39,10 @@ so do not set the `background_persist_interval` value too low.
   (string) If the job closed or failed, this is the time the job finished,
   otherwise it is `null`.
 
+`groups`::
+  (array of strings) A list of job groups.  A job can belong to no groups or
+  many. For example, `["group1", "group2"]`.
+
 `job_id`::
   (string) The unique identifier for the job.
 

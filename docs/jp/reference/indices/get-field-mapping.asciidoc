@@ -1,0 +1,185 @@
+[[indices-get-field-mapping]]
+== Get Field Mapping
+
+The get field mapping API allows you to retrieve mapping definitions for one or more fields.
+This is useful when you do not need the complete type mapping returned by
+the <<indices-get-mapping>> API.
+
+For example, consider the following mapping:
+
+[source,js]
+--------------------------------------------------
+PUT publications
+{
+    "mappings": {
+        "article": {
+            "properties": {
+                "id": { "type": "text" },
+                "title":  { "type": "text"},
+                "abstract": { "type": "text"},
+                "author": {
+                    "properties": {
+                        "id": { "type": "text" },
+                        "name": { "type": "text" }
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// TESTSETUP
+// CONSOLE
+
+The following returns the mapping of the field `title` only:
+
+[source,js]
+--------------------------------------------------
+GET publications/_mapping/article/field/title
+--------------------------------------------------
+// CONSOLE
+
+For which the response is:
+
+[source,js]
+--------------------------------------------------
+{
+   "publications": {
+      "mappings": {
+         "article": {
+            "title": {
+               "full_name": "title",
+               "mapping": {
+                  "title": {
+                     "type": "text"
+                  }
+               }
+            }
+         }
+      }
+   }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+[float]
+=== Multiple Indices, Types and Fields
+
+The get field mapping API can be used to get the mapping of multiple fields from more than one index or type
+with a single call. General usage of the API follows the
+following syntax: `host:port/{index}/{type}/_mapping/field/{field}` where
+`{index}`, `{type}` and `{field}` can stand for comma-separated list of names or wild cards. To
+get mappings for all indices you can use `_all` for `{index}`. The
+following are some examples:
+
+[source,js]
+--------------------------------------------------
+GET /twitter,kimchy/_mapping/field/message
+
+GET /_all/_mapping/tweet,book/field/message,user.id
+
+GET /_all/_mapping/tw*/field/*.id
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+// TEST[s/^/PUT kimchy\nPUT book\n/]
+
+[float]
+=== Specifying fields
+
+The get mapping api allows you to specify a comma-separated list of fields.
+
+For instance to select the `id` of the `author` field, you must use its full name `author.id`.
+
+[source,js]
+--------------------------------------------------
+GET publications/_mapping/article/field/author.id,abstract,name
+--------------------------------------------------
+// CONSOLE
+
+returns:
+
+[source,js]
+--------------------------------------------------
+{
+   "publications": {
+      "mappings": {
+         "article": {
+            "author.id": {
+               "full_name": "author.id",
+               "mapping": {
+                  "id": {
+                     "type": "text"
+                  }
+               }
+            },
+            "abstract": {
+               "full_name": "abstract",
+               "mapping": {
+                  "abstract": {
+                     "type": "text"
+                  }
+               }
+            }
+         }
+      }
+   }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+The get field mapping API also supports wildcard notation.
+
+[source,js]
+--------------------------------------------------
+GET publications/_mapping/article/field/a*
+--------------------------------------------------
+// CONSOLE
+
+returns:
+
+[source,js]
+--------------------------------------------------
+{
+   "publications": {
+      "mappings": {
+         "article": {
+            "author.name": {
+               "full_name": "author.name",
+               "mapping": {
+                  "name": {
+                     "type": "text"
+                  }
+               }
+            },
+            "abstract": {
+               "full_name": "abstract",
+               "mapping": {
+                  "abstract": {
+                     "type": "text"
+                  }
+               }
+            },
+            "author.id": {
+               "full_name": "author.id",
+               "mapping": {
+                  "id": {
+                     "type": "text"
+                  }
+               }
+            }
+         }
+      }
+   }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+[float]
+=== Other options
+
+[horizontal]
+`include_defaults`::
+
+    adding `include_defaults=true` to the query string will cause the response
+    to include default values, which are normally suppressed.

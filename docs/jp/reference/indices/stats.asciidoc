@@ -1,0 +1,98 @@
+[[indices-stats]]
+== Indices Stats
+
+Indices level stats provide statistics on different operations happening
+on an index. The API provides statistics on the index level scope
+(though most stats can also be retrieved using node level scope).
+
+The following returns high level aggregation and index level stats for
+all indices:
+
+[source,js]
+--------------------------------------------------
+GET /_stats
+--------------------------------------------------
+// CONSOLE
+
+Specific index stats can be retrieved using:
+
+[source,js]
+--------------------------------------------------
+GET /index1,index2/_stats
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT index1\nPUT index2\n/]
+
+By default, all stats are returned, returning only specific stats can be
+specified as well in the URI. Those stats can be any of:
+
+[horizontal]
+`docs`:: 		The number of docs / deleted docs (docs not yet merged out).
+				Note, affected by refreshing the index.
+
+`store`:: 		The size of the index.
+
+`indexing`:: 	Indexing statistics, can be combined with a comma
+				separated list of `types` to provide document type level stats.
+
+`get`:: 		Get statistics, including missing stats.
+
+`search`:: 		Search statistics including suggest statistics.
+                You can include statistics for custom groups by adding
+                an extra `groups` parameter (search operations can be associated with one or more
+                groups). The `groups` parameter accepts a comma separated list of group names.
+                Use `_all` to return statistics for all groups.
+
+`segments`::    Retrieve the memory use of the open segments. Optionally, setting the `include_segment_file_sizes` flag, report the aggregated disk usage of each one of the Lucene index files.
+
+`completion`::  Completion suggest statistics.
+`fielddata`::   Fielddata statistics.
+`flush`::       Flush statistics.
+`merge`::       Merge statistics.
+`request_cache`:: <<shard-request-cache,Shard request cache>> statistics.
+`refresh`::     Refresh statistics.
+`warmer`::      Warmer statistics.
+`translog`::    Translog statistics.
+
+Some statistics allow per field granularity which accepts a list
+comma-separated list of included fields. By default all fields are included:
+
+[horizontal]
+`fields`::
+
+    List of fields to be included in the statistics. This is used as the
+    default list unless a more specific field list is provided (see below).
+
+`completion_fields`::
+
+    List of fields to be included in the Completion Suggest statistics.
+
+`fielddata_fields`::
+
+    List of fields to be included in the Fielddata statistics.
+
+
+Here are some samples:
+
+[source,js]
+--------------------------------------------------
+# Get back stats for merge and refresh only for all indices
+GET /_stats/merge,refresh
+# Get back stats for type1 and type2 documents for the my_index index
+GET /my_index/_stats/indexing?types=type1,type2
+# Get back just search stats for group1 and group2
+GET /_stats/search?groups=group1,group2
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT my_index\n/]
+
+The stats returned are aggregated on the index level, with
+`primaries` and `total` aggregations, where `primaries` are the values for only the
+primary shards, and `total` are the cumulated values for both primary and replica shards.
+
+In order to get back shard level stats, set the `level` parameter to `shards`.
+
+Note, as shards move around the cluster, their stats will be cleared as
+they are created on other nodes. On the other hand, even though a shard
+"left" a node, that node will still retain the stats that shard
+contributed to.

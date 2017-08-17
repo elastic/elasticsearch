@@ -1,0 +1,5 @@
+[[modules-discovery-azure-classic]]
+=== Azure Classic Discovery
+
+Azure classic discovery allows to use the Azure Classic APIs to perform automatic discovery (similar to multicast).
+It is available as a plugin. See {plugins}/discovery-azure-classic.html[discovery-azure-classic] for more information.

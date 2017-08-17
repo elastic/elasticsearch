@@ -1,0 +1,111 @@
+[[reindex-upgrade]]
+=== Reindex to upgrade
+
+Elasticsearch is able to use indices created in the previous major version
+only.  For instance, Elasticsearch 5.x can use indices created in
+Elasticsearch 2.x, but not those created in Elasticsearch 1.x or before.
+
+NOTE: Elasticsearch 5.x nodes will fail to start in the presence of too old indices.
+
+If you are running an Elasticsearch 2.x cluster which contains indices that
+were created before 2.x, you will either need to delete those old indices or
+to reindex them before upgrading to 5.x.  See <<reindex-upgrade-inplace>>.
+
+If you are running an Elasticsearch 1.x cluster, you have two options:
+
+* First upgrade to Elasticsearch 2.4.x, reindex the old indices, then upgrade
+  to 5.x. See <<reindex-upgrade-inplace>>.
+
+* Create a new 5.x cluster and use reindex-from-remote to import indices
+  directly from the 1.x cluster. See <<reindex-upgrade-remote>>.
+
+.Time-based indices and retention periods
+*******************************************
+
+For many use cases with time-based indices, you will not need to worry about
+carrying old 1.x indices with you to 5.x.  Data in time-based indices usually
+becomes less interesting as time passes. Old indices can be deleted once they
+fall outside of your retention period.
+
+Users in this position can continue to use 2.x until all old 1.x indices have
+been deleted, then upgrade to 5.x directly.
+
+*******************************************
+
+
+[[reindex-upgrade-inplace]]
+==== Reindex in place
+
+The easiest way to reindex old (1.x) indices in place is to use the
+https://github.com/elastic/elasticsearch-migration/tree/2.x[Elasticsearch
+Migration Plugin].  You will need to upgrade to Elasticsearch 2.3.x or 2.4.x
+first.
+
+The reindex utility provided in the migration plugin does the following:
+
+* Creates a new index with the Elasticsearch version appended to the old index
+  name (e.g. `my_index-2.4.1`), copying the mappings and settings from the old
+  index.  Refresh is disabled on the new index and the number of replicas is
+  set to `0` for efficient reindexing.
+
+* Sets the old index to read only to ensure that no data is written to the
+  old index.
+
+* Reindexes all documents from the old index to the new index.
+
+* Resets the `refresh_interval` and `number_of_replicas` to the values
+  used in the old index, and waits for the index to become green.
+
+* Adds any aliases that existed on the old index to the new index.
+
+* Deletes the old index.
+
+* Adds an alias to the new index with the old index name, e.g. alias
+  `my_index` points to index `my_index-2.4.1`.
+
+At the end of this process, you will have a new 2.x index which can be used
+by an Elasticsearch 5.x cluster.
+
+[[reindex-upgrade-remote]]
+==== Upgrading with reindex-from-remote
+
+If you are running a 1.x cluster and would like to migrate directly to 5.x
+without first migrating to 2.x, you can do so using
+<<reindex-from-remote,reindex-from-remote>>.
+
+[WARNING]
+=============================================
+
+Elasticsearch includes backwards compatibility code that allows indices from
+the previous major version to be upgraded to the current major version.  By
+moving directly from Elasticsearch 1.x to 5.x, you will have to solve any
+backwards compatibility issues yourself.
+
+=============================================
+
+You will need to set up a 5.x cluster alongside your existing 1.x cluster.
+The 5.x cluster needs to have access to the REST API of the 1.x cluster.
+
+For each 1.x index that you want to transfer to the 5.x cluster, you will need
+to:
+
+* Create a new index in 5.x with the appropriate mappings and settings.  Set
+  the `refresh_interval` to `-1` and set `number_of_replicas` to `0` for
+  faster reindexing.
+
+* Use <<reindex-from-remote,reindex-from-remote>> to pull documents from the
+  1.x index into the new 5.x index.
+
+* If you run the reindex job in the background (with `wait_for_completion` set
+  to `false`), the reindex request will return a `task_id` which can be used to
+  monitor progress of the reindex job in the <<tasks,task API>>:
+  `GET _tasks/TASK_ID`.
+
+* Once reindex has completed, set the `refresh_interval` and
+  `number_of_replicas` to the desired values (the defaults are `30s` and `1`
+  respectively).
+
+* Once the new index has finished replication, you can delete the old index.
+
+The 5.x cluster can start out small, and you can gradually move nodes from the
+1.x cluster to the 5.x cluster as you migrate indices across.

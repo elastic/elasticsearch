@@ -1,0 +1,93 @@
+[[analysis-keyword-repeat-tokenfilter]]
+=== Keyword Repeat Token Filter
+
+The `keyword_repeat` token filter Emits each incoming token twice once
+as keyword and once as a non-keyword to allow an unstemmed version of a
+term to be indexed side by side with the stemmed version of the term.
+Given the nature of this filter each token that isn't transformed by a
+subsequent stemmer will be indexed twice. Therefore, consider adding a
+`unique` filter with `only_on_same_position` set to `true` to drop
+unnecessary duplicates.
+
+Here is an example of using the `keyword_repeat` token filter to
+preserve both the stemmed and unstemmed version of tokens:
+
+[source,js]
+--------------------------------------------------
+PUT /keyword_repeat_example
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "stemmed_and_unstemmed": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase", "keyword_repeat", "porter_stem", "unique_stem"]
+        }
+      },
+      "filter": {
+        "unique_stem": {
+          "type": "unique",
+          "only_on_same_position": true
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+And you can test it with:
+
+[source,js]
+--------------------------------------------------
+POST /keyword_repeat_example/_analyze
+{
+  "analyzer" : "stemmed_and_unstemmed",
+  "text" : "I like cats"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+And it'd respond:
+
+[source,js]
+--------------------------------------------------
+{
+  "tokens": [
+    {
+      "token": "i",
+      "start_offset": 0,
+      "end_offset": 1,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "like",
+      "start_offset": 2,
+      "end_offset": 6,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "cats",
+      "start_offset": 7,
+      "end_offset": 11,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "cat",
+      "start_offset": 7,
+      "end_offset": 11,
+      "type": "<ALPHANUM>",
+      "position": 2
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+Which preserves both the `cat` and `cats` tokens. Compare this to the example
+on the <<analysis-keyword-marker-tokenfilter>>.

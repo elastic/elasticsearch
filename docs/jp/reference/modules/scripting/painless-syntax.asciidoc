@@ -1,0 +1,244 @@
+[[modules-scripting-painless-syntax]]
+=== Painless Syntax
+
+experimental[The Painless scripting language is new and is still marked as experimental. The syntax or API may be changed in the future in non-backwards compatible ways if required.]
+
+[float]
+[[painless-types]]
+=== Variable types
+
+Painless supports all of https://docs.oracle.com/javase/tutorial/java/nutsandbolts/variables.html[Java's types],
+including array types, but adds some additional built-in types.
+
+[float]
+[[painless-def]]
+==== Def
+
+The dynamic type `def` serves as a placeholder for any other type. It adopts the behavior
+of whatever runtime type it represents.
+
+[float]
+[[painless-strings]]
+==== String
+
+String constants can be declared with single quotes, to avoid escaping horrors with JSON:
+
+[source,painless]
+---------------------------------------------------------
+def mystring = 'foo';
+---------------------------------------------------------
+
+[float]
+[[painless-arrays]]
+==== Arrays
+
+Arrays can be subscripted starting from `0` for traditional array access or with
+negative numbers to starting from the back of the array. So the following
+returns `2`.
+
+[source,painless]
+---------------------------------------------------------
+int[] x = new int[5];
+x[0]++;
+x[-5]++;
+return x[0];
+---------------------------------------------------------
+
+
+[float]
+[[painless-lists]]
+==== List
+
+Lists can be created explicitly (e.g. `new ArrayList()`) or initialized similar to Groovy:
+
+[source,painless]
+---------------------------------------------------------
+def list = [1,2,3];
+---------------------------------------------------------
+
+Lists can also be accessed similar to arrays. They support `.length` and
+subscripts, including negative subscripts to read from the back of the list:
+
+[source,painless]
+---------------------------------------------------------
+def list = [1,2,3];
+list[-1] = 5
+return list[0]
+---------------------------------------------------------
+
+[float]
+[[painless-maps]]
+==== Map
+
+Maps can be created explicitly (e.g. `new HashMap()`) or initialized similar to Groovy:
+
+[source,painless]
+---------------------------------------------------------
+def person = ['name': 'Joe', 'age': 63];
+---------------------------------------------------------
+
+Map keys can also be accessed as properties.
+
+[source,painless]
+---------------------------------------------------------
+def person = ['name': 'Joe', 'age': 63];
+person.retired = true;
+return person.name
+---------------------------------------------------------
+
+Map keys can also be accessed via subscript (for keys containing special characters):
+
+[source,painless]
+---------------------------------------------------------
+return map['something-absurd!']
+---------------------------------------------------------
+
+[float]
+[[painless-pattern]]
+==== Pattern
+
+Regular expression constants are directly supported:
+
+[source,painless]
+---------------------------------------------------------
+Pattern p = /[aeiou]/
+---------------------------------------------------------
+
+Patterns can only be created via this mechanism. This ensures fast performance, regular expressions
+are always constants and compiled efficiently a single time.
+
+[float]
+[[modules-scripting-painless-regex-flags]]
+==== Pattern flags
+
+You can define flags on patterns in Painless by adding characters after the
+trailing `/` like `/foo/i` or `/foo \w #comment/iUx`. Painless exposes all the
+flags from
+https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java's Pattern class]
+using these characters:
+
+[cols="<,<,<",options="header",]
+|=======================================================================
+| Character | Java Constant | Example
+|`c` | CANON_EQ                  | `'å' ==~ /å/c` (open in hex editor to see)
+|`i` | CASE_INSENSITIVE          | `'A' ==~ /a/i`
+|`l` | LITERAL                   | `'[a]' ==~ /[a]/l`
+|`m` | MULTILINE                 | `'a\nb\nc' =~ /^b$/m`
+|`s` | DOTALL (aka single line)  | `'a\nb\nc' =~ /.b./s`
+|`U` | UNICODE_CHARACTER_CLASS   | `'Ɛ' ==~ /\\w/U`
+|`u` | UNICODE_CASE              | `'Ɛ' ==~ /ɛ/iu`
+|`x` | COMMENTS (aka extended)   | `'a' ==~ /a #comment/x`
+|=======================================================================
+
+[float]
+[[painless-deref]]
+=== Dereferences
+
+Like lots of languages, Painless uses `.` to reference fields and call methods:
+
+[source,painless]
+---------------------------------------------------------
+String foo = 'foo';
+TypeWithGetterOrPublicField bar = new TypeWithGetterOrPublicField()
+return foo.length() + bar.x
+---------------------------------------------------------
+
+Like Groovy, Painless uses `?.` to perform null-safe references, with the
+result being `null` if the left hand side is null:
+
+[source,painless]
+---------------------------------------------------------
+String foo = null;
+return foo?.length()  // Returns null
+---------------------------------------------------------
+
+Unlike Groovy, Painless doesn't support writing to null values with this
+operator:
+
+[source,painless]
+---------------------------------------------------------
+TypeWithSetterOrPublicField foo = null;
+foo?.x = 'bar'  // Compile error
+---------------------------------------------------------
+
+[float]
+[[painless-operators]]
+=== Operators
+
+All of Java's https://docs.oracle.com/javase/tutorial/java/nutsandbolts/operators.html[operators] are
+supported with the same precedence, promotion, and semantics.
+
+There are only a few minor differences and add-ons:
+
+* `==` behaves as Java's for numeric types, but for non-numeric types acts as https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html#equals-java.lang.Object-[`Object.equals()`]
+* `===` and `!==` support exact reference comparison (e.g. `x === y`)
+* `=~` true if a portion of the text matches a pattern (e.g. `x =~ /b/`)
+* `==~` true if the entire text matches a pattern (e.g. `x ==~ /[Bb]ob/`)
+
+The `?:` (aka Elvis) operator coalesces null values. So `x ?: 0` is `0` if `x`
+is `null` and whatever value `x` has otherwise. It is a convenient way to write
+default values like `doc['x'].value ?: 0` which is 0 if `x` is not in the
+document being processed. It can also work with null safe dereferences to
+efficiently handle null in chains. For example,
+`doc['foo.keyword'].value?.length() ?: 0` is 0 if the document being processed
+doesn't have a `foo.keyword` field but is the length of that field if it does.
+Lastly, `?:` is lazy so the right hand side is not evaluated at all if the left
+hand side isn't null.
+
+NOTE: Unlike Groovy, Painless' ++?:++ operator only coalesces `null`, not `false`
+or http://groovy-lang.org/semantics.html#Groovy-Truth[falsy] values. Strictly
+speaking Painless' ++?:++ is more like Kotlin's ++?:++ than Groovy's ++?:++.
+
+NOTE: The result of `?.` and `?:` can't be assigned to primitives. So
+`int[] someArray = null; int l = someArray?.length` and
+`int s = params.size ?: 100` don't work. Do
+`def someArray = null; def l = someArray?.length` and
+`def s = params.size ?: 100` instead.
+
+
+[float]
+[[painless-control-flow]]
+=== Control flow
+
+Java's https://docs.oracle.com/javase/tutorial/java/nutsandbolts/flow.html[control flow statements] are supported, with the exception
+of the `switch` statement.
+
+In addition to Java's `enhanced for` loop, the `for in` syntax from groovy can also be used:
+
+[source,painless]
+---------------------------------------------------------
+for (item : list) {
+  ...
+}
+---------------------------------------------------------
+
+[float]
+[[painless-functions]]
+=== Functions
+
+Functions can be declared at the beginning of the script, for example:
+
+[source,painless]
+---------------------------------------------------------
+boolean isNegative(def x) { x < 0 }
+...
+if (isNegative(someVar)) {
+  ...
+}
+---------------------------------------------------------
+
+[float]
+[[painless-lambda-expressions]]
+=== Lambda expressions
+Lambda expressions and method references work the same as https://docs.oracle.com/javase/tutorial/java/javaOO/lambdaexpressions.html[Java's].
+
+[source,painless]
+---------------------------------------------------------
+list.removeIf(item -> item == 2);
+list.removeIf((int item) -> item == 2);
+list.removeIf((int item) -> { item == 2 });
+list.sort((x, y) -> x - y);
+list.sort(Integer::compare);
+---------------------------------------------------------
+
+Method references to functions within the script can be accomplished using `this`, e.g. `list.sort(this::mycompare)`.

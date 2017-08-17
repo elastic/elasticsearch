@@ -1,0 +1,90 @@
+[[mapping-fields]]
+== Meta-Fields
+
+Each document has metadata associated with it, such as the `_index`, mapping
+<<mapping-type-field,`_type`>>, and `_id` meta-fields.  The behaviour of some of these meta-fields
+can be customised when a mapping type is created.
+
+[float]
+=== Identity meta-fields
+
+[horizontal]
+<<mapping-index-field,`_index`>>::
+
+    The index to which the document belongs.
+
+<<mapping-uid-field,`_uid`>>::
+
+    A composite field consisting of the `_type` and the `_id`.
+
+<<mapping-type-field,`_type`>>::
+
+    The document's <<mapping-type,mapping type>>.
+
+<<mapping-id-field,`_id`>>::
+
+    The document's ID.
+
+[float]
+=== Document source meta-fields
+
+<<mapping-source-field,`_source`>>::
+
+    The original JSON representing the body of the document.
+
+{plugins}/mapper-size.html[`_size`]::
+
+    The size of the `_source` field in bytes, provided by the
+    {plugins}/mapper-size.html[`mapper-size` plugin].
+
+[float]
+=== Indexing meta-fields
+
+<<mapping-all-field,`_all`>>::
+
+    A _catch-all_  field that indexes the values of all other fields.
+
+<<mapping-field-names-field,`_field_names`>>::
+
+    All fields in the document which contain non-null values.
+
+[float]
+=== Routing meta-fields
+
+<<mapping-parent-field,`_parent`>>::
+
+    Used to create a parent-child relationship between two mapping types.
+
+<<mapping-routing-field,`_routing`>>::
+
+    A custom routing value which routes a document to a particular shard.
+
+[float]
+=== Other meta-field
+
+<<mapping-meta-field,`_meta`>>::
+
+    Application specific metadata.
+
+
+
+include::fields/all-field.asciidoc[]
+
+include::fields/field-names-field.asciidoc[]
+
+include::fields/id-field.asciidoc[]
+
+include::fields/index-field.asciidoc[]
+
+include::fields/meta-field.asciidoc[]
+
+include::fields/parent-field.asciidoc[]
+
+include::fields/routing-field.asciidoc[]
+
+include::fields/source-field.asciidoc[]
+
+include::fields/type-field.asciidoc[]
+
+include::fields/uid-field.asciidoc[]
+

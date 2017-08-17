@@ -1,0 +1,6 @@
+[[modules-discovery-gce]]
+=== Google Compute Engine Discovery
+
+Google Compute Engine (GCE) discovery allows to use the GCE APIs to perform automatic discovery (similar to multicast).
+It is available as a plugin. See {plugins}/discovery-gce.html[discovery-gce] for more information.
+

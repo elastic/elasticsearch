@@ -1,0 +1,187 @@
+[[modules-advanced-scripting]]
+=== Advanced text scoring in scripts
+
+experimental[The functionality described on this page is considered experimental and may be changed or removed in a future release]
+
+Text features, such as term or document frequency for a specific term can be
+accessed in scripts with the `_index` variable. This can be useful if, for
+example, you want to implement your own scoring model using for example a
+script inside a <<query-dsl-function-score-query,function score query>>.
+Statistics over the document collection are computed *per shard*, not per
+index.
+
+[float]
+=== Nomenclature:
+
+
+[horizontal]
+`df`::
+
+    document frequency. The number of documents a term appears in. Computed
+    per field.
+
+
+`tf`::
+
+    term frequency. The number times a term appears in a field in one specific
+    document.
+
+`ttf`::
+
+    total term frequency. The number of times this term appears in all
+    documents, that is, the sum of `tf` over all documents.  Computed per
+    field.
+
+`df` and `ttf` are computed per shard and therefore these numbers can vary
+depending on the shard the current document resides in.
+
+
+[float]
+=== Shard statistics:
+
+`_index.numDocs()`::
+
+    Number of documents in shard.
+
+`_index.maxDoc()`::
+
+    Maximal document number in shard.
+
+`_index.numDeletedDocs()`::
+
+    Number of deleted documents in shard.
+
+
+[float]
+=== Field statistics:
+
+Field statistics can be accessed with a subscript operator like this:
+`_index['FIELD']`.
+
+
+`_index['FIELD'].docCount()`::
+
+    Number of documents containing the field `FIELD`. Does not take deleted documents into account.
+
+`_index['FIELD'].sumttf()`::
+
+    Sum of `ttf` over all terms that appear in field `FIELD` in all documents.
+
+`_index['FIELD'].sumdf()`::
+
+    The sum of `df` s over all terms that appear in field `FIELD` in all
+    documents.
+
+
+Field statistics are computed per shard and therefore these numbers can vary
+depending on the shard the current document resides in.
+The number of terms in a field cannot be accessed using the `_index` variable. See <<token-count>> for how to do that.
+
+[float]
+=== Term statistics:
+
+Term statistics for a field can be accessed with a subscript operator like
+this: `_index['FIELD']['TERM']`. This will never return null, even if term or field does not exist.
+If you do not need the term frequency, call `_index['FIELD'].get('TERM', 0)`
+to avoid unnecessary initialization of the frequencies. The flag will have only
+affect is your set the <<index-options,`index_options`>> to `docs`.
+
+
+`_index['FIELD']['TERM'].df()`::
+
+    `df` of term `TERM` in field `FIELD`. Will be returned, even if the term
+    is not present in the current document.
+
+`_index['FIELD']['TERM'].ttf()`::
+
+    The sum of term frequencies of term `TERM` in field `FIELD` over all
+    documents. Will be returned, even if the term is not present in the
+    current document.
+
+`_index['FIELD']['TERM'].tf()`::
+
+    `tf` of term `TERM` in field `FIELD`. Will be 0 if the term is not present
+    in the current document.
+
+
+[float]
+=== Term positions, offsets and payloads:
+
+If you need information on the positions of terms in a field, call
+`_index['FIELD'].get('TERM', flag)` where flag can be
+
+[horizontal]
+`_POSITIONS`::      if you need the positions of the term
+`_OFFSETS`::        if you need the offsets of the term
+`_PAYLOADS`::       if you need the payloads of the term
+`_CACHE`::          if you need to iterate over all positions several times
+
+The iterator uses the underlying lucene classes to iterate over positions. For efficiency reasons, you can only iterate over positions once. If you need to iterate over the positions several times, set the `_CACHE` flag.
+
+You can combine the operators with a `|` if you need more than one info. For
+example, the following will return an object holding the positions and payloads,
+as well as all statistics:
+
+
+    `_index['FIELD'].get('TERM', _POSITIONS | _PAYLOADS)`
+
+
+Positions can be accessed with an iterator that returns an object
+(`POS_OBJECT`) holding position, offsets and payload for each term position.
+
+`POS_OBJECT.position`::
+
+    The position of the term.
+
+`POS_OBJECT.startOffset`::
+
+    The start offset of the term.
+
+`POS_OBJECT.endOffset`::
+
+    The end offset of the term.
+
+`POS_OBJECT.payload`::
+
+    The payload of the term.
+
+`POS_OBJECT.payloadAsInt(missingValue)`::
+
+    The payload of the term converted to integer. If the current position has
+    no payload, the `missingValue` will be returned. Call this only if you
+    know that your payloads are integers.
+
+`POS_OBJECT.payloadAsFloat(missingValue)`::
+
+    The payload of the term converted to float. If the current position has no
+    payload, the `missingValue` will be returned. Call this only if you know
+    that your payloads are floats.
+
+`POS_OBJECT.payloadAsString()`::
+
+    The payload of the term converted to string. If the current position has
+    no payload, `null` will be returned. Call this only if you know that your
+    payloads are strings.
+
+
+Example: sums up all payloads for the term `foo`.
+
+[source,groovy]
+---------------------------------------------------------
+termInfo = _index['my_field'].get('foo',_PAYLOADS);
+score = 0;
+for (pos in termInfo) {
+    score = score + pos.payloadAsInt(0);
+}
+return score;
+---------------------------------------------------------
+
+
+[float]
+=== Term vectors:
+
+The `_index` variable can only be used to gather statistics for single terms. If you want to use information on all terms in a field, you must store the term vectors (see <<term-vector>>). To access them, call
+`_index.termVectors()` to get a
+https://lucene.apache.org/core/4_0_0/core/org/apache/lucene/index/Fields.html[Fields]
+instance. This object can then be used as described in https://lucene.apache.org/core/4_0_0/core/org/apache/lucene/index/Fields.html[lucene doc] to iterate over fields and then for each field iterate over each term in the field.
+The method will return null if the term vectors were not stored.

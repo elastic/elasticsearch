@@ -1,0 +1,122 @@
+[[search-suggesters-term]]
+=== Term suggester
+
+NOTE: In order to understand the format of suggestions, please
+read the <<search-suggesters>> page first.
+
+The `term` suggester suggests terms based on edit distance. The provided
+suggest text is analyzed before terms are suggested. The suggested terms
+are provided per analyzed suggest text token. The `term` suggester
+doesn't take the query into account that is part of request.
+
+==== Common suggest options:
+
+[horizontal]
+`text`::
+    The suggest text. The suggest text is a required option that
+    needs to be set globally or per suggestion.
+
+`field`::
+    The field to fetch the candidate suggestions from. This is
+    an required option that either needs to be set globally or per
+    suggestion.
+
+`analyzer`::
+    The analyzer to analyse the suggest text with. Defaults
+    to the search analyzer of the suggest field.
+
+`size`::
+    The maximum corrections to be returned per suggest text
+    token.
+
+`sort`::
+    Defines how suggestions should be sorted per suggest text
+    term. Two possible values:
++
+    ** `score`:     Sort by score first, then document frequency and
+                    then the term itself.
+    ** `frequency`: Sort by document frequency first, then similarity
+                    score and then the term itself.
++
+`suggest_mode`::
+    The suggest mode controls what suggestions are
+    included or controls for what suggest text terms, suggestions should be
+    suggested. Three possible values can be specified:
++
+     ** `missing`:  Only provide suggestions for suggest text terms that are
+                    not in the index. This is the default.
+     ** `popular`:  Only suggest suggestions that occur in more docs than
+                    the original suggest text term.
+     ** `always`:   Suggest any matching suggestions based on terms in the
+                    suggest text.
+
+==== Other term suggest options:
+
+[horizontal]
+`lowercase_terms`::
+    Lower cases the suggest text terms after text analysis.
+
+`max_edits`::
+    The maximum edit distance candidate suggestions can
+    have in order to be considered as a suggestion. Can only be a value
+    between 1 and 2. Any other value result in an bad request error being
+    thrown. Defaults to 2.
+
+`prefix_length`::
+    The number of minimal prefix characters that must
+    match in order be a candidate suggestions. Defaults to 1. Increasing
+    this number improves spellcheck performance. Usually misspellings don't
+    occur in the beginning of terms. (Old name "prefix_len" is deprecated)
+
+`min_word_length`::
+    The minimum length a suggest text term must have in
+    order to be included. Defaults to 4. (Old name "min_word_len" is deprecated)
+
+`shard_size`::
+    Sets the maximum number of suggestions to be retrieved
+    from each individual shard. During the reduce phase only the top N
+    suggestions are returned based on the `size` option. Defaults to the
+    `size` option. Setting this to a value higher than the `size` can be
+    useful in order to get a more accurate document frequency for spelling
+    corrections at the cost of performance. Due to the fact that terms are
+    partitioned amongst shards, the shard level document frequencies of
+    spelling corrections may not be precise. Increasing this will make these
+    document frequencies more precise.
+
+`max_inspections`::
+    A factor that is used to multiply with the
+    `shards_size` in order to inspect more candidate spell corrections on
+    the shard level. Can improve accuracy at the cost of performance.
+    Defaults to 5.
+
+`min_doc_freq`::
+    The minimal threshold in number of documents a
+    suggestion should appear in. This can be specified as an absolute number
+    or as a relative percentage of number of documents. This can improve
+    quality by only suggesting high frequency terms. Defaults to 0f and is
+    not enabled. If a value higher than 1 is specified then the number
+    cannot be fractional. The shard level document frequencies are used for
+    this option.
+
+`max_term_freq`::
+    The maximum threshold in number of documents a
+    suggest text token can exist in order to be included. Can be a relative
+    percentage number (e.g 0.4) or an absolute number to represent document
+    frequencies. If an value higher than 1 is specified then fractional can
+    not be specified. Defaults to 0.01f. This can be used to exclude high
+    frequency terms from being spellchecked. High frequency terms are
+    usually spelled correctly on top of this also improves the spellcheck
+    performance. The shard level document frequencies are used for this
+    option.
+
+`string_distance`::
+    Which string distance implementation to use for comparing how similar
+    suggested terms are. Five possible values can be specified:
+    `internal` - The default based on damerau_levenshtein but highly optimized
+    for comparing string distance for terms inside the index.
+    `damerau_levenshtein` - String distance algorithm based on
+    Damerau-Levenshtein algorithm.
+    `levenstein` - String distance algorithm based on Levenstein edit distance
+    algorithm.
+    `jarowinkler` - String distance algorithm based on Jaro-Winkler algorithm.
+    `ngram` - String distance algorithm based on character n-grams.

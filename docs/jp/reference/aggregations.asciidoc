@@ -1,0 +1,115 @@
+[[search-aggregations]]
+= Aggregations
+
+[partintro]
+--
+The aggregations framework helps provide aggregated data based on a search query. It is based on simple building blocks
+called aggregations, that can be composed in order to build complex summaries of the data.
+
+An aggregation can be seen as a _unit-of-work_ that builds analytic information over a set of documents. The context of
+the execution defines what this document set is (e.g. a top-level aggregation executes within the context of the executed
+query/filters of the search request).
+
+There are many different types of aggregations, each with its own purpose and output. To better understand these types,
+it is often easier to break them into four main families:
+
+<<search-aggregations-bucket, _Bucketing_>>::
+				A family of aggregations that build buckets, where each bucket is associated with a _key_ and a document
+				criterion. When the aggregation is executed, all the buckets criteria are evaluated on every document in
+				the context and when a criterion matches, the document is considered to "fall in" the relevant bucket.
+				By the end of the aggregation process, we'll end up with a list of buckets - each one with a set of
+				documents that "belong" to it.
+
+<<search-aggregations-metrics, _Metric_>>::
+				Aggregations that keep track and compute metrics over a set of documents.
+
+<<search-aggregations-matrix, _Matrix_>>::
+                A family of aggregations that operate on multiple fields and produce a matrix result based on the
+                values extracted from the requested document fields. Unlike metric and bucket aggregations, this
+                aggregation family does not yet support scripting.
+
+<<search-aggregations-pipeline, _Pipeline_>>::
+				Aggregations that aggregate the output of other aggregations and their associated metrics
+
+The interesting part comes next. Since each bucket effectively defines a document set (all documents belonging to
+the bucket), one can potentially associate aggregations on the bucket level, and those will execute within the context
+of that bucket. This is where the real power of aggregations kicks in: *aggregations can be nested!*
+
+NOTE:	Bucketing aggregations can have sub-aggregations (bucketing or metric). The sub-aggregations will be computed for
+		the buckets which their parent aggregation generates. There is no hard limit on the level/depth of nested
+		aggregations (one can nest an aggregation under a "parent" aggregation, which is itself a sub-aggregation of
+		another higher-level aggregation).
+
+[float]
+== Structuring Aggregations
+
+The following snippet captures the basic structure of aggregations:
+
+[source,js]
+--------------------------------------------------
+"aggregations" : {
+    "<aggregation_name>" : {
+        "<aggregation_type>" : {
+            <aggregation_body>
+        }
+        [,"meta" : {  [<meta_data_body>] } ]?
+        [,"aggregations" : { [<sub_aggregation>]+ } ]?
+    }
+    [,"<aggregation_name_2>" : { ... } ]*
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The `aggregations` object (the key `aggs` can also be used) in the JSON holds the aggregations to be computed. Each aggregation
+is associated with a logical name that the user defines (e.g. if the aggregation computes the average price, then it would
+make sense to name it `avg_price`). These logical names will also be used to uniquely identify the aggregations in the
+response. Each aggregation has a specific type (`<aggregation_type>` in the above snippet) and is typically the first
+key within the named aggregation body. Each type of aggregation defines its own body, depending on the nature of the
+aggregation (e.g. an `avg` aggregation on a specific field will define the field on which the average will be calculated).
+At the same level of the aggregation type definition, one can optionally define a set of additional aggregations,
+though this only makes sense if the aggregation you defined is of a bucketing nature. In this scenario, the
+sub-aggregations you define on the bucketing aggregation level will be computed for all the buckets built by the
+bucketing aggregation. For example, if you define a set of aggregations under the `range` aggregation, the
+sub-aggregations will be computed for the range buckets that are defined.
+
+[float]
+=== Values Source
+
+Some aggregations work on values extracted from the aggregated documents. Typically, the values will be extracted from
+a specific document field which is set using the `field` key for the aggregations. It is also possible to define a
+<<modules-scripting,`script`>> which will generate the values (per document).
+
+When both `field` and `script` settings are configured for the aggregation, the script will be treated as a
+`value script`.  While normal scripts are evaluated on a document level (i.e. the script has access to all the data
+associated with the document), value scripts are evaluated on the *value* level. In this mode, the values are extracted
+from the configured `field` and the `script` is used to apply a "transformation" over these value/s.
+
+["NOTE",id="aggs-script-note"]
+===============================
+When working with scripts, the `lang` and `params` settings can also be defined. The former defines the scripting
+language which is used (assuming the proper language is available in Elasticsearch, either by default or as a plugin). The latter
+enables defining all the "dynamic" expressions in the script as parameters, which enables the script to keep itself static
+between calls (this will ensure the use of the cached compiled scripts in Elasticsearch).
+===============================
+
+Elasticsearch uses the type of the field in the mapping in order to figure out
+how to run the aggregation and format the response. However there are two cases
+in which Elasticsearch cannot figure out this information: unmapped fields (for
+instance in the case of a search request across multiple indices, and only some
+of them have a mapping for the field) and pure scripts. For those cases, it is
+possible to give Elasticsearch a hint using the `value_type` option, which
+accepts the following values: `string`, `long` (works for all integer types),
+`double` (works for all decimal types like `float` or `scaled_float`), `date`,
+`ip` and `boolean`.
+
+--
+
+include::aggregations/metrics.asciidoc[]
+
+include::aggregations/bucket.asciidoc[]
+
+include::aggregations/pipeline.asciidoc[]
+
+include::aggregations/matrix.asciidoc[]
+
+include::aggregations/misc.asciidoc[]

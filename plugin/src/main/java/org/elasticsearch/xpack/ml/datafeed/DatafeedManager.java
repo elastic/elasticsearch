@@ -399,8 +399,8 @@ public class DatafeedManager extends AbstractComponent {
             persistentTasksService.waitForPersistentTaskStatus(taskId, Objects::isNull, TimeValue.timeValueSeconds(20),
                             new WaitForPersistentTaskStatusListener<StartDatafeedAction.DatafeedParams>() {
                 @Override
-                public void onResponse(PersistentTask<StartDatafeedAction.DatafeedParams> PersistentTask) {
-                    CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(datafeed.getJobId());
+                public void onResponse(PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
+                    CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(getJobId());
                     /*
                         Enforces that for the close job api call the current node is the coordinating node.
                         If we are in this callback then the local node's cluster state doesn't contain a persistent task
@@ -420,20 +420,20 @@ public class DatafeedManager extends AbstractComponent {
                         @Override
                         public void onResponse(CloseJobAction.Response response) {
                             if (!response.isClosed()) {
-                                logger.error("[{}] job close action was not acknowledged", datafeed.getJobId());
+                                logger.error("[{}] job close action was not acknowledged", getJobId());
                             }
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.error("[" + datafeed.getJobId() + "] failed to  auto-close job", e);
+                            logger.error("[" + getJobId() + "] failed to auto-close job", e);
                         }
                     });
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("Cannot auto close job [" + datafeed.getJobId() + "]", e);
+                    logger.error("Failed to remove datafeed persistent task - will not auto close job [" + getJobId() + "]", e);
                 }
             });
         }

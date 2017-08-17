@@ -36,6 +36,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -661,12 +662,7 @@ public class NumberFieldMapper extends FieldMapper {
 
                 // longs need special handling so we don't lose precision while parsing
                 String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
-
-                try {
-                    return Long.parseLong(stringValue);
-                } catch (NumberFormatException e) {
-                    return AbstractXContentParser.preciseLongValue(stringValue, coerce);
-                }
+                return Numbers.toLong(stringValue, coerce);
             }
 
             @Override

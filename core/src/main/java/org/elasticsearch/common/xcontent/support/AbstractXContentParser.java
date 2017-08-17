@@ -22,12 +22,11 @@ package org.elasticsearch.common.xcontent.support;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -43,9 +42,6 @@ public abstract class AbstractXContentParser implements XContentParser {
     // references to this policy decision throughout the codebase and find
     // and change any code that needs to apply an alternative policy.
     public static final boolean DEFAULT_NUMBER_COERCE_POLICY = true;
-
-    private static final BigInteger MIN_LONG_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
-    private static final BigInteger MAX_LONG_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
 
     private static void checkCoerceString(boolean coerce, Class<? extends Number> clazz) {
         if (!coerce) {
@@ -189,34 +185,11 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Long.class);
-            // longs need special handling so we don't lose precision while parsing
-            String stringValue = text();
-            try {
-                return Long.parseLong(stringValue);
-            } catch (NumberFormatException e) {
-                return preciseLongValue(stringValue, coerce);
-            }
+            return Numbers.toLong(text(), coerce);
         }
         long result = doLongValue();
         ensureNumberConversion(coerce, result, Long.class);
         return result;
-    }
-
-    public static long preciseLongValue(String stringValue, boolean coerce) {
-        final BigInteger bigIntegerValue;
-
-        try {
-            BigDecimal bigDecimalValue = new BigDecimal(stringValue);
-            bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
-        } catch (ArithmeticException e) {
-            throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("For input string: \"" + stringValue + "\"");
-        }
-        if (bigIntegerValue.compareTo(MAX_LONG_VALUE) > 0 || bigIntegerValue.compareTo(MIN_LONG_VALUE) < 0) {
-            throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for a long");
-        }
-        return bigIntegerValue.longValue();
     }
 
     protected abstract long doLongValue() throws IOException;

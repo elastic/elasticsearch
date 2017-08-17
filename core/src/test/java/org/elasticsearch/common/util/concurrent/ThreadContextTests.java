@@ -29,8 +29,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ThreadContextTests extends ESTestCase {
 
@@ -616,11 +618,8 @@ public class ThreadContextTests extends ESTestCase {
         threadContext.putHeader(Collections.<String, String>emptyMap());
         threadContext.putHeader(Collections.<String, String>singletonMap("foo", "bar"));
         assertEquals("bar", threadContext.getHeader("foo"));
-        try {
-            threadContext.putHeader(Collections.<String, String>singletonMap("foo", "boom"));
-        } catch (IllegalArgumentException e) {
-            assertEquals("value for key [foo] already present", e.getMessage());
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> threadContext.putHeader(Collections.<String, String>singletonMap("foo", "boom")));
+        assertEquals("value for key [foo] already present", e.getMessage());
     }
 
     /**

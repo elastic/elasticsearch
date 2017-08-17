@@ -189,7 +189,7 @@ public class RethrottleTests extends ReindexTestCase {
             } catch (ElasticsearchException e) {
                 // if it's the error we're expecting, rethrow as AssertionError so awaitBusy doesn't exit early
                 if (e.getCause() instanceof IllegalArgumentException) {
-                    throw new AssertionError("Rethrottle request for task [" + taskToRethrottle.getId() + "] failed");
+                    throw new AssertionError("Rethrottle request for task [" + taskToRethrottle.getId() + "] failed", e);
                 } else {
                     throw e;
                 }

@@ -1,0 +1,254 @@
+[[settings-reference]]
+== Settings reference
+
+allocation.max_retries::
+Defaults to 5.
+
+blocks.metadata::
+Defaults to `false`.
+
+blocks.read::
+Defaults to `false`.
+
+blocks.read_only::
+Defaults to `false`.
+
+blocks.read_only_allow_delete::
+Defaults to `false`.
+
+blocks.write::
+Defaults to `false`.
+
+codec::
+Defaults to `default`.
+
+compound_format::
+Defaults to 0.1.
+
+fielddata.cache::
+Defaults to node.
+
+format::
+Defaults to 0.
+
+gc_deletes::
+Defaults to 60 seconds.
+
+index.allocation.enable::
+Defaults to ALL.
+
+index.allocation.total_shards_per_node::
+Defaults to -1.
+
+index.auto_expand_replicas::
+Default to `false`.
+
+index.data_path::
+Defaults to NULL.
+
+index.mapper.dynamic::
+Defaults to `true`.
+
+index.requests.cache.enable::
+Defaults to `true`.
+
+index.routing.rebalance.enable::
+Defaults to ALL.
+
+index.routing.total_shards_per_node::
+Defaults to -1.
+
+index.translog.durability::
+Defaults to REQUEST.
+
+index.translog.flush_threshold_size::
+Defaults to 512 MB.
+
+index.translog.generation_threshold_size::
+Range: 64 bytes to Long.MAX_VALUE bytes. Defaults to 64 MB.
+
+index.translog.retention.size::
+Defaults to 512 MB.
+
+index.translog.retention.age::
+Defaults to 12 hours.
+
+index.translog.sync_interval::
+Defaults to 5 seconds.
+
+index.unassigned.node_left.delayed_timeout::
+Defaults to 1 minute.
+
+indexing.level::
+Defaults to TRACE.
+
+indexing.slowlogreformat::
+Defaults to `true`.
+
+indexing.source::
+Defaults to 1000.
+
+indexing.threshold.index.debug::
+Defaults to -1
+
+indexing.threshold.index.info::
+Defaults to -1.
+
+indexing.threshold.index.trace::
+Defaults to -1
+
+indexing.threshold.index.warn::
+Defaults to -1.
+
+load_fixed_bitset_filters_eagerly::
+Defaults to  `true`.
+
+mapping.coerce::
+Defaults to `false`.
+
+mapping.nested_fields.limit::
+Defaults to 50.
+
+mapping.depth.limit::
+Defaults to  20.
+
+mapping.ignore_malformed::
+Defaults to `false`.
+
+mapping.total_fields.limit::
+Defaults to 1000.
+
+max_adjacency_matrix_filters::
+Defaults to 100.
+
+max_refresh_listeners::
+Defaults to 1000.
+
+max_rescore_window::
+Defaults to 10000.
+
+max_result_window::
+Defaults to 10000.
+
+max_slices_per_scroll::
+Defaults to  1024.
+
+merge.policy.expunge_deletes_allowed::
+Defaults to 10.0.
+
+merge.policy.floor_segment::
+Defaults to 2 MB.
+
+merge.policy.max_merge_at_once::
+Defaults to 10.
+
+merge.policy.max_merge_at_once_explicit::
+Defaults to 30.
+
+merge.policy.max_merged_segment::
+Defaults to 5 GB.
+
+merge.policy.reclaim_deletes_weight::
+Defaults to 2.0.
+
+merge.policy.segments_per_tier::
+Defaults to 10.0.
+
+merge.scheduler.auto_throttle::
+Defaults to `true`.
+
+merge.scheduler.max_merge_count::
+Defaults to 9.
+
+merge.scheduler.max_thread_count::
+Defaults to 4.
+
+optimize_auto_generated_id::
+Defaults to `true`.
+
+percolator.map_unmapped_fields_as_string::
+Defaults to `false`.
+
+priority::
+Defaults to 1.
+
+queries.cache.everything::
+Defaults to `false`.
+
+queries.cache.enabled::
+Defaults to `true`.
+
+queries.cache.term_queries::
+Defaults to `false`.
+
+query.default_field::
+Defaults to _all.
+
+query.parse.allow_unmapped_fields::
+Defaults to `true`.
+
+query_string.lenient::
+Defaults to `false`.
+
+refresh_interval::
+Defaults to 1 second.
+
+routing_partition_size::
+Defaults to 1.
+
+search.slowlog.level::
+Defaults to TRACE.
+
+search.slowlog.query.debug::
+Defaults to -1.
+
+search.slowlog.query.info::
+Defaults to -1.
+
+search.slowlog.query.trace::
+Defaults to -1.
+
+search.slowlog.query.warn::
+Defaults to -1.
+
+search.slowlog.threshold.fetch.debug::
+Defaults to -1.
+
+search.slowlog.threshold.fetch.info::
+Defaults to -1.
+
+search.slowlog.threshold.fetch.trace::
+Defaults to -1.
+
+search.slowlog.threshold.fetch.warn::
+Defaults to -1.
+
+seq_no.checkpoint.bit_arrays_size::
+Defaults to 1024.
+
+shard.check_on_startup::
+Defaults to `false`.
+
+store.fs.fs_lock::
+Defaults to `native`.
+
+store.stats_refresh_interval:: 
+Defaults to 10 seconds.
+
+store.type::
+Defaults to NULL.
+
+ttl.disable_purge::
+Defaults to `false`.
+
+warmer.enabled::
+Defaults to `true`.
+
+write.wait_for_active_shards:: 
+Defaults to 1.
+
+xpack.version::
+Defaults to NULL.
+
+xpack.watcher.template.version:: 
+Defaults to NULL.

@@ -53,3 +53,5 @@ include::setup/bootstrap-checks.asciidoc[]
 include::setup/upgrade.asciidoc[]
 
 include::setup/stopping.asciidoc[]
+
+include::setup/settings-reference.asciidoc[]

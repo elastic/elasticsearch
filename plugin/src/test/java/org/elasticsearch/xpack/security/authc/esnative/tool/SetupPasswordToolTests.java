@@ -28,6 +28,9 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 
 import static org.mockito.Matchers.anyString;
@@ -41,7 +44,7 @@ import static org.mockito.Mockito.when;
 public class SetupPasswordToolTests extends CommandTestCase {
 
     private final String pathHomeParameter = "-Epath.home=" + createTempDir();
-    private SecureString bootstrapPassword = new SecureString("bootstrap-password".toCharArray());
+    private SecureString bootstrapPassword;
     private final String ep = "elastic-password";
     private final String kp = "kibana-password";
     private final String lp = "logstash-password";
@@ -50,9 +53,21 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
     @Before
     public void setSecretsAndKeyStore() throws GeneralSecurityException {
+        // sometimes we fall back to the keystore seed as this is the default when a new node starts
+        boolean useFallback = randomBoolean();
+        bootstrapPassword = useFallback ?  new SecureString("0xCAFEBABE".toCharArray()) :
+                new SecureString("bootstrap-password".toCharArray());
         this.keyStore = mock(KeyStoreWrapper.class);
         this.httpClient = mock(CommandLineHttpClient.class);
-        when(keyStore.getString(ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.getKey())).thenReturn(bootstrapPassword);
+        when(keyStore.isLoaded()).thenReturn(true);
+        if (useFallback) {
+            when(keyStore.getSettingNames()).thenReturn(new HashSet<>(Arrays.asList(ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.getKey(),
+                    KeyStoreWrapper.SEED_SETTING.getKey())));
+            when(keyStore.getString(ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.getKey())).thenReturn(bootstrapPassword);
+        } else {
+            when(keyStore.getSettingNames()).thenReturn(Collections.singleton(KeyStoreWrapper.SEED_SETTING.getKey()));
+            when(keyStore.getString(KeyStoreWrapper.SEED_SETTING.getKey())).thenReturn(bootstrapPassword);
+        }
         when(httpClient.getDefaultURL()).thenReturn("http://localhost:9200");
 
         terminal.addSecretInput(ep);

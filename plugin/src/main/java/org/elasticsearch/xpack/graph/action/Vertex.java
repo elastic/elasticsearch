@@ -7,7 +7,8 @@ package org.elasticsearch.xpack.graph.action;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -19,7 +20,7 @@ import java.io.IOException;
  * A vertex term could be a bank account number, an email address, a hashtag or any 
  * other term that appears in documents and is interesting to represent in a network.  
  */
-public class Vertex implements ToXContent {        
+public class Vertex implements ToXContentFragment {
     final String field;
     final String term;
     double weight;

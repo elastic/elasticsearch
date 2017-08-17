@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -93,7 +92,7 @@ public class IncidentEventContext implements ToXContentObject {
         return builder.endObject();
     }
 
-    public static class Template implements ToXContent {
+    public static class Template implements ToXContentObject {
 
         final Type type;
         final TextTemplate href;

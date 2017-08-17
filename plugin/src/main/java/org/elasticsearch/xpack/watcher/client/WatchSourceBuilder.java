@@ -29,7 +29,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class WatchSourceBuilder extends ToXContentToBytes implements ToXContent {
+public class WatchSourceBuilder extends ToXContentToBytes implements ToXContentObject {
 
     private Trigger trigger;
     private Input input = NoneInput.INSTANCE;

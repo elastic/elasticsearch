@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.notification.hipchat;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.common.http.HttpRequest;
@@ -63,7 +61,7 @@ public class SentMessages implements ToXContentObject, Iterable<SentMessages.Sen
         return builder.endObject();
     }
 
-    public static class SentMessage implements ToXContent {
+    public static class SentMessage implements ToXContentObject {
 
         private static final ParseField STATUS = new ParseField("status");
         private static final ParseField REQUEST = new ParseField("request");

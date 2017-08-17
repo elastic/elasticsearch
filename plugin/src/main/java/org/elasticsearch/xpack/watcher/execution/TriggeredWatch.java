@@ -11,7 +11,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -20,7 +21,7 @@ import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 
 import java.io.IOException;
 
-public class TriggeredWatch implements ToXContent {
+public class TriggeredWatch implements ToXContentObject {
 
     private final Wid id;
     private final TriggerEvent triggerEvent;

@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -238,7 +237,7 @@ public class ActionWrapper implements ToXContentObject {
         return new ActionWrapper(actionId, throttler, condition, transform, action);
     }
 
-    public static class Result implements ToXContent {
+    public static class Result implements ToXContentObject {
 
         private final String id;
         @Nullable

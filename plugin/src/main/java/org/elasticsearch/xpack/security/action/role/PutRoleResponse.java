@@ -8,7 +8,8 @@ package org.elasticsearch.xpack.security.action.role;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -17,7 +18,7 @@ import java.io.IOException;
  * Response when adding a role, includes a boolean for whether the role was
  * created or updated.
  */
-public class PutRoleResponse extends ActionResponse implements ToXContent {
+public class PutRoleResponse extends ActionResponse implements ToXContentObject {
 
     private boolean created;
 

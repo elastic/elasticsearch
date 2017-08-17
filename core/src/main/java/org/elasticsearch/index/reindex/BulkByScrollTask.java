@@ -155,6 +155,9 @@ public class BulkByScrollTask extends CancellableTask {
         }
 
         workerState = new WorkerBulkByScrollTaskState(this, sliceId, requestsPerSecond);
+        if (isCancelled()) {
+            workerState.handleCancel();
+        }
     }
 
     /**
@@ -170,12 +173,9 @@ public class BulkByScrollTask extends CancellableTask {
 
     @Override
     public void onCancelled() {
-        if (isLeader()) {
-            // The task cancellation task automatically finds children and cancels them, nothing extra to do
-        } else if (isWorker()) {
+        // The task cancellation task automatically finds children and cancels them, nothing extra to do for leaders
+        if (isWorker()) {
             workerState.handleCancel();
-        } else {
-            throw new IllegalStateException("This task has not had its sliced state initialized and doesn't know how to cancel itself");
         }
     }
 

@@ -391,7 +391,7 @@ POST /sales/_search?size=0
 
 <1> Documents without a value in the `publish_date` field will fall into the same bucket as documents that have the value `2000-01-01`.
 
-=== Use of a script to aggregate by day of the week
+==== Use of a script to aggregate by day of the week
 
 There are some cases where date histogram can't help us, like for example, when we need
 to aggregate the results by day of the week.

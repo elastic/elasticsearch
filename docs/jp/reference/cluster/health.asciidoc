@@ -1,0 +1,119 @@
+[[cluster-health]]
+== Cluster Health
+
+The cluster health API allows to get a very simple status on the health
+of the cluster. For example, on a quiet single node cluster with a single index
+with 5 shards and one replica, this:
+
+[source,js]
+--------------------------------------------------
+GET _cluster/health
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test1\n/]
+
+Returns this:
+
+[source,js]
+--------------------------------------------------
+{
+  "cluster_name" : "testcluster",
+  "status" : "yellow",
+  "timed_out" : false,
+  "number_of_nodes" : 1,
+  "number_of_data_nodes" : 1,
+  "active_primary_shards" : 5,
+  "active_shards" : 5,
+  "relocating_shards" : 0,
+  "initializing_shards" : 0,
+  "unassigned_shards" : 5,
+  "delayed_unassigned_shards": 0,
+  "number_of_pending_tasks" : 0,
+  "number_of_in_flight_fetch": 0,
+  "task_max_waiting_in_queue_millis": 0,
+  "active_shards_percent_as_number": 50.0
+}
+--------------------------------------------------
+// TESTRESPONSE[s/testcluster/docs_integTestCluster/]
+// TESTRESPONSE[s/"number_of_pending_tasks" : 0,/"number_of_pending_tasks" : $body.number_of_pending_tasks,/]
+// TESTRESPONSE[s/"task_max_waiting_in_queue_millis": 0/"task_max_waiting_in_queue_millis": $body.task_max_waiting_in_queue_millis/]
+
+
+The API can also be executed against one or more indices to get just the
+specified indices health:
+
+[source,js]
+--------------------------------------------------
+GET /_cluster/health/test1,test2
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test1\nPUT test2\n/]
+
+The cluster health status is: `green`, `yellow` or `red`. On the shard
+level, a `red` status indicates that the specific shard is not allocated
+in the cluster, `yellow` means that the primary shard is allocated but
+replicas are not, and `green` means that all shards are allocated. The
+index level status is controlled by the worst shard status. The cluster
+status is controlled by the worst index status.
+
+One of the main benefits of the API is the ability to wait until the
+cluster reaches a certain high water-mark health level. For example, the
+following will wait for 50 seconds for the cluster to reach the `yellow`
+level (if it reaches the `green` or `yellow` status before 50 seconds elapse,
+it will return at that point):
+
+[source,js]
+--------------------------------------------------
+GET /_cluster/health?wait_for_status=yellow&timeout=50s
+--------------------------------------------------
+// CONSOLE
+
+[float]
+[[request-params]]
+=== Request Parameters
+
+The cluster health API accepts the following request parameters:
+
+`level`::
+    Can be one of `cluster`, `indices` or `shards`. Controls the
+    details level of the health information returned. Defaults to `cluster`.
+
+`wait_for_status`::
+    One of `green`, `yellow` or `red`. Will wait (until
+    the timeout provided) until the status of the cluster changes to the one
+    provided or better, i.e. `green` > `yellow` > `red`. By default, will not
+    wait for any status.
+
+`wait_for_no_relocating_shards`::
+    A boolean value which controls whether to wait (until the timeout provided)
+    for the cluster to have no shard relocations. Defaults to false, which means
+    it will not wait for relocating shards.
+
+`wait_for_active_shards`::
+    A number controlling to how many active shards to wait for, `all` to wait
+    for all shards in the cluster to be active, or `0` to not wait. Defaults to `0`.
+
+`wait_for_nodes`::
+    The request waits until the specified number `N` of
+    nodes is available. It also accepts `>=N`, `<=N`, `>N` and `<N`.
+    Alternatively, it is possible to use `ge(N)`, `le(N)`, `gt(N)` and
+    `lt(N)` notation.
+
+`timeout`::
+    A time based parameter controlling how long to wait if one of
+    the wait_for_XXX are provided. Defaults to `30s`.
+
+`local`::
+    If `true` returns the local node information and does not provide
+    the state from master node. Default: `false`.
+
+
+The following is an example of getting the cluster health at the
+`shards` level:
+
+[source,js]
+--------------------------------------------------
+GET /_cluster/health/twitter?level=shards
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]

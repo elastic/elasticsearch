@@ -1,0 +1,79 @@
+[[release-notes-5.0.2]]
+== 5.0.2 Release Notes
+
+Also see <<breaking-changes-5.0>>.
+
+[[enhancement-5.0.2]]
+[float]
+=== Enhancements
+
+Core::
+* Install a security manager on startup {pull}21716[#21716]
+
+Exceptions::
+* Add BWC layer for Exceptions {pull}21694[#21694] (issue: {issue}21656[#21656])
+
+Logging::
+* Truncate log messages from the end {pull}21609[#21609] (issue: {issue}21602[#21602])
+
+Scripting::
+* Wrap VerifyError in ScriptException {pull}21769[#21769]
+
+Snapshot/Restore::
+* Abort snapshots on a node that leaves the cluster {pull}21084[#21084] (issue: {issue}20876[#20876])
+
+
+
+[[bug-5.0.2]]
+[float]
+=== Bug fixes
+
+Allocation::
+* Allow master to assign primary shard to node that has shard store locked during shard state fetching {pull}21656[#21656] (issue: {issue}19416[#19416])
+
+Cluster::
+* Remove cluster update task when task times out {pull}21578[#21578] (issue: {issue}21568[#21568])
+
+Core::
+* Add a StreamInput#readArraySize method that ensures sane array sizes {pull}21697[#21697]
+* Use a buffer to do character to byte conversion in StreamOutput#writeString {pull}21680[#21680] (issue: {issue}21660[#21660])
+
+Engine::
+* Die with dignity on the Lucene layer {pull}21721[#21721] (issue: {issue}19272[#19272])
+* Fix `InternalEngine#isThrottled` to not always return `false`. {pull}21592[#21592]
+
+Index Templates::
+* Fix integer overflows when dealing with templates. {pull}21628[#21628] (issue: {issue}21622[#21622])
+
+Ingest::
+* fix trace_match behavior for when there is only one grok pattern {pull}21413[#21413] (issue: {issue}21371[#21371])
+
+Internal::
+* Rethrow ExecutionException from the loader to concurrent callers of Cache#computeIfAbsent {pull}21549[#21549]
+* Fixes potential NullPointerException on shard closing {pull}21515[#21515] (issue: {issue}21084[#21084])
+
+Java API::
+* Transport client: Fix remove address to actually work {pull}21743[#21743]
+* Add a HostFailureListener to notify client code if a node got disconnected {pull}21709[#21709] (issue: {issue}21424[#21424])
+
+Logging::
+* Do not prematurely shutdown Log4j {pull}21519[#21519] (issue: {issue}21514[#21514])
+
+Network::
+* Die with dignity on the network layer {pull}21720[#21720] (issue: {issue}19272[#19272])
+
+Plugin Lang Painless::
+* Fix a VerifyError bug in Painless {pull}21765[#21765]
+* Fix Lambdas in Painless to be Able to Use Top-Level Variables Such as params and doc {pull}21635[#21635] (issues: {issue}20869[#20869], {issue}21479[#21479])
+
+Search::
+* Respect default search timeout {pull}21599[#21599] (issues: {issue}12211[#12211], {issue}21595[#21595])
+
+Settings::
+* Don't reset non-dynamic settings unless explicitly requested {pull}21646[#21646] (issue: {issue}21593[#21593])
+
+Tribe Node::
+* Add socket permissions for tribe nodes {pull}21546[#21546] (issues: {issue}16392[#16392], {issue}21122[#21122])
+
+
+

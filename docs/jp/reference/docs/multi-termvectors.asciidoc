@@ -1,0 +1,136 @@
+[[docs-multi-termvectors]]
+== Multi termvectors API
+
+Multi termvectors API allows to get multiple termvectors at once. The
+documents from which to retrieve the term vectors are specified by an index,
+type and id. But the documents could also be artificially provided in the request itself.
+
+The response includes a `docs`
+array with all the fetched termvectors, each element having the structure
+provided by the <<docs-termvectors,termvectors>>
+API. Here is an example:
+
+[source,js]
+--------------------------------------------------
+POST /_mtermvectors
+{
+   "docs": [
+      {
+         "_index": "twitter",
+         "_type": "tweet",
+         "_id": "2",
+         "term_statistics": true
+      },
+      {
+         "_index": "twitter",
+         "_type": "tweet",
+         "_id": "1",
+         "fields": [
+            "message"
+         ]
+      }
+   ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+See the <<docs-termvectors,termvectors>> API for a description of possible parameters.
+
+The `_mtermvectors` endpoint can also be used against an index (in which case it
+is not required in the body):
+
+[source,js]
+--------------------------------------------------
+POST /twitter/_mtermvectors
+{
+   "docs": [
+      {
+         "_type": "tweet",
+         "_id": "2",
+         "fields": [
+            "message"
+         ],
+         "term_statistics": true
+      },
+      {
+         "_type": "tweet",
+         "_id": "1"
+      }
+   ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+And type:
+
+[source,js]
+--------------------------------------------------
+POST /twitter/tweet/_mtermvectors
+{
+   "docs": [
+      {
+         "_id": "2",
+         "fields": [
+            "message"
+         ],
+         "term_statistics": true
+      },
+      {
+         "_id": "1"
+      }
+   ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+If all requested documents are on same index and have same type and also the parameters are the same, the request can be simplified:
+
+[source,js]
+--------------------------------------------------
+POST /twitter/tweet/_mtermvectors
+{
+    "ids" : ["1", "2"],
+    "parameters": {
+    	"fields": [
+         	"message"
+      	],
+      	"term_statistics": true
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+Additionally, just like for the <<docs-termvectors,termvectors>>
+API, term vectors could be generated for user provided documents.  The mapping used is
+determined by `_index` and `_type`.
+
+[source,js]
+--------------------------------------------------
+POST /_mtermvectors
+{
+   "docs": [
+      {
+         "_index": "twitter",
+         "_type": "tweet",
+         "doc" : {
+            "user" : "John Doe",
+            "message" : "twitter test test test"
+         }
+      },
+      {
+         "_index": "twitter",
+         "_type": "test",
+         "doc" : {
+           "user" : "Jane Doe",
+           "message" : "Another twitter test ..."
+         }
+      }
+   ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]

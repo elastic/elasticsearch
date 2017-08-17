@@ -1,0 +1,25 @@
+[[query-dsl-constant-score-query]]
+=== Constant Score Query
+
+A query that wraps another query and simply returns a
+constant score equal to the query boost for every document in the
+filter. Maps to Lucene `ConstantScoreQuery`.
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "constant_score" : {
+            "filter" : {
+                "term" : { "user" : "kimchy"}
+            },
+            "boost" : 1.2
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+Filter clauses are executed in <<query-filter-context,filter context>>,
+meaning that scoring is ignored and clauses are considered for caching.

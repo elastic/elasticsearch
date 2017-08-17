@@ -1,0 +1,99 @@
+[[release-notes-5.0.0-rc1]]
+== 5.0.0-rc1 Release Notes
+
+Also see <<breaking-changes-5.0>>.
+
+IMPORTANT: This is a release candidate and is intended for _testing purposes only_ and should not be deployed in production.
+
+[[breaking-5.0.0-rc1]]
+[float]
+=== Breaking changes
+
+Core::
+* Remove ignore system bootstrap checks {pull}20511[#20511]
+
+Internal::
+* `_flush` should block by default {pull}20597[#20597] (issue: {issue}20569[#20569])
+
+Plugin Lang Painless::
+* Remove all date 'now' methods from Painless {pull}20766[#20766] (issue: {issue}20762[#20762])
+
+
+
+[[enhancement-5.0.0-rc1]]
+[float]
+=== Enhancements
+
+Cluster::
+* Skip shard management code when updating cluster state on client/tribe nodes {pull}20731[#20731]
+
+Core::
+* Add production warning for pre-release builds {pull}20674[#20674]
+
+Index APIs::
+* Add date-math support to `_rollover` {pull}20709[#20709]
+
+Plugins::
+* Provide error message when plugin id is missing {pull}20660[#20660]
+
+REST::
+* Add response params to REST params did you mean {pull}20753[#20753] (issues: {issue}20722[#20722], {issue}20747[#20747])
+* Add did you mean to strict REST params {pull}20747[#20747] (issue: {issue}20722[#20722])
+
+Tribe Node::
+* Fail fast when executing master level write operations via a tribe node {pull}15441[#15441] (issue: {issue}13290[#13290])
+
+
+
+[[bug-5.0.0-rc1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix date_range aggregation to not cache if now is used {pull}20740[#20740]
+* The `top_hits` aggregation should compile scripts only once. {pull}20738[#20738]
+
+Allocation::
+* IndicesClusterStateService should clean local started when re-assigns an initializing shard with the same aid {pull}20687[#20687]
+* IndexRoutingTable.initializeEmpty shouldn't override supplied primary RecoverySource {pull}20638[#20638] (issue: {issue}20637[#20637])
+* Update incoming recoveries stats when shadow replica is reinitialized {pull}20612[#20612]
+* `index.routing.allocation.initial_recovery` limits replica allocation {pull}20589[#20589]
+
+Analysis::
+* Named analyzer should close the analyzer that it wraps {pull}20197[#20197]
+
+Cache::
+* Prevent requests that use scripts or now() from being cached {pull}20750[#20750] (issue: {issue}20645[#20645])
+
+Core::
+* StoreStatsCache should also ignore AccessDeniedException when checking file size {pull}20790[#20790] (issue: {issue}17580[#17580])
+
+Ingest::
+* no null values in ingest configuration error messages {pull}20616[#20616]
+* JSON Processor was not properly added {pull}20613[#20613]
+
+Internal::
+* IndicesAliasesRequest should not implement CompositeIndicesRequest {pull}20726[#20726]
+
+Logging::
+* Fix logger when you can not create an azure storage client {pull}20670[#20670] (issues: {issue}20633[#20633], {issue}20669[#20669])
+
+Plugin Lang Painless::
+* Fix String Concatenation Bug In Painless {pull}20623[#20623]
+
+REST::
+* Change separator for shards preference {pull}20786[#20786] (issues: {issue}20722[#20722], {issue}20769[#20769])
+* Remove lenient URL parameter parsing {pull}20722[#20722] (issue: {issue}14719[#14719])
+
+Scripting::
+* Native scripts should be created once per index, not per segment. {pull}20609[#20609]
+
+Search::
+* Make range queries round up upper bounds again. {pull}20582[#20582] (issues: {issue}20579[#20579], {issue}8889[#8889])
+
+Settings::
+* Fix Setting.timeValue() method {pull}20696[#20696] (issue: {issue}20662[#20662])
+* Add a hard limit for `index.number_of_shard` {pull}20682[#20682]
+* Include complex settings in settings requests {pull}20622[#20622]
+
+

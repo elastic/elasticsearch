@@ -1,0 +1,92 @@
+[[search-aggregations-bucket-iprange-aggregation]]
+=== IP Range Aggregation
+
+Just like the dedicated <<search-aggregations-bucket-daterange-aggregation,date>> range aggregation, there is also a dedicated range aggregation for IP typed fields:
+
+Example:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "ip_ranges" : {
+            "ip_range" : {
+                "field" : "ip",
+                "ranges" : [
+                    { "to" : "10.0.0.5" },
+                    { "from" : "10.0.0.5" }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "ip_ranges": {
+            "buckets" : [
+                {
+                    "to": "10.0.0.5",
+                    "doc_count": 4
+                },
+                {
+                    "from": "10.0.0.5",
+                    "doc_count": 6
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
+
+IP ranges can also be defined as CIDR masks:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "ip_ranges" : {
+            "ip_range" : {
+                "field" : "ip",
+                "ranges" : [
+                    { "mask" : "10.0.0.0/25" },
+                    { "mask" : "10.0.0.127/25" }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations": {
+        "ip_ranges": {
+            "buckets": [
+                {
+                    "key": "10.0.0.0/25",
+                    "from": "10.0.0.0",
+                    "to": "10.0.0.127",
+                    "doc_count": 127
+                },
+                {
+                    "key": "10.0.0.127/25",
+                    "from": "10.0.0.0",
+                    "to": "10.0.0.127",
+                    "doc_count": 127
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------

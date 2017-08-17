@@ -1,0 +1,29 @@
+[[cat-pending-tasks]]
+== cat pending tasks
+
+`pending_tasks` provides the same information as the
+<<cluster-pending,`/_cluster/pending_tasks`>> API in a
+convenient tabular format. For example:
+
+[source,js]
+--------------------------------------------------
+GET /_cat/pending_tasks?v
+--------------------------------------------------
+// CONSOLE
+
+Might look like:
+
+[source,txt]
+--------------------------------------------------
+insertOrder timeInQueue priority source
+       1685       855ms HIGH     update-mapping [foo][t]
+       1686       843ms HIGH     update-mapping [foo][t]
+       1693       753ms HIGH     refresh-mapping [foo][[t]]
+       1688       816ms HIGH     update-mapping [foo][t]
+       1689       802ms HIGH     update-mapping [foo][t]
+       1690       787ms HIGH     update-mapping [foo][t]
+       1691       773ms HIGH     update-mapping [foo][t]
+--------------------------------------------------
+// TESTRESPONSE[s/(\n.+)+/(\\n.+)*/ _cat]
+// We can't assert anything about the tasks in progress here because we don't
+// know what might be in progress....

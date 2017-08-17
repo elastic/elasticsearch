@@ -1,0 +1,40 @@
+[[ingest]]
+= Ingest Node
+
+[partintro]
+--
+You can use ingest node to pre-process documents before the actual indexing takes place.
+This pre-processing happens by an ingest node that intercepts bulk and index requests, applies the
+transformations, and then passes the documents back to the index or bulk APIs.
+
+You can enable ingest on any node or even have dedicated ingest nodes. Ingest is enabled by default
+on all nodes. To disable ingest on a node, configure the following setting in the `elasticsearch.yml` file:
+
+[source,yaml]
+--------------------------------------------------
+node.ingest: false
+--------------------------------------------------
+
+To pre-process documents before indexing, you <<pipeline,define a pipeline>> that specifies
+a series of <<ingest-processors,processors>>. Each processor transforms the document in some way.
+For example, you may have a pipeline that consists of one processor that removes a field from
+the document followed by another processor that renames a field.
+
+To use a pipeline, you simply specify the `pipeline` parameter on an index or bulk request to
+tell the ingest node which pipeline to use. For example:
+
+[source,js]
+--------------------------------------------------
+PUT my-index/my-type/my-id?pipeline=my_pipeline_id
+{
+  "foo": "bar"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[catch:request]
+
+See <<ingest-apis,Ingest APIs>> for more information about creating, adding, and deleting pipelines.
+
+--
+
+include::ingest/ingest-node.asciidoc[]

@@ -1,0 +1,133 @@
+[[general-recommendations]]
+== General recommendations
+
+[float]
+[[large-size]]
+=== Don't return large result sets
+
+Elasticsearch is designed as a search engine, which makes it very good at
+getting back the top documents that match a query. However, it is not as good
+for workloads that fall into the database domain, such as retrieving all
+documents that match a particular query. If you need to do this, make sure to
+use the <<search-request-scroll,Scroll>> API.
+
+[float]
+[[maximum-document-size]]
+=== Avoid large documents
+
+Given that the default <<modules-http,`http.max_context_length`>> is set to
+100MB, Elasticsearch will refuse to index any document that is larger than
+that. You might decide to increase that particular setting, but Lucene still
+has a limit of about 2GB.
+
+Even without considering hard limits, large documents are usually not
+practical. Large documents put more stress on network, memory usage and disk,
+even for search requests that do not request the `_source` since Elasticsearch
+needs to fetch the `_id` of the document in all cases, and the cost of getting
+this field is bigger for large documents due to how the filesystem cache works.
+Indexing this document can use an amount of memory that is a multiplier of the
+original size of the document. Proximity search (phrase queries for instance)
+and <<search-request-highlighting,highlighting>> also become more expensive
+since their cost directly depends on the size of the original document.
+
+It is sometimes useful to reconsider what the unit of information should be.
+For instance, the fact you want to make books searchable doesn't necesarily
+mean that a document should consist of a whole book. It might be a better idea
+to use chapters or even paragraphs as documents, and then have a property in
+these documents that identifies which book they belong to. This does not only
+avoid the issues with large documents, it also makes the search experience
+better. For instance if a user searches for two words `foo` and `bar`, a match
+across different chapters is probably very poor, while a match within the same
+paragraph is likely good.
+
+[float]
+[[sparsity]]
+=== Avoid sparsity
+
+The data-structures behind Lucene, which Elasticsearch relies on in order to
+index and store data, work best with dense data, ie. when all documents have the
+same fields. This is especially true for fields that have norms enabled (which
+is the case for `text` fields by default) or doc values enabled (which is the
+case for numerics, `date`, `ip` and `keyword` by default).
+
+The reason is that Lucene internally identifies documents with so-called doc
+ids, which are integers between 0 and the total number of documents in the
+index. These doc ids are used for communication between the internal APIs of
+Lucene: for instance searching on a term with a `match` query produces an
+iterator of doc ids, and these doc ids are then used to retrieve the value of
+the `norm` in order to compute a score for these documents. The way this `norm`
+lookup is implemented currently is by reserving one byte for each document.
+The `norm` value for a given doc id can then be retrieved by reading the
+byte at index `doc_id`. While this is very efficient and helps Lucene quickly
+have access to the `norm` values of every document, this has the drawback that
+documents that do not have a value will also require one byte of storage.
+
+In practice, this means that if an index has `M` documents, norms will require
+`M` bytes of storage *per field*, even for fields that only appear in a small
+fraction of the documents of the index. Although slightly more complex with doc
+values due to the fact that doc values have multiple ways that they can be
+encoded depending on the type of field and on the actual data that the field
+stores, the problem is very similar. In case you wonder: `fielddata`, which was
+used in Elasticsearch pre-2.0 before being replaced with doc values, also
+suffered from this issue, except that the impact was only on the memory
+footprint since `fielddata` was not explicitly materialized on disk.
+
+Note that even though the most notable impact of sparsity is on storage
+requirements, it also has an impact on indexing speed and search speed since
+these bytes for documents that do not have a field still need to be written
+at index time and skipped over at search time.
+
+It is totally fine to have a minority of sparse fields in an index. But beware
+that if sparsity becomes the rule rather than the exception, then the index
+will not be as efficient as it could be.
+
+This section mostly focused on `norms` and `doc values` because those are the
+two features that are most affected by sparsity. Sparsity also affect the
+efficiency of the inverted index (used to index `text`/`keyword` fields) and
+dimensional points (used to index `geo_point` and numerics) but to a lesser
+extent.
+
+Here are some recommendations that can help avoid sparsity:
+
+[float]
+==== Avoid putting unrelated data in the same index
+
+You should avoid putting documents that have totally different structures into
+the same index in order to avoid sparsity. It is often better to put these
+documents into different indices, you could also consider giving fewer shards
+to these smaller indices since they will contain fewer documents overall.
+
+Note that this advice does not apply in the case that you need to use
+parent/child relations between your documents since this feature is only
+supported on documents that live in the same index.
+
+[float]
+==== Normalize document structures
+
+Even if you really need to put different kinds of documents in the same index,
+maybe there are opportunities to reduce sparsity. For instance if all documents
+in the index have a timestamp field but some call it `timestamp` and others
+call it `creation_date`, it would help to rename it so that all documents have
+the same field name for the same data.
+
+[float]
+==== Avoid types
+
+Types might sound like a good way to store multiple tenants in a single index.
+They are not: given that types store everything in a single index, having
+multiple types that have different fields in a single index will also cause
+problems due to sparsity as described above. If your types do not have very
+similar mappings, you might want to consider moving them to a dedicated index.
+
+[float]
+==== Disable `norms` and `doc_values` on sparse fields
+
+If none of the above recommendations apply in your case, you might want to
+check whether you actually need `norms` and `doc_values` on your sparse fields.
+`norms` can be disabled if producing scores is not necessary on a field, this is
+typically true for fields that are only used for filtering. `doc_values` can be
+disabled on fields that are neither used for sorting nor for aggregations.
+Beware that this decision should not be made lightly since these parameters
+cannot be changed on a live index, so you would have to reindex if you realize
+that you need `norms` or `doc_values`.
+

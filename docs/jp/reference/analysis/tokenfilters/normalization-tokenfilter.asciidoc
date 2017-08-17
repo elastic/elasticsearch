@@ -1,0 +1,40 @@
+[[analysis-normalization-tokenfilter]]
+=== Normalization Token Filter
+
+There are several token filters available which try to normalize special
+characters of a certain language.
+
+[horizontal]
+Arabic::
+
+http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/ar/ArabicNormalizer.html[`arabic_normalization`]
+
+German::
+
+http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/de/GermanNormalizationFilter.html[`german_normalization`]
+
+Hindi::
+
+http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/hi/HindiNormalizer.html[`hindi_normalization`]
+
+Indic::
+
+http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/in/IndicNormalizer.html[`indic_normalization`]
+
+Kurdish (Sorani)::
+
+http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/ckb/SoraniNormalizer.html[`sorani_normalization`]
+
+Persian::
+
+http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/fa/PersianNormalizer.html[`persian_normalization`]
+
+Scandinavian::
+
+http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/miscellaneous/ScandinavianNormalizationFilter.html[`scandinavian_normalization`],
+http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/miscellaneous/ScandinavianFoldingFilter.html[`scandinavian_folding`]
+
+Serbian::
+
+not-released-yet[`serbian_normalization`],
+

@@ -1,0 +1,304 @@
+[[docker]]
+=== Install Elasticsearch with Docker
+
+Elasticsearch is also available as a Docker image.
+The image is built with {xpack}/index.html[X-Pack].
+
+==== Security note
+
+NOTE: {xpack}/index.html[X-Pack] is preinstalled in this image.
+Please take a few minutes to familiarize yourself with {xpack}/security-getting-started.html[X-Pack Security] and how to change default passwords. The default password for the `elastic` user is `changeme`.
+
+NOTE: X-Pack includes a trial license for 30 days. After that, you can obtain one of the https://www.elastic.co/subscriptions[available subscriptions] or {xpack}/security-settings.html[disable Security]. The Basic license is free and includes the https://www.elastic.co/products/x-pack/monitoring[Monitoring] extension.
+
+Obtaining Elasticsearch for Docker is as simple as issuing a +docker pull+ command against the Elastic Docker registry.
+
+ifeval::["{release-state}"=="unreleased"]
+
+WARNING: Version {version} of Elasticsearch has not yet been released, so no Docker image is currently available for this version.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+
+The Docker image can be retrieved with the following command:
+
+["source","sh",subs="attributes"]
+--------------------------------------------
+docker pull {docker-image}
+--------------------------------------------
+
+endif::[]
+
+[[docker-cli-run]]
+==== Running Elasticsearch from the command line
+
+[[docker-cli-run-dev-mode]]
+===== Development mode
+
+ifeval::["{release-state}"=="unreleased"]
+
+WARNING: Version {version} of the Elasticsearch Docker image has not yet been released.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+
+Elasticsearch can be quickly started for development or testing use with the following command:
+
+["source","sh",subs="attributes"]
+--------------------------------------------
+docker run -p 9200:9200 -e "http.host=0.0.0.0" -e "transport.host=127.0.0.1" {docker-image}
+--------------------------------------------
+
+endif::[]
+
+[[docker-cli-run-prod-mode]]
+===== Production mode
+
+[[docker-prod-prerequisites]]
+[IMPORTANT]
+=========================
+
+The `vm_max_map_count` kernel setting needs to be set to at least `262144` for production use.
+Depending on your platform:
+
+* Linux
++
+The `vm_map_max_count` setting should be set permanently in /etc/sysctl.conf:
++
+[source,sh]
+--------------------------------------------
+$ grep vm.max_map_count /etc/sysctl.conf
+vm.max_map_count=262144
+----------------------------------
++
+To apply the setting on a live system type: `sysctl -w vm.max_map_count=262144`
++
+* OSX with https://docs.docker.com/engine/installation/mac/#/docker-for-mac[Docker for Mac]
++
+The `vm_max_map_count` setting must be set within the xhyve virtual machine:
++
+["source","sh"]
+--------------------------------------------
+$ screen ~/Library/Containers/com.docker.docker/Data/com.docker.driver.amd64-linux/tty
+--------------------------------------------
++
+Log in with 'root' and no password.
+Then configure the `sysctl` setting as you would for Linux:
++
+["source","sh"]
+--------------------------------------------
+sysctl -w vm.max_map_count=262144
+--------------------------------------------
++
+* OSX with https://docs.docker.com/engine/installation/mac/#docker-toolbox[Docker Toolbox]
++
+The `vm_max_map_count` setting must be set via docker-machine:
++
+["source","sh"]
+--------------------------------------------
+docker-machine ssh
+sudo sysctl -w vm.max_map_count=262144
+--------------------------------------------
+=========================
+
+The following example brings up a cluster comprising two Elasticsearch nodes.
+To bring up the cluster, use the <<docker-prod-cluster-composefile,`docker-compose.yml`>> and just type:
+
+ifeval::["{release-state}"=="unreleased"]
+
+WARNING: Version {version} of the Elasticsearch Docker image has not yet been released, so a `docker-compose.yml` is not available for this version.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+
+["source","sh"]
+--------------------------------------------
+docker-compose up
+--------------------------------------------
+
+endif::[]
+
+[NOTE]
+`docker-compose` is not pre-installed with Docker on Linux.
+Instructions for installing it can be found on the https://docs.docker.com/compose/install/#install-using-pip[docker-compose webpage].
+
+The node `elasticsearch1` listens on `localhost:9200` while `elasticsearch2` talks to `elasticsearch1` over a Docker network.
+
+This example also uses https://docs.docker.com/engine/tutorials/dockervolumes[Docker named volumes], called `esdata1` and `esdata2` which will be created if not already present.
+
+[[docker-prod-cluster-composefile]]
+`docker-compose.yml`:
+ifeval::["{release-state}"=="unreleased"]
+
+WARNING: Version {version} of the Elasticsearch Docker image has not yet been released, so a `docker-compose.yml` is not available for this version.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+["source","yaml",subs="attributes"]
+--------------------------------------------
+version: '2'
+services:
+  elasticsearch1:
+    image: docker.elastic.co/elasticsearch/elasticsearch:{version}
+    container_name: elasticsearch1
+    environment:
+      - cluster.name=docker-cluster
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    mem_limit: 1g
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - esdata1:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - esnet
+  elasticsearch2:
+    image: docker.elastic.co/elasticsearch/elasticsearch:{version}
+    environment:
+      - cluster.name=docker-cluster
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "discovery.zen.ping.unicast.hosts=elasticsearch1"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    mem_limit: 1g
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - esdata2:/usr/share/elasticsearch/data
+    networks:
+      - esnet
+
+volumes:
+  esdata1:
+    driver: local
+  esdata2:
+    driver: local
+
+networks:
+  esnet:
+    driver: bridge
+--------------------------------------------
+endif::[]
+
+To stop the cluster, type `docker-compose down`. Data volumes will persist, so it's possible to start the cluster again with the same data using `docker-compose up`.
+To destroy the cluster **and the data volumes** just type `docker-compose down -v`.
+
+===== Inspect status of cluster:
+
+["source","sh"]
+--------------------------------------------
+curl -u elastic http://127.0.0.1:9200/_cat/health
+Enter host password for user 'elastic':
+1472225929 15:38:49 docker-cluster green 2 2 4 2 0 0 0 0 - 100.0%
+--------------------------------------------
+// NOTCONSOLE
+// This is demonstrating curl. Console will prompt you for a username and
+// password so no need to demonstrate that. Converting this would not show the
+// important `-u elastic` parameters for `curl`.
+
+Log messages go to the console and are handled by the configured Docker logging driver. By default you can access logs with `docker logs`.
+
+[[docker-configuration-methods]]
+==== Configuring Elasticsearch with Docker
+
+Elasticsearch loads its configuration from files under `/usr/share/elasticsearch/config/`. These configuration files are documented in <<settings>> and <<jvm-options>>.
+
+The image offers several methods for configuring Elasticsearch settings with the conventional approach being to provide customized files, i.e. `elasticsearch.yml`, but it's also possible to use environment variables to set options:
+
+===== A. Present the parameters via Docker environment variables
+For example, to define the cluster name with `docker run` you can pass `-e "cluster.name=mynewclustername"`. Double quotes are required.
+
+NOTE: There is a difference between defining <<_setting_default_settings,default settings>> and normal settings. The former are prefixed with `default.` and cannot override normal settings, if defined.
+
+===== B. Bind-mounted configuration
+Create your custom config file and mount this over the image's corresponding file.
+For example, bind-mounting a `custom_elasticsearch.yml` with `docker run` can be accomplished with the parameter:
+
+["source","sh"]
+--------------------------------------------
+-v full_path_to/custom_elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+--------------------------------------------
+
+IMPORTANT: `custom_elasticsearch.yml` should be readable by uid:gid `1000:1000`
+
+===== C. Customized image
+In some environments, it may make more sense to prepare a custom image containing your configuration. A `Dockerfile` to achieve this may be as simple as:
+
+["source","sh",subs="attributes"]
+--------------------------------------------
+FROM docker.elastic.co/elasticsearch/elasticsearch:{version}
+ADD elasticsearch.yml /usr/share/elasticsearch/config/
+USER root
+RUN chown elasticsearch:elasticsearch config/elasticsearch.yml
+USER elasticsearch
+--------------------------------------------
+
+You could then build and try the image with something like:
+
+["source","sh"]
+--------------------------------------------
+docker build --tag=elasticsearch-custom .
+docker run -ti -v /usr/share/elasticsearch/data elasticsearch-custom
+--------------------------------------------
+
+===== D. Override the image's default https://docs.docker.com/engine/reference/run/#cmd-default-command-or-options[CMD]
+
+Options can be passed as command-line options to the Elasticsearch process by
+overriding the default command for the image. For example:
+
+["source","sh"]
+--------------------------------------------
+docker run <various parameters> bin/elasticsearch -Ecluster.name=mynewclustername
+--------------------------------------------
+
+==== Notes for production use and defaults
+
+We have collected a number of best practices for production use.
+
+NOTE: Any Docker parameters mentioned below assume the use of `docker run`.
+
+. It is important to correctly set capabilities and ulimits via the Docker CLI. As seen earlier in the example <<docker-prod-cluster-composefile,docker-compose.yml>>, the following options are required:
++
+  --cap-add=IPC_LOCK --ulimit memlock=-1:-1 --ulimit nofile=65536:65536
++
+. Ensure `bootstrap.memory_lock` is set to `true` as explained in "<<setup-configuration-memory,Disable swapping>>".
++
+This can be achieved through any of the <<docker-configuration-methods,configuration methods>>, e.g. by setting the appropriate environments variable with `-e "bootstrap.memory_lock=true"`.
++
+. The image https://docs.docker.com/engine/reference/builder/#/expose[exposes] TCP ports 9200 and 9300. For clusters it is recommended to randomize the published ports with `--publish-all`, unless you are pinning one container per host.
++
+. Use the `ES_JAVA_OPTS` environment variable to set heap size, e.g. to use 16GB use `-e ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. It is also recommended to set a https://docs.docker.com/engine/reference/run/#user-memory-constraints[memory limit] for the container.
++
+. Pin your deployments to a specific version of the Elasticsearch Docker image, e.g. +docker.elastic.co/elasticsearch/elasticsearch:{version}+.
++
+. Always use a volume bound on `/usr/share/elasticsearch/data`, as shown in the <<docker-cli-run-prod-mode,production example>>, for the following reasons:
++
+.. The data of your elasticsearch node won't be lost if the container is killed
+.. Elasticsearch is I/O sensitive and the Docker storage driver is not ideal for fast I/O
+.. It allows the use of advanced https://docs.docker.com/engine/extend/plugins/#volume-plugins[Docker volume plugins]
++
+. If you are using the devicemapper storage driver (default on at least RedHat (rpm) based distributions) make sure you are not using the default `loop-lvm` mode. Configure docker-engine to use https://docs.docker.com/engine/userguide/storagedriver/device-mapper-driver/#configure-docker-with-devicemapper[direct-lvm] instead.
++
+. Consider centralizing your logs by using a different https://docs.docker.com/engine/admin/logging/overview/[logging driver]. Also note that the default json-file logging driver is not ideally suited for production use.
+
+
+include::next-steps.asciidoc[]

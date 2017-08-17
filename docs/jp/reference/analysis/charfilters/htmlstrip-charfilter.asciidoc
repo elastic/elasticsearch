@@ -1,0 +1,130 @@
+[[analysis-htmlstrip-charfilter]]
+=== HTML Strip Char Filter
+
+The `html_strip` character filter strips HTML elements from the text and
+replaces HTML entities with their decoded value (e.g. replacing `&amp;` with
+`&`).
+
+[float]
+=== Example output
+
+[source,js]
+---------------------------
+POST _analyze
+{
+  "tokenizer":      "keyword", <1>
+  "char_filter":  [ "html_strip" ],
+  "text": "<p>I&apos;m so <b>happy</b>!</p>"
+}
+---------------------------
+// CONSOLE
+<1> The <<analysis-keyword-tokenizer,`keyword` tokenizer>> returns a single term.
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "\nI'm so happy!\n",
+      "start_offset": 0,
+      "end_offset": 32,
+      "type": "word",
+      "position": 0
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above example returns the term:
+
+[source,text]
+---------------------------
+[ \nI'm so happy!\n ]
+---------------------------
+
+The same example with the `standard` tokenizer would return the following terms:
+
+[source,text]
+---------------------------
+[ I'm, so, happy ]
+---------------------------
+
+[float]
+=== Configuration
+
+The `html_strip` character filter accepts the following parameter:
+
+[horizontal]
+`escaped_tags`::
+
+    An array of HTML tags which should not be stripped from the original text.
+
+[float]
+=== Example configuration
+
+In this example, we configure the `html_strip` character filter to leave `<b>`
+tags in place:
+
+[source,js]
+----------------------------
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "keyword",
+          "char_filter": ["my_char_filter"]
+        }
+      },
+      "char_filter": {
+        "my_char_filter": {
+          "type": "html_strip",
+          "escaped_tags": ["b"]
+        }
+      }
+    }
+  }
+}
+
+POST my_index/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "<p>I&apos;m so <b>happy</b>!</p>"
+}
+----------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "\nI'm so <b>happy</b>!\n",
+      "start_offset": 0,
+      "end_offset": 32,
+      "type": "word",
+      "position": 0
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above example produces the following term:
+
+[source,text]
+---------------------------
+[ \nI'm so <b>happy</b>!\n ]
+---------------------------

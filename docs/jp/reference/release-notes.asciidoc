@@ -1,0 +1,47 @@
+[[es-release-notes]]
+= Release Notes
+
+[partintro]
+--
+This section summarizes the changes in each release.
+
+* <<release-notes-5.3.0>>
+* <<release-notes-5.2.2>>
+* <<release-notes-5.2.1>>
+* <<release-notes-5.2.0>>
+* <<release-notes-5.1.2>>
+* <<release-notes-5.1.1>>
+* <<release-notes-5.1.0>>
+* <<release-notes-5.0.2>>
+* <<release-notes-5.0.1>>
+* <<release-notes-5.0.0>>
+* <<release-notes-5.0.0-GA>>
+* <<release-notes-5.0.0-rc1>>
+* <<release-notes-5.0.0-beta1>>
+* <<release-notes-5.0.0-alpha5>>
+* <<release-notes-5.0.0-alpha4>>
+* <<release-notes-5.0.0-alpha3>>
+* <<release-notes-5.0.0-alpha2>>
+* <<release-notes-5.0.0-alpha1>>
+* <<release-notes-5.0.0-alpha1-2x>>
+
+--
+include::release-notes/5.3.0.asciidoc[]
+include::release-notes/5.2.2.asciidoc[]
+include::release-notes/5.2.1.asciidoc[]
+include::release-notes/5.2.0.asciidoc[]
+include::release-notes/5.1.2.asciidoc[]
+include::release-notes/5.1.1.asciidoc[]
+include::release-notes/5.1.0.asciidoc[]
+include::release-notes/5.0.2.asciidoc[]
+include::release-notes/5.0.1.asciidoc[]
+include::release-notes/5.0.0-all.asciidoc[]
+include::release-notes/5.0.0.asciidoc[]
+include::release-notes/5.0.0-rc1.asciidoc[]
+include::release-notes/5.0.0-beta1.asciidoc[]
+include::release-notes/5.0.0-alpha5.asciidoc[]
+include::release-notes/5.0.0-alpha4.asciidoc[]
+include::release-notes/5.0.0-alpha3.asciidoc[]
+include::release-notes/5.0.0-alpha2.asciidoc[]
+include::release-notes/5.0.0-alpha1.asciidoc[]
+include::release-notes/5.0.0-alpha1-2x.asciidoc[]

@@ -1,0 +1,304 @@
+[[recipes]]
+== Recipes
+
+[float]
+[[mixing-exact-search-with-stemming]]
+=== Mixing exact search with stemming
+
+When building a search application, stemming is often a must as it is desirable
+for a query on `skiing` to match documents that contain `ski` or `skis`. But
+what if a user wants to search for `skiing` specifically? The typical way to do
+this would be to use a <<multi-fields,multi-field>> in order to have the same
+content indexed in two different ways:
+
+[source,js]
+--------------------------------------------------
+PUT index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "english_exact": {
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "type": {
+      "properties": {
+        "body": {
+          "type": "text",
+          "analyzer": "english",
+          "fields": {
+            "exact": {
+              "type": "text",
+              "analyzer": "english_exact"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+PUT index/type/1
+{
+  "body": "Ski resort"
+}
+
+PUT index/type/2
+{
+  "body": "A pair of skis"
+}
+
+POST index/_refresh
+--------------------------------------------------
+// CONSOLE
+
+With such a setup, searching for `ski` on `body` would return both documents:
+
+[source,js]
+--------------------------------------------------
+GET index/_search
+{
+  "query": {
+    "simple_query_string": {
+      "fields": [ "body" ],
+      "query": "ski"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 2,
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "failed": 0
+  },
+  "hits": {
+    "total": 2,
+    "max_score": 0.25811607,
+    "hits": [
+      {
+        "_index": "index",
+        "_type": "type",
+        "_id": "2",
+        "_score": 0.25811607,
+        "_source": {
+          "body": "A pair of skis"
+        }
+      },
+      {
+        "_index": "index",
+        "_type": "type",
+        "_id": "1",
+        "_score": 0.25811607,
+        "_source": {
+          "body": "Ski resort"
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 2,/"took": "$body.took",/]
+
+On the other hand, searching for `ski` on `body.exact` would only return
+document `1` since the analysis chain of `body.exact` does not perform
+stemming.
+
+[source,js]
+--------------------------------------------------
+GET index/_search
+{
+  "query": {
+    "simple_query_string": {
+      "fields": [ "body.exact" ],
+      "query": "ski"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 1,
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "failed": 0
+  },
+  "hits": {
+    "total": 1,
+    "max_score": 0.25811607,
+    "hits": [
+      {
+        "_index": "index",
+        "_type": "type",
+        "_id": "1",
+        "_score": 0.25811607,
+        "_source": {
+          "body": "Ski resort"
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 1,/"took": "$body.took",/]
+
+This is not something that is easy to expose to end users, as we would need to
+have a way to figure out whether they are looking for an exact match or not and
+redirect to the appropriate field accordingly. Also what to do if only parts of
+the query need to be matched exactly while other parts should still take
+stemming into account?
+
+Fortunately, the `query_string` and `simple_query_string` queries have a feature
+that solve this exact problem: `quote_field_suffix`. This tell Elasticsearch
+that the words that appear in between quotes are to be redirected to a different
+field, see below:
+
+[source,js]
+--------------------------------------------------
+GET index/_search
+{
+  "query": {
+    "simple_query_string": {
+      "fields": [ "body" ],
+      "quote_field_suffix": ".exact",
+      "query": "\"ski\""
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 2,
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "failed": 0
+  },
+  "hits": {
+    "total": 1,
+    "max_score": 0.25811607,
+    "hits": [
+      {
+        "_index": "index",
+        "_type": "type",
+        "_id": "1",
+        "_score": 0.25811607,
+        "_source": {
+          "body": "Ski resort"
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 2,/"took": "$body.took",/]
+
+In the above case, since `ski` was in-between quotes, it was searched on the
+`body.exact` field due to the `quote_field_suffix` parameter, so only document
+`1` matched. This allows users to mix exact search with stemmed search as they
+like.
+
+[float]
+[[consistent-scoring]]
+=== Getting consistent scoring
+
+The fact that Elasticsearch operates with shards and replicas adds challenges
+when it comes to having good scoring.
+
+[float]
+==== Scores are not reproducible
+
+Say the same user runs the same request twice in a row and documents do not come
+back in the same order both times, this is a pretty bad experience isn't it?
+Unfortunately this is something that can happen if you have replicas
+(`index.number_of_replicas` is greater than 0). The reason is that Elasticsearch
+selects the shards that the query should go to in a round-robin fashion, so it
+is quite likely if you run the same query twice in a row that it will go to
+different copies of the same shard.
+
+Now why is it a problem? Index statistics are an important part of the score.
+And these index statistics may be different across copies of the same shard
+due to deleted documents. As you may know when documents are deleted or updated,
+the old document is not immediately removed from the index, it is just marked
+as deleted and it will only be removed from disk on the next time that the
+segment this old document belongs to is merged. However for practical reasons,
+those deleted documents are taken into account for index statistics. So imagine
+that the primary shard just finished a large merge that removed lots of deleted
+documents, then it might have index statistics that are sufficiently different
+from the replica (which still have plenty of deleted documents) so that scores
+are different too.
+
+The recommended way to work around this issue is to use a string that identifies
+the user that is logged is (a user id or session id for instance) as a
+<<search-request-preference,preference>>. This ensures that all queries of a
+given user are always going to hit the same shards, so scores remain more
+consistent across queries.
+
+This work around has another benefit: when two documents have the same score,
+they will be sorted by their internal Lucene doc id (which is unrelated to the
+`_id` or `_uid`) by default. However these doc ids could be different across
+copies of the same shard. So by always hitting the same shard, we would get
+more consistent ordering of documents that have the same scores.
+
+[float]
+==== Relevancy looks wrong
+
+If you notice that two documents with the same content get different scores or
+that an exact match is not ranked first, then the issue might be related to
+sharding. By default, Elasticsearch makes each shard responsible for producing
+its own scores. However since index statistics are an important contributor to
+the scores, this only works well if shards have similar index statistics. The
+assumption is that since documents are routed evenly to shards by default, then
+index statistics should be very similar and scoring would work as expected.
+However in the event that you either
+ - use routing at index time,
+ - query multiple _indices_,
+ - or have too little data in your index
+then there are good chances that all shards that are involved in the search
+request do not have similar index statistics and relevancy could be bad.
+
+If you have a small dataset, the easiest way to work around this issue is to
+index everything into an index that has a single shard
+(`index.number_of_shards: 1`). Then index statistics will be the same for all
+documents and scores will be consistent.
+
+Otherwise the recommended way to work around this issue is to use the
+<<dfs-query-then-fetch,`dfs_query_then_fetch`>> search type. This will make
+Elasticsearch perform an inital round trip to all involved shards, asking
+them for their index statistics relatively to the query, then the coordinating
+node will merge those statistics and send the merged statistics alongside the
+request when asking shards to perform the `query` phase, so that shards can
+use these global statistics rather than their own statistics in order to do the
+scoring.
+
+In most cases, this additional round trip should be very cheap. However in the
+event that your query contains a very large number of fields/terms or fuzzy
+queries, beware that gathering statistics alone might not be cheap since all
+terms have to be looked up in the terms dictionaries in order to look up
+statistics.
+

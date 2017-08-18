@@ -6,14 +6,17 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
@@ -45,6 +48,66 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 .build();
     }
 
+    public void testTokenServiceBootstrapOnNodeJoin() throws Exception {
+        final Client client = internalClient();
+        SecurityClient securityClient = new SecurityClient(client);
+        CreateTokenResponse response = securityClient.prepareCreateToken()
+                .setGrantType("password")
+                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+                .setPassword(new SecureString(SecuritySettingsSource.TEST_PASSWORD.toCharArray()))
+                .get();
+        for (TokenService tokenService : internalCluster().getInstances(TokenService.class)) {
+            PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
+            tokenService.decodeToken(response.getTokenString(), userTokenFuture);
+            assertNotNull(userTokenFuture.actionGet());
+        }
+        // start a new node and see if it can decrypt the token
+        String nodeName = internalCluster().startNode();
+        for (TokenService tokenService : internalCluster().getInstances(TokenService.class)) {
+            PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
+            tokenService.decodeToken(response.getTokenString(), userTokenFuture);
+            assertNotNull(userTokenFuture.actionGet());
+        }
+
+        TokenService tokenService = internalCluster().getInstance(TokenService.class, nodeName);
+        PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
+        tokenService.decodeToken(response.getTokenString(), userTokenFuture);
+        assertNotNull(userTokenFuture.actionGet());
+    }
+
+
+    public void testTokenServiceCanRotateKeys() throws Exception {
+        final Client client = internalClient();
+        SecurityClient securityClient = new SecurityClient(client);
+        CreateTokenResponse response = securityClient.prepareCreateToken()
+                .setGrantType("password")
+                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+                .setPassword(new SecureString(SecuritySettingsSource.TEST_PASSWORD.toCharArray()))
+                .get();
+        String masterName = internalCluster().getMasterName();
+        TokenService masterTokenService = internalCluster().getInstance(TokenService.class, masterName);
+        String activeKeyHash = masterTokenService.getActiveKeyHash();
+        for (TokenService tokenService : internalCluster().getInstances(TokenService.class)) {
+            PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
+            tokenService.decodeToken(response.getTokenString(), userTokenFuture);
+            assertNotNull(userTokenFuture.actionGet());
+            assertEquals(activeKeyHash, tokenService.getActiveKeyHash());
+        }
+        client().admin().cluster().prepareHealth().execute().get();
+        PlainActionFuture<ClusterStateUpdateResponse> rotateActionFuture = new PlainActionFuture<>();
+        logger.info("rotate on master: {}", masterName);
+        masterTokenService.rotateKeysOnMaster(rotateActionFuture);
+        assertTrue(rotateActionFuture.actionGet().isAcknowledged());
+        assertNotEquals(activeKeyHash, masterTokenService.getActiveKeyHash());
+
+        for (TokenService tokenService : internalCluster().getInstances(TokenService.class)) {
+            PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
+            tokenService.decodeToken(response.getTokenString(), userTokenFuture);
+            assertNotNull(userTokenFuture.actionGet());
+            assertNotEquals(activeKeyHash, tokenService.getActiveKeyHash());
+        }
+    }
+
     public void testExpiredTokensDeletedAfterExpiration() throws Exception {
         final Client client = internalClient();
         SecurityClient securityClient = new SecurityClient(client);
@@ -53,6 +116,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 .setUsername(SecuritySettingsSource.TEST_USER_NAME)
                 .setPassword(new SecureString(SecuritySettingsSource.TEST_PASSWORD.toCharArray()))
                 .get();
+
         Instant created = Instant.now();
 
         InvalidateTokenResponse invalidateResponse = securityClient.prepareInvalidateToken(response.getTokenString()).get();
@@ -125,5 +189,10 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             final boolean done = awaitBusy(() -> tokenService.isExpirationInProgress() == false);
             assertTrue(done);
         }
+    }
+
+    public void testMetadataIsNotSentToClient() {
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().setCustoms(true).get();
+        assertFalse(clusterStateResponse.getState().customs().containsKey(TokenMetaData.TYPE));
     }
 }

@@ -241,7 +241,7 @@ public final class TokenService extends AbstractComponent {
             } else {
                 final BytesKey decodedSalt = new BytesKey(in.readByteArray());
                 final BytesKey passphraseHash;
-                if (version.onOrAfter(Version.V_7_0_0_alpha1)) {
+                if (version.onOrAfter(Version.V_6_0_0_beta2)) {
                     passphraseHash = new BytesKey(in.readByteArray());
                 } else {
                     passphraseHash = keyCache.currentTokenKeyHash;

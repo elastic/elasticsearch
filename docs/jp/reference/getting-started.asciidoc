@@ -195,7 +195,7 @@ cd elasticsearch-{version}/bin
 * CRUD（Create、Read、Update、Delete）およびインデックスに対する検索操作の実行
 * ページング、ソート、フィルタリング、スクリプティング、集約など高度な検索機能の実行
 
-[[cluster-health]]
+[[gs-cluster-health]]
 === クラスタヘルス
 
 まず、基本的なヘルスチェックについて説明します。これを使用して、クラスタがどのように動作しているかを確認できます。これを行うためにcurlを使用しますが、HTTP/RESTの呼び出しが可能なツールも使用できます。では、Elasticsearchを起動したノード上で、別のコマンドシェルを開いているものとします。
@@ -245,7 +245,7 @@ ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master
 
 ここでは、「PB2SGZY」という名前のノードが1つ表示されます。これは、現在クラスタ内にある単一ノードです。
 
-[[list-all-indices]]
+[[gs-list-all-indices]]
 === 全インデックスのリスト
 
 インデックスを見てみましょう。
@@ -560,7 +560,7 @@ POST /customer/external/_bulk?pretty
 
 Bulk APIは、操作の1つに障害が生じても失敗しません。何らかの理由により単一の操作が失敗した場合、残りの操作は処理を続けます。Bulk APIが返ると、操作ごとのステータスが提供されるため（送信時と同じ順序）、特定の操作が失敗したかどうかをチェックできます。
 
-[[exploring-data]]
+[[gs-exploring-data]]
 == データの調査
 
 [float]

@@ -200,7 +200,7 @@ Now that we have our node (and cluster) up and running, the next step is to unde
 * Perform CRUD (Create, Read, Update, and Delete) and search operations against your indexes
 * Execute advanced search operations such as paging, sorting, filtering, scripting, aggregations, and many others
 
-[[cluster-health]]
+[[gs-cluster-health]]
 === Cluster Health
 
 Let's start with a basic health check, which we can use to see how our cluster is doing. We'll be using curl to do this but you can use any tool that allows you to make HTTP/REST calls. Let's assume that we are still on the same node where we started Elasticsearch on and open another command shell window.
@@ -253,7 +253,7 @@ ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master
 
 Here, we can see our one node named "PB2SGZY", which is the single node that is currently in our cluster.
 
-[[list-all-indices]]
+[[gs-list-all-indices]]
 === List All Indices
 
 Now let's take a peek at our indices:
@@ -570,7 +570,7 @@ Note above that for the delete action, there is no corresponding source document
 
 The Bulk API does not fail due to failures in one of the actions. If a single action fails for whatever reason, it will continue to process the remainder of the actions after it. When the bulk API returns, it will provide a status for each action (in the same order it was sent in) so that you can check if a specific action failed or not.
 
-[[exploring-data]]
+[[gs-exploring-data]]
 == Exploring Your Data
 
 [float]

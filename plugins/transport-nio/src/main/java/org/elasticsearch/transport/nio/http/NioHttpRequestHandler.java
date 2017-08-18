@@ -25,7 +25,6 @@ import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.http.netty4.Netty4HttpRequest;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
@@ -71,9 +70,9 @@ public class NioHttpRequestHandler {
                 Unpooled.copiedBuffer(request.content()),
                 request.headers(),
                 request.trailingHeaders());
-        final Netty4HttpRequest httpRequest = new Netty4HttpRequest(xContentRegistry, copy, nettyChannel);
-        final NioHttpChannel httpChannel = new NioHttpChannel(httpRequest, channel, pipelinedRequest, detailedErrorsEnabled, threadContext,
-            corsConfig, resetCookies);
+        final NioHttpRequest httpRequest = new NioHttpRequest(xContentRegistry, copy, channel);
+        final NioHttpChannel httpChannel = new NioHttpChannel(httpRequest, channel, nettyChannel, pipelinedRequest, detailedErrorsEnabled,
+            threadContext, corsConfig, resetCookies);
 
         if (request.decoderResult().isSuccess()) {
             transport.dispatchRequest(httpRequest, httpChannel);

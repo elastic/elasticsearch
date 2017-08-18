@@ -40,7 +40,6 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.netty4.Netty4HttpRequest;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
@@ -56,11 +55,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public final class NioHttpChannel extends AbstractRestChannel {
+final class NioHttpChannel extends AbstractRestChannel {
 
-    private final Channel channel;
     private final FullHttpRequest nettyRequest;
     private final NioSocketChannel nioChannel;
+    private final Channel nettyChannel;
     private final HttpPipelinedRequest pipelinedRequest;
     private final ThreadContext threadContext;
     private final Netty4CorsConfig corsConfig;
@@ -69,17 +68,18 @@ public final class NioHttpChannel extends AbstractRestChannel {
     /**
      * @param request               The request that is handled by this channel.
      * @param channel               The channel
+     * @param nettyChannel          The netty channel
      * @param pipelinedRequest      If HTTP pipelining is enabled provide the corresponding pipelined request. May be null if
      *                              HTTP pipelining is disabled.
      * @param detailedErrorsEnabled true iff error messages should include stack traces.
      * @param threadContext         the thread context for the channel
      */
-    public NioHttpChannel(Netty4HttpRequest request, NioSocketChannel channel, HttpPipelinedRequest pipelinedRequest,
-                          boolean detailedErrorsEnabled, ThreadContext threadContext, Netty4CorsConfig corsConfig, boolean resetCookies) {
+    NioHttpChannel(NioHttpRequest request, NioSocketChannel channel, Channel nettyChannel, HttpPipelinedRequest pipelinedRequest,
+                   boolean detailedErrorsEnabled, ThreadContext threadContext, Netty4CorsConfig corsConfig, boolean resetCookies) {
         super(request, detailedErrorsEnabled);
-        this.channel = request.getChannel();
         this.nettyRequest = request.request();
         this.nioChannel = channel;
+        this.nettyChannel = nettyChannel;
         this.pipelinedRequest = pipelinedRequest;
         this.threadContext = threadContext;
         this.corsConfig = corsConfig;
@@ -127,7 +127,7 @@ public final class NioHttpChannel extends AbstractRestChannel {
 
             addCookies(resp);
 
-            final ESChannelPromise promise = new ESChannelPromise(channel.newPromise());
+            final ESChannelPromise promise = new ESChannelPromise(nettyChannel.newPromise());
 
             if (releaseContent) {
                 promise.addListener(f -> ((Releasable) content).close());

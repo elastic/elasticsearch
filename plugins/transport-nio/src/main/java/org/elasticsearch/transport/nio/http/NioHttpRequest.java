@@ -17,18 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.http.netty4;
+package org.elasticsearch.transport.nio.http;
 
-import io.netty.channel.Channel;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
-
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.netty4.Netty4Utils;
+import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
 import java.net.SocketAddress;
 import java.util.AbstractMap;
@@ -39,13 +38,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-class Netty4HttpRequest extends RestRequest {
+class NioHttpRequest extends RestRequest {
 
     private final FullHttpRequest request;
-    private final Channel channel;
+    private final NioSocketChannel channel;
     private final BytesReference content;
 
-    Netty4HttpRequest(NamedXContentRegistry xContentRegistry, FullHttpRequest request, Channel channel) {
+    NioHttpRequest(NamedXContentRegistry xContentRegistry, FullHttpRequest request, NioSocketChannel channel) {
         super(xContentRegistry, request.uri(), new HttpHeadersMap(request.headers()));
         this.request = request;
         this.channel = channel;
@@ -56,7 +55,7 @@ class Netty4HttpRequest extends RestRequest {
         }
     }
 
-    public FullHttpRequest request() {
+    FullHttpRequest request() {
         return this.request;
     }
 
@@ -109,7 +108,7 @@ class Netty4HttpRequest extends RestRequest {
      */
     @Override
     public SocketAddress getRemoteAddress() {
-        return channel.remoteAddress();
+        return channel.getRemoteAddress();
     }
 
     /**
@@ -120,11 +119,7 @@ class Netty4HttpRequest extends RestRequest {
      */
     @Override
     public SocketAddress getLocalAddress() {
-        return channel.localAddress();
-    }
-
-    public Channel getChannel() {
-        return channel;
+        return channel.getLocalAddress();
     }
 
     /**

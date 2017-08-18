@@ -34,7 +34,6 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -43,7 +42,6 @@ import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
-import org.elasticsearch.http.netty4.Netty4HttpRequest;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -68,7 +66,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED;
@@ -212,14 +209,14 @@ public class NioHttpTransport extends AbstractLifecycleComponent implements Http
             ? 0 : openChannels.getAcceptedChannels().size() + serverChannelsCount);
     }
 
-    public void dispatchRequest(Netty4HttpRequest httpRequest, RestChannel channel) {
+    public void dispatchRequest(NioHttpRequest httpRequest, RestChannel channel) {
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             dispatcher.dispatchRequest(httpRequest, channel, threadContext);
         }
     }
 
-    public void dispatchBadRequest(Netty4HttpRequest httpRequest, RestChannel channel, Throwable cause) {
+    public void dispatchBadRequest(NioHttpRequest httpRequest, RestChannel channel, Throwable cause) {
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             dispatcher.dispatchBadRequest(httpRequest, channel, threadContext, cause);

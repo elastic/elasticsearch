@@ -31,11 +31,11 @@ import org.elasticsearch.transport.netty4.Netty4Utils;
 import java.util.LinkedList;
 import java.util.Queue;
 
-public class ESEmbeddedChannel extends EmbeddedChannel {
+class ESEmbeddedChannel extends EmbeddedChannel {
 
     private LinkedList<Tuple<BytesReference, ChannelPromise>> messages = new LinkedList<>();
 
-    public ESEmbeddedChannel() {
+    ESEmbeddedChannel() {
         pipeline().addFirst("promise_captor", new ChannelOutboundHandlerAdapter() {
 
             @Override
@@ -56,20 +56,20 @@ public class ESEmbeddedChannel extends EmbeddedChannel {
         });
     }
 
-    public Queue<Object> decode(ByteBuf inboundBytes) {
+    Queue<Object> decode(ByteBuf inboundBytes) {
         writeInbound(inboundBytes);
         return inboundMessages();
     }
 
-    public Tuple<BytesReference, ChannelPromise> popMessage() {
+    Tuple<BytesReference, ChannelPromise> popMessage() {
         return messages.pollFirst();
     }
 
-    public boolean hasMessages() {
+    boolean hasMessages() {
         return messages.size() > 0;
     }
 
-    public void closeNettyChannel() {
+    void closeNettyChannel() {
         close();
     }
 }

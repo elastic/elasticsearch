@@ -1,6 +1,7 @@
 @echo off
 
 setlocal enabledelayedexpansion
+setlocal enableextensions
 
 call "%~dp0elasticsearch-env.bat" || exit /b 1
 
@@ -265,4 +266,5 @@ set /a conv=%conv% * 1024 * 1024
 set "%~2=%conv%"
 goto:eof
 
+endlocal
 endlocal

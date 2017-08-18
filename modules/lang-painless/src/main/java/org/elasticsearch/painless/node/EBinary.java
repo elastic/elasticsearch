@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -110,7 +109,7 @@ public final class EBinary extends AExpression {
 
         actual = promote;
 
-        if (promote.sort == Sort.DEF) {
+        if (promote.dynamic) {
             left.expected = left.actual;
             right.expected = right.actual;
             if (expected != null) {
@@ -125,15 +124,15 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = promote.sort;
+            Class<?> sort = promote.clazz;
 
-            if (sort == Sort.INT) {
+            if (sort == int.class) {
                 constant = (int)left.constant * (int)right.constant;
-            } else if (sort == Sort.LONG) {
+            } else if (sort == long.class) {
                 constant = (long)left.constant * (long)right.constant;
-            } else if (sort == Sort.FLOAT) {
+            } else if (sort == float.class) {
                 constant = (float)left.constant * (float)right.constant;
-            } else if (sort == Sort.DOUBLE) {
+            } else if (sort == double.class) {
                 constant = (double)left.constant * (double)right.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -154,7 +153,7 @@ public final class EBinary extends AExpression {
 
         actual = promote;
 
-        if (promote.sort == Sort.DEF) {
+        if (promote.dynamic) {
             left.expected = left.actual;
             right.expected = right.actual;
 
@@ -170,16 +169,16 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = promote.sort;
+            Class<?> sort = promote.clazz;
 
             try {
-                if (sort == Sort.INT) {
+                if (sort == int.class) {
                     constant = (int)left.constant / (int)right.constant;
-                } else if (sort == Sort.LONG) {
+                } else if (sort == long.class) {
                     constant = (long)left.constant / (long)right.constant;
-                } else if (sort == Sort.FLOAT) {
+                } else if (sort == float.class) {
                     constant = (float)left.constant / (float)right.constant;
-                } else if (sort == Sort.DOUBLE) {
+                } else if (sort == double.class) {
                     constant = (double)left.constant / (double)right.constant;
                 } else {
                     throw createError(new IllegalStateException("Illegal tree structure."));
@@ -203,7 +202,7 @@ public final class EBinary extends AExpression {
 
         actual = promote;
 
-        if (promote.sort == Sort.DEF) {
+        if (promote.dynamic) {
             left.expected = left.actual;
             right.expected = right.actual;
 
@@ -219,16 +218,16 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = promote.sort;
+            Class<?> sort = promote.clazz;
 
             try {
-                if (sort == Sort.INT) {
+                if (sort == int.class) {
                     constant = (int)left.constant % (int)right.constant;
-                } else if (sort == Sort.LONG) {
+                } else if (sort == long.class) {
                     constant = (long)left.constant % (long)right.constant;
-                } else if (sort == Sort.FLOAT) {
+                } else if (sort == float.class) {
                     constant = (float)left.constant % (float)right.constant;
-                } else if (sort == Sort.DOUBLE) {
+                } else if (sort == double.class) {
                     constant = (double)left.constant % (double)right.constant;
                 } else {
                     throw createError(new IllegalStateException("Illegal tree structure."));
@@ -250,23 +249,23 @@ public final class EBinary extends AExpression {
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        Sort sort = promote.sort;
+        Class<?> sort = promote.clazz;
 
         actual = promote;
 
-        if (sort == Sort.STRING) {
+        if (sort == String.class) {
             left.expected = left.actual;
 
-            if (left instanceof EBinary && ((EBinary)left).operation == Operation.ADD && left.actual.sort == Sort.STRING) {
+            if (left instanceof EBinary && ((EBinary)left).operation == Operation.ADD && left.actual.clazz == String.class) {
                 ((EBinary)left).cat = true;
             }
 
             right.expected = right.actual;
 
-            if (right instanceof EBinary && ((EBinary)right).operation == Operation.ADD && right.actual.sort == Sort.STRING) {
+            if (right instanceof EBinary && ((EBinary)right).operation == Operation.ADD && right.actual.clazz == String.class) {
                 ((EBinary)right).cat = true;
             }
-        } else if (sort == Sort.DEF) {
+        } else if (promote.dynamic) {
             left.expected = left.actual;
             right.expected = right.actual;
 
@@ -282,15 +281,15 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            if (sort == Sort.INT) {
+            if (sort == int.class) {
                 constant = (int)left.constant + (int)right.constant;
-            } else if (sort == Sort.LONG) {
+            } else if (sort == long.class) {
                 constant = (long)left.constant + (long)right.constant;
-            } else if (sort == Sort.FLOAT) {
+            } else if (sort == float.class) {
                 constant = (float)left.constant + (float)right.constant;
-            } else if (sort == Sort.DOUBLE) {
+            } else if (sort == double.class) {
                 constant = (double)left.constant + (double)right.constant;
-            } else if (sort == Sort.STRING) {
+            } else if (sort == String.class) {
                 constant = left.constant.toString() + right.constant.toString();
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -312,7 +311,7 @@ public final class EBinary extends AExpression {
 
         actual = promote;
 
-        if (promote.sort == Sort.DEF) {
+        if (promote.dynamic) {
             left.expected = left.actual;
             right.expected = right.actual;
 
@@ -328,15 +327,15 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = promote.sort;
+            Class<?> sort = promote.clazz;
 
-            if (sort == Sort.INT) {
+            if (sort == int.class) {
                 constant = (int)left.constant - (int)right.constant;
-            } else if (sort == Sort.LONG) {
+            } else if (sort == long.class) {
                 constant = (long)left.constant - (long)right.constant;
-            } else if (sort == Sort.FLOAT) {
+            } else if (sort == float.class) {
                 constant = (float)left.constant - (float)right.constant;
-            } else if (sort == Sort.DOUBLE) {
+            } else if (sort == double.class) {
                 constant = (double)left.constant - (double)right.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -373,7 +372,7 @@ public final class EBinary extends AExpression {
         actual = promote = lhspromote;
         shiftDistance = rhspromote;
 
-        if (lhspromote.sort == Sort.DEF || rhspromote.sort == Sort.DEF) {
+        if (lhspromote.dynamic || rhspromote.dynamic) {
             left.expected = left.actual;
             right.expected = right.actual;
 
@@ -383,7 +382,7 @@ public final class EBinary extends AExpression {
         } else {
             left.expected = lhspromote;
 
-            if (rhspromote.sort == Sort.LONG) {
+            if (rhspromote.clazz == long.class) {
                 right.expected = Definition.INT_TYPE;
                 right.explicit = true;
             } else {
@@ -395,11 +394,11 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = lhspromote.sort;
+            Class<?> sort = lhspromote.clazz;
 
-            if (sort == Sort.INT) {
+            if (sort == int.class) {
                 constant = (int)left.constant << (int)right.constant;
-            } else if (sort == Sort.LONG) {
+            } else if (sort == long.class) {
                 constant = (long)left.constant << (int)right.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -422,7 +421,7 @@ public final class EBinary extends AExpression {
         actual = promote = lhspromote;
         shiftDistance = rhspromote;
 
-        if (lhspromote.sort == Sort.DEF || rhspromote.sort == Sort.DEF) {
+        if (lhspromote.dynamic || rhspromote.dynamic) {
             left.expected = left.actual;
             right.expected = right.actual;
 
@@ -432,7 +431,7 @@ public final class EBinary extends AExpression {
         } else {
             left.expected = lhspromote;
 
-            if (rhspromote.sort == Sort.LONG) {
+            if (rhspromote.clazz == long.class) {
                 right.expected = Definition.INT_TYPE;
                 right.explicit = true;
             } else {
@@ -444,11 +443,11 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = lhspromote.sort;
+            Class<?> sort = lhspromote.clazz;
 
-            if (sort == Sort.INT) {
+            if (sort == int.class) {
                 constant = (int)left.constant >> (int)right.constant;
-            } else if (sort == Sort.LONG) {
+            } else if (sort == long.class) {
                 constant = (long)left.constant >> (int)right.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -471,7 +470,7 @@ public final class EBinary extends AExpression {
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        if (lhspromote.sort == Sort.DEF || rhspromote.sort == Sort.DEF) {
+        if (lhspromote.dynamic || rhspromote.dynamic) {
             left.expected = left.actual;
             right.expected = right.actual;
 
@@ -481,7 +480,7 @@ public final class EBinary extends AExpression {
         } else {
             left.expected = lhspromote;
 
-            if (rhspromote.sort == Sort.LONG) {
+            if (rhspromote.clazz == long.class) {
                 right.expected = Definition.INT_TYPE;
                 right.explicit = true;
             } else {
@@ -493,11 +492,11 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = lhspromote.sort;
+            Class<?> sort = lhspromote.clazz;
 
-            if (sort == Sort.INT) {
+            if (sort == int.class) {
                 constant = (int)left.constant >>> (int)right.constant;
-            } else if (sort == Sort.LONG) {
+            } else if (sort == long.class) {
                 constant = (long)left.constant >>> (int)right.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -518,7 +517,7 @@ public final class EBinary extends AExpression {
 
         actual = promote;
 
-        if (promote.sort == Sort.DEF) {
+        if (promote.dynamic) {
             left.expected = left.actual;
             right.expected = right.actual;
 
@@ -534,11 +533,11 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = promote.sort;
+            Class<?> sort = promote.clazz;
 
-            if (sort == Sort.INT) {
+            if (sort == int.class) {
                 constant = (int)left.constant & (int)right.constant;
-            } else if (sort == Sort.LONG) {
+            } else if (sort == long.class) {
                 constant = (long)left.constant & (long)right.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -559,7 +558,7 @@ public final class EBinary extends AExpression {
 
         actual = promote;
 
-        if (promote.sort == Sort.DEF) {
+        if (promote.dynamic) {
             left.expected = left.actual;
             right.expected = right.actual;
             if (expected != null) {
@@ -574,13 +573,13 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = promote.sort;
+            Class<?> sort = promote.clazz;
 
-            if (sort == Sort.BOOL) {
+            if (sort == boolean.class) {
                 constant = (boolean)left.constant ^ (boolean)right.constant;
-            } else if (sort == Sort.INT) {
+            } else if (sort == int.class) {
                 constant = (int)left.constant ^ (int)right.constant;
-            } else if (sort == Sort.LONG) {
+            } else if (sort == long.class) {
                 constant = (long)left.constant ^ (long)right.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -601,7 +600,7 @@ public final class EBinary extends AExpression {
 
         actual = promote;
 
-        if (promote.sort == Sort.DEF) {
+        if (promote.dynamic) {
             left.expected = left.actual;
             right.expected = right.actual;
             if (expected != null) {
@@ -616,11 +615,11 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = promote.sort;
+            Class<?> sort = promote.clazz;
 
-            if (sort == Sort.INT) {
+            if (sort == int.class) {
                 constant = (int)left.constant | (int)right.constant;
-            } else if (sort == Sort.LONG) {
+            } else if (sort == long.class) {
                 constant = (long)left.constant | (long)right.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -632,7 +631,7 @@ public final class EBinary extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        if (promote.sort == Sort.STRING && operation == Operation.ADD) {
+        if (promote.clazz == String.class && operation == Operation.ADD) {
             if (!cat) {
                 writer.writeNewStrings();
             }
@@ -668,7 +667,7 @@ public final class EBinary extends AExpression {
             left.write(writer, globals);
             right.write(writer, globals);
 
-            if (promote.sort == Sort.DEF || (shiftDistance != null && shiftDistance.sort == Sort.DEF)) {
+            if (promote.dynamic || (shiftDistance != null && shiftDistance.dynamic)) {
                 // def calls adopt the wanted return value. if there was a narrowing cast,
                 // we need to flag that so that its done at runtime.
                 int flags = 0;

@@ -45,7 +45,8 @@ public class RestRolloverIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        RolloverRequest rolloverIndexRequest = new RolloverRequest(Strings.splitStringByCommaToArray(request.param("index")), request.param("new_index"));
+        RolloverRequest rolloverIndexRequest = new RolloverRequest(Strings.splitStringByCommaToArray(request.param("index")),
+            request.param("new_index"));
         request.applyContentParser(parser -> RolloverRequest.PARSER.parse(parser, rolloverIndexRequest, null));
         rolloverIndexRequest.dryRun(request.paramAsBoolean("dry_run", false));
         rolloverIndexRequest.timeout(request.paramAsTime("timeout", rolloverIndexRequest.timeout()));

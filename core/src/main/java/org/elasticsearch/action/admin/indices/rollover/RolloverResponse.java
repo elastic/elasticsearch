@@ -49,7 +49,7 @@ public class RolloverResponse extends ActionResponse implements ToXContentObject
 
     RolloverResponse(List<SingleAliasRolloverResponse> responses) {
         if (0 == responses.size()) {
-            throw new IllegalArgumentException("we need to match at least 1 alias"); // todo maybe better with optionals in method getOldIndex
+            throw new IllegalArgumentException("At least 1 response is expected");
         }
         this.responses = responses;
     }

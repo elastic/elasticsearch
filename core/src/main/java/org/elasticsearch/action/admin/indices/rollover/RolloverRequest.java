@@ -176,10 +176,6 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return conditions;
     }
 
-    String getAlias() {
-        return aliases[0];
-    }
-
     String[] getAliases() {
         return aliases;
     }

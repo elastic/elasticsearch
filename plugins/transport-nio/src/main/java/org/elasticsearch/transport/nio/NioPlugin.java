@@ -56,6 +56,14 @@ public class NioPlugin extends Plugin implements NetworkPlugin {
     }
 
     @Override
+    public Settings additionalSettings() {
+        final Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, NIO_TRANSPORT_NAME);
+        settingsBuilder.put(NetworkModule.HTTP_TYPE_KEY, NIO_HTTP_TRANSPORT_NAME);
+        return settingsBuilder.build();
+    }
+
+    @Override
     public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
                                                           CircuitBreakerService circuitBreakerService,
                                                           NamedWriteableRegistry namedWriteableRegistry,

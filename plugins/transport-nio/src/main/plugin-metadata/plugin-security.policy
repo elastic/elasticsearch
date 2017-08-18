@@ -30,3 +30,8 @@ grant codeBase "${codebase.netty-transport-4.1.13.Final.jar}" {
    // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
    permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
 };
+
+grant codeBase "${codebase.mocksocket-1.2.jar}" {
+  // mocksocket makes and accepts socket connections
+  permission java.net.SocketPermission "*", "accept,connect";
+};

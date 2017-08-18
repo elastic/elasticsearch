@@ -3,5 +3,4 @@
 
 include::../../Versions.asciidoc[]
 
-
 include::getting-started.asciidoc[]

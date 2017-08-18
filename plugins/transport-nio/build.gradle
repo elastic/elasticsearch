@@ -19,9 +19,13 @@
 
 esplugin {
   description 'The nio transport.'
-  classname 'org.elasticsearch.http.nio.NioPlugin'
+  classname 'org.elasticsearch.transport.nio.NioPlugin'
 }
 
+dependencyLicenses.enabled = false
+
+compileJava.options.compilerArgs << "-Xlint:-try"
+compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
 dependencies {
   compile project(path: ':modules:transport-netty4', configuration: 'runtime')

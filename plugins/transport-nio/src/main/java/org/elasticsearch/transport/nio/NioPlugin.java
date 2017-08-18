@@ -50,22 +50,9 @@ public class NioPlugin extends Plugin implements NetworkPlugin {
         return Arrays.asList(
             NioHttpTransport.NIO_HTTP_WORKER_COUNT,
             NioHttpTransport.NIO_HTTP_ACCEPTOR_COUNT,
-            NioHttpTransport.SETTING_HTTP_TCP_NO_DELAY,
-            NioHttpTransport.SETTING_HTTP_TCP_KEEP_ALIVE,
-            NioHttpTransport.SETTING_HTTP_TCP_REUSE_ADDRESS,
-            NioHttpTransport.SETTING_HTTP_TCP_SEND_BUFFER_SIZE,
-            NioHttpTransport.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
             NioTransport.NIO_WORKER_COUNT,
             NioTransport.NIO_ACCEPTOR_COUNT
         );
-    }
-
-    @Override
-    public Settings additionalSettings() {
-        return Settings.builder()
-            .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), NIO_HTTP_TRANSPORT_NAME)
-            .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), NIO_TRANSPORT_NAME)
-            .build();
     }
 
     @Override

@@ -68,5 +68,4 @@ public abstract class ESNioIntegTestCase extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return Arrays.asList(NioPlugin.class);
     }
-
 }

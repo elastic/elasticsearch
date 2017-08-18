@@ -80,7 +80,7 @@ public class NioHttpRequestSizeLimitIT extends ESNioIntegTestCase {
         }
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
-        TransportAddress transportAddress = (TransportAddress) randomFrom(httpServerTransport.boundAddress
+        TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress
             ().boundAddresses());
 
         try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
@@ -105,7 +105,7 @@ public class NioHttpRequestSizeLimitIT extends ESNioIntegTestCase {
         }
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
-        TransportAddress transportAddress = (TransportAddress) randomFrom(httpServerTransport.boundAddress
+        TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress
             ().boundAddresses());
 
         try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {

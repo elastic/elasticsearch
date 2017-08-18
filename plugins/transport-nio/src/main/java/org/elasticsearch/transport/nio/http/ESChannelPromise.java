@@ -24,6 +24,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 
 import java.util.concurrent.ExecutionException;
@@ -109,7 +110,9 @@ public class ESChannelPromise implements ActionListener<NioChannel>, ChannelProm
     }
 
     @Override
-    public ChannelPromise addListeners(GenericFutureListener<? extends Future<? super Void>>... listeners) {
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    public final ChannelPromise addListeners(GenericFutureListener<? extends Future<? super Void>>... listeners) {
         return promise.addListeners(listeners);
     }
 
@@ -119,7 +122,9 @@ public class ESChannelPromise implements ActionListener<NioChannel>, ChannelProm
     }
 
     @Override
-    public ChannelPromise removeListeners(GenericFutureListener<? extends Future<? super Void>>... listeners) {
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    public final ChannelPromise removeListeners(GenericFutureListener<? extends Future<? super Void>>... listeners) {
         return promise.removeListeners(listeners);
     }
 
@@ -170,7 +175,7 @@ public class ESChannelPromise implements ActionListener<NioChannel>, ChannelProm
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
-        return promise.cancel(mayInterruptIfRunning);
+        return FutureUtils.cancel(promise);
     }
 
     @Override

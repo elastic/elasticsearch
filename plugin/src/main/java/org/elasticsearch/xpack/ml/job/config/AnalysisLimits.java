@@ -31,6 +31,16 @@ import java.util.Objects;
  * If an option has not been set it shouldn't be used so the default value is picked up instead.
  */
 public class AnalysisLimits implements ToXContentObject, Writeable {
+
+    /**
+     * Prior to 6.1 the default model memory size limit was 4GB, and defined in the C++ code.  The default
+     * is now 1GB and defined here in the Java code.  However, changing the meaning of a null model memory
+     * limit for existing jobs would be a breaking change, so instead the meaning of <code>null</code> is
+     * still to use the default from the C++ code, but newly created jobs will have this explicit setting
+     * added if none is provided.
+     */
+    static final long DEFAULT_MODEL_MEMORY_LIMIT_MB = 1024L;
+
     /**
      * Serialisation field names
      */
@@ -66,7 +76,9 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
     /**
      * The model memory limit in MiBs.
      * It is initialised to <code>null</code>.
-     * A value of <code>null</code> will result to the default being used.
+     * A value of <code>null</code> will result to the default defined in the C++ code being used.
+     * However, for jobs created in version 6.1 or higher this will rarely be <code>null</code> because
+     * the put_job action set it to a new default defined in the Java code.
      */
     private final Long modelMemoryLimit;
 
@@ -75,6 +87,10 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
      * A value of <code>null</code> will result to the default being used.
      */
     private final Long categorizationExamplesLimit;
+
+    public AnalysisLimits(Long categorizationExamplesLimit) {
+        this(DEFAULT_MODEL_MEMORY_LIMIT_MB, categorizationExamplesLimit);
+    }
 
     public AnalysisLimits(Long modelMemoryLimit, Long categorizationExamplesLimit) {
         if (modelMemoryLimit != null && modelMemoryLimit < 1) {

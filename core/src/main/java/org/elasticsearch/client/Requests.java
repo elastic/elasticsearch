@@ -63,6 +63,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 
 /**
  * A handy one stop shop for creating requests (make sure to import static this class).
@@ -105,6 +106,10 @@ public class Requests {
      */
     public static DeleteRequest deleteRequest(String index) {
         return new DeleteRequest(index);
+    }
+
+    public static DeleteByQueryRequest deleteByQueryRequest(String index) {
+        return new DeleteByQueryRequest(new SearchRequest(index));
     }
 
     /**

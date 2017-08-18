@@ -348,6 +348,10 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -470,6 +474,21 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public DeleteRequestBuilder prepareDelete(String index, String type, String id) {
         return prepareDelete().setIndex(index).setType(type).setId(id);
+    }
+
+    @Override
+    public ActionFuture<BulkByScrollResponse> deleteByQuery(DeleteByQueryRequest request) {
+        return execute(DeleteByQueryAction.INSTANCE, request);
+    }
+
+    @Override
+    public void deleteByQuery(DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
+        execute(DeleteByQueryAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public DeleteByQueryRequestBuilder prepareDeleteByQuery(String... source) {
+        return new DeleteByQueryRequestBuilder(this, DeleteByQueryAction.INSTANCE).source(source);
     }
 
     @Override

@@ -30,14 +30,14 @@ if not exist %JAVA% (
 
 rem do not let JAVA_TOOL_OPTIONS slip in (as the JVM does by default)
 if not "%JAVA_TOOL_OPTIONS%" == "" (
-  echo "warning: ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
+  echo warning: ignoring JAVA_TOOL_OPTIONS=%JAVA_TOOL_OPTIONS%
   set JAVA_TOOL_OPTIONS=
 )
 
 rem JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we
 rem warn them that we are not observing the value of %JAVA_OPTS%
 if not "%JAVA_OPTS%" == "" (
-  echo|set /p="warning: ignoring JAVA_OPTS=%JAVA_OPTS%; "
+  (echo|set /p=warning: ignoring JAVA_OPTS=%JAVA_OPTS%; )
   echo pass JVM parameters via ES_JAVA_OPTS
 )
 

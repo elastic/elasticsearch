@@ -19,6 +19,10 @@
 
 package org.elasticsearch.gradle.doc
 
+import groovy.json.JsonException
+import groovy.json.JsonParserType
+import groovy.json.JsonSlurper
+
 import org.gradle.api.DefaultTask
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.file.ConfigurableFileTree
@@ -115,6 +119,23 @@ public class SnippetsTask extends DefaultTask {
                         throw new InvalidUserDataException("$snippet: "
                             + "No need for NOTCONSOLE if snippet doesn't "
                             + "contain `curl`.")
+                    }
+                }
+                if (snippet.testResponse && snippet.language == 'js') {
+                    String quoted = snippet.contents
+                        // quote values starting with $
+                        .replaceAll(/([:,])\s*(\$[^ ,\n}]+)/, '$1 "$2"')
+                        // quote fields starting with $
+                        .replaceAll(/(\$[^ ,\n}]+)\s*:/, '"$1":')
+                    JsonSlurper slurper =
+                        new JsonSlurper(type: JsonParserType.INDEX_OVERLAY)
+                    try {
+                        slurper.parseText(quoted)
+                    } catch (JsonException e) {
+                        throw new InvalidUserDataException("Invalid json "
+                            + "in $snippet. The error is:\n${e.message}.\n"
+                            + "After substitutions and munging, the json "
+                            + "looks like:\n$quoted", e)
                     }
                 }
                 perSnippet(snippet)

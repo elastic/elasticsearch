@@ -373,7 +373,7 @@ PUT /customer/doc/1?pretty
 
 And the response:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
 {
   "_index" : "customer",
@@ -672,7 +672,7 @@ GET /_cat/indices?v
 
 And the response:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 health status index uuid                   pri rep docs.count docs.deleted store.size pri.store.size
 yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    128.6kb        128.6kb

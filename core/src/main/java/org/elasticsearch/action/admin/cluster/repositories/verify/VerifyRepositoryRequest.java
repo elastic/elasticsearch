@@ -81,13 +81,11 @@ public class VerifyRepositoryRequest extends AcknowledgedRequest<VerifyRepositor
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         name = in.readString();
-        readTimeout(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(name);
-        writeTimeout(out);
     }
 }

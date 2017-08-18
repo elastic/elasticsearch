@@ -24,7 +24,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 
@@ -37,7 +38,7 @@ import static org.elasticsearch.ExceptionsHelper.detailedMessage;
  *
  * The class is final due to serialization limitations
  */
-public final class TaskOperationFailure implements Writeable, ToXContent {
+public final class TaskOperationFailure implements Writeable, ToXContentFragment {
 
     private final String nodeId;
 

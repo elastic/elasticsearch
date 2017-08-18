@@ -23,7 +23,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.IngestDocument;
 
@@ -33,7 +34,7 @@ import java.util.Date;
 import java.util.Map;
 import java.util.Objects;
 
-final class WriteableIngestDocument implements Writeable, ToXContent {
+final class WriteableIngestDocument implements Writeable, ToXContentFragment {
 
     private final IngestDocument ingestDocument;
 

@@ -30,6 +30,7 @@ import java.io.InputStream;
 import java.nio.CharBuffer;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -59,6 +60,8 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.BootstrapSettings;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Randomness;
 
 /**
@@ -304,6 +307,12 @@ public class KeyStoreWrapper implements SecureSettings {
             output.writeInt(keystoreBytes.length);
             output.writeBytes(keystoreBytes, keystoreBytes.length);
             CodecUtil.writeFooter(output);
+        } catch (final AccessDeniedException e) {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "unable to create temporary keystore at [%s], please check filesystem permissions",
+                    configDir.resolve(tmpFile));
+            throw new UserException(ExitCodes.CONFIG, message, e);
         }
 
         Path keystoreFile = keystorePath(configDir);

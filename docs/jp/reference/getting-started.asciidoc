@@ -200,7 +200,7 @@ cd elasticsearch-{version}/bin
 
 まず、基本的なヘルスチェックについて説明します。これを使用して、クラスタがどのように動作しているかを確認できます。これを行うためにcurlを使用しますが、HTTP/RESTの呼び出しが可能なツールも使用できます。では、Elasticsearchを起動したノード上で、別のコマンドシェルを開いているものとします。
 
-クラスタヘルスをチェックするために、{ref}/cat[`_cat` API]を使用します。「VIEW IN CONSOLE」をクリックして{kibana}/console-kibana.html[Kibanaのコンソール]で以下のコマンドを実行します。または、以下の「COPY AS CURL」リンクをクリックしてターミナルに貼り付け、`curl`を使用して以下のコマンドを実行します。
+クラスタヘルスをチェックするために、{ref}/cat.html[`_cat` API]を使用します。「VIEW IN CONSOLE」をクリックして{kibana}/console-kibana.html[Kibanaのコンソール]で以下のコマンドを実行します。または、以下の「COPY AS CURL」リンクをクリックしてターミナルに貼り付け、`curl`を使用して以下のコマンドを実行します。
 
 [source,js]
 --------------------------------------------------

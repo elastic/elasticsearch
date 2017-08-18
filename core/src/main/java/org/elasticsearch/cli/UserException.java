@@ -32,4 +32,17 @@ public class UserException extends Exception {
         super(msg);
         this.exitCode = exitCode;
     }
+
+    /**
+     * Constructs a new user exception with specified exit status, message, and underlying cause.
+     *
+     * @param exitCode the exit code
+     * @param msg      the message
+     * @param cause    the underlying cause
+     */
+    public UserException(final int exitCode, final String msg, final Throwable cause) {
+        super(msg, cause);
+        this.exitCode = exitCode;
+    }
+
 }

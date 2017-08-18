@@ -44,7 +44,7 @@ The create job API enables you to instantiate a job.
 `groups`::
   (array of strings) A list of job groups. See <<ml-job-resource>>.
 
-`model_plot`::
+`model_plot_config`::
   (object) Advanced configuration option. Specifies to store model information
   along with the results. This adds overhead to the performance of the system
   and is not feasible for jobs with many entities, see <<ml-apimodelplotconfig>>.

@@ -284,7 +284,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         CloudBlobContainer blobContainer = client.getContainerReference(container);
         SocketAccess.doPrivilegedVoidException(() -> {
             if (blobContainer.exists()) {
-                for (ListBlobItem blobItem : blobContainer.listBlobs(keyPath + (prefix==null ? "" : prefix),false,
+                for (ListBlobItem blobItem : blobContainer.listBlobs(keyPath + (prefix == null ? "" : prefix), false,
                     enumBlobListingDetails, null, null)) {
                     URI uri = blobItem.getUri();
                     logger.trace("blob url [{}]", uri);

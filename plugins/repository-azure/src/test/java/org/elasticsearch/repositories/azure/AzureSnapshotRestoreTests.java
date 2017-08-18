@@ -83,8 +83,8 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegT
 
     public static String getContainerName() {
         /* Have a different name per test so that there is no possible race condition. As the long can be negative,
-         * there mustn't be an hyphen between the 2 concat numbers
-         * (can't have 2 consecutives hypens on Azure containers)
+         * there mustn't be a hyphen between the 2 concatenated numbers
+         * (can't have 2 consecutives hyphens on Azure containers)
          */
         String testName = "snapshot-itest-"
             .concat(RandomizedTest.getContext().getRunnerSeedAsString().toLowerCase(Locale.ROOT));

@@ -92,9 +92,9 @@ When the job is created, you receive the following results:
 {
   "job_id": "it-ops-kpi",
   "job_type": "anomaly_detector",
-  "job_version": "7.0.0-alpha1",
+  "job_version": "6.1.0",
   "description": "First simple job",
-  "create_time": 1502832478794,
+  "create_time": 1503076137005,
   "analysis_config": {
     "bucket_span": "5m",
     "latency": "0ms",
@@ -121,5 +121,5 @@ When the job is created, you receive the following results:
 }
 ----
 //CONSOLE
-//TESTRESPONSE[s/"job_version": "7.0.0-alpha1"/"job_version": $body.job_version/]
-//TESTRESPONSE[s/"create_time": 1502832478794/"create_time": $body.create_time/]
+//TESTRESPONSE[s/"job_version": "6.1.0"/"job_version": $body.job_version/]
+//TESTRESPONSE[s/"create_time": 1503076137005/"create_time": $body.create_time/]

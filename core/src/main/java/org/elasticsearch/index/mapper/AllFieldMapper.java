@@ -24,8 +24,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
@@ -48,8 +46,6 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
  *
  */
 public class AllFieldMapper extends MetadataFieldMapper {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(AllFieldMapper.class));
 
     public static final String NAME = "_all";
 
@@ -139,7 +135,6 @@ public class AllFieldMapper extends MetadataFieldMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    deprecationLogger.deprecated("The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
                     boolean enabled = TypeParsers.nodeBooleanValue(name, "enabled", fieldNode);
                     builder.enabled(enabled ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
                     iterator.remove();

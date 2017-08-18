@@ -1,12 +1,6 @@
 ---
 "search with query_string parameters":
-  - skip:
-      features:
-        - warnings
-
   - do:
-      warnings:
-        - 'The [_all] field is deprecated and will be removed in Elasticsearch 6.0'
       indices.create:
           index:  test
           body:

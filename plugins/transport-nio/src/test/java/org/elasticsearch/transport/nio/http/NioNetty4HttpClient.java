@@ -61,7 +61,7 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 /**
  * Tiny helper to send http requests over netty.
  */
-public class Netty4HttpClient implements Closeable {
+public class NioNetty4HttpClient implements Closeable {
 
     static Collection<String> returnHttpResponseBodies(Collection<FullHttpResponse> responses) {
         List<String> list = new ArrayList<>(responses.size());
@@ -81,7 +81,7 @@ public class Netty4HttpClient implements Closeable {
 
     private final Bootstrap clientBootstrap;
 
-    public Netty4HttpClient() {
+    public NioNetty4HttpClient() {
         clientBootstrap = new Bootstrap().channel(NioSocketChannel.class).group(new NioEventLoopGroup());
     }
 

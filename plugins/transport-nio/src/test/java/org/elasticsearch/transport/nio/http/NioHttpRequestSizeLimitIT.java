@@ -83,7 +83,7 @@ public class NioHttpRequestSizeLimitIT extends ESNioIntegTestCase {
         TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress
             ().boundAddresses());
 
-        try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
+        try (NioNetty4HttpClient nettyHttpClient = new NioNetty4HttpClient()) {
             Collection<FullHttpResponse> singleResponse = nettyHttpClient.post(transportAddress.address(), requests[0]);
             assertThat(singleResponse, hasSize(1));
             assertAtLeastOnceExpectedStatus(singleResponse, HttpResponseStatus.OK);
@@ -108,7 +108,7 @@ public class NioHttpRequestSizeLimitIT extends ESNioIntegTestCase {
         TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress
             ().boundAddresses());
 
-        try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
+        try (NioNetty4HttpClient nettyHttpClient = new NioNetty4HttpClient()) {
             Collection<FullHttpResponse> responses = nettyHttpClient.put(transportAddress.address(), requestUris);
             assertThat(responses, hasSize(requestUris.length));
             assertAllInExpectedStatus(responses, HttpResponseStatus.OK);

@@ -53,11 +53,11 @@ public class NioPipeliningEnabledIT extends ESNioIntegTestCase {
         TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();
         TransportAddress transportAddress = randomFrom(boundAddresses);
 
-        try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
+        try (NioNetty4HttpClient nettyHttpClient = new NioNetty4HttpClient()) {
             Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests);
             assertThat(responses, hasSize(5));
 
-            Collection<String> opaqueIds = Netty4HttpClient.returnOpaqueIds(responses);
+            Collection<String> opaqueIds = NioNetty4HttpClient.returnOpaqueIds(responses);
             assertOpaqueIdsInOrder(opaqueIds);
         }
     }

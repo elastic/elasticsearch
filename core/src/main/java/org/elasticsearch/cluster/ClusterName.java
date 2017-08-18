@@ -22,7 +22,6 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -32,14 +31,9 @@ import java.util.Objects;
 
 public class ClusterName implements Writeable {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(ClusterName.class));
-
     public static final Setting<ClusterName> CLUSTER_NAME_SETTING = new Setting<>("cluster.name", "elasticsearch", (s) -> {
         if (s.isEmpty()) {
             throw new IllegalArgumentException("[cluster.name] must not be empty");
-        }
-        if (s.contains(":")) {
-            deprecationLogger.deprecated("[cluster.name] containing ':' is deprecated and will not be supported in Elasticsearch 7.0+");
         }
         return new ClusterName(s);
     }, Setting.Property.NodeScope);

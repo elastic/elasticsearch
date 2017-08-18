@@ -67,6 +67,9 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
 
 import java.util.Map;
 
@@ -208,6 +211,29 @@ public interface Client extends ElasticsearchClient, Releasable {
      * @param id    The id of the document to delete
      */
     DeleteRequestBuilder prepareDelete(String index, String type, String id);
+
+    /**
+     * Deletes a or some documents from the index based on the index.
+     *
+     * @param request The delete by query request
+     * @return The result future
+     * @see Requests#deleteByQueryRequest(String)
+     */
+    ActionFuture<BulkByScrollResponse> deleteByQuery(DeleteByQueryRequest request);
+
+    /**
+     * Deletes a or some documents from the index based on the index
+     *
+     * @param request  The delete request
+     * @param listener A listener to be notified with a result
+     * @see Requests#deleteByQueryRequest(String)
+     */
+    void deleteByQuery(DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener);
+
+    /**
+     * Deletes a or some documents from the index based on the index.
+     */
+    DeleteByQueryRequestBuilder prepareDeleteByQuery(String... source);
 
     /**
      * Executes a bulk of index / delete operations.

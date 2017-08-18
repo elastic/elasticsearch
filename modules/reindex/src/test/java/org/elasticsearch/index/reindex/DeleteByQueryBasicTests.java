@@ -20,8 +20,10 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -326,5 +328,58 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         builder.source().setTypes("test2");
         assertThat(builder.get(), matcher().deleted(1));
         assertHitCount(client().prepareSearch("test").setSize(0).get(), 2);
+    }
+
+    public void testDeleteByQuery() throws Exception {
+        indexRandom(true,
+            client().prepareIndex("test", "test", "1").setSource("foo", "a"),
+            client().prepareIndex("test", "test", "2").setSource("foo", "a"),
+            client().prepareIndex("test", "test", "3").setSource("foo", "b")
+        );
+        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 3);
+
+        // Deletes two docs that matches "foo:a"
+        final DeleteByQueryRequest request = Requests.deleteByQueryRequest("test");
+        request.getSearchRequest().source().query(termQuery("foo", "a"));
+        assertThat(client().deleteByQuery(request).get(), matcher().deleted(2));
+        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 1);
+    }
+
+    public void testDeleteByQueryAsync() throws Exception {
+        indexRandom(true,
+            client().prepareIndex("test", "test", "1").setSource("foo", "a"),
+            client().prepareIndex("test", "test", "2").setSource("foo", "a"),
+            client().prepareIndex("test", "test", "3").setSource("foo", "b")
+        );
+        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 3);
+
+        // Deletes two docs that matches "foo:a"
+        final DeleteByQueryRequest request = Requests.deleteByQueryRequest("test");
+        request.getSearchRequest().source().query(termQuery("foo", "a"));
+        client().deleteByQuery(request, new ActionListener<BulkByScrollResponse>() {
+            @Override
+            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
+                assertEquals(2, bulkByScrollResponse.getDeleted());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+
+            }
+        });
+        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 1);
+    }
+
+    public void testPrepareDeleteByQuery() throws Exception {
+        indexRandom(true,
+            client().prepareIndex("test", "test", "1").setSource("foo", "a"),
+            client().prepareIndex("test", "test", "2").setSource("foo", "a"),
+            client().prepareIndex("test", "test", "3").setSource("foo", "b")
+        );
+        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 3);
+
+        // Deletes two docs that matches "foo:a"
+        assertThat(client().prepareDeleteByQuery("test").filter(termQuery("foo", "a")).get(), matcher().deleted(2));
+        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 1);
     }
 }

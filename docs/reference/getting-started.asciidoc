@@ -16,6 +16,7 @@ Here are a few sample use-cases that Elasticsearch could be used for:
 For the rest of this tutorial, I will guide you through the process of getting Elasticsearch up and running, taking a peek inside it, and performing basic operations like indexing, searching, and modifying your data. At the end of this tutorial, you should have a good idea of what Elasticsearch is, how it works, and hopefully be inspired to see how you can use it to either build sophisticated search applications or to mine intelligence from your data.
 --
 
+[[gs-basic-concepts]]
 == Basic Concepts
 
 There are a few concepts that are core to Elasticsearch. Understanding these concepts from the outset will tremendously help ease the learning process.
@@ -101,6 +102,7 @@ You can monitor shard sizes using the <<cat-shards,`_cat/shards`>> api.
 
 With that out of the way, let's get started with the fun part...
 
+[[gs-installation]]
 == Installation
 
 Elasticsearch requires at least Java 8. Specifically as of this writing, it is recommended that you use the Oracle JDK version {jdk}. Java installation varies from platform to platform so we won't go into those details here. Oracle's recommended installation documentation can be found on http://docs.oracle.com/javase/8/docs/technotes/guides/install/install_overview.html[Oracle's website]. Suffice to say, before you install Elasticsearch, please check your Java version first by running (and then install/upgrade accordingly if needed):
@@ -183,6 +185,7 @@ As mentioned previously, we can override either the cluster or node name. This c
 
 Also note the line marked http with information about the HTTP address (`192.168.8.112`) and port (`9200`) that our node is reachable from. By default, Elasticsearch uses port `9200` to provide access to its REST API. This port is configurable if necessary.
 
+[[gs-exploring-cluster]]
 == Exploring Your Cluster
 
 [float]
@@ -402,6 +405,7 @@ If we study the above commands carefully, we can actually see a pattern of how w
 
 This REST access pattern is so pervasive throughout all the API commands that if you can simply remember it, you will have a good head start at mastering Elasticsearch.
 
+[[gs-modifying-data]]
 == Modifying Your Data
 
 Elasticsearch provides data manipulation and search capabilities in near real time. By default, you can expect a one second delay (refresh interval) from the time you index/update/delete your data until the time that it appears in your search results. This is an important distinction from other platforms like SQL wherein data is immediately available after a transaction is completed.
@@ -553,6 +557,7 @@ Note above that for the delete action, there is no corresponding source document
 
 The Bulk API does not fail due to failures in one of the actions. If a single action fails for whatever reason, it will continue to process the remainder of the actions after it. When the bulk API returns, it will provide a status for each action (in the same order it was sent in) so that you can check if a specific action failed or not.
 
+[[exploring-data]]
 == Exploring Your Data
 
 [float]
@@ -1197,6 +1202,7 @@ GET /bank/_search
 
 There are many other aggregations capabilities that we won't go into detail here. The <<search-aggregations,aggregations reference guide>> is a great starting point if you want to do further experimentation.
 
+[[gs-conclusion]]
 == Conclusion
 
 Elasticsearch is both a simple and complex product. We've so far learned the basics of what it is, how to look inside of it, and how to work with it using some of the REST APIs. I hope that this tutorial has given you a better understanding of what Elasticsearch is and more importantly, inspired you to further experiment with the rest of its great features!

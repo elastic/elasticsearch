@@ -16,6 +16,7 @@ Elasticsearch는 다음을 비롯한 다양한 활용 사례에 효과적입니�
 이 튜토리얼에서는 Elasticsearch를 시작하고 실행하며 그 내부를 들여다보고 색인화, 검색, 데이터 수정과 같은 기본적인 작업을 수행하는 과정을 차례로 안내합니다. 이 튜토리얼을 통해 Elasticsearch이 무엇이고 어떻게 작동하는지 이해할 수 있습니다. 또한 정교한 검색 애플리케이션을 개발하거나 데이터에서 인텔리전스를 마이닝하는 데 Elasticsearch를 활용하기 위한 아이디어를 얻을 수 있습니다.
 --
 
+[[gs-basic-concepts]]
 == 기본 개념
 
 Elasticsearch에서는 몇 가지 핵심 개념을 사용합니다. 처음부터 이 개념을 알아두면 훨씬 더 수월하게 학습할 수 있습니다.
@@ -98,6 +99,7 @@ NOTE: 각 Elasticsearch 샤드는 Lucene 색인입니다. 단일 Lucene 색인�
 
 그럼 이제 재미있는 부분을 시작해볼까요?
 
+[[gs-installation]]
 == 설치
 
 Elasticsearch는 Java 8 이상이 필요합니다. 이 글을 쓰는 시점에서는 Oracle JDK 버전 {jdk} 사용이 권장됩니다. Java 설치는 플랫폼에 따라 달라지므로 여기서 자세히 다루지 않겠습니다. Oracle의 권장 설치 설명서를 http://docs.oracle.com/javase/8/docs/technotes/guides/install/install_overview.html[Oracle's website]에서 구할 수 있습니다. Elasticsearch 설치에 앞서 Java 버전 확인을 위해 다음을 실행하십시오. 그 결과에 따라 설치하거나 업그레이드하면 됩니다.
@@ -180,6 +182,7 @@ cd elasticsearch-{version}/bin
 
 또한 노드에 접속할 수 있는 위치를 나타내는 HTTP 주소(`192.168.8.112`) 및 포트(`9200`) 정보가 있는 http가 표시된 행에 주목하십시오. 기본적으로 Elasticsearch는 포트 `9200`을 사용하여 REST API에 대한 액세스를 제공합니다. 필요하다면 이 포트를 구성할 수 있습니다.
 
+[[gs-exploring-cluster]]
 == 클러스터 둘러보기
 
 [float]
@@ -398,6 +401,7 @@ DELETE /customer
 
 이 REST 액세스 패턴은 모든 API 명령에서 보편적으로 나타나므로, 잘 기억해두면 Elasticsearch를 제대로 이해하는 데 도움이 될 것입니다.
 
+[[gs-modifying-data]]
 == 데이터 수정
 
 Elasticsearch는 실시간에 가깝게 데이터 조작 및 검색 기능을 제공합니다. 기본적으로 데이터를 색인화/업데이트/삭제하는 시점부터 검색 결과에 나타나는 시점까지 1초 정도 걸립니다(새로고침 간격). 이는 트랜잭션이 완료되면 즉시 데이터가 사용 가능해지는 SQL과 같은 다른 플랫폼과 구별되는 중요한 특징입니다.
@@ -548,6 +552,7 @@ POST /customer/external/_bulk?pretty
 
 작업 중 하나가 실패하더라도 벌크 API는 실패하지 않습니다. 어떤 이유로 어느 한 작업이 실패한 경우 그 나머지 작업은 계속 처리합니다. 벌크 API가 반환할 때 각 작업의 상태를 (전송 순서와 동일하게) 표시하므로 어떤 작업이 실패했는지 여부를 알 수 있습니다.
 
+[[exploring-data]]
 == 데이터 탐색
 
 [float]
@@ -1189,6 +1194,7 @@ GET /bank/_search
 
 다른 여러 집계 기능도 있지만 여기서 자세히 다루지는 않겠습니다. 더 자세히 알아보고 싶다면 {ref}/search-aggregations.html[집계 참조 가이드]가 좋은 출발점이 될 것입니다.
 
+[[gs-conclusion]]
 == 결론
 
 Elasticsearch는 간단하면서도 복잡한 제품입니다. 지금까지 Elasticsearch의 기초와 원리를 이해하고 몇 가지 REST API와 함께 사용하는 방법도 살펴봤습니다. 이 튜토리얼을 통해 Elasticsearch을 제대로 이해하고 무엇보다도 여기서 얻은 지식을 바탕으로 다른 여러 유익한 기능도 적극 사용해보시길 바랍니다!

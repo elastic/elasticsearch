@@ -147,3 +147,7 @@ not:
 --------------------------------------------------
   john-<em>smith</em>_123@foo-bar.com
 --------------------------------------------------
+
+When used to analyze a search query, all tokens emitted by the filter
+are going to be treated as synonyms of the token in the original position,
+so any of those tokens will be considered as a match candidate.

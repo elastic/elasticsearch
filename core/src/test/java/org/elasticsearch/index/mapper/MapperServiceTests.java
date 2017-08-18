@@ -260,7 +260,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         indexService.mapperService().merge("other_type", disabledAll,
                 MergeReason.MAPPING_UPDATE, random().nextBoolean());
         assertTrue(indexService.mapperService().allEnabled()); // this returns true if any of the types has _all enabled
-        assertWarnings("The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
     }
 
      public void testPartitionedConstraints() {

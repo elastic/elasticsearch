@@ -48,21 +48,18 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().endObject();
         XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
         testConflictWhileMergingAndMappingUnchanged(mapping, mappingUpdate);
-        assertWarnings("The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
     }
 
     public void testAllDisabledAfterEnabled() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().endObject();
         XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
         testConflictWhileMergingAndMappingUnchanged(mapping, mappingUpdate);
-        assertWarnings("The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
     }
 
     public void testAllDisabledAfterDefaultEnabled() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties").startObject("some_text").field("type", "text").endObject().endObject().endObject();
         XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
         testConflictWhileMergingAndMappingUnchanged(mapping, mappingUpdate);
-        assertWarnings("The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
     }
 
     public void testAllEnabledAfterEnabled() throws Exception {
@@ -70,7 +67,6 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
         XContentBuilder expectedMapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("_all").field("enabled", true).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject().endObject();
         testNoConflictWhileMergingAndMappingChanged(mapping, mappingUpdate, expectedMapping);
-        assertWarnings("The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
     }
 
     public void testAllDisabledAfterDisabled() throws Exception {
@@ -78,7 +74,6 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
         XContentBuilder expectedMapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("_all").field("enabled", false).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject().endObject();
         testNoConflictWhileMergingAndMappingChanged(mapping, mappingUpdate, expectedMapping);
-        assertWarnings("The [_all] field is deprecated and will be removed in Elasticsearch 6.0");
     }
 
     private void testNoConflictWhileMergingAndMappingChanged(XContentBuilder mapping, XContentBuilder mappingUpdate, XContentBuilder expectedMapping) throws IOException {

@@ -423,7 +423,6 @@ PUT _template/disable_all_field
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:The [_all] field is deprecated and will be removed in Elasticsearch 6.0]
 <1> Applies the mappings to an `index` which matches the pattern `*`, in other
     words, all new indices.
 <2> Defines the `_default_` type mapping types within the index.

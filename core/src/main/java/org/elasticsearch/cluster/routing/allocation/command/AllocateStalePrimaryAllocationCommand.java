@@ -73,7 +73,7 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
 
     @Override
     public Optional<String> getMessage() {
-        return Optional.of("Allocated a stale primary for [" + index + "][" + shardId + "] on node [" + node + "]");
+        return Optional.of("allocated a stale primary for [" + index + "][" + shardId + "] on node [" + node + "] from user command");
     }
 
     public static AllocateStalePrimaryAllocationCommand fromXContent(XContentParser parser) throws IOException {

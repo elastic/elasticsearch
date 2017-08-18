@@ -107,6 +107,16 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         expectThrows(IllegalArgumentException.class, () -> buildJobBuilder("").build());
     }
 
+    public void testEnsureModelMemoryLimitSet() {
+        Job.Builder builder = buildJobBuilder("foo");
+        builder.setDefaultMemoryLimitIfUnset();
+        Job job = builder.build();
+
+        assertEquals("foo", job.getId());
+        assertNotNull(job.getAnalysisLimits());
+        assertThat(job.getAnalysisLimits().getModelMemoryLimit(), equalTo(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB));
+    }
+
     public void testEquals_GivenDifferentClass() {
         Job job = buildJobBuilder("foo").build();
         assertFalse(job.equals("a string"));
@@ -459,7 +469,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         builder.setFinishedTime(new Date());
         builder.setLastDataTime(new Date());
 
-        Set<String> expected = new HashSet();
+        Set<String> expected = new HashSet<>();
         expected.add(Job.CREATE_TIME.getPreferredName());
         expected.add(Job.FINISHED_TIME.getPreferredName());
         expected.add(Job.LAST_DATA_TIME.getPreferredName());
@@ -471,16 +481,14 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     public void testEmptyGroup() {
         Job.Builder builder = buildJobBuilder("foo");
         builder.setGroups(Arrays.asList("foo-group", ""));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> builder.build());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
         assertThat(e.getMessage(), containsString("Invalid group id ''"));
     }
 
     public void testInvalidGroup() {
         Job.Builder builder = buildJobBuilder("foo");
         builder.setGroups(Arrays.asList("foo-group", "$$$"));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> builder.build());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
         assertThat(e.getMessage(), containsString("Invalid group id '$$$'"));
     }
 

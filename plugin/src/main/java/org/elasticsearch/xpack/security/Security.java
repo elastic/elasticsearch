@@ -14,6 +14,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.LocalNodeMasterListener;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -50,6 +53,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.rest.RestController;
@@ -115,6 +119,7 @@ import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.Realms;
+import org.elasticsearch.xpack.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
@@ -189,7 +194,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_TEMPLATE_NAME;
 
-public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
+public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin {
 
     private static final Logger logger = Loggers.getLogger(XPackPlugin.class);
 
@@ -218,6 +223,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
     private final SetOnce<AuditTrailService> auditTrailService = new SetOnce<>();
     private final SetOnce<SecurityContext> securityContext = new SetOnce<>();
     private final SetOnce<ThreadContext> threadContext = new SetOnce<>();
+    private final SetOnce<TokenService> tokenService = new SetOnce<>();
     private final List<BootstrapCheck> bootstrapChecks;
 
     public Security(Settings settings, Environment env, XPackLicenseState licenseState, SSLService sslService)
@@ -332,7 +338,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
 
         final SecurityLifecycleService securityLifecycleService =
                 new SecurityLifecycleService(settings, clusterService, threadPool, client, indexAuditTrail);
-        final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, securityLifecycleService);
+        final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, securityLifecycleService, clusterService);
+        this.tokenService.set(tokenService);
         components.add(tokenService);
 
         // realms construction
@@ -855,7 +862,11 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Arrays.asList(ExpressionParser.NAMED_WRITEABLES);
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetaData.TYPE, TokenMetaData::new));
+        entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, TokenMetaData.TYPE, TokenMetaData::readDiffFrom));
+        entries.addAll(Arrays.asList(ExpressionParser.NAMED_WRITEABLES));
+        return entries;
     }
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
@@ -881,5 +892,14 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
 
             return templates;
         };
+    }
+
+    @Override
+    public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
+        if (enabled) {
+            return Collections.singletonMap(TokenMetaData.TYPE, () -> tokenService.get().getTokenMetaData());
+        } else {
+            return Collections.emptyMap();
+        }
     }
 }

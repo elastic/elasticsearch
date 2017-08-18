@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -42,6 +43,7 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -135,7 +137,7 @@ import javax.security.auth.DestroyFailedException;
 
 import static org.elasticsearch.xpack.watcher.Watcher.ENCRYPT_SENSITIVE_DATA_SETTING;
 
-public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin {
+public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin {
 
     public static final String NAME = "x-pack";
 
@@ -632,4 +634,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
                         .collect(Collectors.toList()));
     }
 
+    @Override
+    public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
+        return security.getInitialClusterStateCustomSupplier();
+    }
 }

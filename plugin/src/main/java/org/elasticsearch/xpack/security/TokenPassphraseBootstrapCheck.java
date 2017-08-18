@@ -24,14 +24,18 @@ final class TokenPassphraseBootstrapCheck implements BootstrapCheck {
 
     TokenPassphraseBootstrapCheck(Settings settings) {
         this.tokenServiceEnabled = XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(settings);
-        this.tokenPassphrase = TokenService.TOKEN_PASSPHRASE.get(settings);
+
+        this.tokenPassphrase = TokenService.TOKEN_PASSPHRASE.exists(settings) ? TokenService.TOKEN_PASSPHRASE.get(settings) : null;
     }
 
     @Override
     public boolean check() {
+        if (tokenPassphrase == null) { // that's fine we bootstrap it ourself
+            return false;
+        }
         try (SecureString ignore = tokenPassphrase) {
             if (tokenServiceEnabled) {
-                return tokenPassphrase.length() < MINIMUM_PASSPHRASE_LENGTH || tokenPassphrase.equals(TokenService.DEFAULT_PASSPHRASE);
+                return tokenPassphrase.length() < MINIMUM_PASSPHRASE_LENGTH;
             }
         }
         // service is not enabled so no need to check
@@ -41,7 +45,7 @@ final class TokenPassphraseBootstrapCheck implements BootstrapCheck {
     @Override
     public String errorMessage() {
         return "Please set a passphrase using the elasticsearch-keystore tool for the setting [" + TokenService.TOKEN_PASSPHRASE.getKey() +
-                "] that is at least " + MINIMUM_PASSPHRASE_LENGTH + " characters in length and does not match the default passphrase or " +
+                "] that is at least " + MINIMUM_PASSPHRASE_LENGTH + " characters in length or " +
                 "disable the token service using the [" + XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey() + "] setting";
     }
 }

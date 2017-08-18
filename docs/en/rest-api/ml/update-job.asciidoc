@@ -30,8 +30,9 @@ each periodic persistence of the model. See <<ml-job-resource>>. | Yes
 
 |`custom_settings` |Contains custom meta data about the job. | No
 
-|`description` |An optional description of the job.
-See <<ml-job-resource>>. | No
+|`description` |A description of the job. See <<ml-job-resource>>. | No
+
+|`groups` |A list of job groups. See <<ml-job-resource>>. | No
 
 |`model_plot_config`: `enabled` |If true, enables calculation and storage of the
 model bounds for each entity that is being analyzed.
@@ -87,6 +88,7 @@ The following example updates the `it_ops_new_logs` job:
 POST _xpack/ml/anomaly_detectors/it_ops_new_logs/_update
 {
   "description":"An updated job",
+  "groups": ["group1","group2"],
   "model_plot_config": {
     "enabled": true
   },
@@ -116,9 +118,13 @@ information, including the updated property values. For example:
 {
   "job_id": "it_ops_new_logs",
   "job_type": "anomaly_detector",
+  "job_version": "7.0.0-alpha1",
+  "groups": [
+    "group1",
+    "group2"
+  ],
   "description": "An updated job",
-  "create_time": 1493678314204,
-  "finished_time": 1493678315850,
+  "create_time": 1502904685360,
   "analysis_config": {
     "bucket_span": "1800s",
     "categorization_field_name": "message",

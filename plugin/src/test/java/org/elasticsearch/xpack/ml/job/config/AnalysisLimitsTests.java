@@ -106,6 +106,11 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         assertThat(limits.getModelMemoryLimit(), equalTo(1L));
     }
 
+    public void testModelMemoryDefault() {
+        AnalysisLimits limits = new AnalysisLimits(randomNonNegativeLong());
+        assertThat(limits.getModelMemoryLimit(), equalTo(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB));
+    }
+
     public void testEquals_GivenEqual() {
         AnalysisLimits analysisLimits1 = new AnalysisLimits(10L, 20L);
         AnalysisLimits analysisLimits2 = new AnalysisLimits(10L, 20L);

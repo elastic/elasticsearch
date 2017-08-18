@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.persistent.PersistentTaskParams;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksNodeService;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.authc.TokenMetaData;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -279,6 +280,7 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
                     PersistentTasksNodeService.Status::new));
             entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, JobTaskStatus.NAME, JobTaskStatus::new));
             entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, DatafeedState.NAME, DatafeedState::fromStream));
+            entries.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetaData.TYPE, TokenMetaData::new));
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
             ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
             byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);

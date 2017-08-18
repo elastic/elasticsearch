@@ -629,9 +629,20 @@ of the viewer. For example:
 [role="screenshot"]
 image::images/ml-gs-job1-anomalies.jpg["Single Metric Viewer Anomalies for total-requests job"]
 
-
 For each anomaly you can see key details such as the time, the actual and
 expected ("typical") values, and their probability.
+
+By default, the table contains all anomalies that have a severity of "warning"
+or higher in the selected section of the timeline. If you are only interested in
+critical anomalies, for example, you can change the severity threshold for this
+table.
+
+The anomalies table also automatically calculates an interval for the data in
+the table. If the time difference between the earliest and latest records in the
+table is less than two days, the data is aggregated by hour to show the details
+of the highest severity anomaly for each detector.  Otherwise, it is
+aggregated by day. You can change the interval for the table, for example, to
+show all anomalies.
 
 You can see the same information in a different format by using the
 **Anomaly Explorer**:

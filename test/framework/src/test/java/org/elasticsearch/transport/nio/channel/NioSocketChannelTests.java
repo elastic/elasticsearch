@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.SocketEventHandler;
 import org.elasticsearch.transport.nio.SocketSelector;
@@ -34,6 +35,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -67,10 +69,11 @@ public class NioSocketChannelTests extends ESTestCase {
 
         NioSocketChannel socketChannel = new DoNotCloseChannel(NioChannel.CLIENT, mock(SocketChannel.class), selector);
         socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
-        socketChannel.getCloseFuture().addListener(ChannelConsumerAdaptor.adapt(socketChannel, (c) -> {
+        Consumer<NioChannel> listener = (c) -> {
             ref.set(c);
             latch.countDown();
-        }));
+        };
+        socketChannel.getCloseFuture().addListener(ActionListener.wrap(listener, (e) -> listener.accept(socketChannel)));
         CloseFuture closeFuture = socketChannel.getCloseFuture();
 
         assertFalse(closeFuture.isClosed());

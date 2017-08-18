@@ -195,6 +195,7 @@ cd elasticsearch-{version}/bin
 *  색인에 대한 CRUD(Create, Read, Update, Delete) 및 검색 작업 수행
 * 페이징, 정렬, 필터링, 스크립팅, 집계 등 여러 고급 검색 작업 실행
 
+[[cluster-health]]
 === 클러스터 상태
 
 기본적인 상태 확인부터 시작하겠습니다. 이 확인을 통해 클러스터가 어떻게 작동하고 있는지 알아볼 수 있습니다. 여기서는 curl을 사용하겠지만, HTTP/REST 호출을 지원하는 어떤 툴도 사용 가능합니다. Elasticsearch를 시작한 노드에 아직 있다고 가정하고 다른 명령 셸 창을  열겠습니다.
@@ -244,6 +245,7 @@ ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master
 
 여기서는 노드의 이름이 "PB2SGZY"이며, 현재 이 클러스터의 유일한 노드입니다.
 
+[[list-all-indices]]
 === 모든 색인 나열
 
 이제 색인을 살펴볼까요?
@@ -264,6 +266,7 @@ health status index uuid pri rep docs.count docs.deleted store.size pri.store.si
 
 아직 클러스터에 색인이 없는 것입니다.
 
+[[gs-create-index]]
 === 색인 생성
 
 "customer"라는 이름의 색인을 만들고 다시 모든 색인을 나열해보겠습니다.
@@ -290,6 +293,7 @@ yellow open   customer 95SQ4TSUT7mWBT7VNHH67A   5   1          0            0   
 
 또한 customer 색인은 노란색 상태 태그로 표시되어 있습니다. 앞서 설명한 것처럼 노란색은 일부 리플리카가 (아직) 배정되지 않았음을 의미합니다. 이 색인이 노란색으로 표시된 까닭은 Elasticsearch에서 기본적으로 이 색인에 대해 리플리카 1개를 생성했기 때문입니다. 현재는 하나의 노드가 실행 중이므로 이 리플리카는 아직 (고가용성을 위해) 배정될 수 없습니다. 나중에 다른 노드가 클러스터에 포함되면 가능해집니다. 이 리플리카가 두 번째 노드에 배정되면 이 색인의 상태는 녹색으로 바뀝니다.
 
+[[gs-index-query]]
 === 문서 색인화 및 쿼리
 
 customer 색인에 뭔가를 추가해보겠습니다. 앞서 설명했지만, 문서를 색인화하려면 Elasticsearch에게 색인의 어떤 유형을 선택할지 알려줘야 합니다.
@@ -355,6 +359,7 @@ GET /customer/external/1?pretty
 
 여기서 특이한 점이라면 `found`라는 필드인데, 요청된 ID 1에 해당하는 문서를 찾았다고 알려줍니다. 또 다른 필드 `_source`는 이전 단계에서 색인화한 전체 JSON 문서를 반환합니다.
 
+[[gs-delete-index]]
 === 색인 삭제
 
 방금 만든 색인을 삭제한 다음 다시 모든 색인을 나열해보겠습니다.
@@ -462,6 +467,7 @@ POST /customer/external?pretty
 
 위 사례에서는 ID를 지정하지 않았으므로 PUT 대신 `POST` 동사를 사용합니다.
 
+[[gs-update-docs]]
 === 문서 업데이트
 
 문서를 색인화하고 대체할 뿐 아니라 업데이트할 수도 있습니다. 사실 Elasticsearch가 해당 위치에서 업데이트를 수행하는 건 아닙니다. 우리가 업데이트를 명령하면 Elasticsearch는 기존 문서를 삭제하고 새 문서를 색인화한 다음 여기에 업데이트를 적용하는 작업을 한꺼번에 수행합니다.
@@ -506,6 +512,7 @@ POST /customer/external/1/_update?pretty
 
 이 글을 쓰는 시점에서는 한 번에 하나의 문서만 업데이트할 수 있습니다. 향후 Elasticsearch에서 쿼리 조건(예: `SQL UPDATE-WHERE` 문)을 사용하여 여러 문서를 업데이트하는 기능을 제공할 수도 있습니다.
 
+[[gs-delete-docs]]
 === 문서 삭제
 
 문서 삭제는 매우 간단합니다. 이 예는 앞서 만든 ID가 2인 문서를 삭제하는 방법을 보여줍니다.
@@ -520,6 +527,7 @@ DELETE /customer/external/2?pretty
 특정 쿼리와 일치하는 모든 문서를 삭제하려면 {ref}/docs-delete-by-query.html[`_delete_by_query` API]의 내용을 참조하십시오.
 Delete By Query API를 사용하여 모든 문서를 삭제하기보다는 아예 색인을 삭제하는 것이 훨씬 더 효율적입니다.
 
+[[gs-batch]]
 === 배치 처리
 
 Elasticsearch는 개별 문서를 색인화, 업데이트, 삭제하는 기능뿐 아니라 {ref}/docs-bulk.html[`_bulk` API]를 사용하여 위와 같은 작업을 배치 형태로 수행하는 기능도 제공합니다. 이 기능은 네트워크 왕복을 최소화하면서 최대한 신속하게 여러 작업을 수행할 수 있는 매우 효율적인 메커니즘을 제공한다는 점에서 중요합니다.
@@ -616,6 +624,7 @@ yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    12
 
 방금 한꺼번에 문서 1,000개를 bank 색인, account 유형에 색인화한 것입니다.
 
+[[gs-search-api]]
 === 검색 API
 
 먼저 몇 가지 간단한 검색을 해보겠습니다. 기본적인 검색 실행 방법으로 2가지가 있습니다.  {ref}/search-uri-request.html[REST 요청 URI]를 통해 검색 매개변수를 보내는것 그리고 {ref}/search-request-body.html[REST 요청 본문]을 통해 보내는 것입니다. 요청 본문 방식은 더 상세한 표현이 가능하고 또한 더 읽기 쉬운 JSON 형식으로 검색을 정의할 수도 있습니다. 여기서는 요청 URI 방식을 한 번 시도해보겠지만, 이 튜토리얼의 나머지 부분에서는 요청 본문 방식만 사용할 것입니다.
@@ -739,6 +748,7 @@ to clutter the docs with it:
 
 검색 결과를 얻으면 Elasticsearch는 해당 요청을 처리 완료한 것이므로 어떤 서버측 리소스도 유지하지 않고 결과에 커서를 열지도 않습니다. 이는 초기에 쿼리 결과의 일부를 얻은 다음 일종의 상태 유지 서버측 커서를 사용하여 나머지 결과를 가져오려면 (또는 페이지로 표시하려면) 반복해서 서버로 돌아가야 하는 SQL과 같은 다른 여러 플랫폼과 크게 다른 점입니다.
 
+[[gs-query-lang]]
 === 쿼리 언어 소개
 
 Elasticsearch는 쿼리 실행에 사용할 수 있도록 JSON 스타일의 도메인 전용 언어를 제공합니다. 이를 {ref}/query-dsl.html[Query DSL]이라고 합니다. 이 쿼리 언어는 매우 포괄적이므로 처음에는 부담스러울 수도 있습니다. 하지만 가장 효과적인 학습 방법은 몇 가지 기본적인 예와 함께 시작해보는 것입니다.
@@ -801,6 +811,7 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
+[[gs-executing-searches]]
 === 검색 실행
 
 몇 가지 기본 검색 매개변수를 익혔으므로 쿼리 DSL을 좀 더 자세히 알아보겠습니다. 먼저 반환된 문서 필드를 살펴볼까요? 기본적으로 전체 JSON 문서가 모든 검색의 일부로 반환됩니다. 이를 소스(검색 적중의 `_source` 필드)라고 합니다. 전체 소스 문서가 반환되는 것을 원치 않는다면 소스 의 일부 필드만 반환하도록 요청할 수 있습니다.
@@ -960,6 +971,7 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
+[[gs-executing-filters]]
 === 필터 실행
 
 앞의 섹션에서는 문서 점수(검색 결과의 `_score` 필드)라는 세부 사항을 건너뛰었습니다. 이 점수는 해당 문서가 지정된 검색 쿼리와 얼마나 일치하는지를 상대적으로 나타내는 숫자 값입니다. 점수가 높을수록 문서의 연관성이 높아지고 낮을수록 연관성이 떨어집니다.
@@ -996,6 +1008,7 @@ GET /bank/_search
 
 `match_all`, `match`, `bool`, `range` 쿼리 외에도 다양한 쿼리 유형을 사용할 수 있지만 여기서 다루지는 않겠습니다. 이제는 기본 원리를 알고 있으므로 이 지식을 활용하여 어렵지 않게 다른 쿼리 유형을 학습하고 시험해볼 수 있습니다.
 
+[[gs-executing-aggregations]]
 === 집계 실행
 
 집계는 데이터를 그룹화하고 통계치를 얻는 기능입니다. SQL GROUP BY 및 SQL 집계 기능과 대략 같다고 보면 가장 쉽게 이해할 수 있습니다. Elasticsearch에서는 하나의 응답에서 검색 적중을 반환하는 검색을 실행함과 동시에 그와는 별도로 집계 결과를 반환할 수 있습니다. 즉 간결한 API를 사용하여 쿼리와 여러 집계를 실행하고 두 작업(또는 둘 중 하나)의 결과를 한꺼번에 얻어 네트워크 왕복을 피할 수 있다는 점에서 강력하고 효율적입니다.

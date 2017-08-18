@@ -200,6 +200,7 @@ Now that we have our node (and cluster) up and running, the next step is to unde
 * Perform CRUD (Create, Read, Update, and Delete) and search operations against your indexes
 * Execute advanced search operations such as paging, sorting, filtering, scripting, aggregations, and many others
 
+[[cluster-health]]
 === Cluster Health
 
 Let's start with a basic health check, which we can use to see how our cluster is doing. We'll be using curl to do this but you can use any tool that allows you to make HTTP/REST calls. Let's assume that we are still on the same node where we started Elasticsearch on and open another command shell window.
@@ -252,6 +253,7 @@ ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master
 
 Here, we can see our one node named "PB2SGZY", which is the single node that is currently in our cluster.
 
+[[list-all-indices]]
 === List All Indices
 
 Now let's take a peek at our indices:
@@ -272,6 +274,7 @@ health status index uuid pri rep docs.count docs.deleted store.size pri.store.si
 
 Which simply means we have no indices yet in the cluster.
 
+[[gs-create-index]]
 === Create an Index
 
 Now let's create an index named "customer" and then list all the indexes again:
@@ -298,6 +301,7 @@ The results of the second command tells us that we now have 1 index named custom
 
 You might also notice that the customer index has a yellow health tagged to it. Recall from our previous discussion that yellow means that some replicas are not (yet) allocated. The reason this happens for this index is because Elasticsearch by default created one replica for this index. Since we only have one node running at the moment, that one replica cannot yet be allocated (for high availability) until a later point in time when another node joins the cluster. Once that replica gets allocated onto a second node, the health status for this index will turn to green.
 
+[[gs-index-query]]
 === Index and Query a Document
 
 Let's now put something into our customer index. Remember previously that in order to index a document, we must tell Elasticsearch which type in the index it should go to.
@@ -363,6 +367,7 @@ And the response:
 
 Nothing out of the ordinary here other than a field, `found`, stating that we found a document with the requested ID 1 and another field, `_source`, which returns the full JSON document that we indexed from the previous step.
 
+[[gs-delete-index]]
 === Delete an Index
 
 Now let's delete the index that we just created and then list all the indexes again:
@@ -470,6 +475,7 @@ POST /customer/external?pretty
 
 Note that in the above case, we are using the `POST` verb instead of PUT since we didn't specify an ID.
 
+[[gs-update-docs]]
 === Updating Documents
 
 In addition to being able to index and replace documents, we can also update documents. Note though that Elasticsearch does not actually do in-place updates under the hood. Whenever we do an update, Elasticsearch deletes the old document and then indexes a new document with the update applied to it in one shot.
@@ -514,6 +520,8 @@ In the above example, `ctx._source` refers to the current source document that i
 
 Note that as of this writing, updates can only be performed on a single document at a time. In the future, Elasticsearch might provide the ability to update multiple documents given a query condition (like an `SQL UPDATE-WHERE` statement).
 
+
+[[gs-delete-docs]]
 === Deleting Documents
 
 Deleting a document is fairly straightforward. This example shows how to delete our previous customer with the ID of 2:
@@ -529,6 +537,7 @@ See the  {ref}/docs-delete-by-query.html[`_delete_by_query` API] to delete all d
 It is worth noting that it is much more efficient to delete a whole index
 instead of deleting all documents with the Delete By Query API.
 
+[[gs-batch]]
 === Batch Processing
 
 In addition to being able to index, update, and delete individual documents, Elasticsearch also provides the ability to perform any of the above operations in batches using the {ref}/docs-bulk.html[`_bulk` API]. This functionality is important in that it provides a very efficient mechanism to do multiple operations as fast as possible with as few network roundtrips as possible.
@@ -625,6 +634,7 @@ yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    12
 
 Which means that we just successfully bulk indexed 1000 documents into the bank index (under the account type).
 
+[[gs-search-api]]
 === The Search API
 
 Now let's start with some simple searches. There are two basic ways to run searches: one is by sending search parameters through the {ref}/search-uri-request.html[REST request URI] and the other by sending them through the {ref}/search-request-body.html[REST request body]. The request body method allows you to be more expressive and also to define your searches in a more readable JSON format. We'll try one example of the request URI method but for the remainder of this tutorial, we will exclusively be using the request body method.
@@ -748,6 +758,7 @@ to clutter the docs with it:
 
 It is important to understand that once you get your search results back, Elasticsearch is completely done with the request and does not maintain any kind of server-side resources or open cursors into your results. This is in stark contrast to many other platforms such as SQL wherein you may initially get a partial subset of your query results up-front and then you have to continuously go back to the server if you want to fetch (or page through) the rest of the results using some kind of stateful server-side cursor.
 
+[[gs-query-lang]]
 === Introducing the Query Language
 
 Elasticsearch provides a JSON-style domain-specific language that you can use to execute queries. This is referred to as the {ref}/query-dsl.html[Query DSL]. The query language is quite comprehensive and can be intimidating at first glance but the best way to actually learn it is to start with a few basic examples.
@@ -812,6 +823,7 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
+[[gs-executing-searches]]
 === Executing Searches
 
 Now that we have seen a few of the basic search parameters, let's dig in some more into the Query DSL. Let's first take a look at the returned document fields. By default, the full JSON document is returned as part of all searches. This is referred to as the source (`_source` field in the search hits). If we don't want the entire source document returned, we have the ability to request only a few fields from within source to be returned.
@@ -971,6 +983,7 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
+[[gs-executing-filters]]
 === Executing Filters
 
 In the previous section, we skipped over a little detail called the document score (`_score` field in the search results). The score is a numeric value that is a relative measure of how well the document matches the search query that we specified. The higher the score, the more relevant the document is, the lower the score, the less relevant the document is.
@@ -1007,6 +1020,7 @@ Dissecting the above, the bool query contains a `match_all` query (the query par
 
 In addition to the `match_all`, `match`, `bool`, and `range` queries, there are a lot of other query types that are available and we won't go into them here. Since we already have a basic understanding of how they work, it shouldn't be too difficult to apply this knowledge in learning and experimenting with the other query types.
 
+[[gs-executing-aggregations]]
 === Executing Aggregations
 
 Aggregations provide the ability to group and extract statistics from your data. The easiest way to think about aggregations is by roughly equating it to the SQL GROUP BY and the SQL aggregate functions. In Elasticsearch, you have the ability to execute searches returning hits and at the same time return aggregated results separate from the hits all in one response. This is very powerful and efficient in the sense that you can run queries and multiple aggregations and get the results back of both (or either) operations in one shot avoiding network roundtrips using a concise and simplified API.

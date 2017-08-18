@@ -34,7 +34,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
@@ -72,7 +72,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 Settings.builder().put("cluster.name", internalCluster().getClusterName()).build();
         final Version version = Version.CURRENT;
         final Stack<Closeable> closeables = new Stack<>();
-        final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
+        final ThreadPool threadPool = new ThreadPool(getClass().getName());
         try {
             final MockTransportService pingTransport =
                     MockTransportService.createNewService(settings, version, threadPool, null);

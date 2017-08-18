@@ -74,7 +74,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.engine.MockEngineFactory;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -121,7 +120,7 @@ public class IndexModuleTests extends ESTestCase {
         environment = new Environment(settings);
         emptyAnalysisRegistry = new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(),
                 emptyMap(), emptyMap(), emptyMap());
-        threadPool = new TestThreadPool("test");
+        threadPool = new ThreadPool("test");
         circuitBreakerService = new NoneCircuitBreakerService();
         bigArrays = new BigArrays(settings, circuitBreakerService);
         scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());

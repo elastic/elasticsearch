@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
@@ -56,7 +55,7 @@ public class TransportActionProxyTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool(getClass().getName());
+        threadPool = new ThreadPool(getClass().getName());
         serviceA = buildService(version0); // this one supports dynamic tracer updates
         nodeA = serviceA.getLocalDiscoNode();
         serviceB = buildService(version1); // this one doesn't support dynamic tracer updates

@@ -23,16 +23,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -330,10 +328,10 @@ public class OperationRoutingTests extends ESTestCase{
     }
 
     public void testPreferNodes() throws InterruptedException, IOException {
-        TestThreadPool threadPool = null;
+        ThreadPool threadPool = null;
         ClusterService clusterService = null;
         try {
-            threadPool = new TestThreadPool("testPreferNodes");
+            threadPool = new ThreadPool("testPreferNodes");
             clusterService = ClusterServiceUtils.createClusterService(threadPool);
             final String indexName = "test";
             ClusterServiceUtils.setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(indexName, true, randomInt(8)));
@@ -432,10 +430,10 @@ public class OperationRoutingTests extends ESTestCase{
     }
 
     public void testThatOnlyNodesSupportNodeIds() throws InterruptedException, IOException {
-        TestThreadPool threadPool = null;
+        ThreadPool threadPool = null;
         ClusterService clusterService = null;
         try {
-            threadPool = new TestThreadPool("testThatOnlyNodesSupportNodeIds");
+            threadPool = new ThreadPool("testThatOnlyNodesSupportNodeIds");
             clusterService = ClusterServiceUtils.createClusterService(threadPool);
             final String indexName = "test";
             ClusterServiceUtils.setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(indexName, true, randomInt(8)));

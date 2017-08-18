@@ -32,7 +32,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -175,7 +174,7 @@ public class TCPTransportTests extends ESTestCase {
         final boolean compressed = randomBoolean();
         final AtomicBoolean called = new AtomicBoolean(false);
         Req request = new Req(randomRealisticUnicodeOfLengthBetween(10, 100));
-        ThreadPool threadPool = new TestThreadPool(TCPTransportTests.class.getName());
+        ThreadPool threadPool = new ThreadPool(TCPTransportTests.class.getName());
         AtomicReference<IOException> exceptionReference = new AtomicReference<>();
         try {
             TcpTransport transport = new TcpTransport("test", Settings.builder().put("transport.tcp.compress", compressed).build(),

@@ -51,7 +51,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -85,7 +84,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool(getClass().getName());
+        threadPool = new ThreadPool(getClass().getName());
         cluster = new ClusterStateChanges(xContentRegistry(), threadPool);
     }
 

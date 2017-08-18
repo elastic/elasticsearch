@@ -51,7 +51,6 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -92,7 +91,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Collections.emptyList());
-        threadPool = new TestThreadPool("test");
+        threadPool = new ThreadPool("test");
         bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
     }
 

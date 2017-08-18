@@ -160,6 +160,14 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     public static Setting<TimeValue> ESTIMATED_TIME_INTERVAL_SETTING =
         Setting.timeSetting("thread_pool.estimated_time_interval", TimeValue.timeValueMillis(200), Setting.Property.NodeScope);
 
+    public ThreadPool(String name, final ExecutorBuilder<?>... customBuilders) {
+        this(name, Settings.EMPTY, customBuilders);
+    }
+
+    public ThreadPool(String name, Settings settings, final ExecutorBuilder<?>... customBuilders) {
+        this(Settings.builder().put(settings).put(Node.NODE_NAME_SETTING.getKey(), name).build(), customBuilders);
+    }
+
     public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
         super(settings);
 

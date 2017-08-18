@@ -47,7 +47,7 @@ public class ThreadPoolTests extends ESTestCase {
     }
 
     public void testAbsoluteTime() throws Exception {
-        TestThreadPool threadPool = new TestThreadPool("test");
+        ThreadPool threadPool = new ThreadPool("test");
         try {
             long currentTime = System.currentTimeMillis();
             long gotTime = threadPool.absoluteTimeInMillis();

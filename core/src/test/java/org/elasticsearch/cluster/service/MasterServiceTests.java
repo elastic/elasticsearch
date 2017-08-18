@@ -42,7 +42,6 @@ import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -80,7 +79,7 @@ public class MasterServiceTests extends ESTestCase {
 
     @BeforeClass
     public static void createThreadPool() {
-        threadPool = new TestThreadPool(MasterServiceTests.class.getName());
+        threadPool = new ThreadPool(MasterServiceTests.class.getName());
     }
 
     @AfterClass

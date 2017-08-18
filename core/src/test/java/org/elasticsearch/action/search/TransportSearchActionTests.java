@@ -39,7 +39,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -56,7 +55,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 
 public class TransportSearchActionTests extends ESTestCase {
 
-    private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
+    private final ThreadPool threadPool = new ThreadPool(getClass().getName());
 
     @Override
     public void tearDown() throws Exception {

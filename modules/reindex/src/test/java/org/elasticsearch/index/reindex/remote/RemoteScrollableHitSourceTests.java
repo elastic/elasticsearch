@@ -56,7 +56,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -97,7 +96,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         final ExecutorService directExecutor = EsExecutors.newDirectExecutorService();
-        threadPool = new TestThreadPool(getTestName()) {
+        threadPool = new ThreadPool(getTestName()) {
             @Override
             public ExecutorService executor(String name) {
                 return directExecutor;

@@ -22,7 +22,6 @@ package org.elasticsearch.monitor.jvm;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Cancellable;
 
@@ -132,7 +131,7 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
         assert constructionShouldFail == (asserts == null);
         ThreadPool threadPool = null;
         try {
-            threadPool = new TestThreadPool(JvmGcMonitorServiceSettingsTests.class.getCanonicalName()) {
+            threadPool = new ThreadPool(JvmGcMonitorServiceSettingsTests.class.getCanonicalName()) {
                 @Override
                 public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String name) {
                     return scheduler.apply(command, interval, name);

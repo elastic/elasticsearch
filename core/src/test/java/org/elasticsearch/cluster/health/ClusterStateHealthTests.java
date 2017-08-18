@@ -50,7 +50,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.test.transport.CapturingTransport;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -85,7 +84,7 @@ public class ClusterStateHealthTests extends ESTestCase {
 
     @BeforeClass
     public static void setupThreadPool() {
-        threadPool = new TestThreadPool("ClusterStateHealthTests");
+        threadPool = new ThreadPool("ClusterStateHealthTests");
     }
 
     @Override

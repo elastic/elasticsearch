@@ -28,7 +28,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportChannel;
@@ -49,7 +48,7 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class Netty4ScheduledPingTests extends ESTestCase {
     public void testScheduledPing() throws Exception {
-        ThreadPool threadPool = new TestThreadPool(getClass().getName());
+        ThreadPool threadPool = new ThreadPool(getClass().getName());
 
         Settings settings = Settings.builder()
             .put(TcpTransport.PING_SCHEDULE.getKey(), "5ms")

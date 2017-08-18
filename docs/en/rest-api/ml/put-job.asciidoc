@@ -85,7 +85,6 @@ PUT _xpack/ml/anomaly_detectors/it-ops-kpi
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:todo]
 
 When the job is created, you receive the following results:
 [source,js]
@@ -110,6 +109,9 @@ When the job is created, you receive the following results:
     ],
     "influencers": []
   },
+  "analysis_limits": {
+    "model_memory_limit": "1024mb"
+  },
   "data_description": {
     "time_field": "@timestamp",
     "time_format": "epoch_ms"
@@ -118,3 +120,6 @@ When the job is created, you receive the following results:
   "results_index_name": "shared"
 }
 ----
+//CONSOLE
+//TESTRESPONSE[s/"job_version": "7.0.0-alpha1"/"job_version": $body.job_version/]
+//TESTRESPONSE[s/"create_time": 1502832478794/"create_time": $body.create_time/]

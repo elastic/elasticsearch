@@ -124,8 +124,6 @@ subprojects {
       setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       setting 'xpack.ssl.keystore.password', 'testnode'
-      // this is needed until the token service changes are backported to 6.x
-      keystoreSetting 'xpack.security.authc.token.passphrase', 'xpack_token_passphrase'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
       if (withSystemKey) {
@@ -162,7 +160,6 @@ subprojects {
       waitCondition = waitWithAuth
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
-      keystoreSetting 'xpack.security.authc.token.passphrase', 'xpack_token_passphrase'
       setting 'node.attr.upgraded', 'first'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
@@ -193,7 +190,6 @@ subprojects {
       waitCondition = waitWithAuth
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
-      keystoreSetting 'xpack.security.authc.token.passphrase', 'xpack_token_passphrase'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
       if (withSystemKey) {

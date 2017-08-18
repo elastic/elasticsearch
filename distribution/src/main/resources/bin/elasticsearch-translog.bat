@@ -1,6 +1,7 @@
 @echo off
 
 setlocal enabledelayedexpansion
+setlocal enableextensions
 
 call "%~dp0elasticsearch-env.bat" || exit /b 1
 
@@ -12,4 +13,5 @@ call "%~dp0elasticsearch-env.bat" || exit /b 1
   org.elasticsearch.index.translog.TranslogToolCli ^
   %*
 
+endlocal
 endlocal

@@ -120,11 +120,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
         for (CloseFuture future : futures) {
             try {
                 future.awaitClose();
-                IOException closeException = future.getCloseException();
-                if (closeException != null) {
-                    closingExceptions = addClosingException(closingExceptions, closeException);
-                }
-            } catch (InterruptedException e) {
+            } catch (Exception e) {
                 closingExceptions = addClosingException(closingExceptions, e);
             }
         }

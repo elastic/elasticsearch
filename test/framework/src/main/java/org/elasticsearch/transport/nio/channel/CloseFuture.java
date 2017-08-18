@@ -33,17 +33,23 @@ public class CloseFuture extends PlainListenableActionFuture<NioChannel> {
         throw new UnsupportedOperationException("Cannot cancel close future");
     }
 
-    public void awaitClose() throws InterruptedException, IOException {
+    public void awaitClose() throws IOException {
         try {
             super.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
             throw (IOException) e.getCause();
         }
     }
 
-    public void awaitClose(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException, IOException {
+    public void awaitClose(long timeout, TimeUnit unit) throws TimeoutException, IOException {
         try {
             super.get(timeout, unit);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
             throw (IOException) e.getCause();
         }

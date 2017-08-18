@@ -17,15 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.elasticsearch.transport.nio.http;
 
 import io.netty.channel.ChannelPromise;
-import io.netty.handler.codec.http.HttpResponse;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.transport.nio.ByteWriteOperation;
 import org.elasticsearch.transport.nio.SocketSelector;
 import org.elasticsearch.transport.nio.WriteOperation;
@@ -35,7 +32,6 @@ import org.elasticsearch.transport.nio.channel.WriteContext;
 
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
-import java.util.LinkedList;
 
 public class HttpWriteContext implements WriteContext {
 

@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.elasticsearch.transport.nio.http;
 
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import org.elasticsearch.ESNioIntegTestCase;
+import org.elasticsearch.transport.nio.ESNioIntegTestCase;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -29,7 +29,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.Netty4HttpClient;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;

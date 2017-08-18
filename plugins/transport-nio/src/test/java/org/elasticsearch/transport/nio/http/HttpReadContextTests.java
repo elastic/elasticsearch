@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.elasticsearch.transport.nio.http;
 
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
@@ -26,6 +26,9 @@ import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
+import org.elasticsearch.transport.nio.http.ESEmbeddedChannel;
+import org.elasticsearch.transport.nio.http.HttpReadContext;
+import org.elasticsearch.transport.nio.http.NioHttpRequestHandler;
 import org.elasticsearch.transport.nio.utils.TestSelectionKey;
 import org.junit.Before;
 

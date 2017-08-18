@@ -34,7 +34,7 @@ import java.util.function.Supplier;
 
 public class NioTransportPlugin extends Plugin implements NetworkPlugin {
 
-    public static final String NIO_TRANSPORT_NAME = "nio-transport";
+    public static final String NIO_TRANSPORT_NAME = "nio-tcp-transport";
 
     @Override
     public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,

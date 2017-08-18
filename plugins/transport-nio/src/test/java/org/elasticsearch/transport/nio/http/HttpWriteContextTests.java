@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.elasticsearch.transport.nio.http;
 
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.DefaultHttpResponse;
@@ -26,13 +26,16 @@ import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.SocketSelector;
 import org.elasticsearch.transport.nio.WriteOperation;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
+import org.elasticsearch.transport.nio.http.ESChannelPromise;
+import org.elasticsearch.transport.nio.http.ESEmbeddedChannel;
+import org.elasticsearch.transport.nio.http.HttpWriteContext;
+import org.elasticsearch.transport.nio.http.HttpWriteOperation;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 

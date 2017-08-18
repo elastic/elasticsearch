@@ -16,39 +16,40 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-package org.elasticsearch.http.nio;
+package org.elasticsearch.transport.nio.http;
 
 import io.netty.handler.codec.http.FullHttpResponse;
-import org.elasticsearch.ESNioIntegTestCase;
+import org.elasticsearch.transport.nio.ESNioIntegTestCase;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.Netty4HttpClient;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
-public class NioPipeliningEnabledIT extends ESNioIntegTestCase {
+public class NioPipeliningDisabledIT extends ESNioIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-            .put("http.pipelining", true)
+            .put("http.pipelining", false)
             .build();
     }
 
-    public void testThatNettyHttpServerSupportsPipelining() throws Exception {
-        String[] requests = new String[]{"/", "/_nodes/stats", "/", "/_cluster/state", "/"};
+    public void testThatNettyHttpServerDoesNotSupportPipelining() throws Exception {
+        ensureGreen();
+        String[] requests = new String[] {"/", "/_nodes/stats", "/", "/_cluster/state", "/", "/_nodes", "/"};
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();
@@ -56,20 +57,20 @@ public class NioPipeliningEnabledIT extends ESNioIntegTestCase {
 
         try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
             Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests);
-            assertThat(responses, hasSize(5));
+            assertThat(responses, hasSize(requests.length));
 
-            Collection<String> opaqueIds = Netty4HttpClient.returnOpaqueIds(responses);
-            assertOpaqueIdsInOrder(opaqueIds);
+            List<String> opaqueIds = new ArrayList<>(Netty4HttpClient.returnOpaqueIds(responses));
+
+            assertResponsesOutOfOrder(opaqueIds);
         }
     }
 
-    private void assertOpaqueIdsInOrder(Collection<String> opaqueIds) {
-        // check if opaque ids are monotonically increasing
-        int i = 0;
-        String msg = String.format(Locale.ROOT, "Expected list of opaque ids to be monotonically increasing, got [%s]", opaqueIds);
-        for (String opaqueId : opaqueIds) {
-            assertThat(msg, opaqueId, is(String.valueOf(i++)));
-        }
+    /**
+     * checks if all responses are there, but also tests that they are out of order because pipelining is disabled
+     */
+    private void assertResponsesOutOfOrder(List<String> opaqueIds) {
+        String message = String.format(Locale.ROOT, "Expected returned http message ids to be in any order of: %s", opaqueIds);
+        assertThat(message, opaqueIds, containsInAnyOrder("0", "1", "2", "3", "4", "5", "6"));
     }
 
 }

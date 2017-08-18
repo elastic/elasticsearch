@@ -19,7 +19,7 @@
 
 esplugin {
   description 'The nio transport.'
-  classname 'org.elasticsearch.http.nio.NioHttpPlugin'
+  classname 'org.elasticsearch.http.nio.NioPlugin'
 }
 
 

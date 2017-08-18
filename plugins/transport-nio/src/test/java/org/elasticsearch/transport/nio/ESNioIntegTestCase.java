@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch;
+package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.nio.NioHttpPlugin;
+import org.elasticsearch.transport.nio.NioPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.nio.NioTransport;
@@ -47,26 +47,26 @@ public abstract class ESNioIntegTestCase extends ESIntegTestCase {
         if (randomBoolean()) {
             builder.put(NioTransport.NIO_WORKER_COUNT.getKey(), random().nextInt(3) + 1);
         }
-        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, NioHttpPlugin.NIO_TRANSPORT_NAME);
-        builder.put(NetworkModule.HTTP_TYPE_KEY, NioHttpPlugin.NIO_HTTP_TRANSPORT_NAME);
+        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, NioPlugin.NIO_TRANSPORT_NAME);
+        builder.put(NetworkModule.HTTP_TYPE_KEY, NioPlugin.NIO_HTTP_TRANSPORT_NAME);
         return builder.build();
     }
 
     @Override
     protected Settings transportClientSettings() {
         Settings.Builder builder = Settings.builder().put(super.transportClientSettings());
-        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, NioHttpPlugin.NIO_TRANSPORT_NAME);
+        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, NioPlugin.NIO_TRANSPORT_NAME);
         return  builder.build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(NioHttpPlugin.class);
+        return Arrays.asList(NioPlugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(NioHttpPlugin.class);
+        return Arrays.asList(NioPlugin.class);
     }
 
 }

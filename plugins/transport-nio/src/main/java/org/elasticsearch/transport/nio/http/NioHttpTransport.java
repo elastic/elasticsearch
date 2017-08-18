@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.elasticsearch.transport.nio.http;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
@@ -44,7 +44,6 @@ import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.netty4.Netty4HttpRequest;
-import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,7 +58,6 @@ import org.elasticsearch.transport.nio.SocketSelector;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
-import org.elasticsearch.transport.nio.channel.TcpWriteContext;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -80,8 +78,6 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_RESET_COOKIES;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING;
-import static org.elasticsearch.transport.nio.NioTransport.TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX;
-import static org.elasticsearch.transport.nio.NioTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX;
 
 public class NioHttpTransport extends AbstractLifecycleComponent implements HttpServerTransport {
 

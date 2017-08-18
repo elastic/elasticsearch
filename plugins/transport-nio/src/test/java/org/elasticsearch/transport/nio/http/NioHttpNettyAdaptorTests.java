@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.elasticsearch.transport.nio.http;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFuture;
@@ -49,6 +49,8 @@ import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.transport.nio.channel.CloseFuture;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
+import org.elasticsearch.transport.nio.http.ESEmbeddedChannel;
+import org.elasticsearch.transport.nio.http.NioHttpNettyAdaptor;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 

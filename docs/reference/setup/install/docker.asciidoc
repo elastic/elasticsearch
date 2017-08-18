@@ -275,7 +275,7 @@ NOTE: One way of checking the Docker daemon defaults for the aforementioned ulim
 +
 . Swapping needs to be disabled for performance and node stability. This can be achieved through any of the methods mentioned in the <<setup-configuration-memory,Elasticsearch docs>>. If you opt for the `bootstrap.memory_lock: true` approach, apart from defining it through any of the <<docker-configuration-methods,configuration methods>>, you will additionally need the `memlock: true` ulimit, either defined in the https://docs.docker.com/engine/reference/commandline/dockerd/#default-ulimits[Docker Daemon] or specifically set for the container. This has been demonstrated earlier in the <<docker-prod-cluster-composefile,docker-compose.yml>>, or using `docker run`:
 +
-  -e "bootstrap_memory_lock=true" --ulimit memlock=-1:-1
+  -e "bootstrap.memory_lock=true" --ulimit memlock=-1:-1
 +
 . The image https://docs.docker.com/engine/reference/builder/#/expose[exposes] TCP ports 9200 and 9300. For clusters it is recommended to randomize the published ports with `--publish-all`, unless you are pinning one container per host.
 +

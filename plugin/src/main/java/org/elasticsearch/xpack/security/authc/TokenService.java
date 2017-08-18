@@ -6,8 +6,12 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -17,6 +21,12 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ack.AckedRequest;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -25,6 +35,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -33,6 +44,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -51,21 +63,31 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 /**
  * Service responsible for the creation, validation, and other management of {@link UserToken}
@@ -83,6 +105,7 @@ public final class TokenService extends AbstractComponent {
     private static final int ITERATIONS = 100000;
     private static final String KDF_ALGORITHM = "PBKDF2withHMACSHA512";
     private static final int SALT_BYTES = 32;
+    private static final int KEY_BYTES = 64;
     private static final int IV_BYTES = 12;
     private static final int VERSION_BYTES = 4;
     private static final String ENCRYPTION_CIPHER = "AES/GCM/NoPadding";
@@ -100,27 +123,25 @@ public final class TokenService extends AbstractComponent {
                     TimeValue.timeValueMinutes(30L), Property.NodeScope);
     public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting("xpack.security.authc.token.delete.timeout",
             TimeValue.MINUS_ONE, Property.NodeScope);
-    public static final String DEFAULT_PASSPHRASE = "changeme is a terrible password, so let's not use it anymore!";
 
     static final String DOC_TYPE = "invalidated-token";
     static final int MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
     static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
 
     private final SecureRandom secureRandom = new SecureRandom();
-    private final Cache<BytesKey, SecretKey> keyCache;
-    private final SecureString tokenPassphrase;
+    private final ClusterService clusterService;
     private final Clock clock;
     private final TimeValue expirationDelay;
     private final TimeValue deleteInterval;
-    private final BytesKey salt;
     private final InternalClient internalClient;
     private final SecurityLifecycleService lifecycleService;
     private final ExpiredTokenRemover expiredTokenRemover;
     private final boolean enabled;
     private final byte[] currentVersionBytes;
-
+    private volatile TokenKeys keyCache;
     private volatile long lastExpirationRunMs;
-
+    private final AtomicLong createdTimeStamps = new AtomicLong(-1);
+    private static final Version TOKEN_SERVICE_VERSION = Version.CURRENT;
 
     /**
      * Creates a new token service
@@ -129,21 +150,17 @@ public final class TokenService extends AbstractComponent {
      * @param internalClient the client to use when checking for revocations
      */
     public TokenService(Settings settings, Clock clock, InternalClient internalClient,
-                        SecurityLifecycleService lifecycleService) throws GeneralSecurityException {
+                        SecurityLifecycleService lifecycleService, ClusterService clusterService) throws GeneralSecurityException {
         super(settings);
         byte[] saltArr = new byte[SALT_BYTES];
         secureRandom.nextBytes(saltArr);
-        this.salt = new BytesKey(saltArr);
-        this.keyCache = CacheBuilder.<BytesKey, SecretKey>builder()
-                .setExpireAfterAccess(TimeValue.timeValueMinutes(60L))
-                .setMaximumWeight(500L)
-                .build();
+
         final SecureString tokenPassphraseValue = TOKEN_PASSPHRASE.get(settings);
+        final SecureString tokenPassphrase;
         if (tokenPassphraseValue.length() == 0) {
-            // setting didn't exist - we should only be in a non-production mode for this
-            this.tokenPassphrase = new SecureString(DEFAULT_PASSPHRASE.toCharArray());
+            tokenPassphrase = generateTokenKey();
         } else {
-            this.tokenPassphrase = tokenPassphraseValue;
+            tokenPassphrase = tokenPassphraseValue;
         }
 
         this.clock = clock.withZone(ZoneOffset.UTC);
@@ -154,12 +171,16 @@ public final class TokenService extends AbstractComponent {
         this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.enabled = XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(settings);
         this.expiredTokenRemover = new ExpiredTokenRemover(settings, internalClient);
-        this.currentVersionBytes = ByteBuffer.allocate(4).putInt(Version.CURRENT.id).array();
+        this.currentVersionBytes = ByteBuffer.allocate(4).putInt(TOKEN_SERVICE_VERSION.id).array();
         ensureEncryptionCiphersSupported();
-        try (SecureString closeableChars = tokenPassphrase.clone()) {
-            keyCache.put(salt, computeSecretKey(closeableChars.getChars(), salt.bytes));
-        }
+        KeyAndCache keyAndCache = new KeyAndCache(new KeyAndTimestamp(tokenPassphrase.clone(), createdTimeStamps.incrementAndGet()),
+                new BytesKey(saltArr));
+        keyCache = new TokenKeys(Collections.singletonMap(keyAndCache.getKeyHash(), keyAndCache), keyAndCache.getKeyHash());
+        this.clusterService = clusterService;
+        initialize(clusterService);
+        getTokenMetaData();
     }
+
 
     /**
      * Create a token based on the provided authentication
@@ -219,30 +240,43 @@ public final class TokenService extends AbstractComponent {
                 listener.onResponse(null);
             } else {
                 final BytesKey decodedSalt = new BytesKey(in.readByteArray());
-                final SecretKey decodeKey = keyCache.get(decodedSalt);
-                final byte[] iv = in.readByteArray();
-                if (decodeKey != null) {
-                    try {
-                        decryptToken(in, getDecryptionCipher(iv, decodeKey, version, decodedSalt), version, listener);
-                    } catch (GeneralSecurityException e) {
-                        // could happen with a token that is not ours
-                        logger.debug("invalid token", e);
-                        listener.onResponse(null);
+                final BytesKey passphraseHash;
+                if (version.onOrAfter(Version.V_7_0_0_alpha1)) {
+                    passphraseHash = new BytesKey(in.readByteArray());
+                } else {
+                    passphraseHash = keyCache.currentTokenKeyHash;
+                }
+                KeyAndCache keyAndCache = keyCache.get(passphraseHash);
+                if (keyAndCache != null) {
+                    final SecretKey decodeKey = keyAndCache.getKey(decodedSalt);
+                    final byte[] iv = in.readByteArray();
+                    if (decodeKey != null) {
+                        try {
+                            decryptToken(in, getDecryptionCipher(iv, decodeKey, version, decodedSalt), version, listener);
+                        } catch (GeneralSecurityException e) {
+                            // could happen with a token that is not ours
+                            logger.warn("invalid token", e);
+                            listener.onResponse(null);
+                        }
+                    } else {
+                        /* As a measure of protected against DOS, we can pass requests requiring a key
+                         * computation off to a single thread executor. For normal usage, the initial
+                         * request(s) that require a key computation will be delayed and there will be
+                         * some additional latency.
+                         */
+                        internalClient.threadPool().executor(THREAD_POOL_NAME)
+                                .submit(new KeyComputingRunnable(in, iv, version, decodedSalt, listener, keyAndCache));
                     }
                 } else {
-                    /* As a measure of protected against DOS, we can pass requests requiring a key
-                     * computation off to a single thread executor. For normal usage, the initial
-                     * request(s) that require a key computation will be delayed and there will be
-                     * some additional latency.
-                     */
-                    internalClient.threadPool().executor(THREAD_POOL_NAME)
-                            .submit(new KeyComputingRunnable(in, iv, version, decodedSalt, listener));
+                    logger.debug("invalid key {} key: {}", passphraseHash, keyCache.cache.keySet());
+                    listener.onResponse(null);
                 }
             }
         }
     }
 
-    private void decryptToken(StreamInput in, Cipher cipher, Version version, ActionListener<UserToken> listener) throws IOException {
+    private static void decryptToken(StreamInput in, Cipher cipher, Version version, ActionListener<UserToken> listener) throws
+            IOException {
         try (CipherInputStream cis = new CipherInputStream(in, cipher); StreamInput decryptedInput = new InputStreamStreamInput(cis)) {
             decryptedInput.setVersion(version);
             listener.onResponse(new UserToken(decryptedInput));
@@ -384,7 +418,7 @@ public final class TokenService extends AbstractComponent {
      * Gets the token from the <code>Authorization</code> header if the header begins with
      * <code>Bearer </code>
      */
-    private String getFromHeader(ThreadContext threadContext) {
+    String getFromHeader(ThreadContext threadContext) {
         String header = threadContext.getHeader("Authorization");
         if (Strings.hasLength(header) && header.startsWith("Bearer ")
                 && header.length() > "Bearer ".length()) {
@@ -401,11 +435,13 @@ public final class TokenService extends AbstractComponent {
         try (ByteArrayOutputStream os = new ByteArrayOutputStream(MINIMUM_BASE64_BYTES);
              OutputStream base64 = Base64.getEncoder().wrap(os);
              StreamOutput out = new OutputStreamStreamOutput(base64)) {
-            Version.writeVersion(Version.CURRENT, out);
-            out.writeByteArray(salt.bytes);
+            KeyAndCache keyAndCache = keyCache.activeKeyCache;
+            Version.writeVersion(TOKEN_SERVICE_VERSION, out);
+            out.writeByteArray(keyAndCache.getSalt().bytes);
+            out.writeByteArray(keyAndCache.getKeyHash().bytes); // TODO this requires a BWC layer in 5.6
             final byte[] initializationVector = getNewInitializationVector();
             out.writeByteArray(initializationVector);
-            try (CipherOutputStream encryptedOutput = new CipherOutputStream(out, getEncryptionCipher(initializationVector));
+            try (CipherOutputStream encryptedOutput = new CipherOutputStream(out, getEncryptionCipher(initializationVector, keyAndCache));
                  StreamOutput encryptedStreamOutput = new OutputStreamStreamOutput(encryptedOutput)) {
                 userToken.writeTo(encryptedStreamOutput);
                 encryptedStreamOutput.close();
@@ -419,9 +455,10 @@ public final class TokenService extends AbstractComponent {
         SecretKeyFactory.getInstance(KDF_ALGORITHM);
     }
 
-    private Cipher getEncryptionCipher(byte[] iv) throws GeneralSecurityException {
+    private Cipher getEncryptionCipher(byte[] iv, KeyAndCache keyAndCache) throws GeneralSecurityException {
         Cipher cipher = Cipher.getInstance(ENCRYPTION_CIPHER);
-        cipher.init(Cipher.ENCRYPT_MODE, keyCache.get(salt), new GCMParameterSpec(128, iv), secureRandom);
+        BytesKey salt = keyAndCache.getSalt();
+        cipher.init(Cipher.ENCRYPT_MODE, keyAndCache.getKey(salt), new GCMParameterSpec(128, iv), secureRandom);
         cipher.updateAAD(currentVersionBytes);
         cipher.updateAAD(salt.bytes);
         return cipher;
@@ -492,23 +529,22 @@ public final class TokenService extends AbstractComponent {
         private final BytesKey decodedSalt;
         private final ActionListener<UserToken> listener;
         private final byte[] iv;
+        private final KeyAndCache keyAndCache;
 
-        KeyComputingRunnable(StreamInput input, byte[] iv, Version version, BytesKey decodedSalt, ActionListener<UserToken> listener) {
+        KeyComputingRunnable(StreamInput input, byte[] iv, Version version, BytesKey decodedSalt, ActionListener<UserToken> listener,
+                             KeyAndCache keyAndCache) {
             this.in = input;
             this.version = version;
             this.decodedSalt = decodedSalt;
             this.listener = listener;
             this.iv = iv;
+            this.keyAndCache = keyAndCache;
         }
 
         @Override
         protected void doRun() {
             try {
-                final SecretKey computedKey = keyCache.computeIfAbsent(decodedSalt, (salt) -> {
-                    try (SecureString closeableChars = tokenPassphrase.clone()) {
-                        return computeSecretKey(closeableChars.getChars(), decodedSalt.bytes);
-                    }
-                });
+                final SecretKey computedKey = keyAndCache.getOrComputeKey(decodedSalt);
                 decryptToken(in, getDecryptionCipher(iv, computedKey, version, decodedSalt), version, listener);
             } catch (ExecutionException e) {
                 if (e.getCause() != null &&
@@ -569,5 +605,337 @@ public final class TokenService extends AbstractComponent {
             BytesKey otherBytes = (BytesKey) other;
             return Arrays.equals(otherBytes.bytes, bytes);
         }
+
+        @Override
+        public String toString() {
+            return new BytesRef(bytes).toString();
+        }
     }
+
+    /**
+     * Creates a new key unless present that is newer than the current active key and returns the corresponding metadata. Note:
+     * this method doesn't modify the metadata used in this token service. See {@link #refreshMetaData(TokenMetaData)}
+     */
+    synchronized TokenMetaData generateSpareKey() {
+        KeyAndCache maxKey = keyCache.cache.values().stream().max(Comparator.comparingLong(v -> v.keyAndTimestamp.timestamp)).get();
+        KeyAndCache currentKey = keyCache.activeKeyCache;
+        if (currentKey == maxKey) {
+            long timestamp = createdTimeStamps.incrementAndGet();
+            while (true) {
+                byte[] saltArr = new byte[SALT_BYTES];
+                secureRandom.nextBytes(saltArr);
+                SecureString tokenKey = generateTokenKey();
+                KeyAndCache keyAndCache = new KeyAndCache(new KeyAndTimestamp(tokenKey, timestamp), new BytesKey(saltArr));
+                if (keyCache.cache.containsKey(keyAndCache.getKeyHash())) {
+                    continue; // collision -- generate a new key
+                }
+                return newTokenMetaData(keyCache.currentTokenKeyHash, Iterables.concat(keyCache.cache.values(),
+                        Collections.singletonList(keyAndCache)));
+            }
+        }
+        return newTokenMetaData(keyCache.currentTokenKeyHash, keyCache.cache.values());
+    }
+
+    /**
+     * Rotate the current active key to the spare key created in the previous {@link #generateSpareKey()} call.
+     */
+    synchronized TokenMetaData rotateToSpareKey() {
+        KeyAndCache maxKey = keyCache.cache.values().stream().max(Comparator.comparingLong(v -> v.keyAndTimestamp.timestamp)).get();
+        if (maxKey == keyCache.activeKeyCache) {
+            throw new IllegalStateException("call generateSpareKey first");
+        }
+        return newTokenMetaData(maxKey.getKeyHash(), keyCache.cache.values());
+    }
+
+    /**
+     * Prunes the keys and keeps up to the latest N keys around
+     * @param numKeysToKeep the number of keys to keep.
+     */
+    synchronized TokenMetaData pruneKeys(int numKeysToKeep) {
+        if (keyCache.cache.size() <= numKeysToKeep) {
+            return getTokenMetaData(); // nothing to do
+        }
+        Map<BytesKey, KeyAndCache> map = new HashMap<>(keyCache.cache.size() + 1);
+        KeyAndCache currentKey = keyCache.get(keyCache.currentTokenKeyHash);
+        ArrayList<KeyAndCache> entries = new ArrayList<>(keyCache.cache.values());
+        Collections.sort(entries,
+                (left, right) ->  Long.compare(right.keyAndTimestamp.timestamp, left.keyAndTimestamp.timestamp));
+        for (KeyAndCache value: entries) {
+            if (map.size() < numKeysToKeep || value.keyAndTimestamp.timestamp >= currentKey
+                    .keyAndTimestamp.timestamp) {
+                logger.debug("keeping key {} ", value.getKeyHash());
+                map.put(value.getKeyHash(), value);
+            } else {
+                logger.debug("prune key {} ", value.getKeyHash());
+            }
+        }
+        assert map.isEmpty() == false;
+        assert map.containsKey(keyCache.currentTokenKeyHash);
+        return newTokenMetaData(keyCache.currentTokenKeyHash, map.values());
+    }
+
+    /**
+     * Returns the current in-use metdata of this {@link TokenService}
+     */
+    public synchronized TokenMetaData getTokenMetaData() {
+        return newTokenMetaData(keyCache.currentTokenKeyHash, keyCache.cache.values());
+    }
+
+    private TokenMetaData newTokenMetaData(BytesKey activeTokenKey, Iterable<KeyAndCache> iterable) {
+        List<KeyAndTimestamp> list = new ArrayList<>();
+        for (KeyAndCache v : iterable) {
+            list.add(v.keyAndTimestamp);
+        }
+        return new TokenMetaData(list, activeTokenKey.bytes);
+    }
+
+    /**
+     * Refreshes the current in-use metadata.
+     */
+    synchronized void refreshMetaData(TokenMetaData metaData) {
+        BytesKey currentUsedKeyHash = new BytesKey(metaData.currentKeyHash);
+        byte[] saltArr = new byte[SALT_BYTES];
+        Map<BytesKey, KeyAndCache> map = new HashMap<>(metaData.keys.size());
+        long maxTimestamp = createdTimeStamps.get();
+        for (KeyAndTimestamp key :  metaData.keys) {
+            secureRandom.nextBytes(saltArr);
+            KeyAndCache keyAndCache = new KeyAndCache(key, new BytesKey(saltArr));
+            maxTimestamp = Math.max(keyAndCache.keyAndTimestamp.timestamp, maxTimestamp);
+            if (keyCache.cache.containsKey(keyAndCache.getKeyHash()) == false) {
+                map.put(keyAndCache.getKeyHash(), keyAndCache);
+            } else {
+                map.put(keyAndCache.getKeyHash(), keyCache.get(keyAndCache.getKeyHash())); // maintain the cache we already have
+            }
+        }
+        if (map.containsKey(currentUsedKeyHash) == false) {
+            // this won't leak any secrets it's only exposing the current set of hashes
+            throw new IllegalStateException("Current key is not in the map: " + map.keySet() + " key: " + currentUsedKeyHash);
+        }
+        createdTimeStamps.set(maxTimestamp);
+        keyCache = new TokenKeys(Collections.unmodifiableMap(map), currentUsedKeyHash);
+        logger.debug("refreshed keys current: {}, keys: {}", currentUsedKeyHash, keyCache.cache.keySet());
+    }
+
+    private SecureString generateTokenKey() {
+        byte[] keyBytes = new byte[KEY_BYTES];
+        byte[] encode = new byte[0];
+        char[] ref = new char[0];
+        try {
+            secureRandom.nextBytes(keyBytes);
+            encode = Base64.getUrlEncoder().withoutPadding().encode(keyBytes);
+            ref = new char[encode.length];
+            int len = UnicodeUtil.UTF8toUTF16(encode, 0, encode.length, ref);
+            return new SecureString(Arrays.copyOfRange(ref, 0, len));
+        } finally {
+            Arrays.fill(keyBytes, (byte) 0x00);
+            Arrays.fill(encode, (byte) 0x00);
+            Arrays.fill(ref, (char) 0x00);
+        }
+    }
+
+    synchronized String getActiveKeyHash() {
+        return new BytesRef(Base64.getUrlEncoder().withoutPadding().encode(this.keyCache.currentTokenKeyHash.bytes)).utf8ToString();
+    }
+
+    void rotateKeysOnMaster(ActionListener<ClusterStateUpdateResponse> listener) {
+        logger.info("rotate keys on master");
+        TokenMetaData tokenMetaData = generateSpareKey();
+        clusterService.submitStateUpdateTask("publish next key to prepare key rotation",
+                new TokenMetadataPublishAction(
+                        ActionListener.wrap((res) -> {
+                            if (res.isAcknowledged()) {
+                                TokenMetaData metaData = rotateToSpareKey();
+                                clusterService.submitStateUpdateTask("publish next key to prepare key rotation",
+                                        new TokenMetadataPublishAction(listener, metaData));
+                            } else {
+                                listener.onFailure(new IllegalStateException("not acked"));
+                            }
+                        }, listener::onFailure), tokenMetaData));
+    }
+
+    private final class TokenMetadataPublishAction extends AckedClusterStateUpdateTask<ClusterStateUpdateResponse> {
+
+        private final TokenMetaData tokenMetaData;
+
+        protected TokenMetadataPublishAction(ActionListener<ClusterStateUpdateResponse> listener, TokenMetaData tokenMetaData) {
+            super(new AckedRequest() {
+                @Override
+                public TimeValue ackTimeout() {
+                    return AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
+                }
+
+                @Override
+                public TimeValue masterNodeTimeout() {
+                    return AcknowledgedRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+                }
+            }, listener);
+            this.tokenMetaData = tokenMetaData;
+        }
+
+        @Override
+        public ClusterState execute(ClusterState currentState) throws Exception {
+            if (tokenMetaData.equals(currentState.custom(TokenMetaData.TYPE))) {
+                return currentState;
+            }
+            return ClusterState.builder(currentState).putCustom(TokenMetaData.TYPE, tokenMetaData).build();
+        }
+
+        @Override
+        protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+            return new ClusterStateUpdateResponse(acknowledged);
+        }
+
+    }
+
+    private void initialize(ClusterService clusterService) {
+        clusterService.addListener(event -> {
+            ClusterState state = event.state();
+            if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
+                return;
+            }
+
+            TokenMetaData custom = event.state().custom(TokenMetaData.TYPE);
+            if (custom != null && custom.equals(getTokenMetaData()) == false) {
+                logger.info("refresh keys");
+                try {
+                    refreshMetaData(custom);
+                } catch (Exception e) {
+                    logger.warn(e);
+                }
+                logger.info("refreshed keys");
+            }
+        });
+    }
+
+    static final class KeyAndTimestamp implements Writeable {
+        private final SecureString key;
+        private final long timestamp;
+
+        private KeyAndTimestamp(SecureString key, long timestamp) {
+            this.key = key;
+            this.timestamp = timestamp;
+        }
+
+        KeyAndTimestamp(StreamInput input) throws IOException {
+            timestamp = input.readVLong();
+            byte[] keyBytes = input.readByteArray();
+            final char[] ref = new char[keyBytes.length];
+            int len = UnicodeUtil.UTF8toUTF16(keyBytes, 0, keyBytes.length, ref);
+            key = new SecureString(Arrays.copyOfRange(ref, 0, len));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(timestamp);
+            BytesRef bytesRef = new BytesRef(key);
+            out.writeVInt(bytesRef.length);
+            out.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            KeyAndTimestamp that = (KeyAndTimestamp) o;
+
+            if (timestamp != that.timestamp) return false;
+            return key.equals(that.key);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = key.hashCode();
+            result = 31 * result + (int) (timestamp ^ (timestamp >>> 32));
+            return result;
+        }
+    }
+
+    static final class KeyAndCache implements Closeable {
+        private final KeyAndTimestamp keyAndTimestamp;
+        private final Cache<BytesKey, SecretKey> keyCache;
+        private final BytesKey salt;
+        private final BytesKey keyHash;
+
+        private KeyAndCache(KeyAndTimestamp keyAndTimestamp, BytesKey salt) {
+            this.keyAndTimestamp = keyAndTimestamp;
+            keyCache = CacheBuilder.<BytesKey, SecretKey>builder()
+                    .setExpireAfterAccess(TimeValue.timeValueMinutes(60L))
+                    .setMaximumWeight(500L)
+                    .build();
+            try {
+                SecretKey secretKey = computeSecretKey(keyAndTimestamp.key.getChars(), salt.bytes);
+                keyCache.put(salt, secretKey);
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+            this.salt = salt;
+            this.keyHash = calculateKeyHash(keyAndTimestamp.key);
+        }
+
+        private SecretKey getKey(BytesKey salt) {
+            return keyCache.get(salt);
+        }
+
+        public SecretKey getOrComputeKey(BytesKey decodedSalt) throws ExecutionException {
+            return keyCache.computeIfAbsent(decodedSalt, (salt) -> {
+                try (SecureString closeableChars = keyAndTimestamp.key.clone()) {
+                    return computeSecretKey(closeableChars.getChars(), salt.bytes);
+                }
+            });
+        }
+
+        @Override
+        public void close() throws IOException {
+            keyAndTimestamp.key.close();
+        }
+
+        BytesKey getKeyHash() {
+           return keyHash;
+        }
+
+        private static BytesKey calculateKeyHash(SecureString key) {
+            MessageDigest messageDigest = null;
+            try {
+                messageDigest = MessageDigest.getInstance("SHA-256");
+            } catch (NoSuchAlgorithmException e) {
+                throw new AssertionError(e);
+            }
+            BytesRefBuilder b = new BytesRefBuilder();
+            try {
+                b.copyChars(key);
+                BytesRef bytesRef = b.toBytesRef();
+                try {
+                    messageDigest.update(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                    return new BytesKey(Arrays.copyOfRange(messageDigest.digest(), 0, 8));
+                } finally {
+                    Arrays.fill(bytesRef.bytes, (byte) 0x00);
+                }
+            } finally {
+                Arrays.fill(b.bytes(), (byte) 0x00);
+            }
+        }
+
+        BytesKey getSalt() {
+            return salt;
+        }
+    }
+
+
+    private static final class TokenKeys {
+        final Map<BytesKey, KeyAndCache> cache;
+        final BytesKey currentTokenKeyHash;
+        final KeyAndCache activeKeyCache;
+        
+        private TokenKeys(Map<BytesKey, KeyAndCache> cache, BytesKey currentTokenKeyHash) {
+            this.cache = cache;
+            this.currentTokenKeyHash = currentTokenKeyHash;
+            this.activeKeyCache = cache.get(currentTokenKeyHash);
+        }
+
+        KeyAndCache get(BytesKey passphraseHash) {
+            return cache.get(passphraseHash);
+        }
+    }
+
 }

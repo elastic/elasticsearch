@@ -17,17 +17,14 @@ import static org.elasticsearch.xpack.security.TokenPassphraseBootstrapCheck.MIN
 public class TokenPassphraseBootstrapCheckTests extends ESTestCase {
 
     public void testTokenPassphraseCheck() throws Exception {
-        assertTrue(new TokenPassphraseBootstrapCheck(Settings.EMPTY).check());
+        assertFalse(new TokenPassphraseBootstrapCheck(Settings.EMPTY).check());
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("foo", "bar"); // leniency in setSecureSettings... if its empty it's skipped
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
-        assertTrue(new TokenPassphraseBootstrapCheck(settings).check());
+        assertFalse(new TokenPassphraseBootstrapCheck(settings).check());
 
         secureSettings.setString(TokenService.TOKEN_PASSPHRASE.getKey(), randomAlphaOfLengthBetween(MINIMUM_PASSPHRASE_LENGTH, 30));
         assertFalse(new TokenPassphraseBootstrapCheck(settings).check());
-
-        secureSettings.setString(TokenService.TOKEN_PASSPHRASE.getKey(), TokenService.DEFAULT_PASSPHRASE);
-        assertTrue(new TokenPassphraseBootstrapCheck(settings).check());
 
         secureSettings.setString(TokenService.TOKEN_PASSPHRASE.getKey(), randomAlphaOfLengthBetween(1, MINIMUM_PASSPHRASE_LENGTH - 1));
         assertTrue(new TokenPassphraseBootstrapCheck(settings).check());
@@ -44,8 +41,6 @@ public class TokenPassphraseBootstrapCheckTests extends ESTestCase {
         secureSettings.setString(TokenService.TOKEN_PASSPHRASE.getKey(), randomAlphaOfLengthBetween(1, 30));
         assertFalse(new TokenPassphraseBootstrapCheck(settings).check());
 
-        secureSettings.setString(TokenService.TOKEN_PASSPHRASE.getKey(), TokenService.DEFAULT_PASSPHRASE);
-        assertFalse(new TokenPassphraseBootstrapCheck(settings).check());
     }
 
     public void testTokenPassphraseCheckAfterSecureSettingsClosed() throws Exception {
@@ -53,7 +48,7 @@ public class TokenPassphraseBootstrapCheckTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("foo", "bar"); // leniency in setSecureSettings... if its empty it's skipped
         settings = Settings.builder().put(settings).setSecureSettings(secureSettings).build();
-        secureSettings.setString(TokenService.TOKEN_PASSPHRASE.getKey(), TokenService.DEFAULT_PASSPHRASE);
+        secureSettings.setString(TokenService.TOKEN_PASSPHRASE.getKey(), randomAlphaOfLengthBetween(1, MINIMUM_PASSPHRASE_LENGTH - 1));
         final TokenPassphraseBootstrapCheck check = new TokenPassphraseBootstrapCheck(settings);
         secureSettings.close();
         assertTrue(check.check());

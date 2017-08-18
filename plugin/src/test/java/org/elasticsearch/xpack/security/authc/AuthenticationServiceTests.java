@@ -26,9 +26,11 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -133,7 +135,9 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadContext = threadPool.getThreadContext();
         InternalClient internalClient = new InternalClient(Settings.EMPTY, threadPool, client);
         lifecycleService = mock(SecurityLifecycleService.class);
-        tokenService = new TokenService(settings, Clock.systemUTC(), internalClient, lifecycleService);
+        ClusterService clusterService = new ClusterService(settings, new ClusterSettings(settings, ClusterSettings
+                .BUILT_IN_CLUSTER_SETTINGS), threadPool, Collections.emptyMap());
+        tokenService = new TokenService(settings, Clock.systemUTC(), internalClient, lifecycleService, clusterService);
         service = new AuthenticationService(settings, realms, auditTrail,
                 new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(settings), tokenService);
     }

@@ -70,28 +70,6 @@ public interface ActionListener<Response> {
     }
 
     /**
-     * Creates a listener that listens for a response (or failure) and executes the
-     * corresponding runnable when the response (or failure) is received.
-     *
-     * @param runnable the runnable to be executed when the listener is called.
-     * @param <Response> the type of the response
-     * @return a listener that listens for responses and invokes the runnable when received
-     */
-    static <Response> ActionListener<Response> wrap(Runnable runnable) {
-        return new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                runnable.run();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                runnable.run();
-            }
-        };
-    }
-
-    /**
      * Notifies every given listener with the response passed to {@link #onResponse(Object)}. If a listener itself throws an exception
      * the exception is forwarded to {@link #onFailure(Exception)}. If in turn {@link #onFailure(Exception)} fails all remaining
      * listeners will be processed and the caught exception will be re-thrown.

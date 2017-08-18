@@ -70,7 +70,7 @@ public class NioServerSocketChannelTests extends ESTestCase {
             ref.set(c);
             latch.countDown();
         };
-        channel.getCloseFuture().addListener(ActionListener.wrap(() -> listener.accept(channel)));
+        channel.getCloseFuture().addListener(ActionListener.wrap(listener::accept, (e) -> listener.accept(channel)));
 
         CloseFuture closeFuture = channel.getCloseFuture();
 

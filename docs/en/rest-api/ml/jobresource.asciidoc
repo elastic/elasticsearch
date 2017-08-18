@@ -28,6 +28,11 @@ so do not set the `background_persist_interval` value too low.
 `create_time`::
   (string) The time the job was created. For example, `1491007356077`.
 
+`custom_settings`::
+  (object) Advanced configuration option. Contains custom meta data about the
+  job. For example, it can contain custom URL information as shown in
+  {xpack-ref}/ml-configuring-url.html[Adding Custom URLs to Machine Learning Results].
+
 `data_description`::
   (object) Describes the data format and how APIs parse timestamp fields.
   See <<ml-datadescription,data description objects>>.

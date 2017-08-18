@@ -278,16 +278,6 @@ setup:
                   compression: -1
 
   - do:
-      catch: /\[percents\] must not be empty/
-      search:
-        body:
-          aggs:
-            percentiles_int:
-              percentiles:
-                field: int_field
-                percents: []
-
-  - do:
       catch: request
       search:
         body:
@@ -315,6 +305,24 @@ setup:
             percentiles_string:
               percentiles:
                 field: string_field
+
+---
+"Invalid params, new to 6.x":
+  - skip:
+      version:     " - 5.99.99"
+      reason:      Some params were made stricter in 6.0+
+
+  - do:
+      catch: /\[percents\] must not be empty/
+      search:
+        body:
+          aggs:
+            percentiles_int:
+              percentiles:
+                field: int_field
+                hdr: {}
+                percents: []
+
 
 ---
 "Explicit Percents test":

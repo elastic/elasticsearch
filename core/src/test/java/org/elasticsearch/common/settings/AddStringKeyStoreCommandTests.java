@@ -22,7 +22,6 @@ package org.elasticsearch.common.settings;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.Map;
 
 import org.elasticsearch.cli.Command;
@@ -40,7 +39,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new AddStringKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path configPath) {
+            protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
                 return env;
             }
             @Override
@@ -50,10 +49,23 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         };
     }
 
-    public void testMissing() throws Exception {
-        UserException e = expectThrows(UserException.class, this::execute);
-        assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("keystore not found"));
+    public void testMissingPromptCreate() throws Exception {
+        terminal.addTextInput("y");
+        terminal.addSecretInput("bar");
+        execute("foo");
+        assertSecureString("foo", "bar");
+    }
+
+    public void testMissingForceCreate() throws Exception {
+        terminal.addSecretInput("bar");
+        execute("-f", "foo");
+        assertSecureString("foo", "bar");
+    }
+
+    public void testMissingNoCreate() throws Exception {
+        terminal.addTextInput("n"); // explicit no
+        execute("foo");
+        assertNull(KeyStoreWrapper.load(env.configFile()));
     }
 
     public void testOverwritePromptDefault() throws Exception {

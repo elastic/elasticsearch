@@ -86,7 +86,16 @@ public class DocumentFieldTests extends ESTestCase {
         List<Supplier<DocumentField>> mutations = new ArrayList<>();
         mutations.add(() -> new DocumentField(randomUnicodeOfCodepointLength(15), documentField.getValues()));
         mutations.add(() -> new DocumentField(documentField.getName(), randomDocumentField(XContentType.JSON).v1().getValues()));
-        return randomFrom(mutations).get();
+        final int index = randomFrom(0, 1);
+        final DocumentField randomCandidate = mutations.get(index).get();
+        if (!documentField.equals(randomCandidate)) {
+            return randomCandidate;
+        } else {
+            // we are unlucky and our random mutation is equal to our mutation, try the other candidate
+            final DocumentField otherCandidate = mutations.get(1 - index).get();
+            assert !documentField.equals(otherCandidate) : documentField;
+            return otherCandidate;
+        }
     }
 
     public static Tuple<DocumentField, DocumentField> randomDocumentField(XContentType xContentType) {

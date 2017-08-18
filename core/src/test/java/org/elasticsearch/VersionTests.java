@@ -27,14 +27,18 @@ import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.Version.V_5_3_0;
 import static org.elasticsearch.Version.V_6_0_0_beta1;
+import static org.elasticsearch.test.VersionUtils.allVersions;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
@@ -170,7 +174,7 @@ public class VersionTests extends ESTestCase {
         assertThat(Version.fromString("2.3.0").minimumCompatibilityVersion(), equalTo(major));
         // from 6.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
         // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()
-        Version lastVersion = VersionUtils.getPreviousVersion(Version.V_6_0_0_alpha1);
+        Version lastVersion = Version.V_5_6_0; // TODO: remove this once min compat version is a constant instead of method
         assertEquals(lastVersion.major, Version.V_6_0_0_beta1.minimumCompatibilityVersion().major);
         assertEquals("did you miss to bump the minor in Version#minimumCompatibilityVersion()",
                 lastVersion.minor, Version.V_6_0_0_beta1.minimumCompatibilityVersion().minor);
@@ -330,19 +334,29 @@ public class VersionTests extends ESTestCase {
 
     public void testIsCompatible() {
         assertTrue(isCompatible(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
-        assertTrue(isCompatible(Version.V_5_5_0, Version.V_6_0_0_alpha2));
+        assertTrue(isCompatible(Version.V_5_6_0, Version.V_6_0_0_alpha2));
         assertFalse(isCompatible(Version.fromId(2000099), Version.V_6_0_0_alpha2));
         assertFalse(isCompatible(Version.fromId(2000099), Version.V_5_0_0));
-        assertTrue(isCompatible(Version.fromString("6.0.0"), Version.fromString("7.0.0")));
-        if (Version.CURRENT.isRelease()) {
-            assertTrue(isCompatible(Version.CURRENT, Version.fromString("7.0.0")));
-        } else {
-            assertFalse(isCompatible(Version.CURRENT, Version.fromString("7.0.0")));
-        }
+        assertTrue(isCompatible(Version.fromString("6.1.0"), Version.fromString("7.0.0")));
+        assertFalse(isCompatible(Version.fromString("6.0.0-alpha1"), Version.fromString("7.0.0")));
         assertFalse("only compatible with the latest minor",
             isCompatible(VersionUtils.getPreviousMinorVersion(), Version.fromString("7.0.0")));
         assertFalse(isCompatible(Version.V_5_0_0, Version.fromString("6.0.0")));
         assertFalse(isCompatible(Version.V_5_0_0, Version.fromString("7.0.0")));
+
+        Version a = randomVersion(random());
+        Version b = randomVersion(random());
+        assertThat(a.isCompatible(b), equalTo(b.isCompatible(a)));
+    }
+
+    /* tests that if a new version's minCompatVersion is always equal or higher to any older version */
+    public void testMinCompatVersionOrderRespectsVersionOrder() {
+        List<Version> versionsByMinCompat = new ArrayList<>(allVersions());
+        versionsByMinCompat.sort(Comparator.comparing(Version::minimumCompatibilityVersion));
+        assertThat(versionsByMinCompat, equalTo(allVersions()));
+
+        versionsByMinCompat.sort(Comparator.comparing(Version::minimumIndexCompatibilityVersion));
+        assertThat(versionsByMinCompat, equalTo(allVersions()));
     }
 
 
@@ -358,6 +372,18 @@ public class VersionTests extends ESTestCase {
     public void testUnreleasedVersion() {
         Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");
         VersionTests.assertUnknownVersion(VERSION_5_1_0_UNRELEASED);
+    }
+
+    public void testDisplayVersion() {
+        final Version version = randomVersion(random());
+        {
+            final String displayVersion = Version.displayVersion(version, true);
+            assertThat(displayVersion, equalTo(version.toString() + "-SNAPSHOT"));
+        }
+        {
+            final String displayVersion = Version.displayVersion(version, false);
+            assertThat(displayVersion, equalTo(version.toString()));
+        }
     }
 
 }

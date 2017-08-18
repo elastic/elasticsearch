@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -79,10 +80,12 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
         transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null);
         transportService.start();
         transportService.acceptIncomingRequests();
+        String transport = getTestTransportType();
         TransportClient client = new MockTransportClient(Settings.builder()
                 .put("client.transport.sniff", false)
                 .put("cluster.name", "cluster1")
                 .put("node.name", "transport_client_" + this.getTestName())
+                .put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), transport)
                 .put(headersSettings)
                 .build(), InternalTransportServiceInterceptor.TestPlugin.class);
         InternalTransportServiceInterceptor.TestPlugin plugin = client.injector.getInstance(PluginsService.class)
@@ -94,12 +97,14 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
     }
 
     public void testWithSniffing() throws Exception {
+        String transport = getTestTransportType();
         try (TransportClient client = new MockTransportClient(
                 Settings.builder()
                         .put("client.transport.sniff", true)
                         .put("cluster.name", "cluster1")
                         .put("node.name", "transport_client_" + this.getTestName() + "_1")
                         .put("client.transport.nodes_sampler_interval", "1s")
+                        .put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), transport)
                         .put(HEADER_SETTINGS)
                         .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(),
                 InternalTransportServiceInterceptor.TestPlugin.class)) {

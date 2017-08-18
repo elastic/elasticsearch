@@ -40,7 +40,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
 
@@ -582,7 +582,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         }
     }
 
-    public static class Info implements Writeable, ToXContent {
+    public static class Info implements Writeable, ToXContentFragment {
 
         private final String name;
         private final ThreadPoolType type;

@@ -53,7 +53,7 @@ GET /_cat/nodes?v&h=id,ip,port,v,m
 
 Might look like:
 
-["source","js",subs="attributes,callouts"]
+["source","txt",subs="attributes,callouts"]
 --------------------------------------------------
 id   ip        port  v         m
 veJR 127.0.0.1 59938 {version} *

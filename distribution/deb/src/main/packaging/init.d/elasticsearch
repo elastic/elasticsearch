@@ -45,7 +45,7 @@ MAX_OPEN_FILES=65536
 #MAX_LOCKED_MEMORY=
 
 # Elasticsearch configuration directory
-CONF_DIR=/etc/$NAME
+ES_PATH_CONF=/etc/$NAME
 
 # Maximum number of VMA (Virtual Memory Areas) a process can own
 MAX_MAP_COUNT=262144
@@ -60,12 +60,6 @@ if [ -f "$DEFAULT" ]; then
 	. "$DEFAULT"
 fi
 
-# CONF_FILE setting was removed
-if [ ! -z "$CONF_FILE" ]; then
-    echo "CONF_FILE setting is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed."
-    exit 1
-fi
-
 # ES_USER and ES_GROUP settings were removed
 if [ ! -z "$ES_USER" ] || [ ! -z "$ES_GROUP" ]; then
     echo "ES_USER and ES_GROUP settings are no longer supported. To run as a custom user/group use the archive distribution of Elasticsearch."
@@ -75,12 +69,11 @@ fi
 # Define other required variables
 PID_FILE="$PID_DIR/$NAME.pid"
 DAEMON=$ES_HOME/bin/elasticsearch
-DAEMON_OPTS="-d -p $PID_FILE --path.conf $CONF_DIR"
+DAEMON_OPTS="-d -p $PID_FILE"
 
 export ES_JAVA_OPTS
 export JAVA_HOME
-export ES_INCLUDE
-export CONF_DIR
+export ES_PATH_CONF
 
 if [ ! -x "$DAEMON" ]; then
 	echo "The elasticsearch startup script does not exists or it is not executable, tried: $DAEMON"

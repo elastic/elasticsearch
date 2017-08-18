@@ -30,7 +30,6 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
-import java.nio.channels.SocketChannel;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -186,102 +185,21 @@ public class TcpWriteContextTests extends ESTestCase {
         assertFalse(writeContext.hasQueuedWriteOps());
     }
 
-    private class ConsumeAllChannel extends NioSocketChannel {
+    public void testWhenIOExceptionThrownListenerIsCalled() throws IOException {
+        assertFalse(writeContext.hasQueuedWriteOps());
 
-        private byte[] bytes;
-        private byte[] bytes2;
+        WriteOperation writeOperation = mock(WriteOperation.class);
+        writeContext.queueWriteOperations(writeOperation);
 
-        ConsumeAllChannel() throws IOException {
-            super("", mock(SocketChannel.class));
-        }
+        assertTrue(writeContext.hasQueuedWriteOps());
 
-        public int write(ByteBuffer buffer) throws IOException {
-            bytes = new byte[buffer.remaining()];
-            buffer.get(bytes);
-            return bytes.length;
-        }
+        IOException exception = new IOException();
+        when(writeOperation.flush()).thenThrow(exception);
+        when(writeOperation.getListener()).thenReturn(listener);
+        expectThrows(IOException.class, () -> writeContext.flushChannel());
 
-        public long vectorizedWrite(ByteBuffer[] buffer) throws IOException {
-            if (buffer.length != 2) {
-                throw new IOException("Only allows 2 buffers");
-            }
-            bytes = new byte[buffer[0].remaining()];
-            buffer[0].get(bytes);
-
-            bytes2 = new byte[buffer[1].remaining()];
-            buffer[1].get(bytes2);
-            return bytes.length + bytes2.length;
-        }
-    }
-
-    private class HalfConsumeChannel extends NioSocketChannel {
-
-        private byte[] bytes;
-        private byte[] bytes2;
-
-        HalfConsumeChannel() throws IOException {
-            super("", mock(SocketChannel.class));
-        }
-
-        public int write(ByteBuffer buffer) throws IOException {
-            bytes = new byte[buffer.limit() / 2];
-            buffer.get(bytes);
-            return bytes.length;
-        }
-
-        public long vectorizedWrite(ByteBuffer[] buffers) throws IOException {
-            if (buffers.length != 2) {
-                throw new IOException("Only allows 2 buffers");
-            }
-            if (bytes == null) {
-                bytes = new byte[buffers[0].remaining()];
-                bytes2 = new byte[buffers[1].remaining()];
-            }
-
-            if (buffers[0].remaining() != 0) {
-                buffers[0].get(bytes);
-                return bytes.length;
-            } else {
-                buffers[1].get(bytes2);
-                return bytes2.length;
-            }
-        }
-    }
-
-    private class MultiWriteChannel extends NioSocketChannel {
-
-        private byte[] write1Bytes;
-        private byte[] write1Bytes2;
-        private byte[] write2Bytes1;
-        private byte[] write2Bytes2;
-
-        MultiWriteChannel() throws IOException {
-            super("", mock(SocketChannel.class));
-        }
-
-        public long vectorizedWrite(ByteBuffer[] buffers) throws IOException {
-            if (buffers.length != 4 && write1Bytes == null) {
-                throw new IOException("Only allows 4 buffers");
-            } else if (buffers.length != 2 && write1Bytes != null) {
-                throw new IOException("Only allows 2 buffers on second write");
-            }
-            if (write1Bytes == null) {
-                write1Bytes = new byte[buffers[0].remaining()];
-                write1Bytes2 = new byte[buffers[1].remaining()];
-                write2Bytes1 = new byte[buffers[2].remaining()];
-                write2Bytes2 = new byte[buffers[3].remaining()];
-            }
-
-            if (buffers[0].remaining() != 0) {
-                buffers[0].get(write1Bytes);
-                buffers[1].get(write1Bytes2);
-                buffers[2].get(write2Bytes1);
-                return write1Bytes.length + write1Bytes2.length + write2Bytes1.length;
-            } else {
-                buffers[1].get(write2Bytes2);
-                return write2Bytes2.length;
-            }
-        }
+        verify(listener).onFailure(exception);
+        assertFalse(writeContext.hasQueuedWriteOps());
     }
 
     private byte[] generateBytes(int n) {
@@ -292,5 +210,4 @@ public class TcpWriteContextTests extends ESTestCase {
         }
         return bytes;
     }
-
 }

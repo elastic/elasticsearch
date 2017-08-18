@@ -28,6 +28,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +37,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.MockTransportClient;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -45,6 +47,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.ESTestCase.getTestTransportType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
@@ -60,7 +63,7 @@ public final class ExternalTestCluster extends TestCluster {
     private static final AtomicInteger counter = new AtomicInteger();
     public static final String EXTERNAL_CLUSTER_PREFIX = "external_";
 
-    private final Client client;
+    private final MockTransportClient client;
 
     private final InetSocketAddress[] httpAddresses;
 
@@ -80,15 +83,20 @@ public final class ExternalTestCluster extends TestCluster {
         boolean addMockTcpTransport = additionalSettings.get(NetworkModule.TRANSPORT_TYPE_KEY) == null;
 
         if (addMockTcpTransport) {
-            clientSettingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
-            if (pluginClasses.contains(MockTcpTransportPlugin.class) == false) {
+            String transport = getTestTransportType();
+            clientSettingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, transport);
+            if (pluginClasses.contains(MockTcpTransportPlugin.class) == false &&
+                pluginClasses.contains(NioTransportPlugin.class) == false) {
                 pluginClasses = new ArrayList<>(pluginClasses);
-                pluginClasses.add(MockTcpTransportPlugin.class);
+                if (transport.equals(NioTransportPlugin.NIO_TRANSPORT_NAME)) {
+                    pluginClasses.add(NioTransportPlugin.class);
+                } else {
+                    pluginClasses.add(MockTcpTransportPlugin.class);
+                }
             }
         }
         Settings clientSettings = clientSettingsBuilder.build();
-        TransportClient client = new MockTransportClient(clientSettings, pluginClasses);
-
+        MockTransportClient client = new MockTransportClient(clientSettings, pluginClasses);
         try {
             client.addTransportAddresses(transportAddresses);
             NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
@@ -109,6 +117,7 @@ public final class ExternalTestCluster extends TestCluster {
             this.numDataNodes = dataNodes;
             this.numMasterAndDataNodes = masterAndDataNodes;
             this.client = client;
+
             logger.info("Setup ExternalTestCluster [{}] made of [{}] nodes", nodeInfos.getClusterName().value(), size());
         } catch (Exception e) {
             client.close();
@@ -176,6 +185,11 @@ public final class ExternalTestCluster extends TestCluster {
     @Override
     public Iterable<Client> getClients() {
         return Collections.singleton(client);
+    }
+
+    @Override
+    public NamedWriteableRegistry getNamedWriteableRegistry() {
+        return client.getNamedWriteableRegistry();
     }
 
     @Override

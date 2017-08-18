@@ -496,14 +496,8 @@ public final class AnalysisRegistry implements Closeable {
             throw new IllegalArgumentException("no default analyzer configured");
         }
         if (analyzers.containsKey("default_index")) {
-            final Version createdVersion = indexSettings.getIndexVersionCreated();
-            if (createdVersion.onOrAfter(Version.V_5_0_0_alpha1)) {
-                throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use [index.analysis.analyzer.default] instead for index [" + index.getName() + "]");
-            } else {
-                deprecationLogger.deprecated("setting [index.analysis.analyzer.default_index] is deprecated, use [index.analysis.analyzer.default] instead for index [{}]", index.getName());
-            }
+            throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use [index.analysis.analyzer.default] instead for index [" + index.getName() + "]");
         }
-        NamedAnalyzer defaultIndexAnalyzer = analyzers.containsKey("default_index") ? analyzers.get("default_index") : defaultAnalyzer;
         NamedAnalyzer defaultSearchAnalyzer = analyzers.containsKey("default_search") ? analyzers.get("default_search") : defaultAnalyzer;
         NamedAnalyzer defaultSearchQuoteAnalyzer = analyzers.containsKey("default_search_quote") ? analyzers.get("default_search_quote") : defaultSearchAnalyzer;
 
@@ -512,7 +506,7 @@ public final class AnalysisRegistry implements Closeable {
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
-        return new IndexAnalyzers(indexSettings, defaultIndexAnalyzer, defaultSearchAnalyzer, defaultSearchQuoteAnalyzer,
+        return new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultSearchAnalyzer, defaultSearchQuoteAnalyzer,
             unmodifiableMap(analyzers), unmodifiableMap(normalizers));
     }
 
@@ -563,20 +557,7 @@ public final class AnalysisRegistry implements Closeable {
         // TODO: remove alias support completely when we no longer support pre 5.0 indices
         final String analyzerAliasKey = "index.analysis.analyzer." + analyzerFactory.name() + ".alias";
         if (indexSettings.getSettings().get(analyzerAliasKey) != null) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_0_0_beta1)) {
-                // do not allow alias creation if the index was created on or after v5.0 alpha6
-                throw new IllegalArgumentException("setting [" + analyzerAliasKey + "] is not supported");
-            }
-
-            // the setting is now removed but we only support it for loading indices created before v5.0
-            deprecationLogger.deprecated("setting [{}] is only allowed on index [{}] because it was created before 5.x; " +
-                "analyzer aliases can no longer be created on new indices.", analyzerAliasKey, indexSettings.getIndex().getName());
-            Set<String> aliases = Sets.newHashSet(indexSettings.getSettings().getAsArray(analyzerAliasKey));
-            for (String alias : aliases) {
-                if (analyzerAliases.putIfAbsent(alias, analyzer) != null) {
-                    throw new IllegalStateException("alias [" + alias + "] is already used by [" + analyzerAliases.get(alias).name() + "]");
-                }
-            }
+            throw new IllegalArgumentException("setting [" + analyzerAliasKey + "] is not supported");
         }
     }
 

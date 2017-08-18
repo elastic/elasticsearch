@@ -33,7 +33,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -49,12 +49,12 @@ import static org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRe
  * Consists of {@link StoreStatus}s for requested indices grouped by
  * indices and shard ids and a list of encountered node {@link Failure}s
  */
-public class IndicesShardStoresResponse extends ActionResponse implements ToXContent {
+public class IndicesShardStoresResponse extends ActionResponse implements ToXContentFragment {
 
     /**
      * Shard store information from a node
      */
-    public static class StoreStatus implements Streamable, ToXContent, Comparable<StoreStatus> {
+    public static class StoreStatus implements Streamable, ToXContentFragment, Comparable<StoreStatus> {
         private DiscoveryNode node;
         private String allocationId;
         private Exception storeException;

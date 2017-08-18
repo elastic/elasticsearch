@@ -17,7 +17,7 @@ PUT my_index
         "my_join_field": { <1>
           "type": "join",
           "relations": {
-            "my_parent": "my_child" <2>
+            "question": "answer" <2>
           }
         }
       }
@@ -28,34 +28,34 @@ PUT my_index
 // CONSOLE
 
 <1> The name for the field
-<2> Defines a single relation where `my_parent` is parent of `my_child`.
+<2> Defines a single relation where `question` is parent of `answer`.
 
 To index a document with a join, the name of the relation and the optional parent
 of the document must be provided in the `source`.
-For instance the following creates two parent documents in the `my_parent` context:
+For instance the following creates two parent documents in the `question` context:
 
 [source,js]
 --------------------------------------------------
 PUT my_index/doc/1?refresh
 {
-  "text": "This is a parent document",
+  "text": "This is a question",
   "my_join_field": {
-    "name": "my_parent" <1>
+    "name": "question" <1>
   }
 }
 
 PUT my_index/doc/2?refresh
 {
-  "text": "This is a another parent document",
+  "text": "This is a another question",
   "my_join_field": {
-    "name": "my_parent"
+    "name": "question"
   }
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
 
-<1> This document is a `my_parent` document.
+<1> This document is a `question` document.
 
 When indexing parent documents, you can choose to specify just the name of the relation
 as a shortcut instead of encapsulating it in the normal object notation:
@@ -64,14 +64,14 @@ as a shortcut instead of encapsulating it in the normal object notation:
 --------------------------------------------------
 PUT my_index/doc/1?refresh
 {
-  "text": "This is a parent document",
-  "my_join_field": "my_parent" <1>
+  "text": "This is a question",
+  "my_join_field": "question" <1>
 }
 
 PUT my_index/doc/2?refresh
 {
-  "text": "This is a another parent document",
-  "my_join_field": "my_parent"
+  "text": "This is another question",
+  "my_join_field": "question"
 }
 --------------------------------------------------
 // CONSOLE
@@ -85,7 +85,6 @@ must be added in the `_source`.
 WARNING: It is required to index the lineage of a parent in the same shard so you must
 always route child documents using their greater parent id.
 
-
 For instance the following index two children documents pointing to the same parent `1`
 with a `routing` value equals to the `id` of the parent:
 
@@ -93,18 +92,18 @@ with a `routing` value equals to the `id` of the parent:
 --------------------------------------------------
 PUT my_index/doc/3?routing=1&refresh <1>
 {
-  "text": "This is a child document",
+  "text": "This is an answer",
   "my_join_field": {
-    "name": "my_child", <2>
+    "name": "answer", <2>
     "parent": "1" <3>
   }
 }
 
 PUT my_index/doc/4?routing=1&refresh
 {
-  "text": "This is a another child document",
+  "text": "This is another answer",
   "my_join_field": {
-    "name": "my_child",
+    "name": "answer",
     "parent": "1"
   }
 }
@@ -113,12 +112,12 @@ PUT my_index/doc/4?routing=1&refresh
 // TEST[continued]
 
 <1> This child document must be on the same shard than its parent
-<2> `my_child` is the name of the join for this document
+<2> `answer` is the name of the join for this document
 <3> The parent id of this child document
 
 ==== Parent-join restrictions
 
-* Only one `join` field is allowed per index mapping.
+* Only one `join` field mapping is allowed per index.
 * Parent and child documents must be indexed on the same shard.
   This means that the same `routing` value needs to be provided when
   <<docs-get,getting>>, <<docs-delete,deleting>>, or <<docs-update,updating>>
@@ -175,8 +174,8 @@ Will return:
                 "_id": "1",
                 "_score": null,
                 "_source": {
-                    "text": "This is a parent document",
-                    "my_join_field": "my_parent" <1>
+                    "text": "This is a question",
+                    "my_join_field": "question" <1>
                 },
                 "sort": [
                     "1"
@@ -188,8 +187,8 @@ Will return:
                 "_id": "2",
                 "_score": null,
                 "_source": {
-                    "text": "This is a another parent document",
-                    "my_join_field": "my_parent" <2>
+                    "text": "This is another question",
+                    "my_join_field": "question" <2>
                 },
                 "sort": [
                     "2"
@@ -202,9 +201,9 @@ Will return:
                 "_score": null,
                 "_routing": "1",
                 "_source": {
-                    "text": "This is a child document",
+                    "text": "This is an answer",
                     "my_join_field": {
-                        "name": "my_child", <3>
+                        "name": "answer", <3>
                         "parent": "1"  <4>
                     }
                 },
@@ -219,9 +218,9 @@ Will return:
                 "_score": null,
                 "_routing": "1",
                 "_source": {
-                    "text": "This is a another child document",
+                    "text": "This is another answer",
                     "my_join_field": {
-                        "name": "my_child",
+                        "name": "answer",
                         "parent": "1"
                     }
                 },
@@ -235,9 +234,9 @@ Will return:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"timed_out": false, "took": $body.took, "_shards": $body._shards/]
 
-<1> This document belongs to the `my_parent` join
-<2> This document belongs to the `my_parent` join
-<3> This document belongs to the `my_child` join
+<1> This document belongs to the `question` join
+<2> This document belongs to the `question` join
+<3> This document belongs to the `answer` join
 <4> The linked parent id for the child document
 
 ==== Parent-join queries and aggregations
@@ -257,14 +256,14 @@ GET my_index/_search
 {
   "query": {
     "parent_id": { <1>
-      "type": "my_child",
+      "type": "answer",
       "id": "1"
     }
   },
   "aggs": {
     "parents": {
       "terms": {
-        "field": "my_join_field#my_parent", <2>
+        "field": "my_join_field#question", <2>
         "size": 10
       }
     }
@@ -272,7 +271,7 @@ GET my_index/_search
   "script_fields": {
     "parent": {
       "script": {
-         "source": "doc['my_join_field#my_parent']" <3>
+         "source": "doc['my_join_field#question']" <3>
       }
     }
   }
@@ -315,7 +314,7 @@ PUT my_index
         "my_join_field": {
           "type": "join",
           "relations": {
-             "my_parent": "my_child"
+             "question": "answer"
           },
           "eager_global_ordinals": false
         }
@@ -332,10 +331,10 @@ as follows:
 [source,sh]
 --------------------------------------------------
 # Per-index
-GET _stats/fielddata?human&fields=my_join_field#my_parent
+GET _stats/fielddata?human&fields=my_join_field#question
 
 # Per-node per-index
-GET _nodes/stats/indices/fielddata?human&fields=my_join_field#my_parent
+GET _nodes/stats/indices/fielddata?human&fields=my_join_field#question
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -354,7 +353,7 @@ PUT my_index
         "my_join_field": {
           "type": "join",
           "relations": {
-            "my_parent": ["my_child", "another_child"]  <1>
+            "question": ["answer", "comment"]  <1>
           }
         }
       }
@@ -364,7 +363,7 @@ PUT my_index
 --------------------------------------------------
 // CONSOLE
 
-<1> `my_parent` is parent of `my_child`.
+<1> `question` is parent of `answer` and `comment`.
 
 And multiple levels of parent/child:
 
@@ -378,8 +377,8 @@ PUT my_index
         "my_join_field": {
           "type": "join",
           "relations": {
-            "my_parent": ["my_child", "another_child"],  <1>
-            "another_child": "grand_child" <2>
+            "question": ["answer", "comment"],  <1>
+            "answer": "vote" <2>
           }
         }
       }
@@ -389,18 +388,18 @@ PUT my_index
 --------------------------------------------------
 // CONSOLE
 
-<1> `my_parent` is parent of `my_child` and `another_child`
-<2> `another_child` is parent of `grand_child`
+<1> `question` is parent of `answer` and `comment`
+<2> `answer` is parent of `vote`
 
 The mapping above represents the following tree:
 
-                          my_parent
+                         question
                           /    \
                          /      \
-                     my_child  another_child
-                                   |
-                                   |
-                              grand_child
+                      comment  answer
+                                 |
+                                 |
+                                vote
 
 Indexing a grand child document requires a `routing` value equals
 to the grand-parent (the greater parent of the lineage):
@@ -410,9 +409,9 @@ to the grand-parent (the greater parent of the lineage):
 --------------------------------------------------
 PUT my_index/doc/3?routing=1&refresh <1>
 {
-  "text": "This is a grand child document",
+  "text": "This is a vote",
   "my_join_field": {
-    "name": "grand_child",
+    "name": "vote",
     "parent": "2" <2>
   }
 }
@@ -421,6 +420,6 @@ PUT my_index/doc/3?routing=1&refresh <1>
 // TEST[continued]
 
 <1> This child document must be on the same shard than its grandparent and parent
-<2> The parent id of this document (must points to an `another_child` document)
+<2> The parent id of this document (must points to an `answer` document)
 
 

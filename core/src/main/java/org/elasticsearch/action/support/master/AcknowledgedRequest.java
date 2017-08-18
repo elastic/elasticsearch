@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.support.master;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -70,22 +71,20 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
         return  timeout;
     }
 
-    /**
-     * Reads the timeout value
-     */
-    protected void readTimeout(StreamInput in) throws IOException {
-        timeout = new TimeValue(in);
-    }
-
-    /**
-     * writes the timeout value
-     */
-    protected void writeTimeout(StreamOutput out) throws IOException {
-        timeout.writeTo(out);
-    }
-
     @Override
     public TimeValue ackTimeout() {
         return timeout;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        timeout = new TimeValue(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        timeout.writeTo(out);
     }
 }

@@ -80,9 +80,9 @@ public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
         boostQuery = new BoostQuery(percolateQuery, 1f);
         assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(boostQuery), sameInstance(percolateQuery));
 
-        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(new MatchAllDocsQuery(), new RandomScoreFunction());
+        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(new MatchAllDocsQuery(), new RandomScoreFunction(0, 0, null));
         assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(functionScoreQuery), nullValue());
-        functionScoreQuery = new FunctionScoreQuery(percolateQuery, new RandomScoreFunction());
+        functionScoreQuery = new FunctionScoreQuery(percolateQuery, new RandomScoreFunction(0, 0, null));
         assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(functionScoreQuery), sameInstance(percolateQuery));
 
         DisjunctionMaxQuery disjunctionMaxQuery = new DisjunctionMaxQuery(Arrays.asList(new MatchAllDocsQuery()), 1f);

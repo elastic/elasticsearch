@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+import org.elasticsearch.transport.nio.AcceptingSelector;
 import org.elasticsearch.transport.nio.ESSelector;
 import org.elasticsearch.transport.nio.utils.TestSelectionKey;
 
@@ -28,17 +29,13 @@ import java.nio.channels.ServerSocketChannel;
 
 public class DoNotRegisterServerChannel extends NioServerSocketChannel {
 
-    public DoNotRegisterServerChannel(String profile, ServerSocketChannel channel, ChannelFactory channelFactory) throws IOException {
-        super(profile, channel, channelFactory);
+    public DoNotRegisterServerChannel(String profile, ServerSocketChannel channel, ChannelFactory channelFactory,
+                                      AcceptingSelector selector) throws IOException {
+        super(profile, channel, channelFactory, selector);
     }
 
     @Override
-    public boolean register(ESSelector selector) throws ClosedChannelException {
-        if (markRegistered(selector)) {
-            setSelectionKey(new TestSelectionKey(0));
-            return true;
-        } else {
-            return false;
-        }
+    public void register() throws ClosedChannelException {
+        setSelectionKey(new TestSelectionKey(0));
     }
 }

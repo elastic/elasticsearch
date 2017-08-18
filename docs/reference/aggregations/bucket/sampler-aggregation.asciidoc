@@ -1,8 +1,6 @@
 [[search-aggregations-bucket-sampler-aggregation]]
 === Sampler Aggregation
 
-experimental[]
-
 A filtering aggregation used to limit any sub aggregations' processing to a sample of the top-scoring documents.
 
 .Example use cases:

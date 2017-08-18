@@ -31,6 +31,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.cloud.azure.AbstractAzureWithThirdPartyIntegTestCase;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
+import org.elasticsearch.cloud.azure.storage.AzureStorageSettings;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -497,7 +498,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegT
     public void testRemoveAndCreateContainer() throws Exception {
         final String container = getContainerName().concat("-testremove");
         final AzureStorageService storageService = new AzureStorageServiceImpl(nodeSettings(0));
-
+      
         // It could happen that we run this test really close to a previous one
         // so we might need some time to be able to create the container
         assertBusy(() -> {
@@ -550,7 +551,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegT
      */
     public void cleanRepositoryFiles(String... containers) throws StorageException, URISyntaxException {
         Settings settings = readSettingsFromFile();
-        AzureStorageService client = new AzureStorageServiceImpl(settings);
+        AzureStorageService client = new AzureStorageServiceImpl(settings, AzureStorageSettings.load(settings));
         for (String container : containers) {
             client.removeContainer(null, LocationMode.PRIMARY_ONLY, container);
         }

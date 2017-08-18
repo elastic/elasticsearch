@@ -1,8 +1,6 @@
 [[painless-syntax]]
 === Painless Syntax
 
-experimental[The Painless scripting language is new and is still marked as experimental. The syntax or API may be changed in the future in non-backwards compatible ways if required.]
-
 [float]
 [[control-flow]]
 ==== Control flow

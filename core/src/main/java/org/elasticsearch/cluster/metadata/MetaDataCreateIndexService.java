@@ -165,6 +165,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         if (index.contains("#")) {
             throw exceptionCtor.apply(index, "must not contain '#'");
         }
+        if (index.contains(":")) {
+            throw exceptionCtor.apply(index, "must not contain ':'");
+        }
         if (index.charAt(0) == '_' || index.charAt(0) == '-' || index.charAt(0) == '+') {
             throw exceptionCtor.apply(index, "must not start with '_', '-', or '+'");
         }
@@ -415,7 +418,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                             // the context is only used for validation so it's fine to pass fake values for the shard id and the current
                             // timestamp
-                            final QueryShardContext queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L);
+                            final QueryShardContext queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L, null);
 
                             for (Alias alias : request.aliases()) {
                                 if (Strings.hasLength(alias.filter())) {

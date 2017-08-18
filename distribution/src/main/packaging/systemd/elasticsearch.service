@@ -5,8 +5,9 @@ Wants=network-online.target
 After=network-online.target
 
 [Service]
+RuntimeDirectory=elasticsearch
 Environment=ES_HOME=/usr/share/elasticsearch
-Environment=CONF_DIR=${path.conf}
+Environment=ES_PATH_CONF=${path.conf}
 Environment=PID_DIR=/var/run/elasticsearch
 EnvironmentFile=-${path.env}
 
@@ -15,12 +16,7 @@ WorkingDirectory=/usr/share/elasticsearch
 User=elasticsearch
 Group=elasticsearch
 
-ExecStartPre=/usr/share/elasticsearch/bin/elasticsearch-systemd-pre-exec
-
-ExecStart=/usr/share/elasticsearch/bin/elasticsearch \
-                                                -p ${PID_DIR}/elasticsearch.pid \
-                                                --quiet \
-                                                --path.conf ${CONF_DIR}
+ExecStart=/usr/share/elasticsearch/bin/elasticsearch -p ${PID_DIR}/elasticsearch.pid --quiet
 
 # StandardOutput is configured to redirect to journalctl since
 # some error messages may be logged in standard output before
@@ -37,10 +33,11 @@ LimitNOFILE=65536
 # Specifies the maximum number of processes
 LimitNPROC=4096
 
-# Specifies the maximum number of bytes of memory that may be locked into RAM
-# Set to "infinity" if you use the 'bootstrap.memory_lock: true' option
-# in elasticsearch.yml and 'MAX_LOCKED_MEMORY=unlimited' in ${path.env}
-#LimitMEMLOCK=infinity
+# Specifies the maximum size of virtual memory
+LimitAS=infinity
+
+# Specifies the maximum file size
+LimitFSIZE=infinity
 
 # Disable timeout logic and wait until process is stopped
 TimeoutStopSec=0

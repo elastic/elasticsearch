@@ -89,35 +89,6 @@ else
     }
 fi
 
-@test "[$GROUP] install jvm-example plugin with a custom CONFIG_FILE and check failure" {
-    local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
-    CONF_FILE="$ESCONFIG/elasticsearch.yml" run sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath"
-    # this should fail because CONF_FILE is no longer supported
-    [ $status = 1 ]
-    CONF_FILE="$ESCONFIG/elasticsearch.yml" run sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" remove jvm-example
-    echo "status is $status"
-    [ $status = 1 ]
-}
-
-@test "[$GROUP] start elasticsearch with a custom CONFIG_FILE and check failure" {
-    local CONF_FILE="$ESCONFIG/elasticsearch.yml"
-
-    if is_dpkg; then
-        echo "CONF_FILE=$CONF_FILE" >> /etc/default/elasticsearch;
-    elif is_rpm; then
-        echo "CONF_FILE=$CONF_FILE" >> /etc/sysconfig/elasticsearch;
-    fi
-
-    run_elasticsearch_service 1 -Ees.default.config="$CONF_FILE"
-
-    # remove settings again otherwise cleaning up before next testrun will fail
-    if is_dpkg ; then
-        sudo sed -i '/CONF_FILE/d' /etc/default/elasticsearch
-    elif is_rpm; then
-        sudo sed -i '/CONF_FILE/d' /etc/sysconfig/elasticsearch
-    fi
-}
-
 @test "[$GROUP] install jvm-example plugin with a symlinked plugins path" {
     # Clean up after the last time this test was run
     rm -rf /tmp/plugins.*
@@ -146,11 +117,11 @@ fi
 
     move_config
 
-    CONF_DIR="$ESCONFIG" install_jvm_example
-    CONF_DIR="$ESCONFIG" start_elasticsearch_service
+    ES_PATH_CONF="$ESCONFIG" install_jvm_example
+    ES_PATH_CONF="$ESCONFIG" start_elasticsearch_service
     diff  <(curl -s localhost:9200/_cat/configured_example | sed 's/ //g') <(echo "foo")
     stop_elasticsearch_service
-    CONF_DIR="$ESCONFIG" remove_jvm_example
+    ES_PATH_CONF="$ESCONFIG" remove_jvm_example
 }
 
 @test "[$GROUP] install jvm-example plugin from a directory with a space" {
@@ -181,7 +152,7 @@ fi
   sudo chmod +x $JAVA
 
   [ "$status" -eq 1 ]
-  local expected="Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
+  local expected="could not find java; set JAVA_HOME or ensure java is in PATH"
   [[ "$output" == *"$expected"* ]] || {
     echo "Expected error message [$expected] but found: $output"
     false
@@ -478,4 +449,16 @@ fi
 
 @test "[$GROUP] test umask" {
     install_jvm_example $(readlink -m jvm-example-*.zip) 0077
+}
+
+@test "[$GROUP] hostname" {
+    local temp=`mktemp -d`
+    cp "$ESCONFIG"/elasticsearch.yml "$temp"
+    echo 'node.name: ${HOSTNAME}' >> "$ESCONFIG"/elasticsearch.yml
+    start_elasticsearch_service
+    wait_for_elasticsearch_status
+    [ "$(curl -XGET localhost:9200/_cat/nodes?h=name)" == "$HOSTNAME" ]
+    stop_elasticsearch_service
+    cp "$temp"/elasticsearch.yml "$ESCONFIG"/elasticsearch.yml
+    rm -rf "$temp"
 }

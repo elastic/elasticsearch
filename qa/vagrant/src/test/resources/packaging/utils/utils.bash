@@ -335,22 +335,16 @@ start_elasticsearch_service() {
 run_elasticsearch_service() {
     local expectedStatus=$1
     local commandLineArgs=$2
-    # Set the CONF_DIR setting in case we start as a service
-    if [ ! -z "$CONF_DIR" ] ; then
-        if is_dpkg ; then
-            echo "CONF_DIR=$CONF_DIR" >> /etc/default/elasticsearch;
+    # Set the ES_PATH_CONF setting in case we start as a service
+    if [ ! -z "$ES_PATH_CONF" ] ; then
+        if is_dpkg; then
+            echo "ES_PATH_CONF=$ES_PATH_CONF" >> /etc/default/elasticsearch;
         elif is_rpm; then
-            echo "CONF_DIR=$CONF_DIR" >> /etc/sysconfig/elasticsearch;
+            echo "ES_PATH_CONF=$ES_PATH_CONF" >> /etc/sysconfig/elasticsearch;
         fi
     fi
 
     if [ -f "/tmp/elasticsearch/bin/elasticsearch" ]; then
-        if [ -z "$CONF_DIR" ]; then
-            local CONF_DIR=""
-            local ES_PATH_CONF=""
-        else
-            local ES_PATH_CONF="--path.conf $CONF_DIR"
-        fi
         # we must capture the exit code to compare so we don't want to start as background process in case we expect something other than 0
         local background=""
         local timeoutCommand=""
@@ -368,9 +362,9 @@ run_elasticsearch_service() {
 # This line is attempting to emulate the on login behavior of /usr/share/upstart/sessions/jayatana.conf
 [ -f /usr/share/java/jayatanaag.jar ] && export JAVA_TOOL_OPTIONS="-javaagent:/usr/share/java/jayatanaag.jar"
 # And now we can start Elasticsearch normally, in the background (-d) and with a pidfile (-p).
-export CONF_DIR=$CONF_DIR
+export ES_PATH_CONF=$ES_PATH_CONF
 export ES_JAVA_OPTS=$ES_JAVA_OPTS
-$timeoutCommand/tmp/elasticsearch/bin/elasticsearch $background -p /tmp/elasticsearch/elasticsearch.pid $ES_PATH_CONF $commandLineArgs
+$timeoutCommand/tmp/elasticsearch/bin/elasticsearch $background -p /tmp/elasticsearch/elasticsearch.pid $commandLineArgs
 BASH
         [ "$status" -eq "$expectedStatus" ]
     elif is_systemd; then

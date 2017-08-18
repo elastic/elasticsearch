@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -35,7 +34,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 
 public class PipelineConfigurationTests extends ESTestCase {
 
@@ -50,24 +48,6 @@ public class PipelineConfigurationTests extends ESTestCase {
         PipelineConfiguration serialized = PipelineConfiguration.readFrom(in);
         assertEquals(XContentType.JSON, serialized.getXContentType());
         assertEquals("{}", serialized.getConfig().utf8ToString());
-    }
-
-    public void testSerializationBwc() throws IOException {
-        final byte[] data = Base64.getDecoder().decode("ATECe30AAAA=");
-        try (StreamInput in = StreamInput.wrap(data)) {
-            final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-                Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
-            in.setVersion(version);
-            PipelineConfiguration configuration = PipelineConfiguration.readFrom(in);
-            assertEquals(XContentType.JSON, configuration.getXContentType());
-            assertEquals("{}", configuration.getConfig().utf8ToString());
-
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
-                configuration.writeTo(out);
-                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
-            }
-        }
     }
 
     public void testParser() throws IOException {

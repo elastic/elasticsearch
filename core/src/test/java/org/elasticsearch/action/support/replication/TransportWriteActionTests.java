@@ -258,19 +258,22 @@ public class TransportWriteActionTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         ShardStateAction shardStateAction = new ShardStateAction(Settings.EMPTY, clusterService, transportService, null, null, threadPool);
-        TestAction action = action = new TestAction(Settings.EMPTY, "testAction", transportService,
+        TestAction action = new TestAction(Settings.EMPTY, "testAction", transportService,
                 clusterService, shardStateAction, threadPool);
-        ReplicationOperation.Replicas proxy = action.newReplicasProxy();
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
         ClusterState state = ClusterStateCreationUtils.stateWithActivePrimary(index, true, 1 + randomInt(3), randomInt(2));
         logger.info("using state: {}", state);
         ClusterServiceUtils.setState(clusterService, state);
+        ReplicationOperation.Replicas proxy = action.newReplicasProxy(state.metaData().index(index).primaryTerm(0));
 
         // check that at unknown node fails
         PlainActionFuture<ReplicaResponse> listener = new PlainActionFuture<>();
+        ShardRoutingState routingState = randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED,
+            ShardRoutingState.RELOCATING);
         proxy.performOn(
-                TestShardRouting.newShardRouting(shardId, "NOT THERE", false, randomFrom(ShardRoutingState.values())),
+            TestShardRouting.newShardRouting(shardId, "NOT THERE",
+                routingState == ShardRoutingState.RELOCATING ? state.nodes().iterator().next().getId() : null, false, routingState),
                 new TestRequest(),
                 randomNonNegativeLong(), listener);
         assertTrue(listener.isDone());
@@ -303,7 +306,7 @@ public class TransportWriteActionTests extends ESTestCase {
         AtomicReference<Object> failure = new AtomicReference<>();
         AtomicReference<Object> ignoredFailure = new AtomicReference<>();
         AtomicBoolean success = new AtomicBoolean();
-        proxy.failShardIfNeeded(replica, randomIntBetween(1, 10), "test", new ElasticsearchException("simulated"),
+        proxy.failShardIfNeeded(replica, "test", new ElasticsearchException("simulated"),
                 () -> success.set(true), failure::set, ignoredFailure::set
         );
         CapturingTransport.CapturedRequest[] shardFailedRequests = transport.getCapturedRequestsAndClear();

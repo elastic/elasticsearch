@@ -22,26 +22,29 @@ package org.elasticsearch.action.main;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Date;
 
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
-public class MainResponseTests extends ESTestCase {
+public class MainResponseTests extends AbstractStreamableXContentTestCase<MainResponse> {
 
-    public static MainResponse createTestItem() {
+    @Override
+    protected MainResponse getExpectedFromXContent(MainResponse testInstance) {
+        // we cannot recreate the "available" flag from xContent, but should be "true" if request came through
+        testInstance.available = true;
+        return testInstance;
+    }
+
+    @Override
+    protected MainResponse createTestInstance() {
         String clusterUuid = randomAlphaOfLength(10);
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
@@ -51,50 +54,43 @@ public class MainResponseTests extends ESTestCase {
         return new MainResponse(nodeName, version, clusterName, clusterUuid , build, available);
     }
 
-    public void testFromXContent() throws IOException {
-        MainResponse mainResponse = createTestItem();
-        XContentType xContentType = randomFrom(XContentType.values());
-        boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toShuffledXContent(mainResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-        // we add a few random fields to check that parser is lenient on new fields
-        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
-        MainResponse parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
-            parsed = MainResponse.fromXContent(parser);
-            assertNull(parser.nextToken());
-        }
-        assertEquals(mainResponse.getClusterUuid(), parsed.getClusterUuid());
-        assertEquals(mainResponse.getClusterName(), parsed.getClusterName());
-        assertEquals(mainResponse.getNodeName(), parsed.getNodeName());
-        assertEquals(mainResponse.getBuild(), parsed.getBuild());
-        assertEquals(mainResponse.getVersion(), parsed.getVersion());
-        // we cannot recreate the "available" flag from xContent, but should be "true" if request came through
-        assertEquals(true, parsed.isAvailable());
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+    @Override
+    protected MainResponse createBlankInstance() {
+        return new MainResponse();
+    }
+
+    @Override
+    protected MainResponse doParseInstance(XContentParser parser) {
+        return MainResponse.fromXContent(parser);
     }
 
     public void testToXContent() throws IOException {
-        Build build = new Build("buildHash", "2016-11-15".toString(), true);
+        String clusterUUID = randomAlphaOfLengthBetween(10, 20);
+        Build build = new Build(Build.CURRENT.shortHash(), Build.CURRENT.date(), Build.CURRENT.isSnapshot());
         Version version = Version.CURRENT;
-        MainResponse response = new MainResponse("nodeName", version, new ClusterName("clusterName"), "clusterUuid", build, true);
+        MainResponse response = new MainResponse("nodeName", version, new ClusterName("clusterName"), clusterUUID, build, true);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{"
                 + "\"name\":\"nodeName\","
                 + "\"cluster_name\":\"clusterName\","
-                + "\"cluster_uuid\":\"clusterUuid\","
+                + "\"cluster_uuid\":\"" + clusterUUID + "\","
                 + "\"version\":{"
                     + "\"number\":\"" + version.toString() + "\","
-                    + "\"build_hash\":\"buildHash\","
-                    + "\"build_date\":\"2016-11-15\","
-                    + "\"build_snapshot\":true,"
-                    + "\"lucene_version\":\"" + version.luceneVersion.toString() + "\"},"
+                    + "\"build_hash\":\"" + Build.CURRENT.shortHash() + "\","
+                    + "\"build_date\":\"" + Build.CURRENT.date() + "\","
+                    + "\"build_snapshot\":" + Build.CURRENT.isSnapshot() + ","
+                    + "\"lucene_version\":\"" + version.luceneVersion.toString() + "\","
+                    + "\"minimum_wire_compatibility_version\":\"" + version.minimumCompatibilityVersion().toString() + "\","
+                    + "\"minimum_index_compatibility_version\":\"" + version.minimumIndexCompatibilityVersion().toString() + "\"},"
                 + "\"tagline\":\"You Know, for Search\""
           + "}", builder.string());
     }
 
+    //TODO this should be removed and the metehod from AbstractStreamableTestCase should be
+    //used instead once https://github.com/elastic/elasticsearch/pull/25910 goes in
     public void testEqualsAndHashcode() {
-        MainResponse original = createTestItem();
+        MainResponse original = createTestInstance();
         checkEqualsAndHashCode(original, MainResponseTests::copy, MainResponseTests::mutate);
     }
 
@@ -132,5 +128,4 @@ public class MainResponseTests extends ESTestCase {
         }
         return new MainResponse(nodeName, version, clusterName, clusterUuid, build, available);
     }
-
 }

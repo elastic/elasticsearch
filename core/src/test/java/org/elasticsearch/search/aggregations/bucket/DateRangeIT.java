@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -136,7 +137,6 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(range.getName(), equalTo("range"));
         assertThat(range.getBuckets().size(), equalTo(3));
 
-        // TODO: use diamond once JI-9019884 is fixed
         List<Range.Bucket> buckets = new ArrayList<>(range.getBuckets());
 
         Range.Bucket bucket = buckets.get(0);
@@ -855,7 +855,6 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(bucket, Matchers.notNullValue());
 
         Range dateRange = bucket.getAggregations().get("date_range");
-        // TODO: use diamond once JI-9019884 is fixed
         List<Range.Bucket> buckets = new ArrayList<>(dateRange.getBuckets());
         assertThat(dateRange, Matchers.notNullValue());
         assertThat(dateRange.getName(), equalTo("date_range"));
@@ -925,5 +924,146 @@ public class DateRangeIT extends ESIntegTestCase {
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(1L));
+    }
+
+    /**
+     * Test querying ranges on date mapping specifying a format with to/from
+     * values specified as Strings
+     */
+    public void testRangeWithFormatStringValue() throws Exception {
+        String indexName = "dateformat_test_idx";
+        assertAcked(prepareCreate(indexName).addMapping("type", "date", "type=date,format=strict_hour_minute_second"));
+        indexRandom(true,
+                client().prepareIndex(indexName, "type", "1").setSource(jsonBuilder().startObject().field("date", "00:16:40").endObject()),
+                client().prepareIndex(indexName, "type", "2").setSource(jsonBuilder().startObject().field("date", "00:33:20").endObject()),
+                client().prepareIndex(indexName, "type", "3").setSource(jsonBuilder().startObject().field("date", "00:50:00").endObject()));
+
+        // using no format should work when to/from is compatible with format in
+        // mapping
+        SearchResponse searchResponse = client().prepareSearch(indexName).setSize(0)
+                .addAggregation(dateRange("date_range").field("date").addRange("00:16:40", "00:50:00").addRange("00:50:00", "01:06:40"))
+                .get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        List<Range.Bucket> buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
+        assertBucket(buckets.get(0), 2L, "00:16:40-00:50:00", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "00:50:00-01:06:40", 3000000L, 4000000L);
+
+        // using different format should work when to/from is compatible with
+        // format in aggregation
+        searchResponse = client().prepareSearch(indexName).setSize(0).addAggregation(
+                dateRange("date_range").field("date").addRange("00.16.40", "00.50.00").addRange("00.50.00", "01.06.40").format("HH.mm.ss"))
+                .get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
+        assertBucket(buckets.get(0), 2L, "00.16.40-00.50.00", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "00.50.00-01.06.40", 3000000L, 4000000L);
+
+        // providing numeric input with format should work, but bucket keys are
+        // different now
+        searchResponse = client().prepareSearch(indexName).setSize(0)
+                .addAggregation(
+                        dateRange("date_range").field("date").addRange(1000000, 3000000).addRange(3000000, 4000000).format("epoch_millis"))
+                .get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
+        assertBucket(buckets.get(0), 2L, "1000000-3000000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000000-4000000", 3000000L, 4000000L);
+
+        // providing numeric input without format should throw an exception
+        Exception e = expectThrows(Exception.class, () -> client().prepareSearch(indexName).setSize(0)
+                .addAggregation(dateRange("date_range").field("date").addRange(1000000, 3000000).addRange(3000000, 4000000)).get());
+        Throwable cause = e.getCause();
+        assertThat(cause, instanceOf(ElasticsearchParseException.class));
+        assertEquals("failed to parse date field [1000000] with format [strict_hour_minute_second]", cause.getMessage());
+    }
+
+    /**
+     * Test querying ranges on date mapping specifying a format with to/from
+     * values specified as numeric value
+     */
+    public void testRangeWithFormatNumericValue() throws Exception {
+        String indexName = "dateformat_numeric_test_idx";
+        assertAcked(prepareCreate(indexName).addMapping("type", "date", "type=date,format=epoch_second"));
+        indexRandom(true,
+                client().prepareIndex(indexName, "type", "1").setSource(jsonBuilder().startObject().field("date", 1000).endObject()),
+                client().prepareIndex(indexName, "type", "2").setSource(jsonBuilder().startObject().field("date", 2000).endObject()),
+                client().prepareIndex(indexName, "type", "3").setSource(jsonBuilder().startObject().field("date", 3000).endObject()));
+
+        // using no format should work when to/from is compatible with format in
+        // mapping
+        SearchResponse searchResponse = client().prepareSearch(indexName).setSize(0)
+                .addAggregation(dateRange("date_range").field("date").addRange(1000, 3000).addRange(3000, 4000)).get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        List<Bucket> buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
+        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
+
+        // using no format should also work when and to/from are string values
+        searchResponse = client().prepareSearch(indexName).setSize(0)
+                .addAggregation(dateRange("date_range").field("date").addRange("1000", "3000").addRange("3000", "4000")).get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
+        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
+
+        // also e-notation should work, fractional parts should be truncated
+        searchResponse = client().prepareSearch(indexName).setSize(0)
+                .addAggregation(dateRange("date_range").field("date").addRange(1.0e3, 3000.8123).addRange(3000.8123, 4.0e3)).get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
+        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
+
+        // also e-notation and floats provided as string also be truncated (see: #14641)
+        searchResponse = client().prepareSearch(indexName).setSize(0)
+                .addAggregation(dateRange("date_range").field("date").addRange("1.0e3", "3.0e3").addRange("3.0e3", "4.0e3")).get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
+        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
+
+        searchResponse = client().prepareSearch(indexName).setSize(0)
+                .addAggregation(dateRange("date_range").field("date").addRange("1000.123", "3000.8").addRange("3000.8", "4000.3")).get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
+        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
+
+        // using different format should work when to/from is compatible with
+        // format in aggregation
+        searchResponse = client().prepareSearch(indexName).setSize(0).addAggregation(
+                dateRange("date_range").field("date").addRange("00.16.40", "00.50.00").addRange("00.50.00", "01.06.40").format("HH.mm.ss"))
+                .get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
+        assertBucket(buckets.get(0), 2L, "00.16.40-00.50.00", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "00.50.00-01.06.40", 3000000L, 4000000L);
+
+        // providing different numeric input with format should work, but bucket
+        // keys are different now
+        searchResponse = client().prepareSearch(indexName).setSize(0)
+                .addAggregation(
+                        dateRange("date_range").field("date").addRange(1000000, 3000000).addRange(3000000, 4000000).format("epoch_millis"))
+                .get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
+        assertBucket(buckets.get(0), 2L, "1000000-3000000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000000-4000000", 3000000L, 4000000L);
+    }
+
+    private static List<Range.Bucket> checkBuckets(Range dateRange, String expectedAggName, long expectedBucketsSize) {
+        assertThat(dateRange, Matchers.notNullValue());
+        assertThat(dateRange.getName(), equalTo(expectedAggName));
+        List<Range.Bucket> buckets = new ArrayList<>(dateRange.getBuckets());
+        assertThat(buckets.size(), is(2));
+        return buckets;
+    }
+
+    private static void assertBucket(Bucket bucket, long bucketSize, String expectedKey, long expectedFrom, long expectedTo) {
+        assertThat(bucket.getDocCount(), equalTo(bucketSize));
+        assertThat((String) bucket.getKey(), equalTo(expectedKey));
+        assertThat(((DateTime) bucket.getFrom()).getMillis(), equalTo(expectedFrom));
+        assertThat(((DateTime) bucket.getTo()).getMillis(), equalTo(expectedTo));
+        assertThat(bucket.getAggregations().asList().isEmpty(), is(true));
     }
 }

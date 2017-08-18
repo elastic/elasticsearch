@@ -35,7 +35,7 @@ fi
 ES_HOME="/usr/share/elasticsearch"
 MAX_OPEN_FILES=65536
 MAX_MAP_COUNT=262144
-CONF_DIR="${path.conf}"
+ES_PATH_CONF="${path.conf}"
 
 PID_DIR="/var/run/elasticsearch"
 
@@ -43,12 +43,6 @@ PID_DIR="/var/run/elasticsearch"
 ES_ENV_FILE="${path.env}"
 if [ -f "$ES_ENV_FILE" ]; then
     . "$ES_ENV_FILE"
-fi
-
-# CONF_FILE setting was removed
-if [ ! -z "$CONF_FILE" ]; then
-    echo "CONF_FILE setting is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed."
-    exit 1
 fi
 
 # ES_USER and ES_GROUP settings were removed
@@ -63,8 +57,7 @@ pidfile="$PID_DIR/${prog}.pid"
 
 export ES_JAVA_OPTS
 export JAVA_HOME
-export ES_INCLUDE
-export CONF_DIR
+export ES_PATH_CONF
 export ES_STARTUP_SLEEP_TIME
 
 lockfile=/var/lock/subsys/$prog
@@ -112,7 +105,7 @@ start() {
     cd $ES_HOME
     echo -n $"Starting $prog: "
     # if not running, start it up here, usually something like "daemon $exec"
-    daemon --user elasticsearch --pidfile $pidfile $exec -p $pidfile -d --path.conf $CONF_DIR
+    daemon --user elasticsearch --pidfile $pidfile $exec -p $pidfile -d
     retval=$?
     echo
     [ $retval -eq 0 ] && touch $lockfile

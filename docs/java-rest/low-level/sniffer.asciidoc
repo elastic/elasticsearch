@@ -8,9 +8,14 @@ Nodes Info api and uses jackson to parse the obtained json response.
 
 Compatible with Elasticsearch 2.x and onwards.
 
+[[java-rest-sniffer-javadoc]]
+=== Javadoc
+
+The javadoc for the REST client sniffer can be found at {rest-client-sniffer-javadoc}/index.html.
+
 === Maven Repository
 
-The low-level REST client is subject to the same release cycle as
+The REST client sniffer is subject to the same release cycle as
 elasticsearch. Replace the version with the desired sniffer version, first
 released with `5.0.0-alpha4`. There is no relation between the sniffer version
 and the elasticsearch version that the client can communicate with. Sniffer

@@ -95,7 +95,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             }
         }
         result.fields(fields);
-
+        if (randomBoolean()) {
+            result.autoGenerateSynonymsPhraseQuery(randomBoolean());
+        }
         return result;
     }
 
@@ -340,6 +342,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 "    \"lenient\" : false,\n" +
                 "    \"analyze_wildcard\" : false,\n" +
                 "    \"quote_field_suffix\" : \".quote\",\n" +
+                "    \"auto_generate_synonyms_phrase_query\" : true,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";

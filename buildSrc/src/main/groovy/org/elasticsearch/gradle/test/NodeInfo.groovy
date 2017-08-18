@@ -55,7 +55,7 @@ class NodeInfo {
     File homeDir
 
     /** config directory */
-    File confDir
+    File pathConf
 
     /** data directory (as an Object, to allow lazy evaluation) */
     Object dataDir
@@ -110,13 +110,13 @@ class NodeInfo {
         pidFile = new File(baseDir, 'es.pid')
         this.nodeVersion = nodeVersion
         homeDir = homeDir(baseDir, config.distribution, nodeVersion)
-        confDir = confDir(baseDir, config.distribution, nodeVersion)
+        pathConf = pathConf(baseDir, config.distribution, nodeVersion)
         if (config.dataDir != null) {
             dataDir = "${config.dataDir(nodeNum)}"
         } else {
             dataDir = new File(homeDir, "data")
         }
-        configFile = new File(confDir, 'elasticsearch.yml')
+        configFile = new File(pathConf, 'elasticsearch.yml')
         // even for rpm/deb, the logs are under home because we dont start with real services
         File logsDir = new File(homeDir, 'logs')
         httpPortsFile = new File(logsDir, 'http.ports')
@@ -134,7 +134,7 @@ class NodeInfo {
             wrapperScript = new File(cwd, "run.bat")
             esScript = new File(homeDir, 'bin/elasticsearch.bat')
         } else {
-            executable = 'sh'
+            executable = 'bash'
             wrapperScript = new File(cwd, "run")
             esScript = new File(homeDir, 'bin/elasticsearch')
         }
@@ -158,11 +158,9 @@ class NodeInfo {
                 args.add("${property.key.substring('tests.es.'.size())}=${property.value}")
             }
         }
-        env.put('CONF_DIR', confDir)
+        env.put('ES_PATH_CONF', pathConf)
         if (Version.fromString(nodeVersion).major == 5) {
-            args.addAll("-E", "path.conf=${confDir}")
-        } else {
-            args.addAll("--path.conf", "${confDir}")
+            args.addAll("-E", "path.conf=${pathConf}")
         }
         if (!System.properties.containsKey("tests.es.path.data")) {
             args.addAll("-E", "path.data=${-> dataDir.toString()}")
@@ -242,7 +240,7 @@ class NodeInfo {
         return new File(baseDir, path)
     }
 
-    static File confDir(File baseDir, String distro, String nodeVersion) {
+    static File pathConf(File baseDir, String distro, String nodeVersion) {
         switch (distro) {
             case 'integ-test-zip':
             case 'zip':

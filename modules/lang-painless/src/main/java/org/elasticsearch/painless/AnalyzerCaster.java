@@ -20,7 +20,6 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 
 import java.util.Objects;
@@ -60,730 +59,430 @@ public final class AnalyzerCaster {
             return null;
         }
 
-        switch (actual.sort) {
-            case BOOL:
-                switch (expected.sort) {
-                    case DEF:
-                        return new Cast(BOOLEAN_OBJ_TYPE, DEF_TYPE, explicit, null, null, BOOLEAN_TYPE, null);
-                    case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(BOOLEAN_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, BOOLEAN_TYPE, null);
-
-                        break;
-                    case BOOL_OBJ:
-                        if (internal)
-                            return new Cast(BOOLEAN_TYPE, BOOLEAN_TYPE, explicit, null, null, null, BOOLEAN_TYPE);
-                }
-
-                break;
-            case BYTE:
-                switch (expected.sort) {
-                    case SHORT:
-                    case INT:
-                    case LONG:
-                    case FLOAT:
-                    case DOUBLE:
-                        return new Cast(BYTE_TYPE, expected, explicit);
-                    case CHAR:
-                        if (explicit)
-                            return new Cast(BYTE_TYPE, CHAR_TYPE, true);
-
-                        break;
-                    case DEF:
-                        return new Cast(BYTE_OBJ_TYPE, DEF_TYPE, explicit, null, null, BYTE_TYPE, null);
-                    case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(BYTE_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, BYTE_TYPE, null);
-
-                        break;
-                    case NUMBER:
-                        if (internal)
-                            return new Cast(BYTE_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, BYTE_TYPE, null);
-
-                        break;
-                    case BYTE_OBJ:
-                        if (internal)
-                            return new Cast(BYTE_TYPE, BYTE_TYPE, explicit, null, null, null, BYTE_TYPE);
-
-                        break;
-                    case SHORT_OBJ:
-                        if (internal)
-                            return new Cast(BYTE_TYPE, SHORT_TYPE, explicit, null, null, null, SHORT_TYPE);
-
-                        break;
-                    case INT_OBJ:
-                        if (internal)
-                            return new Cast(BYTE_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
-
-                        break;
-                    case LONG_OBJ:
-                        if (internal)
-                            return new Cast(BYTE_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
-
-                        break;
-                    case FLOAT_OBJ:
-                        if (internal)
-                            return new Cast(BYTE_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
-
-                        break;
-                    case DOUBLE_OBJ:
-                        if (internal)
-                            return new Cast(BYTE_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
-
-                        break;
-                    case CHAR_OBJ:
-                        if (explicit && internal)
-                            return new Cast(BYTE_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-
-                        break;
-                }
-
-                break;
-            case SHORT:
-                switch (expected.sort) {
-                    case INT:
-                    case LONG:
-                    case FLOAT:
-                    case DOUBLE:
-                        return new Cast(SHORT_TYPE, expected, explicit);
-                    case BYTE:
-                    case CHAR:
-                        if (explicit)
-                            return new Cast(SHORT_TYPE, expected, true);
-
-                        break;
-                    case DEF:
-                        return new Cast(SHORT_OBJ_TYPE, DEF_TYPE, explicit, null, null, SHORT_TYPE, null);
-                    case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(SHORT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, SHORT_TYPE, null);
-
-                        break;
-                    case NUMBER:
-                        if (internal)
-                            return new Cast(SHORT_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, SHORT_TYPE, null);
-
-                        break;
-                    case SHORT_OBJ:
-                        if (internal)
-                            return new Cast(SHORT_TYPE, SHORT_TYPE, explicit, null, null, null, SHORT_TYPE);
-
-                        break;
-                    case INT_OBJ:
-                        if (internal)
-                            return new Cast(SHORT_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
-
-                        break;
-                    case LONG_OBJ:
-                        if (internal)
-                            return new Cast(SHORT_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
-
-                        break;
-                    case FLOAT_OBJ:
-                        if (internal)
-                            return new Cast(SHORT_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
-
-                        break;
-                    case DOUBLE_OBJ:
-                        if (internal)
-                            return new Cast(SHORT_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
-
-                        break;
-                    case BYTE_OBJ:
-                        if (explicit && internal)
-                            return new Cast(SHORT_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-
-                        break;
-                    case CHAR_OBJ:
-                        if (explicit && internal)
-                            return new Cast(SHORT_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-
-                        break;
-                }
-
-                break;
-            case CHAR:
-                switch (expected.sort) {
-                    case INT:
-                    case LONG:
-                    case FLOAT:
-                    case DOUBLE:
-                        return new Cast(CHAR_TYPE, expected, explicit);
-                    case BYTE:
-                    case SHORT:
-                        if (explicit)
-                            return new Cast(actual, expected, true);
-
-                        break;
-                    case DEF:
-                        return new Cast(CHAR_OBJ_TYPE, DEF_TYPE, explicit, null, null, CHAR_TYPE, null);
-                    case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(CHAR_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, CHAR_TYPE, null);
-
-                        break;
-                    case NUMBER:
-                        if (internal)
-                            return new Cast(CHAR_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, CHAR_TYPE, null);
-
-                        break;
-                    case CHAR_OBJ:
-                        if (internal)
-                            return new Cast(CHAR_TYPE, CHAR_TYPE, explicit, null, null, null, CHAR_TYPE);
-
-                        break;
-                    case STRING:
-                        return new Cast(CHAR_TYPE, STRING_TYPE, explicit);
-                    case INT_OBJ:
-                        if (internal)
-                            return new Cast(CHAR_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
-
-                        break;
-                    case LONG_OBJ:
-                        if (internal)
-                            return new Cast(CHAR_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
-
-                        break;
-                    case FLOAT_OBJ:
-                        if (internal)
-                            return new Cast(CHAR_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
-
-                        break;
-                    case DOUBLE_OBJ:
-                        if (internal)
-                            return new Cast(CHAR_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
-
-                        break;
-                    case BYTE_OBJ:
-                        if (explicit && internal)
-                            return new Cast(CHAR_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-
-                        break;
-                    case SHORT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(CHAR_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
-
-                        break;
-                }
-
-                break;
-            case INT:
-                switch (expected.sort) {
-                    case LONG:
-                    case FLOAT:
-                    case DOUBLE:
-                        return new Cast(INT_TYPE, expected, explicit);
-                    case BYTE:
-                    case SHORT:
-                    case CHAR:
-                        if (explicit)
-                            return new Cast(INT_TYPE, expected, true);
-
-                        break;
-                    case DEF:
-                        return new Cast(INT_OBJ_TYPE, DEF_TYPE, explicit, null, null, INT_TYPE, null);
-                    case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(INT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, INT_TYPE, null);
-
-                        break;
-                    case NUMBER:
-                        if (internal)
-                            return new Cast(INT_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, INT_TYPE, null);
-
-                        break;
-                    case INT_OBJ:
-                        if (internal)
-                            return new Cast(INT_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
-
-                        break;
-                    case LONG_OBJ:
-                        if (internal)
-                            return new Cast(INT_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
-
-                        break;
-                    case FLOAT_OBJ:
-                        if (internal)
-                            return new Cast(INT_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
-
-                        break;
-                    case DOUBLE_OBJ:
-                        if (internal)
-                            return new Cast(INT_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
-
-                        break;
-                    case BYTE_OBJ:
-                        if (explicit && internal)
-                            return new Cast(INT_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-
-                        break;
-                    case SHORT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(INT_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
-
-                        break;
-                    case CHAR_OBJ:
-                        if (explicit && internal)
-                            return new Cast(INT_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-
-                        break;
-                }
-
-                break;
-            case LONG:
-                switch (expected.sort) {
-                    case FLOAT:
-                    case DOUBLE:
-                        return new Cast(LONG_TYPE, expected, explicit);
-                    case BYTE:
-                    case SHORT:
-                    case CHAR:
-                    case INT:
-                        if (explicit)
-                            return new Cast(actual, expected, true);
-
-                        break;
-                    case DEF:
-                        return new Cast(LONG_TYPE, DEF_TYPE, explicit, null, null, LONG_TYPE, null);
-                    case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(LONG_TYPE, actual, explicit, null, null, LONG_TYPE, null);
-
-                        break;
-                    case NUMBER:
-                        if (internal)
-                            return new Cast(LONG_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, LONG_TYPE, null);
-
-                        break;
-                    case LONG_OBJ:
-                        if (internal)
-                            return new Cast(LONG_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
-
-                        break;
-                    case FLOAT_OBJ:
-                        if (internal)
-                            return new Cast(LONG_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
-
-                        break;
-                    case DOUBLE_OBJ:
-                        if (internal)
-                            return new Cast(LONG_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
-
-                        break;
-                    case BYTE_OBJ:
-                        if (explicit && internal)
-                            return new Cast(LONG_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-
-                        break;
-                    case SHORT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(LONG_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
-
-                        break;
-                    case CHAR_OBJ:
-                        if (explicit && internal)
-                            return new Cast(LONG_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-
-                        break;
-                    case INT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(LONG_TYPE, INT_TYPE, true, null, null, null, INT_TYPE);
-
-                        break;
-                }
-
-                break;
-            case FLOAT:
-                switch (expected.sort) {
-                    case DOUBLE:
-                        return new Cast(actual, expected, explicit);
-                    case BYTE:
-                    case SHORT:
-                    case CHAR:
-                    case INT:
-                    case FLOAT:
-                        if (explicit)
-                            return new Cast(actual, expected, true);
-
-                        break;
-                    case DEF:
-                        return new Cast(FLOAT_OBJ_TYPE, DEF_TYPE, explicit, null, null, FLOAT_TYPE, null);
-                    case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(FLOAT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, FLOAT_TYPE, null);
-
-                        break;
-                    case NUMBER:
-                        if (internal)
-                            return new Cast(FLOAT_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, FLOAT_TYPE, null);
-
-                        break;
-                    case FLOAT_OBJ:
-                        if (internal)
-                            return new Cast(FLOAT_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
-
-                        break;
-                    case DOUBLE_OBJ:
-                        if (internal)
-                            return new Cast(FLOAT_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
-
-                        break;
-                    case BYTE_OBJ:
-                        if (explicit && internal)
-                            return new Cast(FLOAT_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-
-                        break;
-                    case SHORT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(FLOAT_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
-
-                        break;
-                    case CHAR_OBJ:
-                        if (explicit && internal)
-                            return new Cast(FLOAT_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-
-                        break;
-                    case INT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(FLOAT_TYPE, INT_TYPE, true, null, null, null, INT_TYPE);
-
-                        break;
-                    case LONG_OBJ:
-                        if (explicit && internal)
-                            return new Cast(FLOAT_TYPE, LONG_TYPE, true, null, null, null, LONG_TYPE);
-
-                        break;
-                }
-
-                break;
-            case DOUBLE:
-                switch (expected.sort) {
-                    case BYTE:
-                    case SHORT:
-                    case CHAR:
-                    case INT:
-                    case FLOAT:
-                        if (explicit)
-                            return new Cast(DOUBLE_TYPE, expected, true);
-
-                        break;
-                    case DEF:
-                        return new Cast(DOUBLE_OBJ_TYPE, DEF_TYPE, explicit, null, null, DOUBLE_TYPE, null);
-                    case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(DOUBLE_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, DOUBLE_TYPE, null);
-
-                        break;
-                    case NUMBER:
-                        if (internal)
-                            return new Cast(DOUBLE_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, DOUBLE_TYPE, null);
-
-                        break;
-                    case DOUBLE_OBJ:
-                        if (internal)
-                            return new Cast(DOUBLE_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
-
-                        break;
-                    case BYTE_OBJ:
-                        if (explicit && internal)
-                            return new Cast(DOUBLE_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-
-                        break;
-                    case SHORT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(DOUBLE_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
-
-                        break;
-                    case CHAR_OBJ:
-                        if (explicit && internal)
-                            return new Cast(DOUBLE_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-
-                        break;
-                    case INT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(DOUBLE_TYPE, INT_TYPE, true, null, null, null, INT_TYPE);
-
-                        break;
-                    case LONG_OBJ:
-                        if (explicit && internal)
-                            return new Cast(DOUBLE_TYPE, LONG_TYPE, true, null, null, null, LONG_TYPE);
-
-                        break;
-                    case FLOAT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(DOUBLE_TYPE, FLOAT_TYPE, true, null, null, null, FLOAT_TYPE);
-
-                        break;
-                }
-
-                break;
-            case OBJECT:
-                if (OBJECT_TYPE.equals(actual))
-                    switch (expected.sort) {
-                        case BYTE:
-                            if (internal && explicit)
-                                return new Cast(OBJECT_TYPE, BYTE_OBJ_TYPE, true, null, BYTE_TYPE, null, null);
-
-                            break;
-                        case SHORT:
-                            if (internal && explicit)
-                                return new Cast(OBJECT_TYPE, SHORT_OBJ_TYPE, true, null, SHORT_TYPE, null, null);
-
-                            break;
-                        case CHAR:
-                            if (internal && explicit)
-                                return new Cast(OBJECT_TYPE, CHAR_OBJ_TYPE, true, null, CHAR_TYPE, null, null);
-
-                            break;
-                        case INT:
-                            if (internal && explicit)
-                                return new Cast(OBJECT_TYPE, INT_OBJ_TYPE, true, null, INT_TYPE, null, null);
-
-                            break;
-                        case LONG:
-                            if (internal && explicit)
-                                return new Cast(OBJECT_TYPE, LONG_OBJ_TYPE, true, null, LONG_TYPE, null, null);
-
-                            break;
-                        case FLOAT:
-                            if (internal && explicit)
-                                return new Cast(OBJECT_TYPE, FLOAT_OBJ_TYPE, true, null, FLOAT_TYPE, null, null);
-
-                            break;
-                        case DOUBLE:
-                            if (internal && explicit)
-                                return new Cast(OBJECT_TYPE, DOUBLE_OBJ_TYPE, true, null, DOUBLE_TYPE, null, null);
-
-                            break;
-                    }
-                break;
-            case NUMBER:
-                switch (expected.sort) {
-                    case BYTE:
-                        if (internal && explicit)
-                            return new Cast(NUMBER_TYPE, BYTE_OBJ_TYPE, true, null, BYTE_TYPE, null, null);
-
-                        break;
-                    case SHORT:
-                        if (internal && explicit)
-                            return new Cast(NUMBER_TYPE, SHORT_OBJ_TYPE, true, null, SHORT_TYPE, null, null);
-
-                        break;
-                    case CHAR:
-                        if (internal && explicit)
-                            return new Cast(NUMBER_TYPE, CHAR_OBJ_TYPE, true, null, CHAR_TYPE, null, null);
-
-                        break;
-                    case INT:
-                        if (internal && explicit)
-                            return new Cast(NUMBER_TYPE, INT_OBJ_TYPE, true, null, INT_TYPE, null, null);
-
-                        break;
-                    case LONG:
-                        if (internal && explicit)
-                            return new Cast(NUMBER_TYPE, LONG_OBJ_TYPE, true, null, LONG_TYPE, null, null);
-
-                        break;
-                    case FLOAT:
-                        if (internal && explicit)
-                            return new Cast(NUMBER_TYPE, FLOAT_OBJ_TYPE, true, null, FLOAT_TYPE, null, null);
-
-                        break;
-                    case DOUBLE:
-                        if (internal && explicit)
-                            return new Cast(NUMBER_TYPE, DOUBLE_OBJ_TYPE, true, null, DOUBLE_TYPE, null, null);
-
-                        break;
-                }
-
-                break;
-            case BOOL_OBJ:
-                switch (expected.sort) {
-                    case BOOL:
-                        if (internal)
-                            return new Cast(BOOLEAN_TYPE, BOOLEAN_TYPE, explicit, BOOLEAN_TYPE, null, null, null);
-
-                        break;
-                }
-
-                break;
-            case BYTE_OBJ:
-                switch (expected.sort) {
-                    case BYTE:
-                    case SHORT:
-                    case INT:
-                    case LONG:
-                    case FLOAT:
-                    case DOUBLE:
-                        if (internal)
-                            return new Cast(BYTE_TYPE, expected, explicit, BYTE_TYPE, null, null, null);
-
-                        break;
-                    case CHAR:
-                        if (internal && explicit)
-                            return new Cast(BYTE_TYPE, expected, true, BYTE_TYPE, null, null, null);
-
-                        break;
-                }
-
-                break;
-            case SHORT_OBJ:
-                switch (expected.sort) {
-                    case SHORT:
-                    case INT:
-                    case LONG:
-                    case FLOAT:
-                    case DOUBLE:
-                        if (internal)
-                            return new Cast(SHORT_TYPE, expected, explicit, SHORT_TYPE, null, null, null);
-
-                        break;
-                    case BYTE:
-                    case CHAR:
-                        if (internal && explicit)
-                            return new Cast(SHORT_TYPE, expected, true, SHORT_TYPE, null, null, null);
-
-                        break;
-                }
-
-                break;
-            case CHAR_OBJ:
-                switch (expected.sort) {
-                    case CHAR:
-                    case INT:
-                    case LONG:
-                    case FLOAT:
-                    case DOUBLE:
-                        if (internal)
-                            return new Cast(CHAR_TYPE, expected, explicit, CHAR_TYPE, null, null, null);
-
-                        break;
-                    case BYTE:
-                    case SHORT:
-                        if (internal && explicit)
-                            return new Cast(CHAR_TYPE, expected, true, CHAR_TYPE, null, null, null);
-
-                        break;
-                }
-
-                break;
-            case INT_OBJ:
-                switch (expected.sort) {
-                    case INT:
-                    case LONG:
-                    case FLOAT:
-                    case DOUBLE:
-                        if (internal)
-                            return new Cast(INT_TYPE, expected, explicit, INT_TYPE, null, null, null);
-
-                        break;
-                    case BYTE:
-                    case SHORT:
-                    case CHAR:
-                        if (internal && explicit)
-                            return new Cast(INT_TYPE, expected, true, INT_TYPE, null, null, null);
-
-                        break;
-                }
-
-                break;
-            case LONG_OBJ:
-                switch (expected.sort) {
-                    case LONG:
-                    case FLOAT:
-                    case DOUBLE:
-                        if (internal)
-                            return new Cast(LONG_TYPE, expected, explicit, LONG_TYPE, null, null, null);
-
-                        break;
-                    case BYTE:
-                    case SHORT:
-                    case CHAR:
-                    case INT:
-                        if (internal && explicit)
-                            return new Cast(LONG_TYPE, expected, true, LONG_TYPE, null, null, null);
-
-                        break;
-                }
-
-                break;
-            case FLOAT_OBJ:
-                switch (expected.sort) {
-                    case FLOAT:
-                    case DOUBLE:
-                        if (internal)
-                            return new Cast(FLOAT_TYPE, expected, explicit, FLOAT_TYPE, null, null, null);
-
-                        break;
-                    case BYTE:
-                    case SHORT:
-                    case CHAR:
-                    case INT:
-                    case LONG:
-                        if (internal && explicit)
-                            return new Cast(FLOAT_TYPE, expected, true, FLOAT_TYPE, null, null, null);
-
-                        break;
-                }
-
-                break;
-            case DOUBLE_OBJ:
-                switch (expected.sort) {
-                    case DOUBLE:
-                        if (internal)
-                            return new Cast(DOUBLE_TYPE, expected, explicit, DOUBLE_TYPE, null, null, null);
-
-                        break;
-                    case BYTE:
-                    case SHORT:
-                    case CHAR:
-                    case INT:
-                    case LONG:
-                    case FLOAT:
-                        if (internal && explicit)
-                            return new Cast(DOUBLE_TYPE, expected, true, DOUBLE_TYPE, null, null, null);
-
-                        break;
-                }
-
-                break;
-            case DEF:
-                switch (expected.sort) {
-                    case BOOL:
-                        return new Cast(DEF_TYPE, BOOLEAN_OBJ_TYPE, explicit, null, BOOLEAN_TYPE, null, null);
-                    case BYTE:
-                        return new Cast(DEF_TYPE, BYTE_OBJ_TYPE, explicit, null, BYTE_TYPE, null, null);
-                    case SHORT:
-                        return new Cast(DEF_TYPE, SHORT_OBJ_TYPE, explicit, null, SHORT_TYPE, null, null);
-                    case CHAR:
-                        return new Cast(DEF_TYPE, CHAR_OBJ_TYPE, explicit, null, CHAR_TYPE, null, null);
-                    case INT:
-                        return new Cast(DEF_TYPE, INT_OBJ_TYPE, explicit, null, INT_TYPE, null, null);
-                    case LONG:
-                        return new Cast(DEF_TYPE, LONG_OBJ_TYPE, explicit, null, LONG_TYPE, null, null);
-                    case FLOAT:
-                        return new Cast(DEF_TYPE, FLOAT_OBJ_TYPE, explicit, null, FLOAT_TYPE, null, null);
-                    case DOUBLE:
-                            return new Cast(DEF_TYPE, DOUBLE_OBJ_TYPE, explicit, null, DOUBLE_TYPE, null, null);
-                }
-
-                break;
-            case STRING:
-                switch (expected.sort) {
-                    case CHAR:
-                        if (explicit)
-                            return new Cast(STRING_TYPE, CHAR_TYPE, true);
-
-                        break;
-                }
-
-                break;
+        if (actual.dynamic) {
+            if (expected.clazz == boolean.class) {
+                return new Cast(DEF_TYPE, BOOLEAN_OBJ_TYPE, explicit, null, BOOLEAN_TYPE, null, null);
+            } else if (expected.clazz == byte.class) {
+                return new Cast(DEF_TYPE, BYTE_OBJ_TYPE, explicit, null, BYTE_TYPE, null, null);
+            } else if (expected.clazz == short.class) {
+                return new Cast(DEF_TYPE, SHORT_OBJ_TYPE, explicit, null, SHORT_TYPE, null, null);
+            } else if (expected.clazz == char.class) {
+                return new Cast(DEF_TYPE, CHAR_OBJ_TYPE, explicit, null, CHAR_TYPE, null, null);
+            } else if (expected.clazz == int.class) {
+                return new Cast(DEF_TYPE, INT_OBJ_TYPE, explicit, null, INT_TYPE, null, null);
+            } else if (expected.clazz == long.class) {
+                return new Cast(DEF_TYPE, LONG_OBJ_TYPE, explicit, null, LONG_TYPE, null, null);
+            } else if (expected.clazz == float.class) {
+                return new Cast(DEF_TYPE, FLOAT_OBJ_TYPE, explicit, null, FLOAT_TYPE, null, null);
+            } else if (expected.clazz == double.class) {
+                return new Cast(DEF_TYPE, DOUBLE_OBJ_TYPE, explicit, null, DOUBLE_TYPE, null, null);
+            }
+        } else if (actual.clazz == Object.class) {
+            if (expected.clazz == byte.class && explicit && internal) {
+                return new Cast(OBJECT_TYPE, BYTE_OBJ_TYPE, true, null, BYTE_TYPE, null, null);
+            } else if (expected.clazz == short.class && explicit && internal) {
+                return new Cast(OBJECT_TYPE, SHORT_OBJ_TYPE, true, null, SHORT_TYPE, null, null);
+            } else if (expected.clazz == char.class && explicit && internal) {
+                return new Cast(OBJECT_TYPE, CHAR_OBJ_TYPE, true, null, CHAR_TYPE, null, null);
+            } else if (expected.clazz == int.class && explicit && internal) {
+                return new Cast(OBJECT_TYPE, INT_OBJ_TYPE, true, null, INT_TYPE, null, null);
+            } else if (expected.clazz == long.class && explicit && internal) {
+                return new Cast(OBJECT_TYPE, LONG_OBJ_TYPE, true, null, LONG_TYPE, null, null);
+            } else if (expected.clazz == float.class && explicit && internal) {
+                return new Cast(OBJECT_TYPE, FLOAT_OBJ_TYPE, true, null, FLOAT_TYPE, null, null);
+            } else if (expected.clazz == double.class && explicit && internal) {
+                return new Cast(OBJECT_TYPE, DOUBLE_OBJ_TYPE, true, null, DOUBLE_TYPE, null, null);
+            }
+        } else if (actual.clazz == Number.class) {
+            if (expected.clazz == byte.class && explicit && internal) {
+                return new Cast(NUMBER_TYPE, BYTE_OBJ_TYPE, true, null, BYTE_TYPE, null, null);
+            } else if (expected.clazz == short.class && explicit && internal) {
+                return new Cast(NUMBER_TYPE, SHORT_OBJ_TYPE, true, null, SHORT_TYPE, null, null);
+            } else if (expected.clazz == char.class && explicit && internal) {
+                return new Cast(NUMBER_TYPE, CHAR_OBJ_TYPE, true, null, CHAR_TYPE, null, null);
+            } else if (expected.clazz == int.class && explicit && internal) {
+                return new Cast(NUMBER_TYPE, INT_OBJ_TYPE, true, null, INT_TYPE, null, null);
+            } else if (expected.clazz == long.class && explicit && internal) {
+                return new Cast(NUMBER_TYPE, LONG_OBJ_TYPE, true, null, LONG_TYPE, null, null);
+            } else if (expected.clazz == float.class && explicit && internal) {
+                return new Cast(NUMBER_TYPE, FLOAT_OBJ_TYPE, true, null, FLOAT_TYPE, null, null);
+            } else if (expected.clazz == double.class && explicit && internal) {
+                return new Cast(NUMBER_TYPE, DOUBLE_OBJ_TYPE, true, null, DOUBLE_TYPE, null, null);
+            }
+        } else if (actual.clazz == String.class) {
+            if (expected.clazz == char.class && explicit) {
+                return new Cast(STRING_TYPE, CHAR_TYPE, true);
+            }
+        } else if (actual.clazz == boolean.class) {
+            if (expected.dynamic) {
+                return new Cast(BOOLEAN_OBJ_TYPE, DEF_TYPE, explicit, null, null, BOOLEAN_TYPE, null);
+            } else if (expected.clazz == Object.class && internal) {
+                return new Cast(BOOLEAN_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, BOOLEAN_TYPE, null);
+            } else if (expected.clazz == Boolean.class && internal) {
+                return new Cast(BOOLEAN_TYPE, BOOLEAN_TYPE, explicit, null, null, null, BOOLEAN_TYPE);
+            }
+        } else if (actual.clazz == byte.class) {
+            if (expected.dynamic) {
+                return new Cast(BYTE_OBJ_TYPE, DEF_TYPE, explicit, null, null, BYTE_TYPE, null);
+            } else if (expected.clazz == Object.class && internal) {
+                return new Cast(BYTE_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, BYTE_TYPE, null);
+            } else if (expected.clazz == Number.class && internal) {
+                return new Cast(BYTE_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, BYTE_TYPE, null);
+            } else if (expected.clazz == short.class) {
+                return new Cast(BYTE_TYPE, SHORT_TYPE, explicit);
+            } else if (expected.clazz == char.class && explicit) {
+                return new Cast(BYTE_TYPE, CHAR_TYPE, true);
+            } else if (expected.clazz == int.class) {
+                return new Cast(BYTE_TYPE, INT_TYPE, explicit);
+            } else if (expected.clazz == long.class) {
+                return new Cast(BYTE_TYPE, LONG_TYPE, explicit);
+            } else if (expected.clazz == float.class) {
+                return new Cast(BYTE_TYPE, FLOAT_TYPE, explicit);
+            } else if (expected.clazz == double.class) {
+                return new Cast(BYTE_TYPE, DOUBLE_TYPE, explicit);
+            } else if (expected.clazz == Byte.class && internal) {
+                return new Cast(BYTE_TYPE, BYTE_TYPE, explicit, null, null, null, BYTE_TYPE);
+            } else if (expected.clazz == Short.class && internal) {
+                return new Cast(BYTE_TYPE, SHORT_TYPE, explicit, null, null, null, SHORT_TYPE);
+            } else if (expected.clazz == Character.class && explicit && internal) {
+                return new Cast(BYTE_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
+            } else if (expected.clazz == Integer.class && internal) {
+                return new Cast(BYTE_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
+            } else if (expected.clazz == Long.class && internal) {
+                return new Cast(BYTE_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
+            } else if (expected.clazz == Float.class && internal) {
+                return new Cast(BYTE_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
+            } else if (expected.clazz == Double.class && internal) {
+                return new Cast(BYTE_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+            }
+        } else if (actual.clazz == short.class) {
+            if (expected.dynamic) {
+                return new Cast(SHORT_OBJ_TYPE, DEF_TYPE, explicit, null, null, SHORT_TYPE, null);
+            } else if (expected.clazz == Object.class && internal) {
+                return new Cast(SHORT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, SHORT_TYPE, null);
+            } else if (expected.clazz == Number.class && internal) {
+                return new Cast(SHORT_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, SHORT_TYPE, null);
+            } else if (expected.clazz == byte.class && explicit) {
+                return new Cast(SHORT_TYPE, BYTE_TYPE, true);
+            } else if (expected.clazz == char.class && explicit) {
+                return new Cast(SHORT_TYPE, CHAR_TYPE, true);
+            } else if (expected.clazz == int.class) {
+                return new Cast(SHORT_TYPE, INT_TYPE, explicit);
+            } else if (expected.clazz == long.class) {
+                return new Cast(SHORT_TYPE, LONG_TYPE, explicit);
+            } else if (expected.clazz == float.class) {
+                return new Cast(SHORT_TYPE, FLOAT_TYPE, explicit);
+            } else if (expected.clazz == double.class) {
+                return new Cast(SHORT_TYPE, DOUBLE_TYPE, explicit);
+            } else if (expected.clazz == Byte.class && explicit && internal) {
+                return new Cast(SHORT_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
+            } else if (expected.clazz == Short.class && internal) {
+                return new Cast(SHORT_TYPE, SHORT_TYPE, explicit, null, null, null, SHORT_TYPE);
+            } else if (expected.clazz == Character.class && explicit && internal) {
+                return new Cast(SHORT_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
+            } else if (expected.clazz == Integer.class && internal) {
+                return new Cast(SHORT_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
+            } else if (expected.clazz == Long.class && internal) {
+                return new Cast(SHORT_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
+            } else if (expected.clazz == Float.class && internal) {
+                return new Cast(SHORT_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
+            } else if (expected.clazz == Double.class && internal) {
+                return new Cast(SHORT_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+            }
+        } else if (actual.clazz == char.class) {
+            if (expected.dynamic) {
+                return new Cast(CHAR_OBJ_TYPE, DEF_TYPE, explicit, null, null, CHAR_TYPE, null);
+            } else if (expected.clazz == Object.class && internal) {
+                return new Cast(CHAR_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, CHAR_TYPE, null);
+            } else if (expected.clazz == Number.class && internal) {
+                return new Cast(CHAR_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, CHAR_TYPE, null);
+            } else if (expected.clazz == String.class) {
+                return new Cast(CHAR_TYPE, STRING_TYPE, explicit);
+            } else if (expected.clazz == byte.class && explicit) {
+                return new Cast(CHAR_TYPE, BYTE_TYPE, true);
+            } else if (expected.clazz == short.class && explicit) {
+                return new Cast(CHAR_TYPE, SHORT_TYPE, true);
+            } else if (expected.clazz == int.class) {
+                return new Cast(CHAR_TYPE, INT_TYPE, explicit);
+            } else if (expected.clazz == long.class) {
+                return new Cast(CHAR_TYPE, LONG_TYPE, explicit);
+            } else if (expected.clazz == float.class) {
+                return new Cast(CHAR_TYPE, FLOAT_TYPE, explicit);
+            } else if (expected.clazz == double.class) {
+                return new Cast(CHAR_TYPE, DOUBLE_TYPE, explicit);
+            } else if (expected.clazz == Byte.class && explicit && internal) {
+                return new Cast(CHAR_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
+            } else if (expected.clazz == Short.class && internal) {
+                return new Cast(CHAR_TYPE, SHORT_TYPE, explicit, null, null, null, SHORT_TYPE);
+            } else if (expected.clazz == Character.class && internal) {
+                return new Cast(CHAR_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
+            } else if (expected.clazz == Integer.class && internal) {
+                return new Cast(CHAR_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
+            } else if (expected.clazz == Long.class && internal) {
+                return new Cast(CHAR_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
+            } else if (expected.clazz == Float.class && internal) {
+                return new Cast(CHAR_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
+            } else if (expected.clazz == Double.class && internal) {
+                return new Cast(CHAR_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+            }
+        } else if (actual.clazz == int.class) {
+            if (expected.dynamic) {
+                return new Cast(INT_OBJ_TYPE, DEF_TYPE, explicit, null, null, INT_TYPE, null);
+            } else if (expected.clazz == Object.class && internal) {
+                return new Cast(INT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, INT_TYPE, null);
+            } else if (expected.clazz == Number.class && internal) {
+                return new Cast(INT_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, INT_TYPE, null);
+            } else if (expected.clazz == byte.class && explicit) {
+                return new Cast(INT_TYPE, BYTE_TYPE, true);
+            } else if (expected.clazz == char.class && explicit) {
+                return new Cast(INT_TYPE, CHAR_TYPE, true);
+            } else if (expected.clazz == short.class && explicit) {
+                return new Cast(INT_TYPE, SHORT_TYPE, true);
+            } else if (expected.clazz == long.class) {
+                return new Cast(INT_TYPE, LONG_TYPE, explicit);
+            } else if (expected.clazz == float.class) {
+                return new Cast(INT_TYPE, FLOAT_TYPE, explicit);
+            } else if (expected.clazz == double.class) {
+                return new Cast(INT_TYPE, DOUBLE_TYPE, explicit);
+            } else if (expected.clazz == Byte.class && explicit && internal) {
+                return new Cast(INT_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
+            } else if (expected.clazz == Short.class && explicit && internal) {
+                return new Cast(INT_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
+            } else if (expected.clazz == Character.class && explicit && internal) {
+                return new Cast(INT_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
+            } else if (expected.clazz == Integer.class && internal) {
+                return new Cast(INT_TYPE, INT_TYPE, explicit, null, null, null, INT_TYPE);
+            } else if (expected.clazz == Long.class && internal) {
+                return new Cast(INT_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
+            } else if (expected.clazz == Float.class && internal) {
+                return new Cast(INT_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
+            } else if (expected.clazz == Double.class && internal) {
+                return new Cast(INT_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+            }
+        } else if (actual.clazz == long.class) {
+            if (expected.dynamic) {
+                return new Cast(LONG_OBJ_TYPE, DEF_TYPE, explicit, null, null, LONG_TYPE, null);
+            } else if (expected.clazz == Object.class && internal) {
+                return new Cast(LONG_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, LONG_TYPE, null);
+            } else if (expected.clazz == Number.class && internal) {
+                return new Cast(LONG_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, LONG_TYPE, null);
+            } else if (expected.clazz == byte.class && explicit) {
+                return new Cast(LONG_TYPE, BYTE_TYPE, true);
+            } else if (expected.clazz == char.class && explicit) {
+                return new Cast(LONG_TYPE, CHAR_TYPE, true);
+            } else if (expected.clazz == short.class && explicit) {
+                return new Cast(LONG_TYPE, SHORT_TYPE, true);
+            } else if (expected.clazz == int.class && explicit) {
+                return new Cast(LONG_TYPE, INT_TYPE, true);
+            } else if (expected.clazz == float.class) {
+                return new Cast(LONG_TYPE, FLOAT_TYPE, explicit);
+            } else if (expected.clazz == double.class) {
+                return new Cast(LONG_TYPE, DOUBLE_TYPE, explicit);
+            } else if (expected.clazz == Byte.class && explicit && internal) {
+                return new Cast(LONG_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
+            } else if (expected.clazz == Short.class && explicit && internal) {
+                return new Cast(LONG_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
+            } else if (expected.clazz == Character.class && explicit && internal) {
+                return new Cast(LONG_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
+            } else if (expected.clazz == Integer.class && explicit && internal) {
+                return new Cast(LONG_TYPE, INT_TYPE, true, null, null, null, INT_TYPE);
+            } else if (expected.clazz == Long.class && internal) {
+                return new Cast(LONG_TYPE, LONG_TYPE, explicit, null, null, null, LONG_TYPE);
+            } else if (expected.clazz == Float.class && internal) {
+                return new Cast(LONG_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
+            } else if (expected.clazz == Double.class && internal) {
+                return new Cast(LONG_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+            }
+        } else if (actual.clazz == float.class) {
+            if (expected.dynamic) {
+                return new Cast(FLOAT_OBJ_TYPE, DEF_TYPE, explicit, null, null, FLOAT_TYPE, null);
+            } else if (expected.clazz == Object.class && internal) {
+                return new Cast(FLOAT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, FLOAT_TYPE, null);
+            } else if (expected.clazz == Number.class && internal) {
+                return new Cast(FLOAT_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, FLOAT_TYPE, null);
+            } else if (expected.clazz == byte.class && explicit) {
+                return new Cast(FLOAT_TYPE, BYTE_TYPE, true);
+            } else if (expected.clazz == char.class && explicit) {
+                return new Cast(FLOAT_TYPE, CHAR_TYPE, true);
+            } else if (expected.clazz == short.class && explicit) {
+                return new Cast(FLOAT_TYPE, SHORT_TYPE, true);
+            } else if (expected.clazz == int.class && explicit) {
+                return new Cast(FLOAT_TYPE, INT_TYPE, true);
+            } else if (expected.clazz == long.class && explicit) {
+                return new Cast(FLOAT_TYPE, LONG_TYPE, true);
+            } else if (expected.clazz == double.class) {
+                return new Cast(FLOAT_TYPE, DOUBLE_TYPE, explicit);
+            } else if (expected.clazz == Byte.class && explicit && internal) {
+                return new Cast(FLOAT_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
+            } else if (expected.clazz == Short.class && explicit && internal) {
+                return new Cast(FLOAT_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
+            } else if (expected.clazz == Character.class && explicit && internal) {
+                return new Cast(FLOAT_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
+            } else if (expected.clazz == Integer.class && explicit && internal) {
+                return new Cast(FLOAT_TYPE, INT_TYPE, true, null, null, null, INT_TYPE);
+            } else if (expected.clazz == Long.class && explicit && internal) {
+                return new Cast(FLOAT_TYPE, LONG_TYPE, true, null, null, null, LONG_TYPE);
+            } else if (expected.clazz == Float.class && internal) {
+                return new Cast(FLOAT_TYPE, FLOAT_TYPE, explicit, null, null, null, FLOAT_TYPE);
+            } else if (expected.clazz == Double.class && internal) {
+                return new Cast(FLOAT_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+            }
+        } else if (actual.clazz == double.class) {
+            if (expected.dynamic) {
+                return new Cast(DOUBLE_OBJ_TYPE, DEF_TYPE, explicit, null, null, DOUBLE_TYPE, null);
+            } else if (expected.clazz == Object.class && internal) {
+                return new Cast(DOUBLE_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, DOUBLE_TYPE, null);
+            } else if (expected.clazz == Number.class && internal) {
+                return new Cast(DOUBLE_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, DOUBLE_TYPE, null);
+            } else if (expected.clazz == byte.class && explicit) {
+                return new Cast(DOUBLE_TYPE, BYTE_TYPE, true);
+            } else if (expected.clazz == char.class && explicit) {
+                return new Cast(DOUBLE_TYPE, CHAR_TYPE, true);
+            } else if (expected.clazz == short.class && explicit) {
+                return new Cast(DOUBLE_TYPE, SHORT_TYPE, true);
+            } else if (expected.clazz == int.class && explicit) {
+                return new Cast(DOUBLE_TYPE, INT_TYPE, true);
+            } else if (expected.clazz == long.class && explicit) {
+                return new Cast(DOUBLE_TYPE, LONG_TYPE, true);
+            } else if (expected.clazz == float.class && explicit) {
+                return new Cast(DOUBLE_TYPE, FLOAT_TYPE, true);
+            } else if (expected.clazz == Byte.class && explicit && internal) {
+                return new Cast(DOUBLE_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
+            } else if (expected.clazz == Short.class && explicit && internal) {
+                return new Cast(DOUBLE_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
+            } else if (expected.clazz == Character.class && explicit && internal) {
+                return new Cast(DOUBLE_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
+            } else if (expected.clazz == Integer.class && explicit && internal) {
+                return new Cast(DOUBLE_TYPE, INT_TYPE, true, null, null, null, INT_TYPE);
+            } else if (expected.clazz == Long.class && explicit && internal) {
+                return new Cast(DOUBLE_TYPE, LONG_TYPE, true, null, null, null, LONG_TYPE);
+            } else if (expected.clazz == Float.class && explicit && internal) {
+                return new Cast(DOUBLE_TYPE, FLOAT_TYPE, true, null, null, null, FLOAT_TYPE);
+            } else if (expected.clazz == Double.class && internal) {
+                return new Cast(DOUBLE_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
+            }
+        } else if (actual.clazz == Boolean.class) {
+            if (expected.clazz == boolean.class && internal) {
+                return new Cast(BOOLEAN_TYPE, BOOLEAN_TYPE, explicit, BOOLEAN_TYPE, null, null, null);
+            }
+        } else if (actual.clazz == Byte.class) {
+            if (expected.clazz == byte.class && internal) {
+                return new Cast(BYTE_TYPE, BYTE_TYPE, explicit, BYTE_TYPE, null, null, null);
+            } else if (expected.clazz == short.class && internal) {
+                return new Cast(BYTE_TYPE, SHORT_TYPE, explicit, BYTE_TYPE, null, null, null);
+            } else if (expected.clazz == char.class && explicit && internal) {
+                return new Cast(BYTE_TYPE, CHAR_TYPE, true, BYTE_TYPE, null, null, null);
+            } else if (expected.clazz == int.class && internal) {
+                return new Cast(BYTE_TYPE, INT_TYPE, explicit, BYTE_TYPE, null, null, null);
+            } else if (expected.clazz == long.class && internal) {
+                return new Cast(BYTE_TYPE, LONG_TYPE, explicit, BYTE_TYPE, null, null, null);
+            } else if (expected.clazz == float.class && internal) {
+                return new Cast(BYTE_TYPE, FLOAT_TYPE, explicit, BYTE_TYPE, null, null, null);
+            } else if (expected.clazz == double.class && internal) {
+                return new Cast(BYTE_TYPE, DOUBLE_TYPE, explicit, BYTE_TYPE, null, null, null);
+            }
+        } else if (actual.clazz == Short.class) {
+            if (expected.clazz == byte.class && explicit && internal) {
+                return new Cast(SHORT_TYPE, BYTE_TYPE, true, SHORT_TYPE, null, null, null);
+            } else if (expected.clazz == short.class && internal) {
+                return new Cast(SHORT_TYPE, SHORT_TYPE, explicit, SHORT_TYPE, null, null, null);
+            } else if (expected.clazz == char.class && explicit && internal) {
+                return new Cast(SHORT_TYPE, CHAR_TYPE, true, SHORT_TYPE, null, null, null);
+            } else if (expected.clazz == int.class && internal) {
+                return new Cast(SHORT_TYPE, INT_TYPE, explicit, SHORT_TYPE, null, null, null);
+            } else if (expected.clazz == long.class && internal) {
+                return new Cast(SHORT_TYPE, LONG_TYPE, explicit, SHORT_TYPE, null, null, null);
+            } else if (expected.clazz == float.class && internal) {
+                return new Cast(SHORT_TYPE, FLOAT_TYPE, explicit, SHORT_TYPE, null, null, null);
+            } else if (expected.clazz == double.class && internal) {
+                return new Cast(SHORT_TYPE, DOUBLE_TYPE, explicit, SHORT_TYPE, null, null, null);
+            }
+        } else if (actual.clazz == Character.class) {
+            if (expected.clazz == byte.class && explicit && internal) {
+                return new Cast(CHAR_TYPE, BYTE_TYPE, true, CHAR_TYPE, null, null, null);
+            } else if (expected.clazz == short.class && explicit && internal) {
+                return new Cast(CHAR_TYPE, SHORT_TYPE, true, CHAR_TYPE, null, null, null);
+            } else if (expected.clazz == char.class && internal) {
+                return new Cast(CHAR_TYPE, CHAR_TYPE, explicit, CHAR_TYPE, null, null, null);
+            } else if (expected.clazz == int.class && internal) {
+                return new Cast(CHAR_TYPE, INT_TYPE, explicit, CHAR_TYPE, null, null, null);
+            } else if (expected.clazz == long.class && internal) {
+                return new Cast(CHAR_TYPE, LONG_TYPE, explicit, CHAR_TYPE, null, null, null);
+            } else if (expected.clazz == float.class && internal) {
+                return new Cast(CHAR_TYPE, FLOAT_TYPE, explicit, CHAR_TYPE, null, null, null);
+            } else if (expected.clazz == double.class && internal) {
+                return new Cast(CHAR_TYPE, DOUBLE_TYPE, explicit, CHAR_TYPE, null, null, null);
+            }
+        } else if (actual.clazz == Integer.class) {
+            if (expected.clazz == byte.class && explicit && internal) {
+                return new Cast(INT_TYPE, BYTE_TYPE, true, INT_TYPE, null, null, null);
+            } else if (expected.clazz == short.class && explicit && internal) {
+                return new Cast(INT_TYPE, SHORT_TYPE, true, INT_TYPE, null, null, null);
+            } else if (expected.clazz == char.class && explicit && internal) {
+                return new Cast(INT_TYPE, CHAR_TYPE, true, INT_TYPE, null, null, null);
+            } else if (expected.clazz == int.class && internal) {
+                return new Cast(INT_TYPE, INT_TYPE, explicit, INT_TYPE, null, null, null);
+            } else if (expected.clazz == long.class && internal) {
+                return new Cast(INT_TYPE, LONG_TYPE, explicit, INT_TYPE, null, null, null);
+            } else if (expected.clazz == float.class && internal) {
+                return new Cast(INT_TYPE, FLOAT_TYPE, explicit, INT_TYPE, null, null, null);
+            } else if (expected.clazz == double.class && internal) {
+                return new Cast(INT_TYPE, DOUBLE_TYPE, explicit, INT_TYPE, null, null, null);
+            }
+        } else if (actual.clazz == Long.class) {
+            if (expected.clazz == byte.class && explicit && internal) {
+                return new Cast(LONG_TYPE, BYTE_TYPE, true, LONG_TYPE, null, null, null);
+            } else if (expected.clazz == short.class && explicit && internal) {
+                return new Cast(LONG_TYPE, SHORT_TYPE, true, LONG_TYPE, null, null, null);
+            } else if (expected.clazz == char.class && explicit && internal) {
+                return new Cast(LONG_TYPE, CHAR_TYPE, true, LONG_TYPE, null, null, null);
+            } else if (expected.clazz == int.class && explicit && internal) {
+                return new Cast(LONG_TYPE, INT_TYPE, true, LONG_TYPE, null, null, null);
+            } else if (expected.clazz == long.class && internal) {
+                return new Cast(LONG_TYPE, LONG_TYPE, explicit, LONG_TYPE, null, null, null);
+            } else if (expected.clazz == float.class && internal) {
+                return new Cast(LONG_TYPE, FLOAT_TYPE, explicit, LONG_TYPE, null, null, null);
+            } else if (expected.clazz == double.class && internal) {
+                return new Cast(LONG_TYPE, DOUBLE_TYPE, explicit, LONG_TYPE, null, null, null);
+            }
+        } else if (actual.clazz == Float.class) {
+            if (expected.clazz == byte.class && explicit && internal) {
+                return new Cast(FLOAT_TYPE, BYTE_TYPE, true, FLOAT_TYPE, null, null, null);
+            } else if (expected.clazz == short.class && explicit && internal) {
+                return new Cast(FLOAT_TYPE, SHORT_TYPE, true, FLOAT_TYPE, null, null, null);
+            } else if (expected.clazz == char.class && explicit && internal) {
+                return new Cast(FLOAT_TYPE, CHAR_TYPE, true, FLOAT_TYPE, null, null, null);
+            } else if (expected.clazz == int.class && explicit && internal) {
+                return new Cast(FLOAT_TYPE, INT_TYPE, true, FLOAT_TYPE, null, null, null);
+            } else if (expected.clazz == long.class && explicit && internal) {
+                return new Cast(FLOAT_TYPE, LONG_TYPE, true, FLOAT_TYPE, null, null, null);
+            } else if (expected.clazz == float.class && internal) {
+                return new Cast(FLOAT_TYPE, FLOAT_TYPE, explicit, FLOAT_TYPE, null, null, null);
+            } else if (expected.clazz == double.class && internal) {
+                return new Cast(FLOAT_TYPE, DOUBLE_TYPE, explicit, FLOAT_TYPE, null, null, null);
+            }
+        } else if (actual.clazz == Double.class) {
+            if (expected.clazz == byte.class && explicit && internal) {
+                return new Cast(DOUBLE_TYPE, BYTE_TYPE, true, DOUBLE_TYPE, null, null, null);
+            } else if (expected.clazz == short.class && explicit && internal) {
+                return new Cast(DOUBLE_TYPE, SHORT_TYPE, true, DOUBLE_TYPE, null, null, null);
+            } else if (expected.clazz == char.class && explicit && internal) {
+                return new Cast(DOUBLE_TYPE, CHAR_TYPE, true, DOUBLE_TYPE, null, null, null);
+            } else if (expected.clazz == int.class && explicit && internal) {
+                return new Cast(DOUBLE_TYPE, INT_TYPE, true, DOUBLE_TYPE, null, null, null);
+            } else if (expected.clazz == long.class && explicit && internal) {
+                return new Cast(DOUBLE_TYPE, LONG_TYPE, true, DOUBLE_TYPE, null, null, null);
+            } else if (expected.clazz == float.class && explicit && internal) {
+                return new Cast(DOUBLE_TYPE, FLOAT_TYPE, true, DOUBLE_TYPE, null, null, null);
+            } else if (expected.clazz == double.class && internal) {
+                return new Cast(DOUBLE_TYPE, DOUBLE_TYPE, explicit, DOUBLE_TYPE, null, null, null);
+            }
         }
 
-        if (       actual.sort == Sort.DEF
-                || (actual.sort != Sort.VOID && expected.sort == Sort.DEF)
-                || expected.clazz.isAssignableFrom(actual.clazz)
-                || (explicit && actual.clazz.isAssignableFrom(expected.clazz))) {
+        if (    actual.dynamic                                   ||
+                (actual.clazz != void.class && expected.dynamic) ||
+                expected.clazz.isAssignableFrom(actual.clazz)    ||
+                (actual.clazz.isAssignableFrom(expected.clazz) && explicit)) {
             return new Cast(actual, expected, explicit);
         } else {
             throw location.createError(new ClassCastException("Cannot cast from [" + actual.name + "] to [" + expected.name + "]."));
@@ -791,35 +490,34 @@ public final class AnalyzerCaster {
     }
 
     public static Object constCast(Location location, final Object constant, final Cast cast) {
-        final Sort fsort = cast.from.sort;
-        final Sort tsort = cast.to.sort;
+        Class<?> fsort = cast.from.clazz;
+        Class<?> tsort = cast.to.clazz;
 
         if (fsort == tsort) {
             return constant;
-        } else if (fsort == Sort.STRING && tsort == Sort.CHAR) {
+        } else if (fsort == String.class && tsort == char.class) {
             return Utility.StringTochar((String)constant);
-        } else if (fsort == Sort.CHAR && tsort == Sort.STRING) {
+        } else if (fsort == char.class && tsort == String.class) {
             return Utility.charToString((char)constant);
-        } else if (fsort.numeric && tsort.numeric) {
+        } else if (fsort.isPrimitive() && fsort != boolean.class && tsort.isPrimitive() && tsort != boolean.class) {
             final Number number;
 
-            if (fsort == Sort.CHAR) {
+            if (fsort == char.class) {
                 number = (int)(char)constant;
             } else {
                 number = (Number)constant;
             }
 
-            switch (tsort) {
-                case BYTE:   return number.byteValue();
-                case SHORT:  return number.shortValue();
-                case CHAR:   return (char)number.intValue();
-                case INT:    return number.intValue();
-                case LONG:   return number.longValue();
-                case FLOAT:  return number.floatValue();
-                case DOUBLE: return number.doubleValue();
-                default:
-                    throw location.createError(new IllegalStateException("Cannot cast from " +
-                        "[" + cast.from.clazz.getCanonicalName() + "] to [" + cast.to.clazz.getCanonicalName() + "]."));
+            if      (tsort == byte.class) return number.byteValue();
+            else if (tsort == short.class) return number.shortValue();
+            else if (tsort == char.class) return (char)number.intValue();
+            else if (tsort == int.class) return number.intValue();
+            else if (tsort == long.class) return number.longValue();
+            else if (tsort == float.class) return number.floatValue();
+            else if (tsort == double.class) return number.doubleValue();
+            else {
+                throw location.createError(new IllegalStateException("Cannot cast from " +
+                    "[" + cast.from.clazz.getCanonicalName() + "] to [" + cast.to.clazz.getCanonicalName() + "]."));
             }
         } else {
             throw location.createError(new IllegalStateException("Cannot cast from " +
@@ -828,17 +526,17 @@ public final class AnalyzerCaster {
     }
 
     public static Type promoteNumeric(Type from, boolean decimal) {
-        final Sort sort = from.sort;
+        Class<?> sort = from.clazz;
 
-        if (sort == Sort.DEF) {
+        if (from.dynamic) {
             return DEF_TYPE;
-        } else if ((sort == Sort.DOUBLE) && decimal) {
+        } else if ((sort == double.class) && decimal) {
             return DOUBLE_TYPE;
-        } else if ((sort == Sort.FLOAT) && decimal) {
+        } else if ((sort == float.class) && decimal) {
             return  FLOAT_TYPE;
-        } else if (sort == Sort.LONG) {
+        } else if (sort == long.class) {
             return LONG_TYPE;
-        } else if (sort == Sort.INT || sort == Sort.CHAR || sort == Sort.SHORT || sort == Sort.BYTE) {
+        } else if (sort == int.class || sort == char.class || sort == short.class || sort == byte.class) {
             return INT_TYPE;
         }
 
@@ -846,108 +544,106 @@ public final class AnalyzerCaster {
     }
 
     public static Type promoteNumeric(Type from0, Type from1, boolean decimal) {
-        final Sort sort0 = from0.sort;
-        final Sort sort1 = from1.sort;
+        Class<?> sort0 = from0.clazz;
+        Class<?> sort1 = from1.clazz;
 
-        if (sort0 == Sort.DEF || sort1 == Sort.DEF) {
+        if (from0.dynamic || from1.dynamic) {
             return DEF_TYPE;
         }
 
         if (decimal) {
-            if (sort0 == Sort.DOUBLE || sort1 == Sort.DOUBLE) {
+            if (sort0 == double.class || sort1 == double.class) {
                 return DOUBLE_TYPE;
-            } else if (sort0 == Sort.FLOAT || sort1 == Sort.FLOAT) {
+            } else if (sort0 == float.class || sort1 == float.class) {
                 return FLOAT_TYPE;
             }
         }
 
-        if (sort0 == Sort.LONG || sort1 == Sort.LONG) {
+        if (sort0 == long.class || sort1 == long.class) {
             return LONG_TYPE;
-        } else if (sort0 == Sort.INT   || sort1 == Sort.INT   ||
-                   sort0 == Sort.CHAR  || sort1 == Sort.CHAR  ||
-                   sort0 == Sort.SHORT || sort1 == Sort.SHORT ||
-                   sort0 == Sort.BYTE  || sort1 == Sort.BYTE) {
+        } else if (sort0 == int.class   || sort1 == int.class   ||
+                   sort0 == char.class  || sort1 == char.class  ||
+                   sort0 == short.class || sort1 == short.class ||
+                   sort0 == byte.class  || sort1 == byte.class) {
             return INT_TYPE;
         }
 
         return null;
     }
 
-    public static Type promoteAdd(final Type from0, final Type from1) {
-        final Sort sort0 = from0.sort;
-        final Sort sort1 = from1.sort;
+    public static Type promoteAdd(Type from0, Type from1) {
+        Class<?> sort0 = from0.clazz;
+        Class<?> sort1 = from1.clazz;
 
-        if (sort0 == Sort.STRING || sort1 == Sort.STRING) {
+        if (sort0 == String.class || sort1 == String.class) {
             return STRING_TYPE;
         }
 
         return promoteNumeric(from0, from1, true);
     }
 
-    public static Type promoteXor(final Type from0, final Type from1) {
-        final Sort sort0 = from0.sort;
-        final Sort sort1 = from1.sort;
+    public static Type promoteXor(Type from0, Type from1) {
+        Class<?> sort0 = from0.clazz;
+        Class<?> sort1 = from1.clazz;
 
-        if (sort0 == Sort.DEF || sort1 == Sort.DEF) {
+        if (from0.dynamic || from1.dynamic) {
             return DEF_TYPE;
         }
 
-        if (sort0.bool || sort1.bool) {
+        if (sort0 == boolean.class || sort1 == boolean.class) {
             return BOOLEAN_TYPE;
         }
 
         return promoteNumeric(from0, from1, false);
     }
 
-    public static Type promoteEquality(final Type from0, final Type from1) {
-        final Sort sort0 = from0.sort;
-        final Sort sort1 = from1.sort;
+    public static Type promoteEquality(Type from0, Type from1) {
+        Class<?> sort0 = from0.clazz;
+        Class<?> sort1 = from1.clazz;
 
-        if (sort0 == Sort.DEF || sort1 == Sort.DEF) {
+        if (from0.dynamic || from1.dynamic) {
             return DEF_TYPE;
         }
 
-        if (sort0.primitive && sort1.primitive) {
-            if (sort0.bool && sort1.bool) {
+        if (sort0.isPrimitive() && sort1.isPrimitive()) {
+            if (sort0 == boolean.class && sort1 == boolean.class) {
                 return BOOLEAN_TYPE;
             }
 
-            if (sort0.numeric && sort1.numeric) {
-                return promoteNumeric(from0, from1, true);
-            }
+            return promoteNumeric(from0, from1, true);
         }
 
         return OBJECT_TYPE;
     }
 
-    public static Type promoteConditional(final Type from0, final Type from1, final Object const0, final Object const1) {
+    public static Type promoteConditional(Type from0, Type from1, Object const0, Object const1) {
         if (from0.equals(from1)) {
             return from0;
         }
 
-        final Sort sort0 = from0.sort;
-        final Sort sort1 = from1.sort;
+        Class<?> sort0 = from0.clazz;
+        Class<?> sort1 = from1.clazz;
 
-        if (sort0 == Sort.DEF || sort1 == Sort.DEF) {
+        if (from0.dynamic || from1.dynamic) {
             return DEF_TYPE;
         }
 
-        if (sort0.primitive && sort1.primitive) {
-            if (sort0.bool && sort1.bool) {
+        if (sort0.isPrimitive() && sort1.isPrimitive()) {
+            if (sort0 == boolean.class && sort1 == boolean.class) {
                 return BOOLEAN_TYPE;
             }
 
-            if (sort0 == Sort.DOUBLE || sort1 == Sort.DOUBLE) {
+            if (sort0 == double.class || sort1 == double.class) {
                 return DOUBLE_TYPE;
-            } else if (sort0 == Sort.FLOAT || sort1 == Sort.FLOAT) {
+            } else if (sort0 == float.class || sort1 == float.class) {
                 return FLOAT_TYPE;
-            } else if (sort0 == Sort.LONG || sort1 == Sort.LONG) {
+            } else if (sort0 == long.class || sort1 == long.class) {
                 return LONG_TYPE;
             } else {
-                if (sort0 == Sort.BYTE) {
-                    if (sort1 == Sort.BYTE) {
+                if (sort0 == byte.class) {
+                    if (sort1 == byte.class) {
                         return BYTE_TYPE;
-                    } else if (sort1 == Sort.SHORT) {
+                    } else if (sort1 == short.class) {
                         if (const1 != null) {
                             final short constant = (short)const1;
 
@@ -957,9 +653,9 @@ public final class AnalyzerCaster {
                         }
 
                         return SHORT_TYPE;
-                    } else if (sort1 == Sort.CHAR) {
+                    } else if (sort1 == char.class) {
                         return INT_TYPE;
-                    } else if (sort1 == Sort.INT) {
+                    } else if (sort1 == int.class) {
                         if (const1 != null) {
                             final int constant = (int)const1;
 
@@ -970,8 +666,8 @@ public final class AnalyzerCaster {
 
                         return INT_TYPE;
                     }
-                } else if (sort0 == Sort.SHORT) {
-                    if (sort1 == Sort.BYTE) {
+                } else if (sort0 == short.class) {
+                    if (sort1 == byte.class) {
                         if (const0 != null) {
                             final short constant = (short)const0;
 
@@ -981,11 +677,11 @@ public final class AnalyzerCaster {
                         }
 
                         return SHORT_TYPE;
-                    } else if (sort1 == Sort.SHORT) {
+                    } else if (sort1 == short.class) {
                         return SHORT_TYPE;
-                    } else if (sort1 == Sort.CHAR) {
+                    } else if (sort1 == char.class) {
                         return INT_TYPE;
-                    } else if (sort1 == Sort.INT) {
+                    } else if (sort1 == int.class) {
                         if (const1 != null) {
                             final int constant = (int)const1;
 
@@ -996,14 +692,14 @@ public final class AnalyzerCaster {
 
                         return INT_TYPE;
                     }
-                } else if (sort0 == Sort.CHAR) {
-                    if (sort1 == Sort.BYTE) {
+                } else if (sort0 == char.class) {
+                    if (sort1 == byte.class) {
                         return INT_TYPE;
-                    } else if (sort1 == Sort.SHORT) {
+                    } else if (sort1 == short.class) {
                         return INT_TYPE;
-                    } else if (sort1 == Sort.CHAR) {
+                    } else if (sort1 == char.class) {
                         return CHAR_TYPE;
-                    } else if (sort1 == Sort.INT) {
+                    } else if (sort1 == int.class) {
                         if (const1 != null) {
                             final int constant = (int)const1;
 
@@ -1014,8 +710,8 @@ public final class AnalyzerCaster {
 
                         return INT_TYPE;
                     }
-                } else if (sort0 == Sort.INT) {
-                    if (sort1 == Sort.BYTE) {
+                } else if (sort0 == int.class) {
+                    if (sort1 == byte.class) {
                         if (const0 != null) {
                             final int constant = (int)const0;
 
@@ -1025,7 +721,7 @@ public final class AnalyzerCaster {
                         }
 
                         return INT_TYPE;
-                    } else if (sort1 == Sort.SHORT) {
+                    } else if (sort1 == short.class) {
                         if (const0 != null) {
                             final int constant = (int)const0;
 
@@ -1035,7 +731,7 @@ public final class AnalyzerCaster {
                         }
 
                         return INT_TYPE;
-                    } else if (sort1 == Sort.CHAR) {
+                    } else if (sort1 == char.class) {
                         if (const0 != null) {
                             final int constant = (int)const0;
 
@@ -1045,7 +741,7 @@ public final class AnalyzerCaster {
                         }
 
                         return INT_TYPE;
-                    } else if (sort1 == Sort.INT) {
+                    } else if (sort1 == int.class) {
                         return INT_TYPE;
                     }
                 }
@@ -1053,8 +749,8 @@ public final class AnalyzerCaster {
         }
 
         // TODO: In the rare case we still haven't reached a correct promotion we need
-        //       to calculate the highest upper bound for the two types and return that.
-        //       However, for now we just return objectType that may require an extra cast.
+        // TODO: to calculate the highest upper bound for the two types and return that.
+        // TODO: However, for now we just return objectType that may require an extra cast.
 
         return OBJECT_TYPE;
     }

@@ -1000,6 +1000,20 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             // Creation time is NOT required in user input, hence validated only on build
         }
 
+        /**
+         * In 6.1 we want to make the model memory size limit more prominent, and also reduce the default from
+         * 4GB to 1GB.  However, changing the meaning of a null model memory limit for existing jobs would be a
+         * breaking change, so instead we add an explicit limit to newly created jobs that didn't have one when
+         * submitted
+         */
+        public void setDefaultMemoryLimitIfUnset() {
+            if (analysisLimits == null) {
+                analysisLimits = new AnalysisLimits((Long) null);
+            } else if (analysisLimits.getModelMemoryLimit() == null) {
+                analysisLimits = new AnalysisLimits(analysisLimits.getCategorizationExamplesLimit());
+            }
+        }
+
         private void validateGroups() {
             for (String group : this.groups) {
                 if (MlStrings.isValidId(group) == false) {

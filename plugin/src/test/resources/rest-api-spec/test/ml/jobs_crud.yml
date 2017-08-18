@@ -52,12 +52,14 @@
             }
           }
   - match: { job_id: "job-crud-test-apis" }
+  - match: { analysis_limits.model_memory_limit: "1024mb" }
 
   - do:
       xpack.ml.get_jobs:
         job_id: "job-crud-test-apis"
   - match: { count: 1 }
   - match: { jobs.0.job_id: "job-crud-test-apis" }
+  - match: { jobs.0.analysis_limits.model_memory_limit: "1024mb" }
 
   - do:
       indices.get_alias:

@@ -7,40 +7,37 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.xpack.sql.jdbc.framework.SpecBaseIntegrationTestCase;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 import org.relique.io.TableReader;
 import org.relique.jdbc.csv.CsvConnection;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
+import java.io.StringWriter;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
+import java.util.Locale;
 import java.util.Properties;
 
 import static org.elasticsearch.xpack.sql.jdbc.framework.JdbcAssert.assertResultSets;
+import static org.hamcrest.Matchers.arrayWithSize;
 
 /**
  * Tests comparing sql queries executed against our jdbc client
  * with hard coded result sets.
  */
 public class CsvSpecIT extends SpecBaseIntegrationTestCase {
-    /**
-     * Properties used when settings up a CSV-based jdbc connection.
-     */
-    private static final Properties CSV_PROPERTIES = new Properties();
-    static {
-        CSV_PROPERTIES.setProperty("charset", "UTF-8");
-        // trigger auto-detection
-        CSV_PROPERTIES.setProperty("columnTypes", "");
-        CSV_PROPERTIES.setProperty("separator", "|");
-        CSV_PROPERTIES.setProperty("trimValues", "true");
-    }
-
     private final CsvTestCase testCase;
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
@@ -49,7 +46,8 @@ public class CsvSpecIT extends SpecBaseIntegrationTestCase {
         return CollectionUtils.combine(
                 readScriptSpec("/command.csv-spec", parser),
                 readScriptSpec("/fulltext.csv-spec", parser),
-                readScriptSpec("/agg.csv-spec", parser)
+                readScriptSpec("/agg.csv-spec", parser),
+                readScriptSpec("/columns.csv-spec", parser)
                 );
     }
 
@@ -66,8 +64,14 @@ public class CsvSpecIT extends SpecBaseIntegrationTestCase {
         }
     }
 
-    private void assertMatchesCsv(String query, String csvTableName, String expectedResults) throws SQLException {
-        Reader reader = new StringReader(expectedResults);
+    private void assertMatchesCsv(String query, String csvTableName, String expectedResults) throws SQLException, IOException {
+        Properties csvProperties = new Properties();
+        csvProperties.setProperty("charset", "UTF-8");
+        csvProperties.setProperty("separator", "|");
+        csvProperties.setProperty("trimValues", "true");
+        Tuple<String,String> resultsAndTypes = extractColumnTypes(expectedResults);
+        csvProperties.setProperty("columnTypes", resultsAndTypes.v2());
+        Reader reader = new StringReader(resultsAndTypes.v1());
         TableReader tableReader = new TableReader() {
             @Override
             public Reader getReader(Statement statement, String tableName) throws SQLException {
@@ -79,7 +83,7 @@ public class CsvSpecIT extends SpecBaseIntegrationTestCase {
                 throw new UnsupportedOperationException();
             }
         };
-        try (Connection csv = new CsvConnection(tableReader, CSV_PROPERTIES, "") {};
+        try (Connection csv = new CsvConnection(tableReader, csvProperties, "") {};
              Connection es = esJdbc()) {
             // pass the testName as table for debugging purposes (in case the underlying reader is missing)
             ResultSet expected = csv.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)
@@ -88,6 +92,58 @@ public class CsvSpecIT extends SpecBaseIntegrationTestCase {
             expected.beforeFirst();
             ResultSet actual = executeJdbcQuery(es, query);
             assertResultSets(expected, actual);
+        }
+    }
+
+    private Tuple<String,String> extractColumnTypes(String expectedResults) throws IOException {
+        try (StringReader reader = new StringReader(expectedResults)){
+            try (BufferedReader bufferedReader = new BufferedReader(reader)){
+                String header = bufferedReader.readLine();
+                if (!header.contains(":")) {
+                    // No type information in headers, no need to parse columns - trigger auto-detection
+                    return new Tuple<>(expectedResults,"");
+                }
+                try (StringWriter writer = new StringWriter()) {
+                    try (BufferedWriter bufferedWriter = new BufferedWriter(writer)){
+                        Tuple<String, String> headerAndColumns = extractColumnTypesFromHeader(header);
+                        bufferedWriter.write(headerAndColumns.v1());
+                        bufferedWriter.newLine();
+                        bufferedWriter.flush();
+                        // Copy the rest of test
+                        Streams.copy(bufferedReader, bufferedWriter);
+                        return new Tuple<>(writer.toString(), headerAndColumns.v2());
+                    }
+                }
+            }
+        }
+    }
+
+    private Tuple<String,String> extractColumnTypesFromHeader(String header) {
+        String[] columnTypes = Strings.delimitedListToStringArray(header, "|", " \t");
+        StringBuilder types = new StringBuilder();
+        StringBuilder columns = new StringBuilder();
+        for(String column : columnTypes) {
+            String[] nameType = Strings.delimitedListToStringArray(column, ":");
+            assertThat("If at least one column has a type associated with it, all columns should have types",  nameType, arrayWithSize(2));
+            if(types.length() > 0) {
+                types.append(",");
+                columns.append("|");
+            }
+            columns.append(nameType[0]);
+            types.append(resolveColumnType(nameType[1]));
+        }
+        return new Tuple<>(columns.toString(), types.toString());
+    }
+    
+    private String resolveColumnType(String type) {
+        switch (type.toLowerCase(Locale.ROOT)) {
+            case "s": return "string";
+            case "b": return "boolean";
+            case "i": return "integer";
+            case "l": return "long";
+            case "f": return "float";
+            case "d": return "double";
+            default: return type;
         }
     }
 

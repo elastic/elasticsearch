@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
@@ -46,6 +45,12 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 .put(TokenService.DELETE_INTERVAL.getKey(), TimeValue.timeValueSeconds(1L))
                 .put(TokenService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(2L))
                 .build();
+    }
+
+    @Override
+    protected int maxNumberOfNodes() {
+        // we start one more node so we need to make sure if we hit max randomization we can still start one
+        return defaultMaxNumberOfNodes() + 1;
     }
 
     public void testTokenServiceBootstrapOnNodeJoin() throws Exception {

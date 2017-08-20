@@ -19,16 +19,21 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.AbstractMap;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.List;
-import java.util.Collections;
+import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 public class RolloverResponse extends ActionResponse implements ToXContentObject {
@@ -42,53 +47,110 @@ public class RolloverResponse extends ActionResponse implements ToXContentObject
     private static final String SHARDS_ACKED = "shards_acknowledged";
 
     private final List<SingleAliasRolloverResponse> responses;
+    private final Map<String, Exception> failures;
 
     RolloverResponse() {
-        this.responses = Collections.emptyList();
+        this.responses = new ArrayList<>();
+        this.failures = new HashMap<>();
     }
 
-    RolloverResponse(List<SingleAliasRolloverResponse> responses) {
-        if (0 == responses.size()) {
-            throw new IllegalArgumentException("At least 1 response is expected");
+    RolloverResponse(List<SingleAliasRolloverResponse> responses, Map<String, Exception> failures) {
+        if (responses.isEmpty() && failures.isEmpty()) {
+            throw new IllegalStateException("Response for at least 1 alias is expected");
         }
         this.responses = responses;
+        this.failures = failures;
+    }
+
+    SingleAliasRolloverResponse first() {
+        if (responses.isEmpty()) {
+            throw new IllegalStateException("Response for at least 1 alias is expected");
+        }
+
+        return responses.get(0);
     }
 
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, Params params) throws IOException {
+        if (responses.isEmpty() && failures.isEmpty()) {
+            throw new IllegalStateException("Response for at least 1 alias is expected");
+        }
+
         builder.startObject();
         builder.field(DRY_RUN, responses.get(0).isDryRun());
 
+        // keep compatibility with single alias Rollover
         if (responses.size() == 1) {
-            // keep compatibility with
-            responses.get(0).toXContent(builder, params);
+            first().toXContent(builder, params);
         }
 
-        builder.startObject("matched_aliases");
+        builder.startObject("rolled_over_aliases");
         for(SingleAliasRolloverResponse response: this.responses) {
             builder.startObject(response.getAlias());
-            builder.field(OLD_INDEX, response.getOldIndex());
-            builder.field(NEW_INDEX, response.getNewIndex());
-            builder.field(ROLLED_OVER, response.isRolledOver());
-            builder.field(ACKNOWLEDGED, response.isAcknowledged());
-            builder.field(SHARDS_ACKED, response.isShardsAcked());
-            builder.startObject(CONDITIONS);
-            for (Map.Entry<String, Boolean> entry : response.getConditionStatus()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
+            response.toXContent(builder, params);
             builder.endObject();
+        }
+        builder.endObject();
+
+        if (failures.size() > 0) {
+            builder.startObject("failed_aliases");
+            for (Map.Entry<String, Exception> entry : failures.entrySet()) {
+                builder.startObject(entry.getKey());
+                ElasticsearchException.generateThrowableXContent(builder, params, entry.getValue());
+                builder.endObject();
+            }
             builder.endObject();
         }
 
-        builder.endObject();
         builder.endObject();
 
         return builder;
     }
 
-    //todo override ActionResponseMethods
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        int responsesSize = in.readVInt();
+        for (int j = 0; j < responsesSize; j++) {
+            final SingleAliasRolloverResponse response = new SingleAliasRolloverResponse();
+            response.oldIndex = in.readString();
+            response.newIndex = in.readString();
+            int conditionSize = in.readVInt();
+            Set<Map.Entry<String, Boolean>> conditions = new HashSet<>(conditionSize);
+            for (int i = 0; i < conditionSize; i++) {
+                String condition = in.readString();
+                boolean satisfied = in.readBoolean();
+                conditions.add(new AbstractMap.SimpleEntry<>(condition, satisfied));
+            }
+            response.conditionStatus = conditions;
+            response.dryRun = in.readBoolean();
+            response.rolledOver = in.readBoolean();
+            response.acknowledged = in.readBoolean();
+            response.shardsAcked = in.readBoolean();
+            responses.add(response);
+        }
+    }
 
-    static class SingleAliasRolloverResponse {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeVInt(responses.size());
+        for (SingleAliasRolloverResponse response: responses) {
+            out.writeString(response.oldIndex);
+            out.writeString(response.newIndex);
+            out.writeVInt(response.conditionStatus.size());
+            for (Map.Entry<String, Boolean> entry : response.conditionStatus) {
+                out.writeString(entry.getKey());
+                out.writeBoolean(entry.getValue());
+            }
+            out.writeBoolean(response.dryRun);
+            out.writeBoolean(response.rolledOver);
+            out.writeBoolean(response.acknowledged);
+            out.writeBoolean(response.shardsAcked);
+        }
+    }
+
+    static class SingleAliasRolloverResponse implements ToXContentObject {
 
         private String alias;
         private String oldIndex;
@@ -98,6 +160,9 @@ public class RolloverResponse extends ActionResponse implements ToXContentObject
         private boolean rolledOver;
         private boolean acknowledged;
         private boolean shardsAcked;
+
+        private SingleAliasRolloverResponse() {
+        }
 
         SingleAliasRolloverResponse(String alias, String oldIndex, String newIndex, Set<Condition.Result> conditionResults,
                                     boolean dryRun, boolean rolledOver, boolean acknowledged, boolean shardsAcked) {
@@ -113,38 +178,68 @@ public class RolloverResponse extends ActionResponse implements ToXContentObject
                 .collect(Collectors.toSet());
         }
 
-        String getAlias() {
-            return alias;
-        }
-
+        /**
+         * Returns the name of the index that the alias was pointing to
+         */
         String getOldIndex() {
             return oldIndex;
         }
 
+        /**
+         * Returns the name of the index that the alias currently points to
+         */
         String getNewIndex() {
             return newIndex;
         }
 
+        /**
+         * Returns the statuses of all the request conditions
+         */
         Set<Map.Entry<String, Boolean>> getConditionStatus() {
             return conditionStatus;
         }
 
+        /**
+         * Returns if the rollover execution was skipped even when conditions were met
+         */
         boolean isDryRun() {
             return dryRun;
         }
 
+        /**
+         * Returns true if the rollover was not simulated and the conditions were met
+         */
         boolean isRolledOver() {
             return rolledOver;
         }
 
+        /**
+         * Returns true if the creation of the new rollover index and switching of the
+         * alias to the newly created index was successful, and returns false otherwise.
+         * If {@link #isDryRun()} is true, then this will also return false. If this
+         * returns false, then {@link #isShardsAcked()} will also return false.
+         */
         boolean isAcknowledged() {
             return acknowledged;
         }
 
+        /**
+         * Returns true if the requisite number of shards were started in the newly
+         * created rollover index before returning.  If {@link #isAcknowledged()} is
+         * false, then this will also return false.
+         */
         boolean isShardsAcked() {
             return shardsAcked;
         }
 
+        /**
+         * Returns name of rolled over alias
+         */
+        String getAlias() {
+            return alias;
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(OLD_INDEX, oldIndex);
             builder.field(NEW_INDEX, newIndex);
@@ -158,59 +253,5 @@ public class RolloverResponse extends ActionResponse implements ToXContentObject
             builder.endObject();
             return builder;
         }
-    }
-
-    /**
-     * Returns the name of the index that the request alias was pointing to
-     */
-    String getOldIndex() {
-        return responses.get(0).getOldIndex();
-    } // todo only if size == 1, null if size == 0 , exception otherwise
-
-    /**
-     * Returns the name of the index that the request alias currently points to
-     */
-    String getNewIndex() {
-        return responses.get(0).getNewIndex();
-    }
-
-    /**
-     * Returns the statuses of all the request conditions
-     */
-    Set<Map.Entry<String, Boolean>> getConditionStatus() {
-        return responses.get(0).getConditionStatus();
-    }
-
-    /**
-     * Returns if the rollover execution was skipped even when conditions were met
-     */
-    boolean isDryRun() {
-        return responses.get(0).isDryRun();
-    }
-
-    /**
-     * Returns true if the rollover was not simulated and the conditions were met
-     */
-    boolean isRolledOver() {
-        return responses.get(0).isRolledOver();
-    }
-
-    /**
-     * Returns true if the creation of the new rollover index and switching of the
-     * alias to the newly created index was successful, and returns false otherwise.
-     * If {@link #isDryRun()} is true, then this will also return false. If this
-     * returns false, then {@link #isShardsAcked()} will also return false.
-     */
-    boolean isAcknowledged() {
-        return responses.get(0).isAcknowledged();
-    }
-
-    /**
-     * Returns true if the requisite number of shards were started in the newly
-     * created rollover index before returning.  If {@link #isAcknowledged()} is
-     * false, then this will also return false.
-     */
-    boolean isShardsAcked() {
-        return responses.get(0).isShardsAcked();
     }
 }

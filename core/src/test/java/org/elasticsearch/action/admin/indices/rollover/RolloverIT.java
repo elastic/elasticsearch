@@ -48,15 +48,14 @@ public class RolloverIT extends ESIntegTestCase {
         return Collections.singleton(InternalSettingsPlugin.class);
     }
 
-
     public void testRolloverOnEmptyIndex() throws Exception {
         assertAcked(prepareCreate("test_index-1").addAlias(new Alias("test_alias")).get());
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
-        assertThat(response.getOldIndex(), equalTo("test_index-1"));
-        assertThat(response.getNewIndex(), equalTo("test_index-000002"));
-        assertThat(response.isDryRun(), equalTo(false));
-        assertThat(response.isRolledOver(), equalTo(true));
-        assertThat(response.getConditionStatus().size(), equalTo(0));
+        assertThat(response.first().getOldIndex(), equalTo("test_index-1"));
+        assertThat(response.first().getNewIndex(), equalTo("test_index-000002"));
+        assertThat(response.first().isDryRun(), equalTo(false));
+        assertThat(response.first().isRolledOver(), equalTo(true));
+        assertThat(response.first().getConditionStatus().size(), equalTo(0));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index-1");
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));
@@ -69,16 +68,34 @@ public class RolloverIT extends ESIntegTestCase {
         index("test_index-2", "type1", "1", "field", "value");
         flush("test_index-2");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
-        assertThat(response.getOldIndex(), equalTo("test_index-2"));
-        assertThat(response.getNewIndex(), equalTo("test_index-000003"));
-        assertThat(response.isDryRun(), equalTo(false));
-        assertThat(response.isRolledOver(), equalTo(true));
-        assertThat(response.getConditionStatus().size(), equalTo(0));
+        assertThat(response.first().getOldIndex(), equalTo("test_index-2"));
+        assertThat(response.first().getNewIndex(), equalTo("test_index-000003"));
+        assertThat(response.first().isDryRun(), equalTo(false));
+        assertThat(response.first().isRolledOver(), equalTo(true));
+        assertThat(response.first().getConditionStatus().size(), equalTo(0));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index-2");
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));
         final IndexMetaData newIndex = state.metaData().index("test_index-000003");
         assertTrue(newIndex.getAliases().containsKey("test_alias"));
+    }
+
+    public void testMultiAliasRollover() throws Exception {
+        assertAcked(prepareCreate("test_index-2").addAlias(new Alias("test_alias")).get());
+        assertAcked(prepareCreate("test_indexx-2").addAlias(new Alias("test_aliass")).get());
+        index("test_index-2", "type1", "1", "field", "value");
+        flush("test_index-2");
+        index("test_indexx-2", "type1", "1", "field", "value");
+        flush("test_indexx-2");
+
+        new RolloverRequestBuilder(client().admin().indices(), RolloverAction.INSTANCE)
+            .addAlias("test_alias")
+            .addAlias("test_aliass")
+            .get();
+
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        assertTrue(state.metaData().index("test_index-000003").getAliases().containsKey("test_alias"));
+        assertTrue(state.metaData().index("test_indexx-000003").getAliases().containsKey("test_aliass"));
     }
 
     public void testRolloverWithIndexSettings() throws Exception {
@@ -91,11 +108,11 @@ public class RolloverIT extends ESIntegTestCase {
             .build();
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
             .settings(settings).alias(new Alias("extra_alias")).get();
-        assertThat(response.getOldIndex(), equalTo("test_index-2"));
-        assertThat(response.getNewIndex(), equalTo("test_index-000003"));
-        assertThat(response.isDryRun(), equalTo(false));
-        assertThat(response.isRolledOver(), equalTo(true));
-        assertThat(response.getConditionStatus().size(), equalTo(0));
+        assertThat(response.first().getOldIndex(), equalTo("test_index-2"));
+        assertThat(response.first().getNewIndex(), equalTo("test_index-000003"));
+        assertThat(response.first().isDryRun(), equalTo(false));
+        assertThat(response.first().isRolledOver(), equalTo(true));
+        assertThat(response.first().getConditionStatus().size(), equalTo(0));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index-2");
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));
@@ -111,11 +128,11 @@ public class RolloverIT extends ESIntegTestCase {
         index("test_index-1", "type1", "1", "field", "value");
         flush("test_index-1");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").dryRun(true).get();
-        assertThat(response.getOldIndex(), equalTo("test_index-1"));
-        assertThat(response.getNewIndex(), equalTo("test_index-000002"));
-        assertThat(response.isDryRun(), equalTo(true));
-        assertThat(response.isRolledOver(), equalTo(false));
-        assertThat(response.getConditionStatus().size(), equalTo(0));
+        assertThat(response.first().getOldIndex(), equalTo("test_index-1"));
+        assertThat(response.first().getNewIndex(), equalTo("test_index-000002"));
+        assertThat(response.first().isDryRun(), equalTo(true));
+        assertThat(response.first().isRolledOver(), equalTo(false));
+        assertThat(response.first().getConditionStatus().size(), equalTo(0));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index-1");
         assertTrue(oldIndex.getAliases().containsKey("test_alias"));
@@ -129,12 +146,12 @@ public class RolloverIT extends ESIntegTestCase {
         flush("test_index-0");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
             .addMaxIndexAgeCondition(TimeValue.timeValueHours(4)).get();
-        assertThat(response.getOldIndex(), equalTo("test_index-0"));
-        assertThat(response.getNewIndex(), equalTo("test_index-000001"));
-        assertThat(response.isDryRun(), equalTo(false));
-        assertThat(response.isRolledOver(), equalTo(false));
-        assertThat(response.getConditionStatus().size(), equalTo(1));
-        final Map.Entry<String, Boolean> conditionEntry = response.getConditionStatus().iterator().next();
+        assertThat(response.first().getOldIndex(), equalTo("test_index-0"));
+        assertThat(response.first().getNewIndex(), equalTo("test_index-000001"));
+        assertThat(response.first().isDryRun(), equalTo(false));
+        assertThat(response.first().isRolledOver(), equalTo(false));
+        assertThat(response.first().getConditionStatus().size(), equalTo(1));
+        final Map.Entry<String, Boolean> conditionEntry = response.first().getConditionStatus().iterator().next();
         assertThat(conditionEntry.getKey(), equalTo(new MaxAgeCondition(TimeValue.timeValueHours(4)).toString()));
         assertThat(conditionEntry.getValue(), equalTo(false));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -150,11 +167,11 @@ public class RolloverIT extends ESIntegTestCase {
         flush("test_index");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
             .setNewIndexName("test_new_index").get();
-        assertThat(response.getOldIndex(), equalTo("test_index"));
-        assertThat(response.getNewIndex(), equalTo("test_new_index"));
-        assertThat(response.isDryRun(), equalTo(false));
-        assertThat(response.isRolledOver(), equalTo(true));
-        assertThat(response.getConditionStatus().size(), equalTo(0));
+        assertThat(response.first().getOldIndex(), equalTo("test_index"));
+        assertThat(response.first().getNewIndex(), equalTo("test_new_index"));
+        assertThat(response.first().isDryRun(), equalTo(false));
+        assertThat(response.first().isRolledOver(), equalTo(true));
+        assertThat(response.first().getConditionStatus().size(), equalTo(0));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index");
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));
@@ -191,31 +208,31 @@ public class RolloverIT extends ESIntegTestCase {
         client().admin().indices().prepareOpen(index).get();
         ensureGreen(index);
         RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
-        assertThat(response.getOldIndex(), equalTo(index));
-        assertThat(response.getNewIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000002"));
-        assertThat(response.isDryRun(), equalTo(false));
-        assertThat(response.isRolledOver(), equalTo(true));
-        assertThat(response.getConditionStatus().size(), equalTo(0));
+        assertThat(response.first().getOldIndex(), equalTo(index));
+        assertThat(response.first().getNewIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000002"));
+        assertThat(response.first().isDryRun(), equalTo(false));
+        assertThat(response.first().isRolledOver(), equalTo(true));
+        assertThat(response.first().getConditionStatus().size(), equalTo(0));
 
         response = client().admin().indices().prepareRolloverIndex("test_alias").get();
-        assertThat(response.getOldIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000002"));
-        assertThat(response.getNewIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000003"));
-        assertThat(response.isDryRun(), equalTo(false));
-        assertThat(response.isRolledOver(), equalTo(true));
-        assertThat(response.getConditionStatus().size(), equalTo(0));
+        assertThat(response.first().getOldIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000002"));
+        assertThat(response.first().getNewIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000003"));
+        assertThat(response.first().isDryRun(), equalTo(false));
+        assertThat(response.first().isRolledOver(), equalTo(true));
+        assertThat(response.first().getConditionStatus().size(), equalTo(0));
 
-        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(response.getOldIndex(),
-            response.getNewIndex()).get();
-        assertEquals("<test-{now/M{YYYY.MM}}-000002>", getSettingsResponse.getSetting(response.getOldIndex(),
+        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(response.first().getOldIndex(),
+            response.first().getNewIndex()).get();
+        assertEquals("<test-{now/M{YYYY.MM}}-000002>", getSettingsResponse.getSetting(response.first().getOldIndex(),
             IndexMetaData.SETTING_INDEX_PROVIDED_NAME));
-        assertEquals("<test-{now/M{YYYY.MM}}-000003>", getSettingsResponse.getSetting(response.getNewIndex(),
+        assertEquals("<test-{now/M{YYYY.MM}}-000003>", getSettingsResponse.getSetting(response.first().getNewIndex(),
             IndexMetaData.SETTING_INDEX_PROVIDED_NAME));
 
         response = client().admin().indices().prepareRolloverIndex("test_alias").setNewIndexName("<test-{now/d}-000004>").get();
-        assertThat(response.getOldIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000003"));
-        assertThat(response.getNewIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now) + "-000004"));
-        assertThat(response.isDryRun(), equalTo(false));
-        assertThat(response.isRolledOver(), equalTo(true));
-        assertThat(response.getConditionStatus().size(), equalTo(0));
+        assertThat(response.first().getOldIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000003"));
+        assertThat(response.first().getNewIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now) + "-000004"));
+        assertThat(response.first().isDryRun(), equalTo(false));
+        assertThat(response.first().isRolledOver(), equalTo(true));
+        assertThat(response.first().getConditionStatus().size(), equalTo(0));
     }
 }

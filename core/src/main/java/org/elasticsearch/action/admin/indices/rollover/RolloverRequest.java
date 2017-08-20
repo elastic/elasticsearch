@@ -31,10 +31,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -59,28 +61,29 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             new ParseField("aliases"), ObjectParser.ValueType.OBJECT);
     }
 
-    private String[] aliases;
+    private Set<String> aliases = new HashSet<>();
     private String newIndexName;
     private boolean dryRun;
     private Set<Condition> conditions = new HashSet<>(2);
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
-    RolloverRequest() {}
+    RolloverRequest() {
+    }
 
     public RolloverRequest(String alias, String newIndexName) {
-        this.aliases = new String[]{alias};
+        this.aliases.add(alias);
         this.newIndexName = newIndexName;
     }
 
     public RolloverRequest(String[] aliases, String newIndexName) {
-        this.aliases = aliases;
+        this.aliases.addAll(Arrays.stream(aliases).collect(Collectors.toSet()));
         this.newIndexName = newIndexName;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = createIndexRequest == null ? null : createIndexRequest.validate();
-        if (aliases.length == 0 || aliases[0] == null) {
+        if (aliases.isEmpty()) {
             validationException = addValidationError("index alias is missing", validationException);
         }
         if (createIndexRequest == null) {
@@ -92,7 +95,10 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        aliases = new String[]{in.readString()};
+        int aliasesCount = in.readVInt();
+        for (int j = 0; j < aliasesCount; j++) {
+            aliases.add(in.readString());
+        }
         newIndexName = in.readOptionalString();
         dryRun = in.readBoolean();
         int size = in.readVInt();
@@ -106,7 +112,10 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(aliases[0]);
+        out.writeVInt(aliases.size());
+        for (String alias: aliases) {
+            out.writeString(alias);
+        }
         out.writeOptionalString(newIndexName);
         out.writeBoolean(dryRun);
         out.writeVInt(conditions.size());
@@ -118,7 +127,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     @Override
     public String[] indices() {
-        return aliases;
+        return aliases.stream().toArray(String[]::new);
     }
 
     @Override
@@ -127,10 +136,10 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     /**
-     * Sets the alias to rollover to another index
+     * Adds the alias to rollover to another index
      */
-    public void setAlias(String alias) {
-        this.aliases[0] = alias;
+    public void addAlias(String alias) {
+        this.aliases.add(alias);
     }
 
     /**
@@ -176,7 +185,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return conditions;
     }
 
-    String[] getAliases() {
+    Set<String> getAliases() {
         return aliases;
     }
 
@@ -197,7 +206,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
      * non-negative integer, up to the number of copies per shard (number of replicas + 1),
      * to wait for the desired amount of shard copies to become active before returning.
      * Index creation will only wait up until the timeout value for the number of shard copies
-     * to be active before returning.  Check {@link RolloverResponse#isShardsAcked()} to
+     * to be active before returning.  Check {@link RolloverResponse.SingleAliasRolloverResponse#isShardsAcked()} to
      * determine if the requisite shard copies were all started before returning or timing out.
      *
      * @param waitForActiveShards number of active shard copies to wait on

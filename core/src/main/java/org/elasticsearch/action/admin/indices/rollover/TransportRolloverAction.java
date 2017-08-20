@@ -48,6 +48,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.Locale;
@@ -105,22 +107,19 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     protected void masterOperation(final RolloverRequest rolloverRequest, final ClusterState state,
                                    final ActionListener<RolloverResponse> listener) {
         final ActionListener<RolloverResponse.SingleAliasRolloverResponse> aggListener = new AggRolloverResponseActionListener(
-            rolloverRequest.getAliases().length, listener);
+            rolloverRequest.getAliases().size(), listener);
         final MetaData metaData = state.metaData();
 
-        final List<SingleAliasRolloverRequest> requests = Arrays.stream(rolloverRequest.getAliases())
+        final List<SingleAliasRolloverRequest> requests = rolloverRequest.getAliases()
+            .stream()
             .map(alias -> createTask(metaData, alias, rolloverRequest, state))
             .collect(Collectors.toList());
 
-        try {
-            for (SingleAliasRolloverRequest req: requests) {
-                client.admin().indices().prepareStats(req.sourceIndexName).clear().setDocs(true).execute(
-                    new IndicesStatsResponseActionListener(
-                        rolloverRequest, aggListener, createIndexService, indexAliasesService, activeShardsObserver, req)
-                );
-            }
-        } catch (StopExecutionException e) {
-            listener.onFailure((Exception)e.getCause());
+        for (SingleAliasRolloverRequest req: requests) {
+            client.admin().indices().prepareStats(req.sourceIndexName).clear().setDocs(true).execute(
+                new IndicesStatsResponseActionListener(rolloverRequest, new EnrichErrorInfoListener(aggListener, req.alias),
+                    createIndexService, indexAliasesService, activeShardsObserver, req)
+            );
         }
     }
 
@@ -312,10 +311,32 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
     }
 
-    private static class StopExecutionException extends RuntimeException {
+    private static class RolloverFailureException extends Exception {
 
-        StopExecutionException(Exception cause) {
-            super("", cause);
+        RolloverFailureException(String alias, Exception cause) {
+            super(alias, cause);
+        }
+
+    }
+
+    private static class EnrichErrorInfoListener implements ActionListener<RolloverResponse.SingleAliasRolloverResponse> {
+
+        private final ActionListener<RolloverResponse.SingleAliasRolloverResponse> listener;
+        private final String alias;
+
+        EnrichErrorInfoListener(ActionListener<RolloverResponse.SingleAliasRolloverResponse> listener, String alias) {
+            this.listener = listener;
+            this.alias = alias;
+        }
+
+        @Override
+        public void onResponse(RolloverResponse.SingleAliasRolloverResponse rolloverResponse) {
+            listener.onResponse(rolloverResponse);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(new RolloverFailureException(alias, e));
         }
     }
 
@@ -324,24 +345,32 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         private final int size;
         private final List<RolloverResponse.SingleAliasRolloverResponse> responses;
         private final ActionListener<RolloverResponse> listener;
+        private final Map<String, Exception> failures;
 
         AggRolloverResponseActionListener(int cnt, ActionListener<RolloverResponse> listener) {
             this.listener = listener;
             size = cnt;
             responses = Collections.synchronizedList(new ArrayList<>());
+            failures = Collections.synchronizedMap(new HashMap<>());
         }
 
         @Override
         public void onResponse(RolloverResponse.SingleAliasRolloverResponse rolloverResponse) {
             responses.add(rolloverResponse);
-            if (responses.size() == size) {
-                listener.onResponse(new RolloverResponse(responses));
+            if (responses.size() + failures.size() == size) {
+                listener.onResponse(new RolloverResponse(responses, failures));
             }
         }
 
         @Override
         public void onFailure(Exception e) {
-            throw new StopExecutionException(e);
+            assert e instanceof RolloverFailureException;
+            if (size == 1) {
+                // keep single alias Rollover API
+                listener.onFailure((Exception)e.getCause());
+            } else {
+                failures.put(e.getMessage(), (Exception)e.getCause());
+            }
         }
     }
 }

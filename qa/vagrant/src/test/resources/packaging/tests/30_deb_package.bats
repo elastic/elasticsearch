@@ -149,8 +149,8 @@ setup() {
 
     # The configuration files are still here
     assert_file_exist "/etc/elasticsearch"
-    assert_file_exist "/etc/elsticsearch.keystore"
-    assert_file_exist "/etc/elsticsearch.keystore.md5sum"
+    assert_file_exist "/etc/elasticsearch.keystore"
+    assert_file_exist "/etc/elasticsearch.keystore.md5sum"
     assert_file_exist "/etc/elasticsearch/elasticsearch.yml"
     assert_file_exist "/etc/elasticsearch/jvm.options"
     assert_file_exist "/etc/elasticsearch/log4j2.properties"

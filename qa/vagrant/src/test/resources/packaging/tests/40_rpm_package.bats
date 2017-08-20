@@ -158,6 +158,7 @@ setup() {
     echo "# ping" >> "/etc/elasticsearch/elasticsearch.yml"
     echo "# ping" >> "/etc/elasticsearch/jvm.options"
     echo "# ping" >> "/etc/elasticsearch/log4j2.properties"
+    echo "baz.quux" | /usr/share/elasticsearch/bin/elasticsearch-keystore add foo.bar
     rpm -e 'elasticsearch'
 }
 
@@ -187,6 +188,7 @@ setup() {
     assert_file_exist "/etc/elasticsearch/jvm.options.rpmsave"
     assert_file_not_exist "/etc/elasticsearch/log4j2.properties"
     assert_file_exist "/etc/elasticsearch/log4j2.properties.rpmsave"
+    assert_file_exist "/etc/elasticsearch/elasticsearch.keystore"
 
     assert_file_not_exist "/etc/init.d/elasticsearch"
     assert_file_not_exist "/usr/lib/systemd/system/elasticsearch.service"

@@ -85,6 +85,14 @@ if [ "$REMOVE_DIRS" = "true" ]; then
         rmdir --ignore-fail-on-non-empty "$DATA_DIR"
     fi
 
+    if [ -f "$ES_PATH_CONF"/elasticsearch.keystore.md5sum ]; then
+        if md5sum -c --quiet --status "$ES_PATH_CONF"/elasticsearch.keystore.md5sum; then
+          rm "$ES_PATH_CONF"/elasticsearch.keystore "$ES_PATH_CONF"/elasticsearch.keystore.md5sum
+        else
+          echo "warning: $ES_PATH_CONF/elasticsearch.keystore modified so not removed"
+        fi
+    fi
+
     # delete the conf directory if and only if empty
     if [ -d "$ES_PATH_CONF" ]; then
         rmdir --ignore-fail-on-non-empty "$ES_PATH_CONF"

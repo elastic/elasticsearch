@@ -67,8 +67,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private Set<Condition> conditions = new HashSet<>(2);
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
-    RolloverRequest() {
-    }
+    RolloverRequest() {}
 
     public RolloverRequest(String alias, String newIndexName) {
         this.aliases.add(alias);

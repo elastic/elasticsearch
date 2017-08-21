@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.RecordWriter;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -847,5 +848,116 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         analysisConfig.setLatency(TimeValue.ZERO);
         analysisConfig.setCategorizationFieldName("msg");
         return analysisConfig;
+    }
+
+    @Override
+    protected AnalysisConfig mutateInstance(AnalysisConfig instance) throws IOException {
+        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(instance);
+        switch (between(0, 11)) {
+        case 0:
+            List<Detector> detectors = new ArrayList<>(instance.getDetectors());
+            Detector.Builder detector = new Detector.Builder();
+            detector.setFunction("mean");
+            detector.setFieldName(randomAlphaOfLengthBetween(10, 20));
+            detectors.add(detector.build());
+            builder.setDetectors(detectors);
+            break;
+        case 1:
+            builder.setBucketSpan(new TimeValue(instance.getBucketSpan().millis() + (between(1, 1000) * 1000)));
+            builder.setMultipleBucketSpans(Collections.emptyList());
+            break;
+        case 2:
+            if (instance.getLatency() == null) {
+                builder.setLatency(new TimeValue(between(1, 1000) * 1000));
+            } else {
+                builder.setLatency(new TimeValue(instance.getLatency().millis() + (between(1, 1000) * 1000)));
+            }
+            break;
+        case 3:
+            if (instance.getCategorizationFieldName() == null) {
+                String categorizationFieldName = instance.getCategorizationFieldName() + randomAlphaOfLengthBetween(1, 10);
+                builder.setCategorizationFieldName(categorizationFieldName);
+                List<Detector> newDetectors = new ArrayList<>(instance.getDetectors());
+                Detector.Builder catDetector = new Detector.Builder();
+                catDetector.setFunction("mean");
+                catDetector.setFieldName(randomAlphaOfLengthBetween(10, 20));
+                catDetector.setPartitionFieldName("mlcategory");
+                newDetectors.add(catDetector.build());
+                builder.setDetectors(newDetectors);
+            } else {
+                builder.setCategorizationFieldName(instance.getCategorizationFieldName() + randomAlphaOfLengthBetween(1, 10));
+            }
+            break;
+        case 4:
+            List<String> filters;
+            if (instance.getCategorizationFilters() == null) {
+                filters = new ArrayList<>();
+            } else {
+                filters = new ArrayList<>(instance.getCategorizationFilters());
+            }
+            filters.add(randomAlphaOfLengthBetween(1, 20));
+            builder.setCategorizationFilters(filters);
+            if (instance.getCategorizationFieldName() == null) {
+                builder.setCategorizationFieldName(randomAlphaOfLengthBetween(1, 10));
+                List<Detector> newDetectors = new ArrayList<>(instance.getDetectors());
+                Detector.Builder catDetector = new Detector.Builder();
+                catDetector.setFunction("mean");
+                catDetector.setFieldName(randomAlphaOfLengthBetween(10, 20));
+                catDetector.setPartitionFieldName("mlcategory");
+                newDetectors.add(catDetector.build());
+                builder.setDetectors(newDetectors);
+            }
+            break;
+        case 5:
+            builder.setSummaryCountFieldName(instance.getSummaryCountFieldName() + randomAlphaOfLengthBetween(1, 5));
+            break;
+        case 6:
+            List<String> influencers = new ArrayList<>(instance.getInfluencers());
+            influencers.add(randomAlphaOfLengthBetween(5, 10));
+            builder.setInfluencers(influencers);
+            builder.setUsePerPartitionNormalization(false);
+            break;
+        case 7:
+            if (instance.getOverlappingBuckets() == null) {
+                builder.setOverlappingBuckets(randomBoolean());
+            } else {
+                builder.setOverlappingBuckets(instance.getOverlappingBuckets() == false);
+            }
+            break;
+        case 8:
+            if (instance.getResultFinalizationWindow() == null) {
+                builder.setResultFinalizationWindow(between(1, 100) * 1000L);
+            } else {
+                builder.setResultFinalizationWindow(instance.getResultFinalizationWindow() + (between(1, 100) * 1000));
+            }
+            break;
+        case 9:
+            if (instance.getMultivariateByFields() == null) {
+                builder.setMultivariateByFields(randomBoolean());
+            } else {
+                builder.setMultivariateByFields(instance.getMultivariateByFields() == false);
+            }
+            break;
+        case 10:
+            List<TimeValue> multipleBucketSpans;
+            if (instance.getMultipleBucketSpans() == null) {
+                multipleBucketSpans = new ArrayList<>();
+            } else {
+                multipleBucketSpans = new ArrayList<>(instance.getMultipleBucketSpans());
+            }
+            multipleBucketSpans.add(new TimeValue(between(2, 10) * instance.getBucketSpan().millis()));
+            builder.setMultipleBucketSpans(multipleBucketSpans);
+            break;
+        case 11:
+            boolean usePerPartitionNormalization = instance.getUsePerPartitionNormalization() == false;
+            builder.setUsePerPartitionNormalization(usePerPartitionNormalization);
+            if (usePerPartitionNormalization) {
+                builder.setInfluencers(Collections.emptyList());
+            }
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return builder.build();
     }
 }

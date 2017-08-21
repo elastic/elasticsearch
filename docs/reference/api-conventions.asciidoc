@@ -577,7 +577,9 @@ the maximum allowed Levenshtein Edit Distance (or number of edits)
 `AUTO`::
 +
 --
-generates an edit distance based on the length of the term. For lengths:
+generates an edit distance based on the length of the term.
+Low and high distance arguments may be optionally provided `AUTO:[low],[high]`, if not specified,
+the default values are 3 and 6, equivalent to `AUTO:3,6` that make for lengths:
 
 `0..2`:: must match exactly
 `3..5`:: one edit allowed

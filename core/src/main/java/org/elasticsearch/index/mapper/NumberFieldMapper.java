@@ -36,6 +36,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -43,6 +44,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -644,8 +646,13 @@ public class NumberFieldMapper extends FieldMapper {
         LONG("long", NumericType.LONG) {
             @Override
             Long parse(Object value, boolean coerce) {
-                double doubleValue = objectToDouble(value);
+                if (value instanceof Long) {
+                    return (Long)value;
+                }
 
+                double doubleValue = objectToDouble(value);
+                // this check does not guarantee that value is inside MIN_VALUE/MAX_VALUE because values up to 9223372036854776832 will
+                // be equal to Long.MAX_VALUE after conversion to double. More checks ahead.
                 if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
                     throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
                 }
@@ -653,18 +660,9 @@ public class NumberFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                 }
 
-                if (value instanceof Number) {
-                    return ((Number) value).longValue();
-                }
-
                 // longs need special handling so we don't lose precision while parsing
                 String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
-
-                try {
-                    return Long.parseLong(stringValue);
-                } catch (NumberFormatException e) {
-                    return (long) Double.parseDouble(stringValue);
-                }
+                return Numbers.toLong(stringValue, coerce);
             }
 
             @Override
@@ -836,7 +834,6 @@ public class NumberFieldMapper extends FieldMapper {
 
             return doubleValue;
         }
-
     }
 
     public static final class NumberFieldType extends MappedFieldType {

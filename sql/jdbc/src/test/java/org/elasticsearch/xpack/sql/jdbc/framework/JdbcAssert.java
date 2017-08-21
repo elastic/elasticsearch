@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.framework;
 
+import org.apache.logging.log4j.Logger;
+
 import java.sql.JDBCType;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -24,13 +26,25 @@ public class JdbcAssert {
     private static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
 
     public static void assertResultSets(ResultSet expected, ResultSet actual) throws SQLException {
-        assertResultSetMetadata(expected, actual);
-        assertResultSetData(expected, actual);
+        assertResultSets(expected, actual, null);
+    }
+
+    public static void assertResultSets(ResultSet expected, ResultSet actual, Logger logger) throws SQLException {
+        assertResultSetMetadata(expected, actual, logger);
+        assertResultSetData(expected, actual, logger);
     }
 
     public static void assertResultSetMetadata(ResultSet expected, ResultSet actual) throws SQLException {
+        assertResultSetMetadata(expected, actual, null);
+    }
+
+    public static void assertResultSetMetadata(ResultSet expected, ResultSet actual, Logger logger) throws SQLException {
         ResultSetMetaData expectedMeta = expected.getMetaData();
         ResultSetMetaData actualMeta = actual.getMetaData();
+
+        if (logger != null) {
+            JdbcTestUtils.logResultSetMetadata(actual, logger);
+        }
 
         if (expectedMeta.getColumnCount() != actualMeta.getColumnCount()) {
             List<String> expectedCols = new ArrayList<>();
@@ -74,7 +88,7 @@ public class JdbcAssert {
         }
     }
 
-    public static void assertResultSetData(ResultSet expected, ResultSet actual) throws SQLException {
+    public static void assertResultSetData(ResultSet expected, ResultSet actual, Logger logger) throws SQLException {
         ResultSetMetaData metaData = expected.getMetaData();
         int columns = metaData.getColumnCount();
 
@@ -82,6 +96,10 @@ public class JdbcAssert {
         while (expected.next()) {
             assertTrue("Expected more data but no more entries found after [" + count + "]", actual.next());
             count++;
+
+            if (logger != null) {
+                JdbcTestUtils.logResultSetCurrentData(actual, logger);
+            }
 
             for (int column = 1; column <= columns; column++) {
                 Object expectedObject = expected.getObject(column);

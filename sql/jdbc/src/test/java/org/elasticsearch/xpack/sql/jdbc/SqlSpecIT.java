@@ -10,18 +10,13 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.sql.jdbc.framework.LocalH2;
 import org.elasticsearch.xpack.sql.jdbc.framework.SpecBaseIntegrationTestCase;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.List;
-import java.util.Locale;
-
-import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.jdbc.framework.JdbcAssert.assertResultSets;
 
 /**
  * Tests comparing sql queries executed against our jdbc client
@@ -39,7 +34,7 @@ public class SqlSpecIT extends SpecBaseIntegrationTestCase {
         // example for enabling logging
         //JdbcTestUtils.sqlLogging();
 
-        Parser parser = parser();
+        Parser parser = specParser();
         return CollectionUtils.combine(
                 readScriptSpec("/select.sql-spec", parser),
                 readScriptSpec("/filter.sql-spec", parser),
@@ -63,7 +58,7 @@ public class SqlSpecIT extends SpecBaseIntegrationTestCase {
         }
     }
 
-    static SqlSpecParser parser() {
+    static SqlSpecParser specParser() {
         return new SqlSpecParser();
     }
 
@@ -72,31 +67,21 @@ public class SqlSpecIT extends SpecBaseIntegrationTestCase {
         this.query = query;
     }
 
-    public void test() throws Throwable {
+    @Before
+    public void testDateTime() {
         assumeFalse("Date time tests have time zone problems", "datetime".equals(groupName));
+    }
+
+    @Override
+    protected final void doTest() throws Throwable {
         try (Connection h2 = H2.get(); 
              Connection es = esJdbc()) {
-            ResultSet expected, actual;
-            try {
-                expected = executeJdbcQuery(h2);
-                actual = executeJdbcQuery(es);
 
-                assertResultSets(expected, actual);
-            } catch (AssertionError ae) {
-                throw reworkException(ae);
-            }
+            ResultSet expected, elasticResults;
+            expected = executeJdbcQuery(h2, query);
+            elasticResults = executeJdbcQuery(es, query);
+
+            assertResults(expected, elasticResults);
         }
-    }
-
-    private ResultSet executeJdbcQuery(Connection con) throws SQLException {
-        Statement statement = con.createStatement();
-        //statement.setFetchSize(randomInt(10));
-        // NOCOMMIT: hook up pagination
-        statement.setFetchSize(1000);
-        return statement.executeQuery(query);
-    }
-
-    String errorMessage(Throwable th) {
-        return format(Locale.ROOT, "test%s@%s:%d failed\n\"%s\"\n%s", testName, source.getFileName().toString(), lineNumber, query, th.getMessage());
     }
 }

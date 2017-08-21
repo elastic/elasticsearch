@@ -11,27 +11,23 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.sql.jdbc.framework.JdbcTestUtils;
 
 import java.nio.file.Path;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.List;
 
-@TestLogging("org.elasticsearch.xpack.sql:TRACE")
-public class DebugCsvSpecIT extends CsvSpecIT {
+@TestLogging(JdbcTestUtils.SQL_TRACE)
+public class DebugCsvSpec extends CsvSpecIT {
 
-    @ParametersFactory(shuffle = false, argumentFormatting = SqlSpecIT.PARAM_FORMATTING) // NOCOMMIT are we sure?!
+    @ParametersFactory(shuffle = false, argumentFormatting = SqlSpecIT.PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
-        //JdbcTestUtils.sqlLogging();
-
-        CsvSpecParser parser = new CsvSpecParser();
+        Parser parser = specParser();
         return readScriptSpec("/debug.csv-spec", parser);
     }
 
-    public DebugCsvSpecIT(String groupName, String testName, Integer lineNumber, Path source, CsvTestCase testCase) {
+    public DebugCsvSpec(String groupName, String testName, Integer lineNumber, Path source, CsvTestCase testCase) {
         super(groupName, testName, lineNumber, source, testCase);
     }
 
     @Override
-    public void assertResults(ResultSet expected, ResultSet actual) throws SQLException {
-        JdbcTestUtils.resultSetToLogger(logger, actual);
+    protected boolean logEsResultSet() {
+        return true;
     }
 }

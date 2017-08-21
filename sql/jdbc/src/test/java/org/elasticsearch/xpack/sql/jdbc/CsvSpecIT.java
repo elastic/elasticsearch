@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 
-import static org.elasticsearch.xpack.sql.jdbc.framework.JdbcAssert.assertResultSets;
 import static org.hamcrest.Matchers.arrayWithSize;
 
 /**
@@ -42,7 +41,7 @@ public class CsvSpecIT extends SpecBaseIntegrationTestCase {
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
-        CsvSpecParser parser = new CsvSpecParser();
+        Parser parser = specParser();
         return CollectionUtils.combine(
                 readScriptSpec("/command.csv-spec", parser),
                 readScriptSpec("/fulltext.csv-spec", parser),
@@ -56,12 +55,9 @@ public class CsvSpecIT extends SpecBaseIntegrationTestCase {
         this.testCase = testCase;
     }
 
-    public void test() throws Throwable {
-        try {
-            assertMatchesCsv(testCase.query, testName, testCase.expectedResults);            
-        } catch (AssertionError ae) {
-            throw reworkException(ae);
-        }
+    @Override
+    protected final void doTest() throws Throwable {
+        assertMatchesCsv(testCase.query, testName, testCase.expectedResults);
     }
 
     private void assertMatchesCsv(String query, String csvTableName, String expectedResults) throws SQLException, IOException {
@@ -90,8 +86,8 @@ public class CsvSpecIT extends SpecBaseIntegrationTestCase {
                     .executeQuery("SELECT * FROM " + csvTableName);
             // trigger data loading for type inference
             expected.beforeFirst();
-            ResultSet actual = executeJdbcQuery(es, query);
-            assertResultSets(expected, actual);
+            ResultSet elasticResults = executeJdbcQuery(es, query);
+            assertResults(expected, elasticResults);
         }
     }
 
@@ -147,19 +143,11 @@ public class CsvSpecIT extends SpecBaseIntegrationTestCase {
         }
     }
 
-    protected void assertResults(ResultSet expected, ResultSet actual) throws SQLException {
-        assertResultSets(expected, actual);
+    static CsvSpecParser specParser() {
+        return new CsvSpecParser();
     }
 
-    private ResultSet executeJdbcQuery(Connection con, String query) throws SQLException {
-        Statement statement = con.createStatement();
-        //statement.setFetchSize(randomInt(10));
-        // NOCOMMIT: hook up pagination
-        statement.setFetchSize(1000);
-        return statement.executeQuery(query);
-    }
-
-    protected static class CsvSpecParser implements Parser {
+    private static class CsvSpecParser implements Parser {
         private final StringBuilder data = new StringBuilder();
         private CsvTestCase testCase;
 
@@ -172,10 +160,6 @@ public class CsvSpecIT extends SpecBaseIntegrationTestCase {
                 testCase.query = line.endsWith(";") ? line.substring(0, line.length() - 1) : line;
             }
             else {
-                // read CSV header
-                //            if (fragment.columnNames == null) {
-                //                fragment.columnNames = line;
-                //            }
                 // read data
                 if (line.startsWith(";")) {
                     testCase.expectedResults = data.toString();

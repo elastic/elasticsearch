@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.framework;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
@@ -14,6 +15,10 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -48,6 +53,11 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
         }
     }
 
+    @Override
+    protected boolean preserveIndicesUponCompletion() {
+        return true;
+    }
+
     @AfterClass
     public static void wipeTestData() throws IOException {
         if (false == EMBED_SQL) {
@@ -62,12 +72,40 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
         }
     }
 
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true;
+    public final void test() throws Throwable {
+        try {
+            doTest();
+        } catch (AssertionError ae) {
+            throw reworkException(ae);
+        }
     }
 
-    protected Throwable reworkException(Throwable th) {
+    /**
+     * Implementations should pay attention on using {@link #executeJdbcQuery(Connection, String)} (typically for ES connections)
+     * and {@link #assertResults(ResultSet, ResultSet)} which takes into account logging/debugging results (through {@link #logEsResultSet()}.
+     * 
+     * @throws Throwable
+     */
+    protected abstract void doTest() throws Throwable;
+
+    protected ResultSet executeJdbcQuery(Connection con, String query) throws SQLException {
+        Statement statement = con.createStatement();
+        //statement.setFetchSize(randomInt(10));
+        // NOCOMMIT: hook up pagination
+        statement.setFetchSize(1000);
+        return statement.executeQuery(query);
+    }
+
+    protected boolean logEsResultSet() {
+        return false;
+    }
+
+    protected void assertResults(ResultSet expected, ResultSet elastic) throws SQLException {
+        Logger log = logEsResultSet() ? logger : null;
+        JdbcAssert.assertResultSets(expected, elastic, log);
+    }
+
+    private Throwable reworkException(Throwable th) {
         StackTraceElement[] stackTrace = th.getStackTrace();
         StackTraceElement[] redone = new StackTraceElement[stackTrace.length + 1];
         System.arraycopy(stackTrace, 0, redone, 1, stackTrace.length);

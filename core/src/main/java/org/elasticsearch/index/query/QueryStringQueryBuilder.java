@@ -306,7 +306,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      */
     @Deprecated
     public QueryStringQueryBuilder useAllFields(Boolean useAllFields) {
-        if (useAllFields) {
+        if (useAllFields != null && useAllFields) {
             this.defaultField = "*";
         }
         return this;

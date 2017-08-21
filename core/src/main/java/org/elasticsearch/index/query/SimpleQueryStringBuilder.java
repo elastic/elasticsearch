@@ -277,7 +277,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
      */
     @Deprecated
     public SimpleQueryStringBuilder useAllFields(Boolean useAllFields) {
-        if (useAllFields) {
+        if (useAllFields != null && useAllFields) {
             this.fieldsAndWeights = Collections.singletonMap("*", 1.0f);
         }
         return this;

@@ -31,7 +31,7 @@ public class WatchExecutionSnapshot implements Streamable, ToXContentObject {
     }
 
     WatchExecutionSnapshot(WatchExecutionContext context, StackTraceElement[] executionStackTrace) {
-        watchId = context.watch().id();
+        watchId = context.id().watchId();
         watchRecordId = context.id().value();
         triggeredTime = context.triggerEvent().triggeredTime();
         executionTime = context.executionTime();

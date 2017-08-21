@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.input.chain;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -18,29 +17,19 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
-import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
 import org.elasticsearch.xpack.watcher.input.InputRegistry;
 import org.elasticsearch.xpack.watcher.input.http.HttpInput;
-import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
-import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.watch.Payload;
-import org.elasticsearch.xpack.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.watch.WatchStatus;
-import org.joda.time.DateTime;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -55,8 +44,6 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.startsWith;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class ChainInputTests extends ESTestCase {
 
@@ -95,7 +82,8 @@ public class ChainInputTests extends ESTestCase {
 
         // now execute
         ExecutableChainInput executableChainInput = chainInputFactory.createExecutable(chainInput);
-        ChainInput.Result result = executableChainInput.execute(createContext(), new Payload.Simple());
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        ChainInput.Result result = executableChainInput.execute(ctx, new Payload.Simple());
         Payload payload = result.payload();
         assertThat(payload.data(), hasKey("first"));
         assertThat(payload.data(), hasKey("second"));
@@ -230,23 +218,4 @@ public class ChainInputTests extends ESTestCase {
                 expectThrows(ElasticsearchParseException.class, () -> chainInputFactory.parseInput("test", parser));
         assertThat(e.getMessage(), containsString("Expected starting JSON object after [first] in watch [test]"));
     }
-
-    private WatchExecutionContext createContext() {
-        Watch watch = new Watch("test-watch",
-                new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
-                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
-                AlwaysCondition.INSTANCE,
-                null,
-                null,
-                new ArrayList<>(),
-                null,
-                new WatchStatus(new DateTime(0, UTC), emptyMap()));
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch,
-                new DateTime(0, UTC),
-                new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),
-                TimeValue.timeValueSeconds(5));
-
-        return ctx;
-    }
-
 }

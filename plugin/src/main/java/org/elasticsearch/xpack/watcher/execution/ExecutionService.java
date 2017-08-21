@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.execution;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -31,7 +32,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.xpack.common.stats.Counters;
 import org.elasticsearch.xpack.watcher.Watcher;
@@ -226,20 +226,18 @@ public class ExecutionService extends AbstractComponent {
      * @param events The iterable list of trigger events to create the two lists from
      * @return       Two linked lists that contain the triggered watches and contexts
      */
-    private Tuple<List<TriggeredWatch>, List<TriggeredExecutionContext>> createTriggeredWatchesAndContext(Iterable<TriggerEvent> events)
-            throws IOException {
+    private Tuple<List<TriggeredWatch>, List<TriggeredExecutionContext>> createTriggeredWatchesAndContext(Iterable<TriggerEvent> events) {
         final LinkedList<TriggeredWatch> triggeredWatches = new LinkedList<>();
         final LinkedList<TriggeredExecutionContext> contexts = new LinkedList<>();
 
         DateTime now = new DateTime(clock.millis(), UTC);
         for (TriggerEvent event : events) {
-            GetResponse response = client.prepareGet(Watch.INDEX, Watch.DOC_TYPE, event.jobName()).get(TimeValue.timeValueSeconds(10));
+            GetResponse response = getWatch(event.jobName());
             if (response.isExists() == false) {
                 logger.warn("unable to find watch [{}] in watch index, perhaps it has been deleted", event.jobName());
                 continue;
             }
-            Watch watch = parser.parseWithSecrets(response.getId(), true, response.getSourceAsBytesRef(), now, XContentType.JSON);
-            TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, now, event, defaultThrottlePeriod);
+            TriggeredExecutionContext ctx = new TriggeredExecutionContext(event.jobName(), now, event, defaultThrottlePeriod);
             contexts.add(ctx);
             triggeredWatches.add(new TriggeredWatch(ctx.id(), event));
         }
@@ -268,32 +266,39 @@ public class ExecutionService extends AbstractComponent {
     public WatchRecord execute(WatchExecutionContext ctx) {
         ctx.setNodeId(clusterService.localNode().getId());
         WatchRecord record = null;
+        final String watchId = ctx.id().watchId();
         try {
-            boolean executionAlreadyExists = currentExecutions.put(ctx.watch().id(), new WatchExecution(ctx, Thread.currentThread()));
+            boolean executionAlreadyExists = currentExecutions.put(watchId, new WatchExecution(ctx, Thread.currentThread()));
             if (executionAlreadyExists) {
-                logger.trace("not executing watch [{}] because it is already queued", ctx.watch().id());
+                logger.trace("not executing watch [{}] because it is already queued", watchId);
                 record = ctx.abortBeforeExecution(ExecutionState.NOT_EXECUTED_ALREADY_QUEUED, "Watch is already queued in thread pool");
-            } else if (ctx.watch().status().state().isActive() == false) {
-                logger.debug("not executing watch [{}] because it is marked as inactive", ctx.watch().id());
-                record = ctx.abortBeforeExecution(ExecutionState.EXECUTION_NOT_NEEDED, "Watch is not active");
             } else {
-                boolean watchExists = false;
                 try {
-                    GetResponse response = getWatch(ctx.watch().id());
-                    watchExists = response.isExists();
-                } catch (IndexNotFoundException e) {}
-
-                if (ctx.knownWatch() && watchExists == false) {
-                    // fail fast if we are trying to execute a deleted watch
-                    String message = "unable to find watch for record [" + ctx.id() + "], perhaps it has been deleted, ignoring...";
+                    ctx.ensureWatchExists(() -> {
+                        GetResponse resp = getWatch(watchId);
+                        if (resp.isExists() == false) {
+                            throw new ResourceNotFoundException("watch [{}] does not exist", watchId);
+                        }
+                        return parser.parseWithSecrets(watchId, true, resp.getSourceAsBytesRef(), ctx.executionTime(), XContentType.JSON);
+                    });
+                } catch (ResourceNotFoundException e) {
+                    String message = "unable to find watch for record [" + ctx.id() + "]";
                     record = ctx.abortBeforeExecution(ExecutionState.NOT_EXECUTED_WATCH_MISSING, message);
+                } catch (Exception e) {
+                    record = ctx.abortFailedExecution(e);
+                }
 
-                } else {
-                    logger.debug("executing watch [{}]", ctx.id().watchId());
+                if (ctx.watch() != null) {
+                    if (ctx.watch().status().state().isActive()) {
+                        logger.debug("executing watch [{}]", watchId);
 
-                    record = executeInner(ctx);
-                    if (ctx.recordExecution()) {
-                        updateWatchStatus(ctx.watch());
+                        record = executeInner(ctx);
+                        if (ctx.recordExecution()) {
+                            updateWatchStatus(ctx.watch());
+                        }
+                    } else {
+                        logger.debug("not executing watch [{}] because it is marked as inactive", watchId);
+                        record = ctx.abortBeforeExecution(ExecutionState.EXECUTION_NOT_NEEDED, "Watch is not active");
                     }
                 }
             }
@@ -320,8 +325,8 @@ public class ExecutionService extends AbstractComponent {
                     logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to delete triggered watch [{}]", ctx.id()), e);
                 }
             }
-            currentExecutions.remove(ctx.watch().id());
-            logger.trace("finished [{}]/[{}]", ctx.watch().id(), ctx.id());
+            currentExecutions.remove(watchId);
+            logger.debug("finished [{}]/[{}]", watchId, ctx.id());
         }
         return record;
     }
@@ -373,9 +378,9 @@ public class ExecutionService extends AbstractComponent {
     private void logWatchRecord(WatchExecutionContext ctx, Exception e) {
         // failed watches stack traces are only logged in debug, otherwise they should be checked out in the history
         if (logger.isDebugEnabled()) {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to execute watch [{}]", ctx.watch().id()), e);
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to execute watch [{}]", ctx.id().watchId()), e);
         } else {
-            logger.warn("failed to execute watch [{}]", ctx.watch().id());
+            logger.warn("failed to execute watch [{}]", ctx.id().watchId());
         }
     }
 
@@ -484,15 +489,10 @@ public class ExecutionService extends AbstractComponent {
                 triggeredWatchStore.delete(triggeredWatch.id());
             } else {
                 DateTime now = new DateTime(clock.millis(), UTC);
-                try {
-                    Watch watch = parser.parseWithSecrets(response.getId(), true, response.getSourceAsBytesRef(), now, XContentType.JSON);
-                    TriggeredExecutionContext ctx =
-                            new StartupExecutionContext(watch, now, triggeredWatch.triggerEvent(), defaultThrottlePeriod);
-                    executeAsync(ctx, triggeredWatch);
-                    counter++;
-                } catch (IOException e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("Error parsing triggered watch"), e);
-                }
+                TriggeredExecutionContext ctx = new TriggeredExecutionContext(triggeredWatch.id().watchId(), now,
+                                                                              triggeredWatch.triggerEvent(), defaultThrottlePeriod, true);
+                executeAsync(ctx, triggeredWatch);
+                counter++;
             }
         }
         logger.debug("triggered execution of [{}] watches", counter);
@@ -530,18 +530,6 @@ public class ExecutionService extends AbstractComponent {
     public void clearExecutions() {
         currentExecutions.sealAndAwaitEmpty(maxStopTimeout);
         currentExecutions = new CurrentExecutions();
-    }
-
-    private static final class StartupExecutionContext extends TriggeredExecutionContext {
-
-        StartupExecutionContext(Watch watch, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
-            super(watch, executionTime, triggerEvent, defaultThrottlePeriod);
-        }
-
-        @Override
-        public boolean overrideRecordOnConflict() {
-            return true;
-        }
     }
 
     // the watch execution task takes another runnable as parameter

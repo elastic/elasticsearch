@@ -82,8 +82,12 @@ public abstract class WatchRecord implements ToXContentObject {
     }
 
     private WatchRecord(WatchExecutionContext context, ExecutionState state) {
-        this(context.id(), context.triggerEvent(), state, context.vars(), context.watch().input(), context.watch().condition(),
-                context.watch().metadata(), context.watch(), null, context.getNodeId());
+        this(context.id(), context.triggerEvent(), state, context.vars(),
+                context.watch() != null ? context.watch().input() : null,
+                context.watch() != null ? context.watch().condition() : null,
+                context.watch() != null ? context.watch().metadata() : null,
+                context.watch(),
+                null, context.getNodeId());
     }
 
     private WatchRecord(WatchExecutionContext context, WatchExecutionResult executionResult) {

@@ -78,20 +78,20 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories,
-                                                ValuesSource.Bytes.WithOrdinals valuesSource,
-                                                BucketOrder order,
-                                                DocValueFormat format,
-                                                BucketCountThresholds bucketCountThresholds,
-                                                IncludeExclude.OrdinalsFilter includeExclude,
-                                                SearchContext context,
-                                                Aggregator parent,
-                                                boolean forceRemapGlobalOrds,
-                                                SubAggCollectionMode collectionMode,
-                                                boolean showTermDocCountError,
-                                                List<PipelineAggregator> pipelineAggregators,
-                                                Map<String, Object> metaData) throws IOException {
+                                               ValuesSource.Bytes.WithOrdinals valuesSource,
+                                               BucketOrder order,
+                                               DocValueFormat format,
+                                               BucketCountThresholds bucketCountThresholds,
+                                               IncludeExclude.OrdinalsFilter includeExclude,
+                                               SearchContext context,
+                                               Aggregator parent,
+                                               boolean remapGlobalOrds,
+                                               SubAggCollectionMode collectionMode,
+                                               boolean showTermDocCountError,
+                                               List<PipelineAggregator> pipelineAggregators,
+                                               Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError,
-                pipelineAggregators, metaData);
+            pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
         final IndexReader reader = context.searcher().getIndexReader();
@@ -100,17 +100,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         this.valueCount = values.getValueCount();
         this.lookupGlobalOrd = values::lookupOrd;
         this.acceptedGlobalOrdinals = includeExclude != null ? includeExclude.acceptedGlobalOrdinals(values) : null;
-
-        /**
-         * Remap global ords to dense bucket ordinals if any sub-aggregator cannot be deferred.
-         * Sub-aggregators expect dense buckets and allocate memories based on this assumption.
-         * Deferred aggregators are safe because the selected ordinals are remapped when the buckets
-         * are replayed.
-         */
-        boolean remapGlobalOrds = forceRemapGlobalOrds || Arrays.stream(subAggregators).anyMatch((a) -> shouldDefer(a) == false);
         this.bucketOrds = remapGlobalOrds ? new LongHash(1, context.bigArrays()) : null;
     }
-
 
     boolean remapGlobalOrds() {
         return bucketOrds != null;

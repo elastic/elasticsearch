@@ -21,9 +21,11 @@ package org.elasticsearch.search.aggregations.metrics.avg;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
+import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -31,9 +33,9 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
 
     @Override
     protected InternalAvg createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalAvg(name, randomDoubleBetween(0, 100000, true), randomNonNegativeLong() % 100000,
-                randomFrom(DocValueFormat.BOOLEAN, DocValueFormat.GEOHASH, DocValueFormat.IP, DocValueFormat.RAW), pipelineAggregators,
-                metaData);
+        DocValueFormat formatter = randomNumericDocValueFormat();
+        long count = frequently() ? randomNonNegativeLong() % 100000 : 0;
+        return new InternalAvg(name, randomDoubleBetween(0, 100000, true), count, formatter, pipelineAggregators, metaData);
     }
 
     @Override
@@ -50,7 +52,57 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
             counts += in.getCount();
         }
         assertEquals(counts, reduced.getCount());
-        assertEquals(sum, reduced.getSum(), 0.00000001);
-        assertEquals(sum / counts, reduced.value(), 0.00000001);
+        assertEquals(sum, reduced.getSum(), 0.0000001);
+        assertEquals(sum / counts, reduced.value(), 0.0000001);
+    }
+
+    @Override
+    protected void assertFromXContent(InternalAvg avg, ParsedAggregation parsedAggregation) {
+        ParsedAvg parsed = ((ParsedAvg) parsedAggregation);
+        assertEquals(avg.getValue(), parsed.getValue(), Double.MIN_VALUE);
+        // we don't print out VALUE_AS_STRING for avg.getCount() == 0, so we cannot get the exact same value back
+        if (avg.getCount() != 0) {
+            assertEquals(avg.getValueAsString(), parsed.getValueAsString());
+        }
+    }
+
+    @Override
+    protected InternalAvg mutateInstance(InternalAvg instance) {
+        String name = instance.getName();
+        double sum = instance.getSum();
+        long count = instance.getCount();
+        DocValueFormat formatter = instance.getFormatter();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 2)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            if (Double.isFinite(sum)) {
+                sum += between(1, 100);
+            } else {
+                sum = between(1, 100);
+            }
+            break;
+        case 2:
+            if (Double.isFinite(count)) {
+                count += between(1, 100);
+            } else {
+                count = between(1, 100);
+            }
+            break;
+        case 3:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalAvg(name, sum, count, formatter, pipelineAggregators, metaData);
     }
 }

@@ -42,3 +42,7 @@ for (Histogram.Bucket entry : agg.getBuckets()) {
     logger.info("key [{}], doc_count [{}]", key, docCount);
 }
 --------------------------------------------------
+
+===== Order
+
+Supports the same order functionality as the <<java-aggs-bucket-terms,`Terms Aggregation`>>.

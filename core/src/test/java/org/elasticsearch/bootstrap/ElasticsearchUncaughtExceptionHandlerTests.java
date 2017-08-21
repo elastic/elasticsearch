@@ -60,7 +60,7 @@ public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
             new IOError(new IOException("fatal")),
             new Error() {});
         final Thread thread = new Thread(() -> { throw error; });
-        final String name = randomAsciiOfLength(10);
+        final String name = randomAlphaOfLength(10);
         thread.setName(name);
         final AtomicBoolean halt = new AtomicBoolean();
         final AtomicInteger observedStatus = new AtomicInteger();
@@ -103,7 +103,7 @@ public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
     public void testUncaughtException() throws InterruptedException {
         final RuntimeException e = new RuntimeException("boom");
         final Thread thread = new Thread(() -> { throw e; });
-        final String name = randomAsciiOfLength(10);
+        final String name = randomAlphaOfLength(10);
         thread.setName(name);
         final AtomicReference<String> threadNameReference = new AtomicReference<>();
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();

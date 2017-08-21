@@ -19,28 +19,28 @@
 
 package org.elasticsearch.index.reindex.remote;
 
-import org.apache.http.ContentTooLongException;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpEntityEnclosingRequest;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.ProtocolVersion;
-import org.apache.http.StatusLine;
-import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.InputStreamEntity;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.http.message.BasicHttpResponse;
-import org.apache.http.message.BasicStatusLine;
-import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
-import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.elasticsearch.client.http.ContentTooLongException;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.HttpEntityEnclosingRequest;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.HttpResponse;
+import org.elasticsearch.client.http.ProtocolVersion;
+import org.elasticsearch.client.http.StatusLine;
+import org.elasticsearch.client.http.client.protocol.HttpClientContext;
+import org.elasticsearch.client.http.concurrent.FutureCallback;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.InputStreamEntity;
+import org.elasticsearch.client.http.entity.StringEntity;
+import org.elasticsearch.client.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.elasticsearch.client.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.elasticsearch.client.http.message.BasicHttpResponse;
+import org.elasticsearch.client.http.message.BasicStatusLine;
+import org.elasticsearch.client.http.nio.protocol.HttpAsyncRequestProducer;
+import org.elasticsearch.client.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.Response;
+import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.HeapBufferedAsyncResponseConsumer;
 import org.elasticsearch.client.RestClient;
@@ -80,7 +80,9 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RemoteScrollableHitSourceTests extends ESTestCase {
@@ -142,7 +144,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         assertTrue(called.get());
         called.set(false);
         sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, "main/2_3_3.json").lookupRemoteVersion(v -> {
-            assertEquals(Version.V_2_3_3, v);
+            assertEquals(Version.fromId(2030399), v);
             called.set(true);
         });
         assertTrue(called.get());
@@ -368,7 +370,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     }
 
     public void testThreadContextRestored() throws Exception {
-        String header = randomAsciiOfLength(5);
+        String header = randomAlphaOfLength(5);
         threadPool.getThreadContext().putHeader("test", header);
         AtomicBoolean called = new AtomicBoolean();
         sourceWithMockedRemoteCall("start_ok.json").doStart(r -> {
@@ -462,18 +464,39 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     public void testNoContentTypeIsError() throws Exception {
         Exception e = expectThrows(RuntimeException.class, () ->
                 sourceWithMockedRemoteCall(false, null, "main/0_20_5.json").lookupRemoteVersion(null));
-        assertThat(e.getCause().getCause().getMessage(), containsString("Response didn't include Content-Type: body={"));
+        assertThat(e.getCause().getCause().getCause().getMessage(), containsString("Response didn't include Content-Type: body={"));
     }
 
     public void testInvalidJsonThinksRemoveIsNotES() throws IOException {
         Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("some_text.txt").doStart(null));
-        assertEquals("Error parsing the response, remote is likely not an Elasticsearch instance", e.getCause().getCause().getMessage());
+        assertEquals("Error parsing the response, remote is likely not an Elasticsearch instance",
+                e.getCause().getCause().getCause().getMessage());
     }
 
     public void testUnexpectedJsonThinksRemoveIsNotES() throws IOException {
         // Use the response from a main action instead of a proper start response to generate a parse error
         Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("main/2_3_3.json").doStart(null));
-        assertEquals("Error parsing the response, remote is likely not an Elasticsearch instance", e.getCause().getCause().getMessage());
+        assertEquals("Error parsing the response, remote is likely not an Elasticsearch instance",
+                e.getCause().getCause().getCause().getMessage());
+    }
+
+    public void testCleanupSuccessful() throws Exception {
+        AtomicBoolean cleanupCallbackCalled = new AtomicBoolean();
+        RestClient client = mock(RestClient.class);
+        TestRemoteScrollableHitSource hitSource = new TestRemoteScrollableHitSource(client);
+        hitSource.cleanup(() -> cleanupCallbackCalled.set(true));
+        verify(client).close();
+        assertTrue(cleanupCallbackCalled.get());
+    }
+
+    public void testCleanupFailure() throws Exception {
+        AtomicBoolean cleanupCallbackCalled = new AtomicBoolean();
+        RestClient client = mock(RestClient.class);
+        doThrow(new RuntimeException("test")).when(client).close();
+        TestRemoteScrollableHitSource hitSource = new TestRemoteScrollableHitSource(client);
+        hitSource.cleanup(() -> cleanupCallbackCalled.set(true));
+        verify(client).close();
+        assertTrue(cleanupCallbackCalled.get());
     }
 
     private RemoteScrollableHitSource sourceWithMockedRemoteCall(String... paths) throws Exception {

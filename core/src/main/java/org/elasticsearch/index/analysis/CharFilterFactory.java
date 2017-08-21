@@ -25,5 +25,5 @@ public interface CharFilterFactory {
 
     String name();
 
-    Reader create(Reader tokenStream);
+    Reader create(Reader reader);
 }

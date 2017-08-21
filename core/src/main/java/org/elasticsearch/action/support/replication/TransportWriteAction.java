@@ -22,20 +22,22 @@ package org.elasticsearch.action.support.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteResponse;
-import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -46,8 +48,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
-import org.apache.logging.log4j.core.pattern.ConverterKeys;
 
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -72,9 +74,40 @@ public abstract class TransportWriteAction<
                 indexNameExpressionResolver, request, replicaRequest, executor);
     }
 
+    /** Syncs operation result to the translog or throws a shard not available failure */
+    protected static Location syncOperationResultOrThrow(final Engine.Result operationResult,
+                                                         final Location currentLocation) throws Exception {
+        final Location location;
+        if (operationResult.hasFailure()) {
+            // check if any transient write operation failures should be bubbled up
+            Exception failure = operationResult.getFailure();
+            assert failure instanceof MapperParsingException : "expected mapper parsing failures. got " + failure;
+            if (!TransportActions.isShardNotAvailableException(failure)) {
+                throw failure;
+            } else {
+                location = currentLocation;
+            }
+        } else {
+            location = locationToSync(currentLocation, operationResult.getTranslogLocation());
+        }
+        return location;
+    }
+
+    protected static Location locationToSync(Location current, Location next) {
+        /* here we are moving forward in the translog with each operation. Under the hood this might
+         * cross translog files which is ok since from the user perspective the translog is like a
+         * tape where only the highest location needs to be fsynced in order to sync all previous
+         * locations even though they are not in the same file. When the translog rolls over files
+         * the previous file is fsynced on after closing if needed.*/
+        assert next != null : "next operation can't be null";
+        assert current == null || current.compareTo(next) < 0 :
+                "translog locations are not increasing";
+        return next;
+    }
+
     @Override
-    protected ReplicationOperation.Replicas newReplicasProxy() {
-        return new WriteActionReplicasProxy();
+    protected ReplicationOperation.Replicas newReplicasProxy(long primaryTerm) {
+        return new WriteActionReplicasProxy(primaryTerm);
     }
 
     /**
@@ -99,8 +132,10 @@ public abstract class TransportWriteAction<
 
     /**
      * Result of taking the action on the primary.
+     *
+     * NOTE: public for testing
      */
-    protected static class WritePrimaryResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
+    public static class WritePrimaryResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
             Response extends ReplicationResponse & WriteResponse> extends PrimaryResult<ReplicaRequest, Response>
             implements RespondingWriteResult {
         boolean finishedAsyncActions;
@@ -302,15 +337,21 @@ public abstract class TransportWriteAction<
         }
 
         void run() {
-            // we either respond immediately ie. if we we don't fsync per request or wait for refresh
-            // OR we got an pass async operations on and wait for them to return to respond.
-            indexShard.maybeFlush();
-            maybeFinish(); // decrement the pendingOpts by one, if there is nothing else to do we just respond with success.
+            /*
+             * We either respond immediately (i.e., if we do not fsync per request or wait for
+             * refresh), or we there are past async operations and we wait for them to return to
+             * respond.
+             */
+            indexShard.afterWriteOperation();
+            // decrement pending by one, if there is nothing else to do we just respond with success
+            maybeFinish();
             if (waitUntilRefresh) {
                 assert pendingOps.get() > 0;
                 indexShard.addRefreshListener(location, forcedRefresh -> {
                     if (forcedRefresh) {
-                        logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
+                        logger.warn(
+                                "block until refresh ran out of slots and forced a refresh: [{}]",
+                                request);
                     }
                     refreshed.set(forcedRefresh);
                     maybeFinish();
@@ -336,8 +377,12 @@ public abstract class TransportWriteAction<
      */
     class WriteActionReplicasProxy extends ReplicasProxy {
 
+        WriteActionReplicasProxy(long primaryTerm) {
+            super(primaryTerm);
+        }
+
         @Override
-        public void failShardIfNeeded(ShardRouting replica, long primaryTerm, String message, Exception exception,
+        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception,
                                       Runnable onSuccess, Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
 
             logger.warn((org.apache.logging.log4j.util.Supplier<?>)
@@ -347,14 +392,14 @@ public abstract class TransportWriteAction<
         }
 
         @Override
-        public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, long primaryTerm, Runnable onSuccess,
+        public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, Runnable onSuccess,
                                                  Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
             shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, "mark copy as stale", null,
                     createListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
         }
 
-        public ShardStateAction.Listener createListener(final Runnable onSuccess, final Consumer<Exception> onPrimaryDemoted,
-                                                        final Consumer<Exception> onIgnoredFailure) {
+        private ShardStateAction.Listener createListener(final Runnable onSuccess, final Consumer<Exception> onPrimaryDemoted,
+                                                         final Consumer<Exception> onIgnoredFailure) {
             return new ShardStateAction.Listener() {
                 @Override
                 public void onSuccess() {

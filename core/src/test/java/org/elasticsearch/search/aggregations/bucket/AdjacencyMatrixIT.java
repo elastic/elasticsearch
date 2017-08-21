@@ -28,12 +28,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
-import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
@@ -48,7 +47,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.adjacenc
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -220,11 +218,11 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
         }
 
         assertThat(matrix.getBuckets().size(), equalTo(expectedBuckets));
-        assertThat(matrix.getProperty("_bucket_count"), equalTo(expectedBuckets));
+        assertThat(((InternalAggregation)matrix).getProperty("_bucket_count"), equalTo(expectedBuckets));
 
-        Object[] propertiesKeys = (Object[]) matrix.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) matrix.getProperty("_count");
-        Object[] propertiesCounts = (Object[]) matrix.getProperty("avg_value.value");
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)matrix).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)matrix).getProperty("_count");
+        Object[] propertiesCounts = (Object[]) ((InternalAggregation)matrix).getProperty("avg_value.value");
 
         assertEquals(expectedBuckets, propertiesKeys.length);
         assertEquals(propertiesKeys.length, propertiesDocCounts.length);

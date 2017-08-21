@@ -18,12 +18,11 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
@@ -38,10 +37,7 @@ import java.util.Objects;
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
  */
-public abstract class InternalAggregation implements Aggregation, ToXContent, NamedWriteable {
-
-    /** Delimiter used when prefixing aggregation names with their type using the typed_keys parameter **/
-    public static final String TYPED_KEYS_DELIMITER = "#";
+public abstract class InternalAggregation implements Aggregation, NamedWriteable {
 
     public static class ReduceContext {
 
@@ -132,7 +128,13 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
 
     public abstract InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
 
-    @Override
+    /**
+     * Get the value of specified path in the aggregation.
+     *
+     * @param path
+     *            the path to the property in the aggregation tree
+     * @return the value of the property
+     */
     public Object getProperty(String path) {
         AggregationPath aggPath = AggregationPath.parse(path);
         return getProperty(aggPath.getPathElementsAsStringList());
@@ -167,12 +169,8 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
         return pipelineAggregators;
     }
 
-    /**
-     * Returns a string representing the type of the aggregation. This type is added to
-     * the aggregation name in the response, so that it can later be used by REST clients
-     * to determine the internal type of the aggregation.
-     */
-    protected String getType() {
+    @Override
+    public String getType() {
         return getWriteableName();
     }
 
@@ -185,7 +183,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
             builder.startObject(getName());
         }
         if (this.metaData != null) {
-            builder.field(CommonFields.META);
+            builder.field(CommonFields.META.getPreferredName());
             builder.map(this.metaData);
         }
         doXContentBody(builder, params);
@@ -204,9 +202,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
      * Opportunity for subclasses to the {@link #hashCode()} for this
      * class.
      **/
-    protected int doHashCode() {
-        return System.identityHashCode(this);
-    }
+    protected abstract int doHashCode();
 
     @Override
     public boolean equals(Object obj) {
@@ -223,7 +219,6 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
                 doEquals(obj);
     }
 
-    // norelease: make this abstract when all InternalAggregations implement this method
     /**
      * Opportunity for subclasses to add criteria to the {@link #equals(Object)}
      * method for this class.
@@ -232,26 +227,11 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
      * {@link #equals(Object)} method checks that <code>obj</code> is the same
      * class as <code>this</code>
      */
-    protected boolean doEquals(Object obj) {
-        return this == obj;
+    protected abstract boolean doEquals(Object obj);
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
-    /**
-     * Common xcontent fields that are shared among addAggregation
-     */
-    public static final class CommonFields extends ParseField.CommonFields {
-        // todo convert these to ParseField
-        public static final String META = "meta";
-        public static final String BUCKETS = "buckets";
-        public static final String VALUE = "value";
-        public static final String VALUES = "values";
-        public static final String VALUE_AS_STRING = "value_as_string";
-        public static final String DOC_COUNT = "doc_count";
-        public static final String KEY = "key";
-        public static final String KEY_AS_STRING = "key_as_string";
-        public static final String FROM = "from";
-        public static final String FROM_AS_STRING = "from_as_string";
-        public static final String TO = "to";
-        public static final String TO_AS_STRING = "to_as_string";
-    }
 }

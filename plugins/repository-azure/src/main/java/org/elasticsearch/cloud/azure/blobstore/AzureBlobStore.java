@@ -22,7 +22,6 @@ package org.elasticsearch.cloud.azure.blobstore;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
-import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -39,14 +38,13 @@ import java.net.URISyntaxException;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.getValue;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository;
 
 public class AzureBlobStore extends AbstractComponent implements BlobStore {
 
     private final AzureStorageService client;
 
-    private final String accountName;
+    private final String clientName;
     private final LocationMode locMode;
     private final String container;
     private final String repositoryName;
@@ -55,11 +53,11 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
                           AzureStorageService client) throws URISyntaxException, StorageException {
         super(settings);
         this.client = client;
-        this.container = getValue(metadata.settings(), settings, Repository.CONTAINER_SETTING, Storage.CONTAINER_SETTING);
+        this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
         this.repositoryName = metadata.name();
-        this.accountName = getValue(metadata.settings(), settings, Repository.ACCOUNT_SETTING, Storage.ACCOUNT_SETTING);
+        this.clientName = Repository.CLIENT_NAME.get(metadata.settings());
 
-        String modeStr = getValue(metadata.settings(), settings, Repository.LOCATION_MODE_SETTING, Storage.LOCATION_MODE_SETTING);
+        String modeStr = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
         if (Strings.hasLength(modeStr)) {
             this.locMode = LocationMode.valueOf(modeStr.toUpperCase(Locale.ROOT));
         } else {
@@ -76,6 +74,13 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
         return container;
     }
 
+    /**
+     * Gets the configured {@link LocationMode} for the Azure storage requests.
+     */
+    public LocationMode getLocationMode() {
+        return locMode;
+    }
+
     @Override
     public BlobContainer blobContainer(BlobPath path) {
         return new AzureBlobContainer(repositoryName, path, this);
@@ -85,7 +90,7 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
     public void delete(BlobPath path) {
         String keyPath = path.buildAsString();
         try {
-            this.client.deleteFiles(this.accountName, this.locMode, container, keyPath);
+            this.client.deleteFiles(this.clientName, this.locMode, container, keyPath);
         } catch (URISyntaxException | StorageException e) {
             logger.warn("can not remove [{}] in container {{}}: {}", keyPath, container, e.getMessage());
         }
@@ -97,41 +102,41 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
 
     public boolean doesContainerExist(String container)
     {
-        return this.client.doesContainerExist(this.accountName, this.locMode, container);
+        return this.client.doesContainerExist(this.clientName, this.locMode, container);
     }
 
     public void deleteFiles(String container, String path) throws URISyntaxException, StorageException
     {
-        this.client.deleteFiles(this.accountName, this.locMode, container, path);
+        this.client.deleteFiles(this.clientName, this.locMode, container, path);
     }
 
     public boolean blobExists(String container, String blob) throws URISyntaxException, StorageException
     {
-        return this.client.blobExists(this.accountName, this.locMode, container, blob);
+        return this.client.blobExists(this.clientName, this.locMode, container, blob);
     }
 
     public void deleteBlob(String container, String blob) throws URISyntaxException, StorageException
     {
-        this.client.deleteBlob(this.accountName, this.locMode, container, blob);
+        this.client.deleteBlob(this.clientName, this.locMode, container, blob);
     }
 
     public InputStream getInputStream(String container, String blob) throws URISyntaxException, StorageException, IOException
     {
-        return this.client.getInputStream(this.accountName, this.locMode, container, blob);
+        return this.client.getInputStream(this.clientName, this.locMode, container, blob);
     }
 
     public OutputStream getOutputStream(String container, String blob) throws URISyntaxException, StorageException
     {
-        return this.client.getOutputStream(this.accountName, this.locMode, container, blob);
+        return this.client.getOutputStream(this.clientName, this.locMode, container, blob);
     }
 
     public Map<String,BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) throws URISyntaxException, StorageException
     {
-        return this.client.listBlobsByPrefix(this.accountName, this.locMode, container, keyPath, prefix);
+        return this.client.listBlobsByPrefix(this.clientName, this.locMode, container, keyPath, prefix);
     }
 
     public void moveBlob(String container, String sourceBlob, String targetBlob) throws URISyntaxException, StorageException
     {
-        this.client.moveBlob(this.accountName, this.locMode, container, sourceBlob, targetBlob);
+        this.client.moveBlob(this.clientName, this.locMode, container, sourceBlob, targetBlob);
     }
 }

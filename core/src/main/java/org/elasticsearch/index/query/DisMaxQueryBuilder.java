@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -121,9 +122,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
         builder.endObject();
     }
 
-    public static DisMaxQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static DisMaxQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         float tieBreaker = DisMaxQueryBuilder.DEFAULT_TIE_BREAKER;
 
@@ -139,7 +138,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (QUERIES_FIELD.match(currentFieldName)) {
                     queriesFound = true;
-                    queries.add(parseContext.parseInnerQueryBuilder());
+                    queries.add(parseInnerQueryBuilder(parser));
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[dis_max] query does not support [" + currentFieldName + "]");
                 }
@@ -147,7 +146,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
                 if (QUERIES_FIELD.match(currentFieldName)) {
                     queriesFound = true;
                     while (token != XContentParser.Token.END_ARRAY) {
-                        queries.add(parseContext.parseInnerQueryBuilder());
+                        queries.add(parseInnerQueryBuilder(parser));
                         token = parser.nextToken();
                     }
                 } else {
@@ -205,5 +204,12 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
+        for (QueryBuilder query : queries) {
+            InnerHitContextBuilder.extractInnerHits(query, innerHits);
+        }
     }
 }

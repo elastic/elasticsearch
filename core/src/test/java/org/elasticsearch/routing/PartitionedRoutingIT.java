@@ -67,6 +67,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate(index)
             .setSettings(Settings.builder()
                 .put("index.number_of_shards", currentShards)
+                .put("index.number_of_replicas", numberOfReplicas())
                 .put("index.routing_partition_size", partitionSize))
             .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
             .execute().actionGet();
@@ -107,6 +108,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             client().admin().indices().prepareShrinkIndex(previousIndex, index)
                 .setSettings(Settings.builder()
                     .put("index.number_of_shards", currentShards)
+                    .put("index.number_of_replicas", numberOfReplicas())
                     .build()).get();
             ensureGreen();
         }

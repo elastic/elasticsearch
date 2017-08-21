@@ -5,8 +5,6 @@ include::../Versions.asciidoc[]
 
 include::overview.asciidoc[]
 
-include::usage.asciidoc[]
+include::low-level/index.asciidoc[]
 
-include::configuration.asciidoc[]
-
-include::sniffer.asciidoc[]
+include::high-level/index.asciidoc[]

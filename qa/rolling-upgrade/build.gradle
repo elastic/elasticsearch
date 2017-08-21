@@ -18,72 +18,99 @@
  */
 
 import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.Version
 
 apply plugin: 'elasticsearch.standalone-test'
 
-task oldClusterTest(type: RestIntegTestTask) {
-  mustRunAfter(precommit)
+// This is a top level task which we will add dependencies to below.
+// It is a single task that can be used to backcompat tests against all versions.
+task bwcTest {
+  description = 'Runs backwards compatibility tests.'
+  group = 'verification'
 }
 
-oldClusterTestCluster {
-  distribution = 'zip'
-  bwcVersion = '5.4.0-SNAPSHOT' // TODO: either randomize, or make this settable with sysprop
-  numBwcNodes = 2
-  numNodes = 2
-  clusterName = 'rolling-upgrade'
-  setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-  setting 'http.content_type.required', 'true'
-}
+for (Version version : wireCompatVersions) {
+  String baseName = "v${version}"
 
-oldClusterTestRunner {
-  systemProperty 'tests.rest.suite', 'old_cluster'
-}
+  Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
+    mustRunAfter(precommit)
+  }
 
-task mixedClusterTest(type: RestIntegTestTask) {
-  dependsOn(oldClusterTestRunner, 'oldClusterTestCluster#node1.stop')
-}
+  Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
+  configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
+    distribution = 'zip'
+    bwcVersion = version
+    numBwcNodes = 2
+    numNodes = 2
+    clusterName = 'rolling-upgrade'
+    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+    if (version.onOrAfter('5.3.0')) {
+      setting 'http.content_type.required', 'true'
+    }
+  }
 
-mixedClusterTestCluster {
-  distribution = 'zip'
-  clusterName = 'rolling-upgrade'
-  unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
-  dataDir = "${-> oldClusterTest.nodes[1].dataDir}"
-  setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-}
+  Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")
+  oldClusterTestRunner.configure {
+    systemProperty 'tests.rest.suite', 'old_cluster'
+  }
 
-mixedClusterTestRunner {
-  systemProperty 'tests.rest.suite', 'mixed_cluster'
-  finalizedBy 'oldClusterTestCluster#node0.stop'
-}
+  Task mixedClusterTest = tasks.create(name: "${baseName}#mixedClusterTest", type: RestIntegTestTask)
 
-task upgradedClusterTest(type: RestIntegTestTask) {
-  dependsOn(mixedClusterTestRunner, 'oldClusterTestCluster#node0.stop')
-}
+  configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
+    dependsOn oldClusterTestRunner, "${baseName}#oldClusterTestCluster#node1.stop"
+    distribution = 'zip'
+    clusterName = 'rolling-upgrade'
+    unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
+    /* Override the data directory so the new node always gets the node we
+     * just stopped's data directory. */
+    dataDir = { nodeNumber -> oldClusterTest.nodes[1].dataDir }
+    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+  }
 
-upgradedClusterTestCluster {
-  distribution = 'zip'
-  clusterName = 'rolling-upgrade'
-  unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
-  dataDir = "${-> oldClusterTest.nodes[0].dataDir}"
-  setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-}
+  Task mixedClusterTestRunner = tasks.getByName("${baseName}#mixedClusterTestRunner")
+  mixedClusterTestRunner.configure {
+    systemProperty 'tests.rest.suite', 'mixed_cluster'
+    finalizedBy "${baseName}#oldClusterTestCluster#node0.stop"
+  }
 
-upgradedClusterTestRunner {
-  systemProperty 'tests.rest.suite', 'upgraded_cluster'
-  // only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
-  finalizedBy 'mixedClusterTestCluster#stop'
-}
+  Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask) {
+    dependsOn(mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop")
+  }
 
-task integTest {
-  dependsOn = [upgradedClusterTest]
+  configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
+    distribution = 'zip'
+    clusterName = 'rolling-upgrade'
+    unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
+    /* Override the data directory so the new node always gets the node we
+     * just stopped's data directory. */
+    dataDir = { nodeNumber -> oldClusterTest.nodes[0].dataDir}
+    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+  }
+
+  Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
+  upgradedClusterTestRunner.configure {
+    systemProperty 'tests.rest.suite', 'upgraded_cluster'
+    // only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
+    finalizedBy "${baseName}#mixedClusterTestCluster#stop"
+  }
+
+  Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
+    enabled = project.bwc_tests_enabled
+    dependsOn = [upgradedClusterTest]
+  }
+
+  if (project.bwc_tests_enabled) {
+    bwcTest.dependsOn(versionBwcTest)
+  }
 }
 
 test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
-check.dependsOn(integTest)
-
-repositories {
-  maven {
-    url "https://oss.sonatype.org/content/repositories/snapshots/"
+// basic integ tests includes testing bwc against the most recent version
+task integTest {
+  if (project.bwc_tests_enabled) {
+    dependsOn = ["v${wireCompatVersions[-1]}#bwcTest"]
   }
 }
+
+check.dependsOn(integTest)

@@ -73,7 +73,7 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
 
     public void testParseWithCarriageReturn() throws Exception {
         final String content = "{\"index\":[\"test0\", \"test1\"], \"request_cache\": true}\r\n" +
-            "{\"inline\": {\"query\" : {\"match_{{template}}\" :{}}}, \"params\": {\"template\": \"all\" } }\r\n";
+            "{\"source\": {\"query\" : {\"match_{{template}}\" :{}}}, \"params\": {\"template\": \"all\" } }\r\n";
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray(content), XContentType.JSON).build();
 
@@ -90,4 +90,12 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         assertEquals("{\"query\":{\"match_{{template}}\":{}}}", request.requests().get(0).getScript());
         assertEquals(1, request.requests().get(0).getScriptParams().size());
     }
+
+    public void testMaxConcurrentSearchRequests() {
+        MultiSearchTemplateRequest request = new MultiSearchTemplateRequest();
+        request.maxConcurrentSearchRequests(randomIntBetween(1, Integer.MAX_VALUE));
+        expectThrows(IllegalArgumentException.class, () ->
+                request.maxConcurrentSearchRequests(randomIntBetween(Integer.MIN_VALUE, 0)));
+    }
+
 }

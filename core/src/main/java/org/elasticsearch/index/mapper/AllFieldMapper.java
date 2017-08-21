@@ -104,7 +104,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
                                                  ParserContext parserContext) throws MapperParsingException {
             if (node.isEmpty() == false &&
-                    parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                    parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
                 throw new IllegalArgumentException("[_all] is disabled in 6.0. As a replacement, you can use an [copy_to] " +
                                 "on mapping fields to create your own catch all field.");
             }
@@ -133,6 +133,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
             }
 
             parseTextField(builder, builder.name, node, parserContext);
+            boolean enabledSet = false;
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -140,8 +141,15 @@ public class AllFieldMapper extends MetadataFieldMapper {
                 if (fieldName.equals("enabled")) {
                     boolean enabled = TypeParsers.nodeBooleanValueLenient(name, "enabled", fieldNode);
                     builder.enabled(enabled ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
+                    enabledSet = true;
                     iterator.remove();
                 }
+            }
+            if (enabledSet == false && parserContext.indexVersionCreated().before(Version.V_6_0_0_alpha1)) {
+                // So there is no "enabled" field, however, the index was created prior to 6.0,
+                // and therefore the default for this particular index should be "true" for
+                // enabling _all
+                builder.enabled(EnabledAttributeMapper.ENABLED);
             }
             return builder;
         }
@@ -150,7 +158,13 @@ public class AllFieldMapper extends MetadataFieldMapper {
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             if (fieldType != null) {
-                return new AllFieldMapper(indexSettings, fieldType);
+                if (context.indexVersionCreated().before(Version.V_6_0_0_alpha1)) {
+                    // The index was created prior to 6.0, and therefore the default for this
+                    // particular index should be "true" for enabling _all
+                    return new AllFieldMapper(fieldType.clone(), EnabledAttributeMapper.ENABLED, indexSettings);
+                } else {
+                    return new AllFieldMapper(indexSettings, fieldType);
+                }
             } else {
                 return parse(NAME, Collections.emptyMap(), context)
                         .build(new BuilderContext(indexSettings, new ContentPath(1)));
@@ -197,7 +211,6 @@ public class AllFieldMapper extends MetadataFieldMapper {
     private AllFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabled, Settings indexSettings) {
         super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
         this.enabledState = enabled;
-
     }
 
     public boolean enabled() {
@@ -259,6 +272,9 @@ public class AllFieldMapper extends MetadataFieldMapper {
     private void innerToXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
         if (includeDefaults || enabledState != Defaults.ENABLED) {
             builder.field("enabled", enabledState.enabled);
+        }
+        if (enabled() == false) {
+            return;
         }
         if (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType().stored());

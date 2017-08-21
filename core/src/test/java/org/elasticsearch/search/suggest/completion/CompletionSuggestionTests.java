@@ -35,7 +35,7 @@ public class CompletionSuggestionTests extends ESTestCase {
     public void testToReduce() throws Exception {
         List<Suggest.Suggestion<CompletionSuggestion.Entry>> shardSuggestions = new ArrayList<>();
         int nShards = randomIntBetween(1, 10);
-        String name = randomAsciiOfLength(10);
+        String name = randomAlphaOfLength(10);
         int size = randomIntBetween(3, 5);
         for (int i = 0; i < nShards; i++) {
             CompletionSuggestion suggestion = new CompletionSuggestion(name, size);

@@ -83,9 +83,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         builder.endObject();
     }
 
-    public static ExistsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static ExistsQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String fieldPattern = null;
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -129,7 +127,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
     public static Query newFilter(QueryShardContext context, String fieldPattern) {
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
-                (FieldNamesFieldMapper.FieldNamesFieldType)context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
+                (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType == null) {
             // can only happen when no types exist, so no docs exist either
             return Queries.newMatchNoDocsQuery("Missing types in \"" + NAME + "\" query.");
@@ -142,6 +140,11 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             fields = Collections.singleton(fieldPattern);
         } else {
             fields = context.simpleMatchToIndexNames(fieldPattern);
+        }
+
+        if (fields.size() == 1) {
+            Query filter = fieldNamesFieldType.termQuery(fields.iterator().next(), context);
+            return new ConstantScoreQuery(filter);
         }
 
         BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();

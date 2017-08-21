@@ -21,11 +21,11 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -44,12 +44,14 @@ public class RestNodesStatsActionTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        action = new RestNodesStatsAction(Settings.EMPTY, new RestController(Settings.EMPTY, Collections.emptySet(), null, null, null));
+        UsageService usageService = new UsageService(Settings.EMPTY);
+        action = new RestNodesStatsAction(Settings.EMPTY,
+                new RestController(Settings.EMPTY, Collections.emptySet(), null, null, null, usageService));
     }
 
     public void testUnrecognizedMetric() throws IOException {
         final HashMap<String, String> params = new HashMap<>();
-        final String metric = randomAsciiOfLength(64);
+        final String metric = randomAlphaOfLength(64);
         params.put("metric", metric);
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(
@@ -86,7 +88,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
     public void testUnrecognizedIndexMetric() {
         final HashMap<String, String> params = new HashMap<>();
         params.put("metric", "indices");
-        final String indexMetric = randomAsciiOfLength(64);
+        final String indexMetric = randomAlphaOfLength(64);
         params.put("index_metric", indexMetric);
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(

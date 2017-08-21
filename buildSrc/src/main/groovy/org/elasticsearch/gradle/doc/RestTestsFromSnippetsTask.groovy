@@ -128,6 +128,11 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         Set<String> unconvertedCandidates = new HashSet<>()
 
         /**
+         * The last non-TESTRESPONSE snippet.
+         */
+        Snippet previousTest
+
+        /**
          * Called each time a snippet is encountered. Tracks the snippets and
          * calls buildTest to actually build the test.
          */
@@ -142,6 +147,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             }
             if (snippet.testSetup) {
                 setup(snippet)
+                previousTest = snippet
                 return
             }
             if (snippet.testResponse) {
@@ -150,6 +156,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             }
             if (snippet.test || snippet.console) {
                 test(snippet)
+                previousTest = snippet
                 return
             }
             // Must be an unmarked snippet....
@@ -158,7 +165,18 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         private void test(Snippet test) {
             setupCurrent(test)
 
-            if (false == test.continued) {
+            if (test.continued) {
+                /* Catch some difficult to debug errors with // TEST[continued]
+                 * and throw a helpful error message. */
+                if (previousTest == null || previousTest.path != test.path) {
+                    throw new InvalidUserDataException("// TEST[continued] " +
+                        "cannot be on first snippet in a file: $test")
+                }
+                if (previousTest != null && previousTest.testSetup) {
+                    throw new InvalidUserDataException("// TEST[continued] " +
+                        "cannot immediately follow // TESTSETUP: $test")
+                }
+            } else {
                 current.println('---')
                 current.println("\"line_$test.start\":")
                 /* The Elasticsearch test runner doesn't support the warnings
@@ -167,6 +185,9 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                  * warning every time. */
                 current.println("  - skip:")
                 current.println("      features: ")
+                current.println("        - stash_in_key")
+                current.println("        - stash_in_path")
+                current.println("        - stash_path_replace")
                 current.println("        - warnings")
             }
             if (test.skipTest) {
@@ -179,12 +200,14 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             }
             if (test.setup != null) {
                 // Insert a setup defined outside of the docs
-                String setup = setups[test.setup]
-                if (setup == null) {
-                    throw new InvalidUserDataException("Couldn't find setup "
-                        + "for $test")
+                for (String setupName : test.setup.split(',')) {
+                    String setup = setups[setupName]
+                    if (setup == null) {
+                        throw new InvalidUserDataException("Couldn't find setup "
+                                + "for $test")
+                    }
+                    current.println(setup)
                 }
-                current.println(setup)
             }
 
             body(test, false)
@@ -295,7 +318,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             Path dest = outputRoot().toPath().resolve(test.path)
             // Replace the extension
             String fileName = dest.getName(dest.nameCount - 1)
-            dest = dest.parent.resolve(fileName.replace('.asciidoc', '.yaml'))
+            dest = dest.parent.resolve(fileName.replace('.asciidoc', '.yml'))
 
             // Now setup the writer
             Files.createDirectories(dest.parent)

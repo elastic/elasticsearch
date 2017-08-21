@@ -84,7 +84,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.IndexSettings.INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -102,12 +101,6 @@ public class RelocationIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class);
-    }
-
-    @Override
-    public Settings indexSettings() {
-        return Settings.builder().put(super.indexSettings())
-            .put(INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL.getKey(), "200ms").build();
     }
 
     @Override
@@ -131,7 +124,6 @@ public class RelocationIT extends ESIntegTestCase {
                         final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
                         assertThat(shardStats.getShardRouting() + " local checkpoint mismatch",
                             seqNoStats.getLocalCheckpoint(), equalTo(primarySeqNoStats.getLocalCheckpoint()));
-
                         assertThat(shardStats.getShardRouting() + " global checkpoint mismatch",
                             seqNoStats.getGlobalCheckpoint(), equalTo(primarySeqNoStats.getGlobalCheckpoint()));
                         assertThat(shardStats.getShardRouting() + " max seq no mismatch",
@@ -376,6 +368,10 @@ public class RelocationIT extends ESIntegTestCase {
             }
 
         }
+
+        // refresh is a replication action so this forces a global checkpoint sync which is needed as these are asserted on in tear down
+        client().admin().indices().prepareRefresh("test").get();
+
     }
 
     public void testCancellationCleansTempFiles() throws Exception {
@@ -453,7 +449,11 @@ public class RelocationIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging("org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.search:TRACE")
+    @TestLogging(
+            "org.elasticsearch.action.bulk:TRACE,"
+                    + "org.elasticsearch.action.search:TRACE,"
+                    + "org.elasticsearch.cluster.service:TRACE,"
+                    + "org.elasticsearch.index.seqno:TRACE")
     public void testIndexAndRelocateConcurrently() throws ExecutionException, InterruptedException {
         int halfNodes = randomIntBetween(1, 3);
         Settings[] nodeSettings = Stream.concat(
@@ -511,6 +511,9 @@ public class RelocationIT extends ESIntegTestCase {
             assertNoFailures(afterRelocation);
             assertSearchHits(afterRelocation, ids.toArray(new String[ids.size()]));
         }
+
+        // refresh is a replication action so this forces a global checkpoint sync which is needed as these are asserted on in tear down
+        client().admin().indices().prepareRefresh("test").get();
     }
 
     class RecoveryCorruption extends MockTransportService.DelegateTransport {

@@ -19,7 +19,6 @@
 package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -184,7 +183,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
     public void testSingleContextFiltering() throws Exception {
         CategoryContextMapping contextMapping = ContextBuilder.category("cat").field("cat").build();
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<String, ContextMapping>(Collections.singletonMap("cat", contextMapping));
+        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
         int numDocs = 10;
@@ -210,7 +209,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
     public void testSingleContextBoosting() throws Exception {
         CategoryContextMapping contextMapping = ContextBuilder.category("cat").field("cat").build();
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<String, ContextMapping>(Collections.singletonMap("cat", contextMapping));
+        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
         int numDocs = 10;
@@ -238,7 +237,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
     public void testSingleContextMultipleContexts() throws Exception {
         CategoryContextMapping contextMapping = ContextBuilder.category("cat").field("cat").build();
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<String, ContextMapping>(Collections.singletonMap("cat", contextMapping));
+        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
         int numDocs = 10;
@@ -631,7 +630,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
         refresh();
 
-        String suggestionName = randomAsciiOfLength(10);
+        String suggestionName = randomAlphaOfLength(10);
         CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(FIELD).text("h").size(10)
                 .contexts(Collections.singletonMap("st", Collections.singletonList(GeoQueryContext.builder().setGeoPoint(new GeoPoint(52.52, 13.4)).build())));
         SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion(suggestionName, context)).get();
@@ -660,37 +659,42 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .field("preserve_separators", completionMappingBuilder.preserveSeparators)
                 .field("preserve_position_increments", completionMappingBuilder.preservePositionIncrements);
 
+        List<String> categoryContextFields = new ArrayList<>();
         if (completionMappingBuilder.contextMappings != null) {
-            mapping = mapping.startArray("contexts");
+            mapping.startArray("contexts");
             for (Map.Entry<String, ContextMapping> contextMapping : completionMappingBuilder.contextMappings.entrySet()) {
-                mapping = mapping.startObject()
+                mapping.startObject()
                         .field("name", contextMapping.getValue().name())
                         .field("type", contextMapping.getValue().type().name());
                 switch (contextMapping.getValue().type()) {
                     case CATEGORY:
                         final String fieldName = ((CategoryContextMapping) contextMapping.getValue()).getFieldName();
                         if (fieldName != null) {
-                            mapping = mapping.field("path", fieldName);
+                            mapping.field("path", fieldName);
+                            categoryContextFields.add(fieldName);
                         }
                         break;
                     case GEO:
                         final String name = ((GeoContextMapping) contextMapping.getValue()).getFieldName();
-                        mapping = mapping
-                                .field("precision", ((GeoContextMapping) contextMapping.getValue()).getPrecision());
+                        mapping.field("precision", ((GeoContextMapping) contextMapping.getValue()).getPrecision());
                         if (name != null) {
                             mapping.field("path", name);
                         }
                         break;
                 }
 
-                mapping = mapping.endObject();
+                mapping.endObject();
             }
 
-            mapping = mapping.endArray();
+            mapping.endArray();
         }
-        mapping = mapping.endObject()
-                .endObject().endObject()
+        mapping.endObject();
+        for (String fieldName : categoryContextFields) {
+            mapping.startObject(fieldName)
+                .field("type", randomBoolean() ? "keyword" : "text")
                 .endObject();
+        }
+        mapping.endObject().endObject().endObject();
 
         assertAcked(client().admin().indices().prepareCreate(INDEX)
                 .setSettings(Settings.builder().put(indexSettings()).put(settings))

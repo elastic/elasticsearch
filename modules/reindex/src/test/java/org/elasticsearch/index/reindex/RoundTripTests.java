@@ -20,8 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequest;
-import org.elasticsearch.action.bulk.byscroll.DeleteByQueryRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -31,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.tasks.TaskId;
@@ -56,57 +53,55 @@ public class RoundTripTests extends ESTestCase {
         reindex.getDestination().index("test");
         if (randomBoolean()) {
             int port = between(1, Integer.MAX_VALUE);
-            BytesReference query = new BytesArray(randomAsciiOfLength(5));
-            String username = randomBoolean() ? randomAsciiOfLength(5) : null;
-            String password = username != null && randomBoolean() ? randomAsciiOfLength(5) : null;
+            BytesReference query = new BytesArray(randomAlphaOfLength(5));
+            String username = randomBoolean() ? randomAlphaOfLength(5) : null;
+            String password = username != null && randomBoolean() ? randomAlphaOfLength(5) : null;
             int headersCount = randomBoolean() ? 0 : between(1, 10);
             Map<String, String> headers = new HashMap<>(headersCount);
             while (headers.size() < headersCount) {
-                headers.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+                headers.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
             TimeValue socketTimeout = parseTimeValue(randomPositiveTimeValue(), "socketTimeout");
             TimeValue connectTimeout = parseTimeValue(randomPositiveTimeValue(), "connectTimeout");
-            reindex.setRemoteInfo(new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), port, query, username, password, headers,
+            reindex.setRemoteInfo(new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), port, query, username, password, headers,
                     socketTimeout, connectTimeout));
         }
         ReindexRequest tripped = new ReindexRequest();
         roundTrip(reindex, tripped);
         assertRequestEquals(reindex, tripped);
 
-        // Try slices with a version that doesn't support slices. That should fail.
-        reindex.setSlices(between(2, 1000));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> roundTrip(Version.V_5_0_0_rc1, reindex, null));
-        assertEquals("Attempting to send sliced reindex-style request to a node that doesn't support it. "
-                + "Version is [5.0.0-rc1] but must be [5.1.1]", e.getMessage());
+        // Try slices=auto with a version that doesn't support it, which should fail
+        reindex.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> roundTrip(Version.V_6_0_0_alpha1, reindex, null));
+        assertEquals("Slices set as \"auto\" are not supported before version [6.1.0]. Found version [6.0.0-alpha1]", e.getMessage());
 
-        // Try without slices with a version that doesn't support slices. That should work.
+        // Try regular slices with a version that doesn't support slices=auto, which should succeed
         tripped = new ReindexRequest();
-        reindex.setSlices(1);
-        roundTrip(Version.V_5_0_0_rc1, reindex, tripped);
-        assertRequestEquals(Version.V_5_0_0_rc1, reindex, tripped);
+        reindex.setSlices(between(1, Integer.MAX_VALUE));
+        roundTrip(Version.V_6_0_0_alpha1, reindex, tripped);
+        assertRequestEquals(Version.V_6_0_0_alpha1, reindex, tripped);
     }
 
     public void testUpdateByQueryRequest() throws IOException {
         UpdateByQueryRequest update = new UpdateByQueryRequest(new SearchRequest());
         randomRequest(update);
         if (randomBoolean()) {
-            update.setPipeline(randomAsciiOfLength(5));
+            update.setPipeline(randomAlphaOfLength(5));
         }
         UpdateByQueryRequest tripped = new UpdateByQueryRequest();
         roundTrip(update, tripped);
         assertRequestEquals(update, tripped);
         assertEquals(update.getPipeline(), tripped.getPipeline());
 
-        // Try slices with a version that doesn't support slices. That should fail.
-        update.setSlices(between(2, 1000));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> roundTrip(Version.V_5_0_0_rc1, update, null));
-        assertEquals("Attempting to send sliced reindex-style request to a node that doesn't support it. "
-                + "Version is [5.0.0-rc1] but must be [5.1.1]", e.getMessage());
+        // Try slices=auto with a version that doesn't support it, which should fail
+        update.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> roundTrip(Version.V_6_0_0_alpha1, update, null));
+        assertEquals("Slices set as \"auto\" are not supported before version [6.1.0]. Found version [6.0.0-alpha1]", e.getMessage());
 
-        // Try without slices with a version that doesn't support slices. That should work.
+        // Try regular slices with a version that doesn't support slices=auto, which should succeed
         tripped = new UpdateByQueryRequest();
-        update.setSlices(1);
-        roundTrip(Version.V_5_0_0_rc1, update, tripped);
+        update.setSlices(between(1, Integer.MAX_VALUE));
+        roundTrip(Version.V_6_0_0_alpha1, update, tripped);
         assertRequestEquals(update, tripped);
         assertEquals(update.getPipeline(), tripped.getPipeline());
     }
@@ -118,29 +113,32 @@ public class RoundTripTests extends ESTestCase {
         roundTrip(delete, tripped);
         assertRequestEquals(delete, tripped);
 
-        // Try slices with a version that doesn't support slices. That should fail.
-        delete.setSlices(between(2, 1000));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> roundTrip(Version.V_5_0_0_rc1, delete, null));
-        assertEquals("Attempting to send sliced reindex-style request to a node that doesn't support it. "
-                + "Version is [5.0.0-rc1] but must be [5.1.1]", e.getMessage());
+        // Try slices=auto with a version that doesn't support it, which should fail
+        delete.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> roundTrip(Version.V_6_0_0_alpha1, delete, null));
+        assertEquals("Slices set as \"auto\" are not supported before version [6.1.0]. Found version [6.0.0-alpha1]", e.getMessage());
 
-        // Try without slices with a version that doesn't support slices. That should work.
+        // Try regular slices with a version that doesn't support slices=auto, which should succeed
         tripped = new DeleteByQueryRequest();
-        delete.setSlices(1);
-        roundTrip(Version.V_5_0_0_rc1, delete, tripped);
+        delete.setSlices(between(1, Integer.MAX_VALUE));
+        roundTrip(Version.V_6_0_0_alpha1, delete, tripped);
         assertRequestEquals(delete, tripped);
     }
 
     private void randomRequest(AbstractBulkByScrollRequest<?> request) {
         request.getSearchRequest().indices("test");
         request.getSearchRequest().source().size(between(1, 1000));
-        request.setSize(random().nextBoolean() ? between(1, Integer.MAX_VALUE) : -1);
+        if (randomBoolean()) {
+            request.setSize(between(1, Integer.MAX_VALUE));
+        }
         request.setAbortOnVersionConflict(random().nextBoolean());
         request.setRefresh(rarely());
         request.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), null, "test"));
         request.setWaitForActiveShards(randomIntBetween(0, 10));
         request.setRequestsPerSecond(between(0, Integer.MAX_VALUE));
-        request.setSlices(between(1, Integer.MAX_VALUE));
+
+        int slices = ReindexTestCase.randomSlices(1, Integer.MAX_VALUE);
+        request.setSlices(slices);
     }
 
     private void randomRequest(AbstractBulkIndexByScrollRequest<?> request) {
@@ -162,7 +160,7 @@ public class RoundTripTests extends ESTestCase {
             assertEquals(request.getRemoteInfo().getUsername(), tripped.getRemoteInfo().getUsername());
             assertEquals(request.getRemoteInfo().getPassword(), tripped.getRemoteInfo().getPassword());
             assertEquals(request.getRemoteInfo().getHeaders(), tripped.getRemoteInfo().getHeaders());
-            if (version.onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            if (version.onOrAfter(Version.V_5_2_0)) {
                 assertEquals(request.getRemoteInfo().getSocketTimeout(), tripped.getRemoteInfo().getSocketTimeout());
                 assertEquals(request.getRemoteInfo().getConnectTimeout(), tripped.getRemoteInfo().getConnectTimeout());
             } else {
@@ -196,7 +194,7 @@ public class RoundTripTests extends ESTestCase {
         if (randomBoolean()) {
             request.setActions(randomFrom(UpdateByQueryAction.NAME, ReindexAction.NAME));
         } else {
-            request.setTaskId(new TaskId(randomAsciiOfLength(5), randomLong()));
+            request.setTaskId(new TaskId(randomAlphaOfLength(5), randomLong()));
         }
         RethrottleRequest tripped = new RethrottleRequest();
         roundTrip(request, tripped);
@@ -224,6 +222,8 @@ public class RoundTripTests extends ESTestCase {
         String idOrCode = randomSimpleString(random());
         Map<String, Object> params = Collections.emptyMap();
 
-        return new Script(type, lang, idOrCode, params);
+        type = ScriptType.STORED;
+
+        return new Script(type, type == ScriptType.STORED ? null : lang, idOrCode, params);
     }
 }

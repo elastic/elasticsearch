@@ -3,9 +3,14 @@
 # This file is used to test the tar gz package.
 
 # WARNING: This testing file must be executed as root and can
-# dramatically change your system. It removes the 'elasticsearch'
-# user/group and also many directories. Do not execute this file
-# unless you know exactly what you are doing.
+# dramatically change your system. It should only be executed
+# in a throw-away VM like those made by the Vagrantfile at
+# the root of the Elasticsearch source code. This should
+# cause the script to fail if it is executed any other way:
+[ -f /etc/is_vagrant_vm ] || {
+  >&2 echo "must be run on a vagrant VM"
+  exit 1
+}
 
 # The test case can be executed with the Bash Automated
 # Testing System tool available at https://github.com/sstephenson/bats
@@ -88,7 +93,7 @@ setup() {
   sudo chmod +x $JAVA
 
   [ "$status" -eq 1 ]
-  local expected="Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
+  local expected="could not find java; set JAVA_HOME or ensure java is in PATH"
   [[ "$output" == *"$expected"* ]] || {
     echo "Expected error message [$expected] but found: $output"
     false
@@ -99,10 +104,6 @@ setup() {
 # Check that Elasticsearch is working
 ##################################
 @test "[TAR] test elasticsearch" {
-    # Install scripts used to test script filters and search templates before
-    # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
-    # them.
-    install_elasticsearch_test_scripts
     start_elasticsearch_service
     run_elasticsearch_tests
     stop_elasticsearch_service
@@ -110,19 +111,25 @@ setup() {
 
 @test "[TAR] start Elasticsearch with custom JVM options" {
     local es_java_opts=$ES_JAVA_OPTS
-    local es_jvm_options=$ES_JVM_OPTIONS
+    local es_path_conf=$ES_PATH_CONF
     local temp=`mktemp -d`
+    cp "$ESCONFIG"/elasticsearch.yml "$temp"
+    cp "$ESCONFIG"/log4j2.properties "$temp"
     touch "$temp/jvm.options"
     chown -R elasticsearch:elasticsearch "$temp"
     echo "-Xms512m" >> "$temp/jvm.options"
     echo "-Xmx512m" >> "$temp/jvm.options"
-    export ES_JVM_OPTIONS="$temp/jvm.options"
+    # we have to disable Log4j from using JMX lest it will hit a security
+    # manager exception before we have configured logging; this will fail
+    # startup since we detect usages of logging before it is configured
+    echo "-Dlog4j2.disable.jmx=true" >> "$temp/jvm.options"
+    export ES_PATH_CONF="$temp"
     export ES_JAVA_OPTS="-XX:-UseCompressedOops"
     start_elasticsearch_service
     curl -s -XGET localhost:9200/_nodes | fgrep '"heap_init_in_bytes":536870912'
     curl -s -XGET localhost:9200/_nodes | fgrep '"using_compressed_ordinary_object_pointers":"false"'
     stop_elasticsearch_service
-    export ES_JVM_OPTIONS=$es_jvm_options
+    export ES_PATH_CONF=$es_path_conf
     export ES_JAVA_OPTS=$es_java_opts
 }
 

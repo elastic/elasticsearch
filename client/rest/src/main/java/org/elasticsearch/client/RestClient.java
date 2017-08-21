@@ -18,32 +18,32 @@
  */
 package org.elasticsearch.client;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpRequest;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.AuthCache;
-import org.apache.http.client.ClientProtocolException;
-import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
-import org.apache.http.client.methods.HttpHead;
-import org.apache.http.client.methods.HttpOptions;
-import org.apache.http.client.methods.HttpPatch;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.client.methods.HttpTrace;
-import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.client.utils.URIBuilder;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.impl.auth.BasicScheme;
-import org.apache.http.impl.client.BasicAuthCache;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.nio.client.methods.HttpAsyncMethods;
-import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
-import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.elasticsearch.client.commons.logging.Log;
+import org.elasticsearch.client.commons.logging.LogFactory;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.HttpHost;
+import org.elasticsearch.client.http.HttpRequest;
+import org.elasticsearch.client.http.HttpResponse;
+import org.elasticsearch.client.http.client.AuthCache;
+import org.elasticsearch.client.http.client.ClientProtocolException;
+import org.elasticsearch.client.http.client.methods.HttpEntityEnclosingRequestBase;
+import org.elasticsearch.client.http.client.methods.HttpHead;
+import org.elasticsearch.client.http.client.methods.HttpOptions;
+import org.elasticsearch.client.http.client.methods.HttpPatch;
+import org.elasticsearch.client.http.client.methods.HttpPost;
+import org.elasticsearch.client.http.client.methods.HttpPut;
+import org.elasticsearch.client.http.client.methods.HttpRequestBase;
+import org.elasticsearch.client.http.client.methods.HttpTrace;
+import org.elasticsearch.client.http.client.protocol.HttpClientContext;
+import org.elasticsearch.client.http.client.utils.URIBuilder;
+import org.elasticsearch.client.http.concurrent.FutureCallback;
+import org.elasticsearch.client.http.impl.auth.BasicScheme;
+import org.elasticsearch.client.http.impl.client.BasicAuthCache;
+import org.elasticsearch.client.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.elasticsearch.client.http.nio.client.methods.HttpAsyncMethods;
+import org.elasticsearch.client.http.nio.protocol.HttpAsyncRequestProducer;
+import org.elasticsearch.client.http.nio.protocol.HttpAsyncResponseConsumer;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -289,40 +289,44 @@ public class RestClient implements Closeable {
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                     ResponseListener responseListener, Header... headers) {
-        Objects.requireNonNull(params, "params must not be null");
-        Map<String, String> requestParams = new HashMap<>(params);
-        //ignore is a special parameter supported by the clients, shouldn't be sent to es
-        String ignoreString = requestParams.remove("ignore");
-        Set<Integer> ignoreErrorCodes;
-        if (ignoreString == null) {
-            if (HttpHead.METHOD_NAME.equals(method)) {
-                //404 never causes error if returned for a HEAD request
-                ignoreErrorCodes = Collections.singleton(404);
+        try {
+            Objects.requireNonNull(params, "params must not be null");
+            Map<String, String> requestParams = new HashMap<>(params);
+            //ignore is a special parameter supported by the clients, shouldn't be sent to es
+            String ignoreString = requestParams.remove("ignore");
+            Set<Integer> ignoreErrorCodes;
+            if (ignoreString == null) {
+                if (HttpHead.METHOD_NAME.equals(method)) {
+                    //404 never causes error if returned for a HEAD request
+                    ignoreErrorCodes = Collections.singleton(404);
+                } else {
+                    ignoreErrorCodes = Collections.emptySet();
+                }
             } else {
-                ignoreErrorCodes = Collections.emptySet();
-            }
-        } else {
-            String[] ignoresArray = ignoreString.split(",");
-            ignoreErrorCodes = new HashSet<>();
-            if (HttpHead.METHOD_NAME.equals(method)) {
-                //404 never causes error if returned for a HEAD request
-                ignoreErrorCodes.add(404);
-            }
-            for (String ignoreCode : ignoresArray) {
-                try {
-                    ignoreErrorCodes.add(Integer.valueOf(ignoreCode));
-                } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("ignore value should be a number, found [" + ignoreString + "] instead", e);
+                String[] ignoresArray = ignoreString.split(",");
+                ignoreErrorCodes = new HashSet<>();
+                if (HttpHead.METHOD_NAME.equals(method)) {
+                    //404 never causes error if returned for a HEAD request
+                    ignoreErrorCodes.add(404);
+                }
+                for (String ignoreCode : ignoresArray) {
+                    try {
+                        ignoreErrorCodes.add(Integer.valueOf(ignoreCode));
+                    } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException("ignore value should be a number, found [" + ignoreString + "] instead", e);
+                    }
                 }
             }
+            URI uri = buildUri(pathPrefix, endpoint, requestParams);
+            HttpRequestBase request = createHttpRequest(method, uri, entity);
+            setHeaders(request, headers);
+            FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
+            long startTime = System.nanoTime();
+            performRequestAsync(startTime, nextHost(), request, ignoreErrorCodes, httpAsyncResponseConsumerFactory,
+                    failureTrackingResponseListener);
+        } catch (Exception e) {
+            responseListener.onFailure(e);
         }
-        URI uri = buildUri(pathPrefix, endpoint, requestParams);
-        HttpRequestBase request = createHttpRequest(method, uri, entity);
-        setHeaders(request, headers);
-        FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
-        long startTime = System.nanoTime();
-        performRequestAsync(startTime, nextHost(), request, ignoreErrorCodes, httpAsyncResponseConsumerFactory,
-                            failureTrackingResponseListener);
     }
 
     private void performRequestAsync(final long startTime, final HostTuple<Iterator<HttpHost>> hostTuple, final HttpRequestBase request,
@@ -549,7 +553,7 @@ public class RestClient implements Closeable {
         return httpRequest;
     }
 
-    private static URI buildUri(String pathPrefix, String path, Map<String, String> params) {
+    static URI buildUri(String pathPrefix, String path, Map<String, String> params) {
         Objects.requireNonNull(path, "path must not be null");
         try {
             String fullPath;

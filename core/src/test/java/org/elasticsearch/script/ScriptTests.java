@@ -67,12 +67,12 @@ public class ScriptTests extends ESTestCase {
         if (scriptType == ScriptType.INLINE) {
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
-                builder.field("field", randomAsciiOfLengthBetween(1, 5));
+                builder.field("field", randomAlphaOfLengthBetween(1, 5));
                 builder.endObject();
                 script = builder.string();
             }
         } else {
-            script = randomAsciiOfLengthBetween(1, 5);
+            script = randomAlphaOfLengthBetween(1, 5);
         }
         return new Script(
             scriptType,

@@ -177,7 +177,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     @Override
     public AllCircuitBreakerStats stats() {
         long parentEstimated = 0;
-        List<CircuitBreakerStats> allStats = new ArrayList<>();
+        List<CircuitBreakerStats> allStats = new ArrayList<>(this.breakers.size());
         // Gather the "estimated" count for the parent breaker by adding the
         // estimations for each individual breaker
         for (CircuitBreaker breaker : this.breakers.values()) {

@@ -47,7 +47,7 @@ POST /exams/_search?size=0
         "avg_grade" : {
             "avg" : {
                 "script" : {
-                    "inline" : "doc.grade.value"
+                    "source" : "doc.grade.value"
                 }
             }
         }
@@ -57,7 +57,7 @@ POST /exams/_search?size=0
 // CONSOLE
 // TEST[setup:exams]
 
-This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a file script use the following syntax:
+This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a stored script use the following syntax:
 
 [source,js]
 --------------------------------------------------
@@ -67,7 +67,7 @@ POST /exams/_search?size=0
         "avg_grade" : {
             "avg" : {
                 "script" : {
-                    "file": "my_script",
+                    "id": "my_script",
                     "params": {
                         "field": "grade"
                     }
@@ -78,9 +78,7 @@ POST /exams/_search?size=0
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:exams]
-
-TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
+// TEST[setup:exams,stored_example_script]
 
 ===== Value Script
 
@@ -96,7 +94,7 @@ POST /exams/_search?size=0
                 "field" : "grade",
                 "script" : {
                     "lang": "painless",
-                    "inline": "_value * params.correction",
+                    "source": "_value * params.correction",
                     "params" : {
                         "correction" : 1.2
                     }

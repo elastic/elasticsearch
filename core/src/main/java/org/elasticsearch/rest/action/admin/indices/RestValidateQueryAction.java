@@ -56,12 +56,18 @@ public class RestValidateQueryAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "validate_query_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         validateQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, validateQueryRequest.indicesOptions()));
         validateQueryRequest.explain(request.paramAsBoolean("explain", false));
         validateQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
+        validateQueryRequest.allShards(request.paramAsBoolean("all_shards", false));
 
         Exception bodyParsingException = null;
         try {
@@ -98,6 +104,9 @@ public class RestValidateQueryAction extends BaseRestHandler {
                                 if (explanation.getIndex() != null) {
                                     builder.field(INDEX_FIELD, explanation.getIndex());
                                 }
+                                if(explanation.getShard() >= 0) {
+                                    builder.field(SHARD_FIELD, explanation.getShard());
+                                }
                                 builder.field(VALID_FIELD, explanation.isValid());
                                 if (explanation.getError() != null) {
                                     builder.field(ERROR_FIELD, explanation.getError());
@@ -132,6 +141,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
     }
 
     private static final String INDEX_FIELD = "index";
+    private static final String SHARD_FIELD = "shard";
     private static final String VALID_FIELD = "valid";
     private static final String EXPLANATIONS_FIELD = "explanations";
     private static final String ERROR_FIELD = "error";

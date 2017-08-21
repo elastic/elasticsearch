@@ -132,6 +132,13 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         sort.writeTo(out);
     }
 
+    public static TermSuggestion fromXContent(XContentParser parser, String name) throws IOException {
+        // the "size" parameter and the SortBy for TermSuggestion cannot be parsed from the response, use default values
+        TermSuggestion suggestion = new TermSuggestion(name, -1, SortBy.SCORE);
+        parseEntries(parser, suggestion, TermSuggestion.Entry::fromXContent);
+        return suggestion;
+    }
+
     @Override
     protected Entry newEntry() {
         return new Entry();
@@ -140,8 +147,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     /**
      * Represents a part from the suggest text with suggested options.
      */
-    public static class Entry extends
-            org.elasticsearch.search.suggest.Suggest.Suggestion.Entry<TermSuggestion.Entry.Option> {
+    public static class Entry extends org.elasticsearch.search.suggest.Suggest.Suggestion.Entry<TermSuggestion.Entry.Option> {
 
         public Entry(Text text, int offset, int length) {
             super(text, offset, length);
@@ -235,7 +241,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
                 PARSER.declareFloat(constructorArg(), Suggestion.Entry.Option.SCORE);
             }
 
-            public static final Option fromXContent(XContentParser parser) {
+            public static Option fromXContent(XContentParser parser) {
                 return PARSER.apply(parser, null);
             }
         }

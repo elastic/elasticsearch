@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -82,6 +83,7 @@ public class TransportService extends AbstractLifecycleComponent {
     protected final TaskManager taskManager;
     private final TransportInterceptor.AsyncSender asyncSender;
     private final Function<BoundTransportAddress, DiscoveryNode> localNodeFactory;
+    private final boolean connectToRemoteCluster;
 
     volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
     final Object requestHandlerMutex = new Object();
@@ -118,6 +120,8 @@ public class TransportService extends AbstractLifecycleComponent {
 
     volatile String[] tracerLogInclude;
     volatile String[] tracerLogExclude;
+
+    private final RemoteClusterService remoteClusterService;
 
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile DiscoveryNode localNode = null;
@@ -158,10 +162,19 @@ public class TransportService extends AbstractLifecycleComponent {
         taskManager = createTaskManager();
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
+        this.connectToRemoteCluster = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
+        remoteClusterService = new RemoteClusterService(settings, this);
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
             clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
+            if (connectToRemoteCluster) {
+                remoteClusterService.listenForUpdates(clusterSettings);
+            }
         }
+    }
+
+    public RemoteClusterService getRemoteClusterService() {
+        return remoteClusterService;
     }
 
     public DiscoveryNode getLocalNode() {
@@ -190,8 +203,6 @@ public class TransportService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        adapter.rxMetric.clear();
-        adapter.txMetric.clear();
         transport.transportServiceAdapter(adapter);
         transport.start();
 
@@ -209,6 +220,10 @@ public class TransportService extends AbstractLifecycleComponent {
             false, false,
             (request, channel) -> channel.sendResponse(
                     new HandshakeResponse(localNode, clusterName, localNode.getVersion())));
+        if (connectToRemoteCluster) {
+            // here we start to connect to the remote clusters
+            remoteClusterService.initializeRemoteClusters();
+        }
     }
 
     @Override
@@ -253,8 +268,8 @@ public class TransportService extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doClose() {
-        transport.close();
+    protected void doClose() throws IOException {
+        IOUtils.close(remoteClusterService, transport);
     }
 
     /**
@@ -275,8 +290,7 @@ public class TransportService extends AbstractLifecycleComponent {
     }
 
     public TransportStats stats() {
-        return new TransportStats(
-            transport.serverOpen(), adapter.rxMetric.count(), adapter.rxMetric.sum(), adapter.txMetric.count(), adapter.txMetric.sum());
+        return transport.getStats();
     }
 
     public BoundTransportAddress boundAddress() {
@@ -510,6 +524,19 @@ public class TransportService extends AbstractLifecycleComponent {
         }
     }
 
+    public final <T extends TransportResponse> void sendChildRequest(final DiscoveryNode node, final String action,
+                                                                     final TransportRequest request, final Task parentTask,
+                                                                     final TransportRequestOptions options,
+                                                                     final TransportResponseHandler<T> handler) {
+        try {
+            Transport.Connection connection = getConnection(node);
+            sendChildRequest(connection, action, request, parentTask, options, handler);
+        } catch (NodeNotConnectedException ex) {
+            // the caller might not handle this so we invoke the handler
+            handler.handleException(ex);
+        }
+    }
+
     public <T extends TransportResponse> void sendChildRequest(final Transport.Connection connection, final String action,
                                                                final TransportRequest request, final Task parentTask,
                                                                final TransportResponseHandler<T> handler) {
@@ -552,7 +579,7 @@ public class TransportService extends AbstractLifecycleComponent {
             }
             Supplier<ThreadContext.StoredContext> storedContextSupplier = threadPool.getThreadContext().newRestorableContext(true);
             TransportResponseHandler<T> responseHandler = new ContextRestoreResponseHandler<>(storedContextSupplier, handler);
-            clientHandlers.put(requestId, new RequestHolder<>(responseHandler, connection.getNode(), action, timeoutHandler));
+            clientHandlers.put(requestId, new RequestHolder<>(responseHandler, connection, action, timeoutHandler));
             if (lifecycle.stoppedOrClosed()) {
                 // if we are not started the exception handling will remove the RequestHolder again and calls the handler to notify
                 // the caller. It will only notify if the toStop code hasn't done the work yet.
@@ -721,19 +748,6 @@ public class TransportService extends AbstractLifecycleComponent {
 
     protected class Adapter implements TransportServiceAdapter {
 
-        final MeanMetric rxMetric = new MeanMetric();
-        final MeanMetric txMetric = new MeanMetric();
-
-        @Override
-        public void addBytesReceived(long size) {
-            rxMetric.inc(size);
-        }
-
-        @Override
-        public void addBytesSent(long size) {
-            txMetric.inc(size);
-        }
-
         @Override
         public void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request,
                                   TransportRequestOptions options) {
@@ -793,7 +807,7 @@ public class TransportService extends AbstractLifecycleComponent {
             }
             holder.cancelTimeout();
             if (traceEnabled() && shouldTraceAction(holder.action())) {
-                traceReceivedResponse(requestId, holder.node(), holder.action());
+                traceReceivedResponse(requestId, holder.connection().getNode(), holder.action());
             }
             return holder.handler();
         }
@@ -838,12 +852,12 @@ public class TransportService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public void onConnectionOpened(DiscoveryNode node) {
+        public void onConnectionOpened(Transport.Connection connection) {
             // capture listeners before spawning the background callback so the following pattern won't trigger a call
             // connectToNode(); connection is completed successfully
             // addConnectionListener(); this listener shouldn't be called
             final Stream<TransportConnectionListener> listenersToNotify = TransportService.this.connectionListeners.stream();
-            threadPool.generic().execute(() -> listenersToNotify.forEach(listener -> listener.onConnectionOpened(node)));
+            threadPool.generic().execute(() -> listenersToNotify.forEach(listener -> listener.onConnectionOpened(connection)));
         }
 
         @Override
@@ -854,20 +868,28 @@ public class TransportService extends AbstractLifecycleComponent {
                         connectionListener.onNodeDisconnected(node);
                     }
                 });
+            } catch (EsRejectedExecutionException ex) {
+                logger.debug("Rejected execution on NodeDisconnected", ex);
+            }
+        }
+
+        @Override
+        public void onConnectionClosed(Transport.Connection connection) {
+            try {
                 for (Map.Entry<Long, RequestHolder> entry : clientHandlers.entrySet()) {
                     RequestHolder holder = entry.getValue();
-                    if (holder.node().equals(node)) {
+                    if (holder.connection().getCacheKey().equals(connection.getCacheKey())) {
                         final RequestHolder holderToNotify = clientHandlers.remove(entry.getKey());
                         if (holderToNotify != null) {
                             // callback that an exception happened, but on a different thread since we don't
                             // want handlers to worry about stack overflows
-                            threadPool.generic().execute(() -> holderToNotify.handler().handleException(new NodeDisconnectedException(node,
-                                holderToNotify.action())));
+                            threadPool.generic().execute(() -> holderToNotify.handler().handleException(new NodeDisconnectedException(
+                                connection.getNode(), holderToNotify.action())));
                         }
                     }
                 }
             } catch (EsRejectedExecutionException ex) {
-                logger.debug("Rejected execution on NodeDisconnected", ex);
+                logger.debug("Rejected execution on onConnectionClosed", ex);
             }
         }
 
@@ -912,13 +934,14 @@ public class TransportService extends AbstractLifecycleComponent {
             if (holder != null) {
                 // add it to the timeout information holder, in case we are going to get a response later
                 long timeoutTime = System.currentTimeMillis();
-                timeoutInfoHandlers.put(requestId, new TimeoutInfoHolder(holder.node(), holder.action(), sentTime, timeoutTime));
+                timeoutInfoHandlers.put(requestId, new TimeoutInfoHolder(holder.connection().getNode(), holder.action(), sentTime,
+                    timeoutTime));
                 // now that we have the information visible via timeoutInfoHandlers, we try to remove the request id
                 final RequestHolder removedHolder = clientHandlers.remove(requestId);
                 if (removedHolder != null) {
                     assert removedHolder == holder : "two different holder instances for request [" + requestId + "]";
                     removedHolder.handler().handleException(
-                        new ReceiveTimeoutTransportException(holder.node(), holder.action(),
+                        new ReceiveTimeoutTransportException(holder.connection().getNode(), holder.action(),
                             "request_id [" + requestId + "] timed out after [" + (timeoutTime - sentTime) + "ms]"));
                 } else {
                     // response was processed, remove timeout info.
@@ -973,15 +996,15 @@ public class TransportService extends AbstractLifecycleComponent {
 
         private final TransportResponseHandler<T> handler;
 
-        private final DiscoveryNode node;
+        private final Transport.Connection connection;
 
         private final String action;
 
         private final TimeoutHandler timeoutHandler;
 
-        RequestHolder(TransportResponseHandler<T> handler, DiscoveryNode node, String action, TimeoutHandler timeoutHandler) {
+        RequestHolder(TransportResponseHandler<T> handler, Transport.Connection connection, String action, TimeoutHandler timeoutHandler) {
             this.handler = handler;
-            this.node = node;
+            this.connection = connection;
             this.action = action;
             this.timeoutHandler = timeoutHandler;
         }
@@ -990,8 +1013,8 @@ public class TransportService extends AbstractLifecycleComponent {
             return handler;
         }
 
-        public DiscoveryNode node() {
-            return this.node;
+        public Transport.Connection connection() {
+            return this.connection;
         }
 
         public String action() {

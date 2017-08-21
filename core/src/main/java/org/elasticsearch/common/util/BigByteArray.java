@@ -33,6 +33,8 @@ import static org.elasticsearch.common.util.BigArrays.BYTE_PAGE_SIZE;
  */
 final class BigByteArray extends AbstractBigArray implements ByteArray {
 
+    private static final BigByteArray ESTIMATOR = new BigByteArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
+
     private byte[][] pages;
 
     /** Constructor. */
@@ -44,7 +46,7 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
             pages[i] = newBytePage(i);
         }
     }
-    
+
     @Override
     public byte get(long index) {
         final int pageIndex = pageIndex(index);
@@ -145,6 +147,11 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
             releasePage(i);
         }
         this.size = newSize;
+    }
+
+    /** Estimates the number of bytes that would be consumed by an array of the given size. */
+    public static long estimateRamBytes(final long size) {
+        return ESTIMATOR.ramBytesEstimated(size);
     }
 
 }

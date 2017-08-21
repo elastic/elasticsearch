@@ -22,10 +22,8 @@ package org.elasticsearch.search.aggregations.metrics.scripted;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
@@ -35,9 +33,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalScriptedMetric extends InternalAggregation implements ScriptedMetric {
-    private final Script reduceScript;
+    final Script reduceScript;
     private final List<Object> aggregation;
 
     public InternalScriptedMetric(String name, Object aggregation, Script reduceScript, List<PipelineAggregator> pipelineAggregators,
@@ -95,9 +94,9 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
             if (firstAggregation.reduceScript.getParams() != null) {
                 vars.putAll(firstAggregation.reduceScript.getParams());
             }
-            CompiledScript compiledScript = reduceContext.scriptService().compile(
-                firstAggregation.reduceScript, ScriptContext.Standard.AGGS);
-            ExecutableScript script = reduceContext.scriptService().executable(compiledScript, vars);
+            ExecutableScript.Factory factory = reduceContext.scriptService().compile(
+                firstAggregation.reduceScript, ExecutableScript.AGGS_CONTEXT);
+            ExecutableScript script = factory.newInstance(vars);
             aggregation = Collections.singletonList(script.run());
         } else if (reduceContext.isFinalReduce())  {
             aggregation = Collections.singletonList(aggregationObjects);
@@ -123,7 +122,19 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return builder.field("value", aggregation());
+        return builder.field(CommonFields.VALUE.getPreferredName(), aggregation());
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalScriptedMetric other = (InternalScriptedMetric) obj;
+        return Objects.equals(reduceScript, other.reduceScript) &&
+                Objects.equals(aggregation, other.aggregation);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(reduceScript, aggregation);
     }
 
 }

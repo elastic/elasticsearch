@@ -19,28 +19,46 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.client.http.entity.ByteArrayEntity;
+import org.elasticsearch.client.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.script.Script;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
@@ -49,6 +67,7 @@ import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -66,14 +85,22 @@ public class RequestTests extends ESTestCase {
         assertEquals("HEAD", request.method);
     }
 
+    public void testInfo() {
+        Request request = Request.info();
+        assertEquals("/", request.endpoint);
+        assertEquals(0, request.params.size());
+        assertNull(request.entity);
+        assertEquals("GET", request.method);
+    }
+
     public void testGet() {
         getAndExistsTest(Request::get, "GET");
     }
 
     public void testDelete() throws IOException {
-        String index = randomAsciiOfLengthBetween(3, 10);
-        String type = randomAsciiOfLengthBetween(3, 10);
-        String id = randomAsciiOfLengthBetween(3, 10);
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
         DeleteRequest deleteRequest = new DeleteRequest(index, type, id);
 
         Map<String, String> expectedParams = new HashMap<>();
@@ -85,12 +112,12 @@ public class RequestTests extends ESTestCase {
 
         if (frequently()) {
             if (randomBoolean()) {
-                String routing = randomAsciiOfLengthBetween(3, 10);
+                String routing = randomAlphaOfLengthBetween(3, 10);
                 deleteRequest.routing(routing);
                 expectedParams.put("routing", routing);
             }
             if (randomBoolean()) {
-                String parent = randomAsciiOfLengthBetween(3, 10);
+                String parent = randomAlphaOfLengthBetween(3, 10);
                 deleteRequest.parent(parent);
                 expectedParams.put("parent", parent);
             }
@@ -108,20 +135,20 @@ public class RequestTests extends ESTestCase {
     }
 
     private static void getAndExistsTest(Function<GetRequest, Request> requestConverter, String method) {
-        String index = randomAsciiOfLengthBetween(3, 10);
-        String type = randomAsciiOfLengthBetween(3, 10);
-        String id = randomAsciiOfLengthBetween(3, 10);
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
         GetRequest getRequest = new GetRequest(index, type, id);
 
         Map<String, String> expectedParams = new HashMap<>();
         if (randomBoolean()) {
             if (randomBoolean()) {
-                String preference = randomAsciiOfLengthBetween(3, 10);
+                String preference = randomAlphaOfLengthBetween(3, 10);
                 getRequest.preference(preference);
                 expectedParams.put("preference", preference);
             }
             if (randomBoolean()) {
-                String routing = randomAsciiOfLengthBetween(3, 10);
+                String routing = randomAlphaOfLengthBetween(3, 10);
                 getRequest.routing(routing);
                 expectedParams.put("routing", routing);
             }
@@ -158,7 +185,7 @@ public class RequestTests extends ESTestCase {
                 String[] storedFields = new String[numStoredFields];
                 StringBuilder storedFieldsParam = new StringBuilder();
                 for (int i = 0; i < numStoredFields; i++) {
-                    String storedField = randomAsciiOfLengthBetween(3, 10);
+                    String storedField = randomAlphaOfLengthBetween(3, 10);
                     storedFields[i] = storedField;
                     storedFieldsParam.append(storedField);
                     if (i < numStoredFields - 1) {
@@ -180,11 +207,11 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testIndex() throws IOException {
-        String index = randomAsciiOfLengthBetween(3, 10);
-        String type = randomAsciiOfLengthBetween(3, 10);
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
         IndexRequest indexRequest = new IndexRequest(index, type);
 
-        String id = randomBoolean() ? randomAsciiOfLengthBetween(3, 10) : null;
+        String id = randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null;
         indexRequest.id(id);
 
         Map<String, String> expectedParams = new HashMap<>();
@@ -211,17 +238,17 @@ public class RequestTests extends ESTestCase {
 
         if (frequently()) {
             if (randomBoolean()) {
-                String routing = randomAsciiOfLengthBetween(3, 10);
+                String routing = randomAlphaOfLengthBetween(3, 10);
                 indexRequest.routing(routing);
                 expectedParams.put("routing", routing);
             }
             if (randomBoolean()) {
-                String parent = randomAsciiOfLengthBetween(3, 10);
+                String parent = randomAlphaOfLengthBetween(3, 10);
                 indexRequest.parent(parent);
                 expectedParams.put("parent", parent);
             }
             if (randomBoolean()) {
-                String pipeline = randomAsciiOfLengthBetween(3, 10);
+                String pipeline = randomAlphaOfLengthBetween(3, 10);
                 indexRequest.setPipeline(pipeline);
                 expectedParams.put("pipeline", pipeline);
             }
@@ -250,9 +277,8 @@ public class RequestTests extends ESTestCase {
         assertEquals(method, request.method);
 
         HttpEntity entity = request.entity;
-        assertNotNull(entity);
         assertTrue(entity instanceof ByteArrayEntity);
-
+        assertEquals(indexRequest.getContentType().mediaType(), entity.getContentType().getValue());
         try (XContentParser parser = createParser(xContentType.xContent(), entity.getContent())) {
             assertEquals(nbFields, parser.map().size());
         }
@@ -262,9 +288,9 @@ public class RequestTests extends ESTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
 
         Map<String, String> expectedParams = new HashMap<>();
-        String index = randomAsciiOfLengthBetween(3, 10);
-        String type = randomAsciiOfLengthBetween(3, 10);
-        String id = randomAsciiOfLengthBetween(3, 10);
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
 
         UpdateRequest updateRequest = new UpdateRequest(index, type, id);
         updateRequest.detectNoop(randomBoolean());
@@ -279,7 +305,7 @@ public class RequestTests extends ESTestCase {
                 expectedParams.put("doc_as_upsert", "true");
             }
         } else {
-            updateRequest.script(new Script("_value + 1"));
+            updateRequest.script(mockScript("_value + 1"));
             updateRequest.scriptedUpsert(randomBoolean());
         }
         if (randomBoolean()) {
@@ -287,12 +313,12 @@ public class RequestTests extends ESTestCase {
             updateRequest.upsert(new IndexRequest().source(source, xContentType));
         }
         if (randomBoolean()) {
-            String routing = randomAsciiOfLengthBetween(3, 10);
+            String routing = randomAlphaOfLengthBetween(3, 10);
             updateRequest.routing(routing);
             expectedParams.put("routing", routing);
         }
         if (randomBoolean()) {
-            String parent = randomAsciiOfLengthBetween(3, 10);
+            String parent = randomAlphaOfLengthBetween(3, 10);
             updateRequest.parent(parent);
             expectedParams.put("parent", parent);
         }
@@ -346,7 +372,6 @@ public class RequestTests extends ESTestCase {
         assertEquals("POST", request.method);
 
         HttpEntity entity = request.entity;
-        assertNotNull(entity);
         assertTrue(entity instanceof ByteArrayEntity);
 
         UpdateRequest parsedUpdateRequest = new UpdateRequest();
@@ -408,9 +433,9 @@ public class RequestTests extends ESTestCase {
 
         int nbItems = randomIntBetween(10, 100);
         for (int i = 0; i < nbItems; i++) {
-            String index = randomAsciiOfLength(5);
-            String type = randomAsciiOfLength(5);
-            String id = randomAsciiOfLength(5);
+            String index = randomAlphaOfLength(5);
+            String type = randomAlphaOfLength(5);
+            String id = randomAlphaOfLength(5);
 
             BytesReference source = RandomObjects.randomSource(random(), xContentType);
             DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
@@ -420,16 +445,16 @@ public class RequestTests extends ESTestCase {
                 IndexRequest indexRequest = new IndexRequest(index, type, id).source(source, xContentType);
                 docWriteRequest = indexRequest;
                 if (randomBoolean()) {
-                    indexRequest.setPipeline(randomAsciiOfLength(5));
+                    indexRequest.setPipeline(randomAlphaOfLength(5));
                 }
                 if (randomBoolean()) {
-                    indexRequest.parent(randomAsciiOfLength(5));
+                    indexRequest.parent(randomAlphaOfLength(5));
                 }
             } else if (opType == DocWriteRequest.OpType.CREATE) {
                 IndexRequest createRequest = new IndexRequest(index, type, id).source(source, xContentType).create(true);
                 docWriteRequest = createRequest;
                 if (randomBoolean()) {
-                    createRequest.parent(randomAsciiOfLength(5));
+                    createRequest.parent(randomAlphaOfLength(5));
                 }
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
                 final UpdateRequest updateRequest = new UpdateRequest(index, type, id).doc(new IndexRequest().source(source, xContentType));
@@ -441,14 +466,14 @@ public class RequestTests extends ESTestCase {
                     randomizeFetchSourceContextParams(updateRequest::fetchSource, new HashMap<>());
                 }
                 if (randomBoolean()) {
-                    updateRequest.parent(randomAsciiOfLength(5));
+                    updateRequest.parent(randomAlphaOfLength(5));
                 }
             } else if (opType == DocWriteRequest.OpType.DELETE) {
                 docWriteRequest = new DeleteRequest(index, type, id);
             }
 
             if (randomBoolean()) {
-                docWriteRequest.routing(randomAsciiOfLength(10));
+                docWriteRequest.routing(randomAlphaOfLength(10));
             }
             if (randomBoolean()) {
                 docWriteRequest.version(randomNonNegativeLong());
@@ -463,7 +488,7 @@ public class RequestTests extends ESTestCase {
         assertEquals("/_bulk", request.endpoint);
         assertEquals(expectedParams, request.params);
         assertEquals("POST", request.method);
-
+        assertEquals(xContentType.mediaType(), request.entity.getContentType().getValue());
         byte[] content = new byte[(int) request.entity.getContentLength()];
         try (InputStream inputStream = request.entity.getContent()) {
             Streams.readFully(inputStream, content);
@@ -512,7 +537,7 @@ public class RequestTests extends ESTestCase {
         {
             BulkRequest bulkRequest = new BulkRequest();
             bulkRequest.add(new DeleteRequest("index", "type", "0"));
-            bulkRequest.add(new UpdateRequest("index", "type", "1").script(new Script("test")));
+            bulkRequest.add(new UpdateRequest("index", "type", "1").script(mockScript("test")));
             bulkRequest.add(new DeleteRequest("index", "type", "2"));
 
             Request request = Request.bulk(bulkRequest);
@@ -577,13 +602,166 @@ public class RequestTests extends ESTestCase {
         }
     }
 
+    public void testSearch() throws Exception {
+        SearchRequest searchRequest = new SearchRequest();
+        int numIndices = randomIntBetween(0, 5);
+        String[] indices = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indices[i] = "index-" + randomAlphaOfLengthBetween(2, 5);
+        }
+        searchRequest.indices(indices);
+        int numTypes = randomIntBetween(0, 5);
+        String[] types = new String[numTypes];
+        for (int i = 0; i < numTypes; i++) {
+            types[i] = "type-" + randomAlphaOfLengthBetween(2, 5);
+        }
+        searchRequest.types(types);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        if (randomBoolean()) {
+            searchRequest.routing(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("routing", searchRequest.routing());
+        }
+        if (randomBoolean()) {
+            searchRequest.preference(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("preference", searchRequest.preference());
+        }
+        if (randomBoolean()) {
+            searchRequest.searchType(randomFrom(SearchType.values()));
+        }
+        expectedParams.put("search_type", searchRequest.searchType().name().toLowerCase(Locale.ROOT));
+        if (randomBoolean()) {
+            searchRequest.requestCache(randomBoolean());
+            expectedParams.put("request_cache", Boolean.toString(searchRequest.requestCache()));
+        }
+        if (randomBoolean()) {
+            searchRequest.setBatchedReduceSize(randomIntBetween(2, Integer.MAX_VALUE));
+        }
+        expectedParams.put("batched_reduce_size", Integer.toString(searchRequest.getBatchedReduceSize()));
+        if (randomBoolean()) {
+            searchRequest.scroll(randomTimeValue());
+            expectedParams.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
+        }
+
+        if (randomBoolean()) {
+            searchRequest.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+        }
+        expectedParams.put("ignore_unavailable", Boolean.toString(searchRequest.indicesOptions().ignoreUnavailable()));
+        expectedParams.put("allow_no_indices", Boolean.toString(searchRequest.indicesOptions().allowNoIndices()));
+        if (searchRequest.indicesOptions().expandWildcardsOpen() && searchRequest.indicesOptions().expandWildcardsClosed()) {
+            expectedParams.put("expand_wildcards", "open,closed");
+        } else if (searchRequest.indicesOptions().expandWildcardsOpen()) {
+            expectedParams.put("expand_wildcards", "open");
+        } else if (searchRequest.indicesOptions().expandWildcardsClosed()) {
+            expectedParams.put("expand_wildcards", "closed");
+        } else {
+            expectedParams.put("expand_wildcards", "none");
+        }
+
+        SearchSourceBuilder searchSourceBuilder = null;
+        if (frequently()) {
+            searchSourceBuilder = new SearchSourceBuilder();
+            if (randomBoolean()) {
+                searchSourceBuilder.size(randomIntBetween(0, Integer.MAX_VALUE));
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.from(randomIntBetween(0, Integer.MAX_VALUE));
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.minScore(randomFloat());
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.explain(randomBoolean());
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.profile(randomBoolean());
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.highlighter(new HighlightBuilder().field(randomAlphaOfLengthBetween(3, 10)));
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.query(new TermQueryBuilder(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10)));
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.aggregation(new TermsAggregationBuilder(randomAlphaOfLengthBetween(3, 10), ValueType.STRING)
+                        .field(randomAlphaOfLengthBetween(3, 10)));
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion(randomAlphaOfLengthBetween(3, 10),
+                        new CompletionSuggestionBuilder(randomAlphaOfLengthBetween(3, 10))));
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.addRescorer(new QueryRescorerBuilder(
+                        new TermQueryBuilder(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10))));
+            }
+            if (randomBoolean()) {
+                searchSourceBuilder.collapse(new CollapseBuilder(randomAlphaOfLengthBetween(3, 10)));
+            }
+            searchRequest.source(searchSourceBuilder);
+        }
+
+        Request request = Request.search(searchRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        String type = String.join(",", types);
+        if (Strings.hasLength(type)) {
+            endpoint.add(type);
+        }
+        endpoint.add("_search");
+        assertEquals(endpoint.toString(), request.endpoint);
+        assertEquals(expectedParams, request.params);
+        if (searchSourceBuilder == null) {
+            assertNull(request.entity);
+        } else {
+            assertToXContentBody(searchSourceBuilder, request.entity);
+        }
+    }
+
+    public void testSearchScroll() throws IOException {
+        SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
+        searchScrollRequest.scrollId(randomAlphaOfLengthBetween(5, 10));
+        if (randomBoolean()) {
+            searchScrollRequest.scroll(randomPositiveTimeValue());
+        }
+        Request request = Request.searchScroll(searchScrollRequest);
+        assertEquals("GET", request.method);
+        assertEquals("/_search/scroll", request.endpoint);
+        assertEquals(0, request.params.size());
+        assertToXContentBody(searchScrollRequest, request.entity);
+        assertEquals(Request.REQUEST_BODY_CONTENT_TYPE.mediaType(), request.entity.getContentType().getValue());
+    }
+
+    public void testClearScroll() throws IOException {
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+        int numScrolls = randomIntBetween(1, 10);
+        for (int i = 0; i < numScrolls; i++) {
+            clearScrollRequest.addScrollId(randomAlphaOfLengthBetween(5, 10));
+        }
+        Request request = Request.clearScroll(clearScrollRequest);
+        assertEquals("DELETE", request.method);
+        assertEquals("/_search/scroll", request.endpoint);
+        assertEquals(0, request.params.size());
+        assertToXContentBody(clearScrollRequest, request.entity);
+        assertEquals(Request.REQUEST_BODY_CONTENT_TYPE.mediaType(), request.entity.getContentType().getValue());
+    }
+
+    private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
+        BytesReference expectedBytes = XContentHelper.toXContent(expectedBody, Request.REQUEST_BODY_CONTENT_TYPE, false);
+        assertEquals(XContentType.JSON.mediaType(), actualEntity.getContentType().getValue());
+        assertEquals(expectedBytes, new BytesArray(EntityUtils.toByteArray(actualEntity)));
+    }
+
     public void testParams() {
         final int nbParams = randomIntBetween(0, 10);
         Request.Params params = Request.Params.builder();
         Map<String, String> expectedParams = new HashMap<>();
         for (int i = 0; i < nbParams; i++) {
             String paramName = "p_" + i;
-            String paramValue = randomAsciiOfLength(5);
+            String paramValue = randomAlphaOfLength(5);
             params.putParam(paramName, paramValue);
             expectedParams.put(paramName, paramValue);
         }
@@ -657,7 +835,7 @@ public class RequestTests extends ESTestCase {
                 String[] includes = new String[numIncludes];
                 StringBuilder includesParam = new StringBuilder();
                 for (int i = 0; i < numIncludes; i++) {
-                    String include = randomAsciiOfLengthBetween(3, 10);
+                    String include = randomAlphaOfLengthBetween(3, 10);
                     includes[i] = include;
                     includesParam.append(include);
                     if (i < numIncludes - 1) {
@@ -671,7 +849,7 @@ public class RequestTests extends ESTestCase {
                 String[] excludes = new String[numExcludes];
                 StringBuilder excludesParam = new StringBuilder();
                 for (int i = 0; i < numExcludes; i++) {
-                    String exclude = randomAsciiOfLengthBetween(3, 10);
+                    String exclude = randomAlphaOfLengthBetween(3, 10);
                     excludes[i] = exclude;
                     excludesParam.append(exclude);
                     if (i < numExcludes - 1) {

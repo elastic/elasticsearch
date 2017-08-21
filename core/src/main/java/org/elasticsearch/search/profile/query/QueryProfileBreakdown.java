@@ -30,6 +30,6 @@ public final class QueryProfileBreakdown extends AbstractProfileBreakdown<QueryT
 
     /** Sole constructor. */
     public QueryProfileBreakdown() {
-        super(QueryTimingType.values());
+        super(QueryTimingType.class);
     }
 }

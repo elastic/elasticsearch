@@ -30,8 +30,9 @@ import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.FieldOptions;
 
 import java.io.IOException;
@@ -54,7 +55,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
  *
  * @see org.elasticsearch.search.builder.SearchSourceBuilder#highlight()
  */
-public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder> {
+public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder>  {
     /** default for whether to highlight fields based on the source even if stored separately */
     public static final boolean DEFAULT_FORCE_SOURCE = false;
     /** default for whether a field should be highlighted only if a query matches that field */
@@ -95,17 +96,25 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             .preTags(DEFAULT_PRE_TAGS).postTags(DEFAULT_POST_TAGS).scoreOrdered(DEFAULT_SCORE_ORDERED)
             .highlightFilter(DEFAULT_HIGHLIGHT_FILTER).requireFieldMatch(DEFAULT_REQUIRE_FIELD_MATCH)
             .forceSource(DEFAULT_FORCE_SOURCE).fragmentCharSize(DEFAULT_FRAGMENT_CHAR_SIZE)
-            .numberOfFragments(DEFAULT_NUMBER_OF_FRAGMENTS).encoder(DEFAULT_ENCODER).boundaryScannerType(BoundaryScannerType.CHARS)
+            .numberOfFragments(DEFAULT_NUMBER_OF_FRAGMENTS).encoder(DEFAULT_ENCODER)
             .boundaryMaxScan(SimpleBoundaryScanner.DEFAULT_MAX_SCAN).boundaryChars(SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS)
             .boundaryScannerLocale(Locale.ROOT).noMatchSize(DEFAULT_NO_MATCH_SIZE).phraseLimit(DEFAULT_PHRASE_LIMIT).build();
 
-    private final List<Field> fields = new ArrayList<>();
+    private final List<Field> fields;
 
     private String encoder;
 
     private boolean useExplicitFieldOrder = false;
 
     public HighlightBuilder() {
+        fields = new ArrayList<>();
+    }
+
+    private HighlightBuilder(HighlightBuilder template, QueryBuilder highlightQuery, List<Field> fields) {
+        super(template, highlightQuery);
+        this.encoder = template.encoder;
+        this.useExplicitFieldOrder = template.useExplicitFieldOrder;
+        this.fields = fields;
     }
 
     /**
@@ -115,20 +124,15 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         super(in);
         encoder(in.readOptionalString());
         useExplicitFieldOrder(in.readBoolean());
-        int fields = in.readVInt();
-        for (int i = 0; i < fields; i++) {
-            field(new Field(in));
-        }
+        this.fields = in.readList(Field::new);
+        assert this.equals(new HighlightBuilder(this, highlightQuery, fields)) : "copy constructor is broken";
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalString(encoder);
         out.writeBoolean(useExplicitFieldOrder);
-        out.writeVInt(fields.size());
-        for (int i = 0; i < fields.size(); i++) {
-            fields.get(i).writeTo(out);
-        }
+        out.writeList(fields);
     }
 
     /**
@@ -256,17 +260,17 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         return builder;
     }
 
-    private static final BiFunction<QueryParseContext, HighlightBuilder, HighlightBuilder> PARSER;
+    private static final BiFunction<XContentParser, HighlightBuilder, HighlightBuilder> PARSER;
     static {
-        ObjectParser<HighlightBuilder, QueryParseContext> parser = new ObjectParser<>("highlight");
+        ObjectParser<HighlightBuilder, Void> parser = new ObjectParser<>("highlight");
         parser.declareString(HighlightBuilder::tagsSchema, new ParseField("tags_schema"));
         parser.declareString(HighlightBuilder::encoder, ENCODER_FIELD);
         parser.declareNamedObjects(HighlightBuilder::fields, Field.PARSER, (HighlightBuilder hb) -> hb.useExplicitFieldOrder(true),
                 FIELDS_FIELD);
         PARSER = setupParser(parser);
     }
-    public static HighlightBuilder fromXContent(QueryParseContext c) {
-        return PARSER.apply(c, new HighlightBuilder());
+    public static HighlightBuilder fromXContent(XContentParser p) {
+        return PARSER.apply(p, new HighlightBuilder());
     }
 
     public SearchContextHighlight build(QueryShardContext context) throws IOException {
@@ -284,7 +288,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             final SearchContextHighlight.FieldOptions.Builder fieldOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder();
             fieldOptionsBuilder.fragmentOffset(field.fragmentOffset);
             if (field.matchedFields != null) {
-                Set<String> matchedFields = new HashSet<String>(field.matchedFields.length);
+                Set<String> matchedFields = new HashSet<>(field.matchedFields.length);
                 Collections.addAll(matchedFields, field.matchedFields);
                 fieldOptionsBuilder.matchedFields(matchedFields);
             }
@@ -358,7 +362,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             targetOptionsBuilder.options(highlighterBuilder.options);
         }
         if (highlighterBuilder.highlightQuery != null) {
-            targetOptionsBuilder.highlightQuery(QueryBuilder.rewriteQuery(highlighterBuilder.highlightQuery, context).toQuery(context));
+            targetOptionsBuilder.highlightQuery(highlighterBuilder.highlightQuery.toQuery(context));
         }
     }
 
@@ -416,14 +420,28 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                 Objects.equals(fields, other.fields);
     }
 
+    @Override
+    public HighlightBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        QueryBuilder highlightQuery = this.highlightQuery;
+        if (highlightQuery != null) {
+            highlightQuery = this.highlightQuery.rewrite(ctx);
+        }
+        List<Field> fields = Rewriteable.rewrite(this.fields, ctx);
+        if (highlightQuery == this.highlightQuery && fields == this.fields) {
+            return this;
+        }
+        return new HighlightBuilder(this, highlightQuery, fields);
+
+    }
+
     public static class Field extends AbstractHighlighterBuilder<Field> {
-        static final NamedObjectParser<Field, QueryParseContext> PARSER;
+        static final NamedObjectParser<Field, Void> PARSER;
         static {
-            ObjectParser<Field, QueryParseContext> parser = new ObjectParser<>("highlight_field");
+            ObjectParser<Field, Void> parser = new ObjectParser<>("highlight_field");
             parser.declareInt(Field::fragmentOffset, FRAGMENT_OFFSET_FIELD);
             parser.declareStringArray(fromList(String.class, Field::matchedFields), MATCHED_FIELDS_FIELD);
-            BiFunction<QueryParseContext, Field, Field> decoratedParser = setupParser(parser);
-            PARSER = (XContentParser p, QueryParseContext c, String name) -> decoratedParser.apply(c, new Field(name));
+            BiFunction<XContentParser, Field, Field> decoratedParser = setupParser(parser);
+            PARSER = (XContentParser p, Void c, String name) -> decoratedParser.apply(p, new Field(name));
         }
 
         private final String name;
@@ -436,6 +454,13 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             this.name = name;
         }
 
+        private Field(Field template, QueryBuilder builder) {
+            super(template, builder);
+            name = template.name;
+            fragmentOffset = template.fragmentOffset;
+            matchedFields = template.matchedFields;
+        }
+
         /**
          * Read from a stream.
          */
@@ -444,6 +469,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             name = in.readString();
             fragmentOffset(in.readVInt());
             matchedFields(in.readOptionalStringArray());
+            assert this.equals(new Field(this, highlightQuery)) : "copy constructor is broken";
         }
 
         @Override
@@ -498,22 +524,29 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                     Objects.equals(fragmentOffset, other.fragmentOffset) &&
                     Arrays.equals(matchedFields, other.matchedFields);
         }
+
+        @Override
+        public Field rewrite(QueryRewriteContext ctx) throws IOException {
+            if (highlightQuery != null) {
+                QueryBuilder rewrite = highlightQuery.rewrite(ctx);
+                if (rewrite != highlightQuery) {
+                    return new Field(this, rewrite);
+                }
+            }
+            return this;
+        }
     }
 
     public enum Order implements Writeable {
         NONE, SCORE;
 
         public static Order readFromStream(StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown Order ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(Order.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(this.ordinal());
+            out.writeEnum(this);
         }
 
         public static Order fromString(String order) {
@@ -533,16 +566,12 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         CHARS, WORD, SENTENCE;
 
         public static BoundaryScannerType readFromStream(StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown BoundaryScannerType ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(BoundaryScannerType.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(this.ordinal());
+            out.writeEnum(this);
         }
 
         public static BoundaryScannerType fromString(String boundaryScannerType) {

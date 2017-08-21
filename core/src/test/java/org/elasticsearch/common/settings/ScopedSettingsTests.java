@@ -35,7 +35,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.IllegalFormatCodePointException;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -45,8 +45,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.hasToString;
 
 public class ScopedSettingsTests extends ESTestCase {
 
@@ -101,6 +105,30 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(1, dynamicSetting.get(target.build()).intValue());
         assertEquals(6, staticSetting.get(target.build()).intValue());
         assertNull(target.build().getAsInt("archived.foo.bar", null));
+    }
+
+    public void testResetSettingWithIPValidator() {
+        Settings currentSettings = Settings.builder().put("index.routing.allocation.require._ip", "192.168.0.1,127.0.0.1")
+            .put("index.some.dyn.setting", 1)
+            .build();
+        Setting<Integer> dynamicSetting = Setting.intSetting("index.some.dyn.setting", 1, Property.Dynamic, Property.IndexScope);
+
+        IndexScopedSettings settings = new IndexScopedSettings(currentSettings,
+            new HashSet<>(Arrays.asList(dynamicSetting, IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING)));
+        Settings s = IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.get(currentSettings);
+        assertEquals(1, s.size());
+        assertEquals("192.168.0.1,127.0.0.1", s.get("_ip"));
+        Settings.Builder builder = Settings.builder();
+        Settings updates = Settings.builder().putNull("index.routing.allocation.require._ip")
+            .put("index.some.dyn.setting", 1).build();
+        settings.validate(updates);
+        settings.updateDynamicSettings(updates,
+            Settings.builder().put(currentSettings), builder, "node");
+        currentSettings = builder.build();
+        s = IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.get(currentSettings);
+        assertEquals(0, s.size());
+        assertEquals(1, dynamicSetting.get(currentSettings).intValue());
+        assertEquals(1, currentSettings.size());
     }
 
     public void testAddConsumer() {
@@ -229,6 +257,94 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(15, bC.get());
     }
 
+    private static final Setting<Integer> FOO_BAR_LOW_SETTING = new Setting<>(
+            "foo.bar.low",
+            "1",
+            Integer::parseInt,
+            new FooBarLowValidator(),
+            Property.Dynamic,
+            Property.NodeScope);
+
+    private static final Setting<Integer> FOO_BAR_HIGH_SETTING = new Setting<>(
+            "foo.bar.high",
+            "2",
+            Integer::parseInt,
+            new FooBarHighValidator(),
+            Property.Dynamic,
+            Property.NodeScope);
+
+    static class FooBarLowValidator implements Setting.Validator<Integer> {
+        @Override
+        public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
+            final int high = settings.get(FOO_BAR_HIGH_SETTING);
+            if (value > high) {
+                throw new IllegalArgumentException("low [" + value + "] more than high [" + high + "]");
+            }
+        }
+
+        @Override
+        public Iterator<Setting<Integer>> settings() {
+            return Collections.singletonList(FOO_BAR_HIGH_SETTING).iterator();
+        }
+    }
+
+    static class FooBarHighValidator implements Setting.Validator<Integer> {
+        @Override
+        public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
+            final int low = settings.get(FOO_BAR_LOW_SETTING);
+            if (value < low) {
+                throw new IllegalArgumentException("high [" + value + "] less than low [" + low + "]");
+            }
+        }
+
+        @Override
+        public Iterator<Setting<Integer>> settings() {
+            return Collections.singletonList(FOO_BAR_LOW_SETTING).iterator();
+        }
+    }
+
+    public void testValidator() {
+        final AbstractScopedSettings service =
+                new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(FOO_BAR_LOW_SETTING, FOO_BAR_HIGH_SETTING)));
+
+        final AtomicInteger consumerLow = new AtomicInteger();
+        final AtomicInteger consumerHigh = new AtomicInteger();
+
+        service.addSettingsUpdateConsumer(FOO_BAR_LOW_SETTING, consumerLow::set);
+
+        service.addSettingsUpdateConsumer(FOO_BAR_HIGH_SETTING, consumerHigh::set);
+
+        final Settings newSettings = Settings.builder().put("foo.bar.low", 17).put("foo.bar.high", 13).build();
+        {
+            final IllegalArgumentException e =
+                    expectThrows(
+                            IllegalArgumentException.class,
+                            () -> service.validateUpdate(newSettings));
+            assertThat(e, hasToString(containsString("illegal value can't update [foo.bar.low] from [1] to [17]")));
+            assertNotNull(e.getCause());
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
+            assertThat(cause, hasToString(containsString("low [17] more than high [13]")));
+            assertThat(e.getSuppressed(), arrayWithSize(1));
+            assertThat(e.getSuppressed()[0], instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException suppressed = (IllegalArgumentException) e.getSuppressed()[0];
+            assertThat(suppressed, hasToString(containsString("illegal value can't update [foo.bar.high] from [2] to [13]")));
+            assertNotNull(suppressed.getCause());
+            assertThat(suppressed.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException suppressedCause = (IllegalArgumentException) suppressed.getCause();
+            assertThat(suppressedCause, hasToString(containsString("high [13] less than low [17]")));
+            assertThat(consumerLow.get(), equalTo(0));
+            assertThat(consumerHigh.get(), equalTo(0));
+        }
+
+        {
+            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.applySettings(newSettings));
+            assertThat(e, hasToString(containsString("illegal value can't update [foo.bar.low] from [1] to [17]")));
+            assertThat(consumerLow.get(), equalTo(0));
+            assertThat(consumerHigh.get(), equalTo(0));
+        }
+    }
+
     public void testGet() {
         ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
@@ -252,13 +368,32 @@ public class ScopedSettingsTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope),
                     Setting.intSetting("foo.bar.baz", 1, Property.NodeScope))));
-        assertFalse(settings.hasDynamicSetting("foo.bar.baz"));
-        assertTrue(settings.hasDynamicSetting("foo.bar"));
+        assertFalse(settings.isDynamicSetting("foo.bar.baz"));
+        assertTrue(settings.isDynamicSetting("foo.bar"));
         assertNotNull(settings.get("foo.bar.baz"));
         settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        assertTrue(settings.hasDynamicSetting("transport.tracer.include." + randomIntBetween(1, 100)));
-        assertFalse(settings.hasDynamicSetting("transport.tracer.include.BOOM"));
-        assertTrue(settings.hasDynamicSetting("cluster.routing.allocation.require.value"));
+        assertTrue(settings.isDynamicSetting("transport.tracer.include." + randomIntBetween(1, 100)));
+        assertFalse(settings.isDynamicSetting("transport.tracer.include.BOOM"));
+        assertTrue(settings.isDynamicSetting("cluster.routing.allocation.require.value"));
+    }
+
+    public void testIsFinal() {
+        ClusterSettings settings =
+            new ClusterSettings(Settings.EMPTY,
+                new HashSet<>(Arrays.asList(Setting.intSetting("foo.int", 1, Property.Final, Property.NodeScope),
+                    Setting.groupSetting("foo.group.",  Property.Final, Property.NodeScope),
+                    Setting.groupSetting("foo.list.",  Property.Final, Property.NodeScope),
+                    Setting.intSetting("foo.int.baz", 1, Property.NodeScope))));
+
+        assertFalse(settings.isFinalSetting("foo.int.baz"));
+        assertTrue(settings.isFinalSetting("foo.int"));
+
+        assertFalse(settings.isFinalSetting("foo.list"));
+        assertTrue(settings.isFinalSetting("foo.list.0.key"));
+        assertTrue(settings.isFinalSetting("foo.list.key"));
+
+        assertFalse(settings.isFinalSetting("foo.group"));
+        assertTrue(settings.isFinalSetting("foo.group.key"));
     }
 
     public void testDiff() throws IOException {
@@ -435,10 +570,20 @@ public class ScopedSettingsTests extends ESTestCase {
         assertThat(e.getMessage(), startsWith("unknown secure setting [some.secure.setting]"));
 
         ClusterSettings clusterSettings2 = new ClusterSettings(settings,
-            Collections.singleton(SecureSetting.secureString("some.secure.setting", null, false)));
+            Collections.singleton(SecureSetting.secureString("some.secure.setting", null)));
         clusterSettings2.validate(settings);
     }
 
+    public void testDiffSecureSettings() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("some.secure.setting", "secret");
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
+            Collections.singleton(SecureSetting.secureString("some.secure.setting", null)));
+
+        Settings diffed = clusterSettings.diff(Settings.EMPTY, settings);
+        assertTrue(diffed.isEmpty());
+    }
 
     public static IndexMetaData newIndexMeta(String name, Settings indexSettings) {
         Settings build = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -570,5 +715,46 @@ public class ScopedSettingsTests extends ESTestCase {
                 assertEquals("complex setting key: [foo.] overlaps existing setting key: [foo.bar]", e.getMessage());
             }
         }
+    }
+
+    public void testUpdateNumberOfShardsFail() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY,
+            IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> settings.updateSettings(Settings.builder().put("index.number_of_shards", 8).build(),
+                Settings.builder(), Settings.builder(), "index"));
+        assertThat(ex.getMessage(),
+            containsString("final index setting [index.number_of_shards], not updateable"));
+    }
+
+    public void testFinalSettingUpdateFail() {
+        Setting<Integer> finalSetting = Setting.intSetting("some.final.setting", 1, Property.Final, Property.NodeScope);
+        Setting<Settings> finalGroupSetting = Setting.groupSetting("some.final.group.", Property.Final, Property.NodeScope);
+        Settings currentSettings = Settings.builder()
+            .put("some.final.setting", 9)
+            .put("some.final.group.foo", 7)
+            .build();
+        ClusterSettings service = new ClusterSettings(currentSettings
+            , new HashSet<>(Arrays.asList(finalSetting, finalGroupSetting)));
+
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () ->
+            service.updateDynamicSettings(Settings.builder().put("some.final.setting", 8).build(),
+                Settings.builder().put(currentSettings), Settings.builder(), "node"));
+        assertThat(exc.getMessage(), containsString("final node setting [some.final.setting]"));
+
+        exc = expectThrows(IllegalArgumentException.class, () ->
+            service.updateDynamicSettings(Settings.builder().putNull("some.final.setting").build(),
+                Settings.builder().put(currentSettings), Settings.builder(), "node"));
+        assertThat(exc.getMessage(), containsString("final node setting [some.final.setting]"));
+
+        exc = expectThrows(IllegalArgumentException.class, () ->
+            service.updateSettings(Settings.builder().put("some.final.group.new", 8).build(),
+                Settings.builder().put(currentSettings), Settings.builder(), "node"));
+        assertThat(exc.getMessage(), containsString("final node setting [some.final.group.new]"));
+
+        exc = expectThrows(IllegalArgumentException.class, () ->
+            service.updateSettings(Settings.builder().put("some.final.group.foo", 5).build(),
+                Settings.builder().put(currentSettings), Settings.builder(), "node"));
+        assertThat(exc.getMessage(), containsString("final node setting [some.final.group.foo]"));
     }
 }

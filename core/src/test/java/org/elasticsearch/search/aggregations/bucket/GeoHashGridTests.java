@@ -26,7 +26,7 @@ public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregation
 
     @Override
     protected GeoGridAggregationBuilder createTestAggregatorBuilder() {
-        String name = randomAsciiOfLengthBetween(3, 20);
+        String name = randomAlphaOfLengthBetween(3, 20);
         GeoGridAggregationBuilder factory = new GeoGridAggregationBuilder(name);
         if (randomBoolean()) {
             int precision = randomIntBetween(1, 12);

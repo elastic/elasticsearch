@@ -53,7 +53,7 @@ GET /_cat/nodes?v&h=id,ip,port,v,m
 
 Might look like:
 
-["source","js",subs="attributes,callouts"]
+["source","txt",subs="attributes,callouts"]
 --------------------------------------------------
 id   ip        port  v         m
 veJR 127.0.0.1 59938 {version} *
@@ -71,7 +71,10 @@ veJR 127.0.0.1 59938 {version} *
 |`version` |`v` |No |Elasticsearch version |{version}
 |`build` |`b` |No |Elasticsearch Build hash |5c03844
 |`jdk` |`j` |No |Running Java version |1.8.0
-|`disk.avail` |`d`, `disk`, `diskAvail` |No |Available disk space |1.8gb
+|`disk.total` |`dt`, `diskTotal` |No |Total disk space| 458.3gb
+|`disk.used` |`du`, `diskUsed` |No |Used disk space| 259.8gb
+|`disk.avail` |`d`, `disk`, `diskAvail` |No |Available disk space |198.4gb
+|`disk.used_percent` |`dup`, `diskUsedPercent` |No |Used disk space percentage |56.71
 |`heap.current` |`hc`, `heapCurrent` |No |Used heap |311.2mb
 |`heap.percent` |`hp`, `heapPercent` |Yes |Used heap percentage |7
 |`heap.max` |`hm`, `heapMax` |No |Maximum configured heap |1015.6mb
@@ -181,7 +184,7 @@ segments |1.4kb
 |`segments.version_map_memory` |`svmm`, `segmentsVersionMapMemory` |No
 |Memory used by version map |1.0kb
 |`segments.fixed_bitset_memory` |`sfbm`, `fixedBitsetMemory` |No
-|Memory used by fixed bit sets for nested object field types and type filters for types referred in _parent fields |1.0kb
+|Memory used by fixed bit sets for nested object field types and type filters for types referred in `join` fields |1.0kb
 |`suggest.current` |`suc`, `suggestCurrent` |No |Number of current suggest operations |0
 |`suggest.time` |`suti`, `suggestTime` |No |Time spent in suggest |0
 |`suggest.total` |`suto`, `suggestTotal` |No |Number of suggest operations |0

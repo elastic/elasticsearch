@@ -34,6 +34,7 @@ import org.apache.lucene.search.QueryUtils;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.test.ESTestCase;
 
@@ -72,7 +73,8 @@ public class TermsSliceQueryTests extends ESTestCase {
             Document doc = new Document();
             String uuid = UUIDs.base64UUID();
             BytesRef br = new BytesRef(uuid);
-            int id = Math.floorMod(br.hashCode(), max);
+            int hashCode = StringHelper.murmurhash3_x86_32(br, TermsSliceQuery.SEED);
+            int id = Math.floorMod(hashCode, max);
             sliceCounters[id] ++;
             doc.add(new StringField("uuid", uuid, Field.Store.YES));
             w.addDocument(doc);

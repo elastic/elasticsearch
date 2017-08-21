@@ -21,6 +21,8 @@ package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.LocationMode;
+import com.microsoft.azure.storage.RetryExponentialRetry;
+import com.microsoft.azure.storage.RetryPolicy;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobProperties;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
@@ -43,39 +45,57 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.HashMap;
 import java.util.Map;
 
 public class AzureStorageServiceImpl extends AbstractComponent implements AzureStorageService {
 
-    final AzureStorageSettings primaryStorageSettings;
-    final Map<String, AzureStorageSettings> secondariesStorageSettings;
+    final Map<String, AzureStorageSettings> storageSettings;
+    final Map<String, AzureStorageSettings> deprecatedStorageSettings;
 
     final Map<String, CloudBlobClient> clients;
 
-    public AzureStorageServiceImpl(Settings settings) {
+    public AzureStorageServiceImpl(Settings settings, Map<String, AzureStorageSettings> regularStorageSettings) {
         super(settings);
 
-        Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> storageSettings = AzureStorageSettings.parse(settings);
-        this.primaryStorageSettings = storageSettings.v1();
-        this.secondariesStorageSettings = storageSettings.v2();
+        if (regularStorageSettings.isEmpty()) {
+            this.storageSettings = new HashMap<>();
+            // We have deprecated settings so we need to migrate them to the new implementation
+            Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> storageSettingsMapTuple = AzureStorageSettings.loadLegacy(settings);
+            deprecatedStorageSettings = storageSettingsMapTuple.v2();
+            if (storageSettingsMapTuple.v1() != null) {
+                if (storageSettingsMapTuple.v1().getName().equals("default") == false) {
+                    // We add the primary configuration to the list of all settings with its deprecated name in case someone is
+                    // forcing a specific configuration name when creating the repository instance
+                    deprecatedStorageSettings.put(storageSettingsMapTuple.v1().getName(), storageSettingsMapTuple.v1());
+                }
+                // We add the primary configuration to the list of all settings as the "default" one
+                deprecatedStorageSettings.put("default", storageSettingsMapTuple.v1());
+            } else {
+                // If someone did not register any settings or deprecated settings, they
+                // basically can't use the plugin
+                throw new IllegalArgumentException("If you want to use an azure repository, you need to define a client configuration.");
+            }
+
+
+        } else {
+            this.storageSettings = regularStorageSettings;
+            this.deprecatedStorageSettings = new HashMap<>();
+        }
 
         this.clients = new HashMap<>();
 
         logger.debug("starting azure storage client instance");
 
-        // We register the primary client if any
-        if (primaryStorageSettings != null) {
-            logger.debug("registering primary client for account [{}]", primaryStorageSettings.getAccount());
-            createClient(primaryStorageSettings);
+        // We register all regular azure clients
+        for (Map.Entry<String, AzureStorageSettings> azureStorageSettingsEntry : this.storageSettings.entrySet()) {
+            logger.debug("registering regular client for account [{}]", azureStorageSettingsEntry.getKey());
+            createClient(azureStorageSettingsEntry.getValue());
         }
 
-        // We register all secondary clients
-        for (Map.Entry<String, AzureStorageSettings> azureStorageSettingsEntry : secondariesStorageSettings.entrySet()) {
-            logger.debug("registering secondary client for account [{}]", azureStorageSettingsEntry.getKey());
+        // We register all deprecated azure clients
+        for (Map.Entry<String, AzureStorageSettings> azureStorageSettingsEntry : this.deprecatedStorageSettings.entrySet()) {
+            logger.debug("registering deprecated client for account [{}]", azureStorageSettingsEntry.getKey());
             createClient(azureStorageSettingsEntry.getValue());
         }
     }
@@ -105,32 +125,25 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
     CloudBlobClient getSelectedClient(String account, LocationMode mode) {
         logger.trace("selecting a client for account [{}], mode [{}]", account, mode.name());
-        AzureStorageSettings azureStorageSettings = null;
-
-        if (this.primaryStorageSettings == null) {
-            throw new IllegalArgumentException("No primary azure storage can be found. Check your elasticsearch.yml.");
-        }
-
-        if (Strings.hasLength(account)) {
-            azureStorageSettings = this.secondariesStorageSettings.get(account);
-        }
-
-        // if account is not secondary, it's the primary
+        AzureStorageSettings azureStorageSettings = this.storageSettings.get(account);
         if (azureStorageSettings == null) {
-            if (Strings.hasLength(account) == false || primaryStorageSettings.getName() == null || account.equals(primaryStorageSettings.getName())) {
-                azureStorageSettings = primaryStorageSettings;
+            // We can't find a client that has been registered using regular settings so we try deprecated client
+            azureStorageSettings = this.deprecatedStorageSettings.get(account);
+            if (azureStorageSettings == null) {
+                // We did not get an account. That's bad.
+                if (Strings.hasLength(account)) {
+                    throw new IllegalArgumentException("Can not find named azure client [" + account +
+                        "]. Check your elasticsearch.yml.");
+                }
+                throw new IllegalArgumentException("Can not find primary/secondary client using deprecated settings. " +
+                    "Check your elasticsearch.yml.");
             }
-        }
-
-        if (azureStorageSettings == null) {
-            // We did not get an account. That's bad.
-            throw new IllegalArgumentException("Can not find azure account [" + account + "]. Check your elasticsearch.yml.");
         }
 
         CloudBlobClient client = this.clients.get(azureStorageSettings.getAccount());
 
         if (client == null) {
-            throw new IllegalArgumentException("Can not find an azure client for account [" + account + "]");
+            throw new IllegalArgumentException("Can not find an azure client for account [" + azureStorageSettings.getAccount() + "]");
         }
 
         // NOTE: for now, just set the location mode in case it is different;
@@ -147,6 +160,11 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
                     "]. It can not be longer than 2,147,483,647ms.");
             }
         }
+
+        // We define a default exponential retry policy
+        client.getDefaultRequestOptions().setRetryPolicyFactory(
+            new RetryExponentialRetry(RetryPolicy.DEFAULT_CLIENT_BACKOFF, azureStorageSettings.getMaxRetries()));
+
         return client;
     }
 
@@ -227,7 +245,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         // Container name must be lower case.
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        if (blobContainer.exists()) {
+        if (SocketAccess.doPrivilegedException(blobContainer::exists)) {
             CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
             return SocketAccess.doPrivilegedException(azureBlob::exists);
         }
@@ -242,7 +260,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         // Container name must be lower case.
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        if (blobContainer.exists()) {
+        if (SocketAccess.doPrivilegedException(blobContainer::exists)) {
             logger.trace("container [{}]: blob [{}] found. removing.", container, blob);
             CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
             SocketAccess.doPrivilegedVoidException(azureBlob::delete);
@@ -310,7 +328,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
         CloudBlockBlob blobSource = blobContainer.getBlockBlobReference(sourceBlob);
-        if (blobSource.exists()) {
+        if (SocketAccess.doPrivilegedException(blobSource::exists)) {
             CloudBlockBlob blobTarget = blobContainer.getBlockBlobReference(targetBlob);
             SocketAccess.doPrivilegedVoidException(() -> {
                 blobTarget.startCopy(blobSource);

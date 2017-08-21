@@ -40,10 +40,14 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
     public static final String TYPE = "snapshot_deletions";
     // the version where SnapshotDeletionsInProgress was introduced
-    public static final Version VERSION_INTRODUCED = Version.V_5_2_0_UNRELEASED;
+    public static final Version VERSION_INTRODUCED = Version.V_5_2_0;
 
     // the list of snapshot deletion request entries
     private final List<Entry> entries;
+
+    public SnapshotDeletionsInProgress() {
+        this(Collections.emptyList());
+    }
 
     private SnapshotDeletionsInProgress(List<Entry> entries) {
         this.entries = Collections.unmodifiableList(entries);
@@ -148,6 +152,18 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         }
         builder.endArray();
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder("SnapshotDeletionsInProgress[");
+        for (int i = 0; i < entries.size(); i++) {
+            builder.append(entries.get(i).getSnapshot().getSnapshotId().getName());
+            if (i + 1 < entries.size()) {
+                builder.append(",");
+            }
+        }
+        return builder.append("]").toString();
     }
 
     /**

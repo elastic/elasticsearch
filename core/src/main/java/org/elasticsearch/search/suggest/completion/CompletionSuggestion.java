@@ -94,6 +94,12 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         return getOptions().size() > 0;
     }
 
+    public static CompletionSuggestion fromXContent(XContentParser parser, String name) throws IOException {
+        CompletionSuggestion suggestion = new CompletionSuggestion(name, -1);
+        parseEntries(parser, suggestion, CompletionSuggestion.Entry::fromXContent);
+        return suggestion;
+    }
+
     private static final class OptionPriorityQueue extends org.apache.lucene.util.PriorityQueue<Entry.Option> {
 
         private final Comparator<Suggest.Suggestion.Entry.Option> comparator;

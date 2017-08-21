@@ -487,12 +487,11 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         cause = in.readString();
         index = in.readString();
         settings = readSettingsFromStream(in);
-        readTimeout(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             final String type = in.readString();
             String source = in.readString();
-            if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO change to 5.3.0 after backport
+            if (in.getVersion().before(Version.V_6_0_0_alpha1)) { // TODO change to 5.3.0 after backport
                 // we do not know the content type that comes from earlier versions so we autodetect and convert
                 source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
             }
@@ -518,7 +517,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         out.writeString(cause);
         out.writeString(index);
         writeSettingsToStream(settings, out);
-        writeTimeout(out);
         out.writeVInt(mappings.size());
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
             out.writeString(entry.getKey());

@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
@@ -189,7 +188,7 @@ public class SortBuilderTests extends ESTestCase {
                 list.add(new ScoreSortBuilder());
                 break;
             case 1:
-                String fieldName = rarely() ? FieldSortBuilder.DOC_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
+                String fieldName = rarely() ? FieldSortBuilder.DOC_FIELD_NAME : randomAlphaOfLengthBetween(1, 10);
                 list.add(new FieldSortBuilder(fieldName));
                 break;
             case 2:
@@ -237,12 +236,11 @@ public class SortBuilderTests extends ESTestCase {
 
     private List<SortBuilder<?>> parseSort(String jsonString) throws IOException {
         XContentParser itemParser = createParser(JsonXContent.jsonXContent, jsonString);
-        QueryParseContext context = new QueryParseContext(itemParser);
 
         assertEquals(XContentParser.Token.START_OBJECT, itemParser.nextToken());
         assertEquals(XContentParser.Token.FIELD_NAME, itemParser.nextToken());
         assertEquals("sort", itemParser.currentName());
         itemParser.nextToken();
-        return SortBuilder.fromXContent(context);
+        return SortBuilder.fromXContent(itemParser);
     }
 }

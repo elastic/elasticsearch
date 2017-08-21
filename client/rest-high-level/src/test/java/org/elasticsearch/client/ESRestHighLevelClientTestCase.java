@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.Header;
+import org.elasticsearch.client.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -41,7 +41,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
     }
 
     @AfterClass
-    public static void cleanupClient() throws IOException {
+    public static void cleanupClient() {
         restHighLevelClient = null;
     }
 

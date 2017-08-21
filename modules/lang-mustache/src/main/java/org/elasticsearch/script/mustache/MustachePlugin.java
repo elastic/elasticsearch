@@ -33,19 +33,19 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
-
-import static java.util.Collections.singletonList;
 
 public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin, SearchPlugin {
 
     @Override
-    public ScriptEngineService getScriptEngineService(Settings settings) {
-        return new MustacheScriptEngineService(settings);
+    public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>>contexts) {
+        return new MustacheScriptEngine();
     }
 
     @Override
@@ -55,20 +55,12 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
     }
 
     @Override
-    public List<QuerySpec<?>> getQueries() {
-        return singletonList(new QuerySpec<>(TemplateQueryBuilder.NAME, TemplateQueryBuilder::new, TemplateQueryBuilder::fromXContent));
-    }
-
-    @Override
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(
                 new RestSearchTemplateAction(settings, restController),
                 new RestMultiSearchTemplateAction(settings, restController),
-                new RestGetSearchTemplateAction(settings, restController),
-                new RestPutSearchTemplateAction(settings, restController),
-                new RestDeleteSearchTemplateAction(settings, restController),
                 new RestRenderSearchTemplateAction(settings, restController));
     }
 }

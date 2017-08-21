@@ -81,12 +81,13 @@ dependencies {
   compile "com.vividsolutions:jts:${versions.jts}", optional
 
   // logging
-  compile "org.apache.logging.log4j:log4j-api:${versions.log4j}", optional
+  compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   compile "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
   // to bridge dependencies that are still on Log4j 1 to Log4j 2
   compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}", optional
 
-  compile "net.java.dev.jna:jna:${versions.jna}"
+  // repackaged jna with native bits linked against all elastic supported platforms
+  compile "org.elasticsearch:jna:${versions.jna}"
 
   if (isEclipse == false || project.path == ":core-tests") {
     testCompile("org.elasticsearch.test:framework:${version}") {
@@ -117,14 +118,13 @@ compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-tr
 forbiddenPatterns {
   exclude '**/*.json'
   exclude '**/*.jmx'
-  exclude '**/org/elasticsearch/cluster/routing/shard_routes.txt'
 }
 
 task generateModulesList {
   List<String> modules = project(':modules').subprojects.collect { it.name }
   File modulesFile = new File(buildDir, 'generated-resources/modules.txt')
-  processResources.from(modulesFile) 
-  inputs.property('modules', modules) 
+  processResources.from(modulesFile)
+  inputs.property('modules', modules)
   outputs.file(modulesFile)
   doLast {
     modulesFile.parentFile.mkdirs()
@@ -137,8 +137,8 @@ task generatePluginsList {
     .findAll { it.name.contains('example') == false }
     .collect { it.name }
   File pluginsFile = new File(buildDir, 'generated-resources/plugins.txt')
-  processResources.from(pluginsFile) 
-  inputs.property('plugins', plugins) 
+  processResources.from(pluginsFile)
+  inputs.property('plugins', plugins)
   outputs.file(pluginsFile)
   doLast {
     pluginsFile.parentFile.mkdirs()
@@ -231,9 +231,11 @@ thirdPartyAudit.excludes = [
   'org.apache.commons.compress.utils.IOUtils',
   'org.apache.commons.csv.CSVFormat',
   'org.apache.commons.csv.QuoteMode',
+  'org.apache.kafka.clients.producer.Callback',
   'org.apache.kafka.clients.producer.KafkaProducer',
   'org.apache.kafka.clients.producer.Producer',
   'org.apache.kafka.clients.producer.ProducerRecord',
+  'org.apache.kafka.clients.producer.RecordMetadata',
   'org.codehaus.stax2.XMLStreamWriter2',
   'org.jctools.queues.MessagePassingQueue$Consumer',
   'org.jctools.queues.MpscArrayQueue',
@@ -253,8 +255,12 @@ thirdPartyAudit.excludes = [
   'org.zeromq.ZMQ',
 
   // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
-  'org.noggit.JSONParser', 
+  'org.noggit.JSONParser',
 ]
+
+if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+  thirdPartyAudit.excludes += ['javax.xml.bind.DatatypeConverter']
+}
 
 dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'

@@ -25,83 +25,116 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+
 public class FieldDataTests extends ESTestCase {
 
-    public void testSortableLongBitsToDoubles() {
+    private static class DummyValues extends AbstractNumericDocValues {
+
+        private final long value;
+        private int docID = -1;
+
+        DummyValues(long value) {
+            this.value = value;
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            docID = target;
+            return true;
+        }
+
+        @Override
+        public int docID() {
+            return docID;
+        }
+
+        @Override
+        public long longValue() throws IOException {
+            return value;
+        }
+    }
+
+    public void testSortableLongBitsToDoubles() throws IOException {
         final double value = randomDouble();
         final long valueBits = NumericUtils.doubleToSortableLong(value);
 
-        NumericDocValues values = new NumericDocValues() {
-            @Override
-            public long get(int docID) {
-                return valueBits;
-            }
-        };
+        NumericDocValues values = new DummyValues(valueBits);
 
-        SortedNumericDoubleValues asMultiDoubles = FieldData.sortableLongBitsToDoubles(DocValues.singleton(values, null));
+        SortedNumericDoubleValues asMultiDoubles = FieldData.sortableLongBitsToDoubles(DocValues.singleton(values));
         NumericDoubleValues asDoubles = FieldData.unwrapSingleton(asMultiDoubles);
         assertNotNull(asDoubles);
-        assertEquals(value, asDoubles.get(0), 0);
+        assertTrue(asDoubles.advanceExact(0));
+        assertEquals(value, asDoubles.doubleValue(), 0);
 
+        values = new DummyValues(valueBits);
+        asMultiDoubles = FieldData.sortableLongBitsToDoubles(DocValues.singleton(values));
         NumericDocValues backToLongs = DocValues.unwrapSingleton(FieldData.toSortableLongBits(asMultiDoubles));
         assertSame(values, backToLongs);
 
-        SortedNumericDocValues multiValues = new SortedNumericDocValues() {
+        SortedNumericDocValues multiValues = new AbstractSortedNumericDocValues() {
 
             @Override
-            public long valueAt(int index) {
+            public boolean advanceExact(int target) throws IOException {
+                return true;
+            }
+
+            @Override
+            public long nextValue() {
                 return valueBits;
             }
 
             @Override
-            public void setDocument(int doc) {
-            }
-
-            @Override
-            public int count() {
+            public int docValueCount() {
                 return 1;
             }
         };
 
         asMultiDoubles = FieldData.sortableLongBitsToDoubles(multiValues);
-        assertEquals(value, asMultiDoubles.valueAt(0), 0);
+        assertEquals(value, asMultiDoubles.nextValue(), 0);
         assertSame(multiValues, FieldData.toSortableLongBits(asMultiDoubles));
     }
 
-    public void testDoublesToSortableLongBits() {
+    public void testDoublesToSortableLongBits() throws IOException {
         final double value = randomDouble();
         final long valueBits = NumericUtils.doubleToSortableLong(value);
 
         NumericDoubleValues values = new NumericDoubleValues() {
             @Override
-            public double get(int docID) {
+            public boolean advanceExact(int doc) throws IOException {
+                return true;
+            }
+            @Override
+            public double doubleValue() {
                 return value;
             }
         };
 
-        SortedNumericDocValues asMultiLongs = FieldData.toSortableLongBits(FieldData.singleton(values, null));
+        SortedNumericDocValues asMultiLongs = FieldData.toSortableLongBits(FieldData.singleton(values));
         NumericDocValues asLongs = DocValues.unwrapSingleton(asMultiLongs);
         assertNotNull(asLongs);
-        assertEquals(valueBits, asLongs.get(0));
+        assertTrue(asLongs.advanceExact(0));
+        assertEquals(valueBits, asLongs.longValue());
 
         SortedNumericDoubleValues multiValues = new SortedNumericDoubleValues() {
             @Override
-            public double valueAt(int index) {
+            public double nextValue() {
                 return value;
             }
 
             @Override
-            public void setDocument(int doc) {
+            public boolean advanceExact(int target) throws IOException {
+                return true;
             }
 
             @Override
-            public int count() {
+            public int docValueCount() {
                 return 1;
             }
         };
 
         asMultiLongs = FieldData.toSortableLongBits(multiValues);
-        assertEquals(valueBits, asMultiLongs.valueAt(0));
+        assertEquals(valueBits, asMultiLongs.nextValue());
         assertSame(multiValues, FieldData.sortableLongBitsToDoubles(asMultiLongs));
     }
 }

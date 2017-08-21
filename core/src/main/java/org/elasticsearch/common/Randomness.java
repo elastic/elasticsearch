@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
 import java.lang.reflect.Method;
+import java.security.SecureRandom;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -41,7 +42,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * setting a reproducible seed. When running the Elasticsearch server
  * process, non-reproducible sources of randomness are provided (unless
  * a setting is provided for a module that exposes a seed setting (e.g.,
- * DiscoveryService#NODE_ID_SEED_SETTING)).
+ * NodeEnvironment#NODE_ID_SEED_SETTING)).
  */
 public final class Randomness {
     private static final Method currentMethod;
@@ -106,6 +107,22 @@ public final class Randomness {
             }
         } else {
             return getWithoutSeed();
+        }
+    }
+
+    /**
+     * Provides a secure source of randomness.
+     *
+     * This acts exactly similar to {@link #get()}, but returning a new {@link SecureRandom}.
+     */
+    public static SecureRandom createSecure() {
+        if (currentMethod != null && getRandomMethod != null) {
+            // tests, so just use a seed from the non secure random
+            byte[] seed = new byte[16];
+            get().nextBytes(seed);
+            return new SecureRandom(seed);
+        } else {
+            return new SecureRandom();
         }
     }
 

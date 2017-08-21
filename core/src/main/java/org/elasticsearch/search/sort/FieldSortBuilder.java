@@ -26,12 +26,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
@@ -279,9 +280,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                     && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
                 throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
             }
-            IndexFieldData.XFieldComparatorSource fieldComparatorSource = fieldData
-                    .comparatorSource(missing, localSortMode, nested);
-            SortField field = new SortField(fieldType.name(), fieldComparatorSource, reverse);
+            SortField field = fieldData.sortField(missing, localSortMode, nested, reverse);
             return new SortFieldAndFormat(field, fieldType.docValueFormat(null, null));
         }
     }
@@ -314,19 +313,19 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     /**
-     * Creates a new {@link FieldSortBuilder} from the query held by the {@link QueryParseContext} in
+     * Creates a new {@link FieldSortBuilder} from the query held by the {@link XContentParser} in
      * {@link org.elasticsearch.common.xcontent.XContent} format.
      *
-     * @param context the input parse context. The state on the parser contained in this context will be changed as a side effect of this
+     * @param parser the input parser. The state on the parser contained in this context will be changed as a side effect of this
      *        method call
      * @param fieldName in some sort syntax variations the field name precedes the xContent object that specifies further parameters, e.g.
      *        in '{ "foo": { "order" : "asc"} }'. When parsing the inner object, the field name can be passed in via this argument
      */
-    public static FieldSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
-        return PARSER.parse(context.parser(), new FieldSortBuilder(fieldName), context);
+    public static FieldSortBuilder fromXContent(XContentParser parser, String fieldName) throws IOException {
+        return PARSER.parse(parser, new FieldSortBuilder(fieldName), null);
     }
 
-    private static ObjectParser<FieldSortBuilder, QueryParseContext> PARSER = new ObjectParser<>(NAME);
+    private static ObjectParser<FieldSortBuilder, Void> PARSER = new ObjectParser<>(NAME);
 
     static {
         PARSER.declareField(FieldSortBuilder::missing, p -> p.objectText(),  MISSING, ValueType.VALUE);
@@ -334,6 +333,18 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         PARSER.declareString(FieldSortBuilder::unmappedType , UNMAPPED_TYPE);
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)) , ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORT_MODE);
-        PARSER.declareObject(FieldSortBuilder::setNestedFilter, SortBuilder::parseNestedFilter, NESTED_FILTER_FIELD);
+        PARSER.declareObject(FieldSortBuilder::setNestedFilter, (p, c) -> SortBuilder.parseNestedFilter(p), NESTED_FILTER_FIELD);
+    }
+
+    @Override
+    public SortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        if (nestedFilter == null) {
+            return this;
+        }
+        QueryBuilder rewrite = nestedFilter.rewrite(ctx);
+        if (nestedFilter == rewrite) {
+            return this;
+        }
+        return new FieldSortBuilder(this).setNestedFilter(rewrite);
     }
 }

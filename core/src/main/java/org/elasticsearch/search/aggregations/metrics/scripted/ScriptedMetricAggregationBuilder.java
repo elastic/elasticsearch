@@ -25,11 +25,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -37,11 +35,8 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.function.Function;
 
 public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder<ScriptedMetricAggregationBuilder> {
     public static final String NAME = "scripted_metric";
@@ -186,22 +181,21 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
             Builder subfactoriesBuilder) throws IOException {
 
         QueryShardContext queryShardContext = context.getQueryShardContext();
-        Function<Map<String, Object>, ExecutableScript> executableInitScript;
+        ExecutableScript.Factory executableInitScript;
         if (initScript != null) {
-            executableInitScript = queryShardContext.getLazyExecutableScript(initScript, ScriptContext.Standard.AGGS);
+            executableInitScript = queryShardContext.getScriptService().compile(initScript, ExecutableScript.AGGS_CONTEXT);
         } else {
-            executableInitScript = (p) -> null;;
+            executableInitScript = p -> null;
         }
-        Function<Map<String, Object>, SearchScript> searchMapScript = queryShardContext.getLazySearchScript(mapScript,
-            ScriptContext.Standard.AGGS);
-        Function<Map<String, Object>, ExecutableScript> executableCombineScript;
+        SearchScript.Factory searchMapScript = queryShardContext.getScriptService().compile(mapScript, SearchScript.AGGS_CONTEXT);
+        ExecutableScript.Factory executableCombineScript;
         if (combineScript != null) {
-            executableCombineScript = queryShardContext.getLazyExecutableScript(combineScript, ScriptContext.Standard.AGGS);
+            executableCombineScript =queryShardContext.getScriptService().compile(combineScript, ExecutableScript.AGGS_CONTEXT);
         } else {
-            executableCombineScript = (p) -> null;
+            executableCombineScript = p -> null;
         }
         return new ScriptedMetricAggregatorFactory(name, searchMapScript, executableInitScript, executableCombineScript, reduceScript,
-                params, context, parent, subfactoriesBuilder, metaData);
+                params, queryShardContext.lookup(), context, parent, subfactoriesBuilder, metaData);
     }
 
 
@@ -231,7 +225,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         return builder;
     }
 
-    public static ScriptedMetricAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+    public static ScriptedMetricAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
         Script initScript = null;
         Script mapScript = null;
         Script combineScript = null;
@@ -239,13 +233,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         Map<String, Object> params = null;
         XContentParser.Token token;
         String currentFieldName = null;
-        Set<String> scriptParameters = new HashSet<>();
-        scriptParameters.add(INIT_SCRIPT_FIELD.getPreferredName());
-        scriptParameters.add(MAP_SCRIPT_FIELD.getPreferredName());
-        scriptParameters.add(COMBINE_SCRIPT_FIELD.getPreferredName());
-        scriptParameters.add(REDUCE_SCRIPT_FIELD.getPreferredName());
 
-        XContentParser parser = context.parser();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();

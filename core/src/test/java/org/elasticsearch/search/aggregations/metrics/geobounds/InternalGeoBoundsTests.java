@@ -20,10 +20,12 @@
 package org.elasticsearch.search.aggregations.metrics.geobounds;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
+import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -35,8 +37,10 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
     @Override
     protected InternalGeoBounds createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
                                                    Map<String, Object> metaData) {
+        // we occasionally want to test top = Double.NEGATIVE_INFINITY since this triggers empty xContent object
+        double top = frequently() ? randomDouble() : Double.NEGATIVE_INFINITY;
         InternalGeoBounds geo = new InternalGeoBounds(name,
-            randomDouble(), randomDouble(), randomDouble(), randomDouble(),
+            top, randomDouble(), randomDouble(), randomDouble(),
             randomDouble(), randomDouble(), randomBoolean(),
             pipelineAggregators, Collections.emptyMap());
         return geo;
@@ -70,16 +74,88 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
                 negRight = bounds.negRight;
             }
         }
-        assertThat(reduced.top, closeTo(top, GEOHASH_TOLERANCE));
-        assertThat(reduced.bottom, closeTo(bottom, GEOHASH_TOLERANCE));
-        assertThat(reduced.posLeft, closeTo(posLeft, GEOHASH_TOLERANCE));
-        assertThat(reduced.posRight, closeTo(posRight, GEOHASH_TOLERANCE));
-        assertThat(reduced.negLeft, closeTo(negLeft, GEOHASH_TOLERANCE));
-        assertThat(reduced.negRight, closeTo(negRight, GEOHASH_TOLERANCE));
+        assertValueClose(reduced.top, top);
+        assertValueClose(reduced.bottom, bottom);
+        assertValueClose(reduced.posLeft, posLeft);
+        assertValueClose(reduced.posRight, posRight);
+        assertValueClose(reduced.negLeft, negLeft);
+        assertValueClose(reduced.negRight, negRight);
+    }
+
+    private static void assertValueClose(double expected, double actual) {
+        if (Double.isInfinite(expected) == false) {
+            assertThat(expected, closeTo(actual, GEOHASH_TOLERANCE));
+        } else {
+            assertTrue(Double.isInfinite(actual));
+        }
+    }
+
+    @Override
+    protected void assertFromXContent(InternalGeoBounds aggregation, ParsedAggregation parsedAggregation) {
+        assertTrue(parsedAggregation instanceof ParsedGeoBounds);
+        ParsedGeoBounds parsed = (ParsedGeoBounds) parsedAggregation;
+
+        assertEquals(aggregation.topLeft(), parsed.topLeft());
+        assertEquals(aggregation.bottomRight(), parsed.bottomRight());
     }
 
     @Override
     protected Writeable.Reader<InternalGeoBounds> instanceReader() {
         return InternalGeoBounds::new;
+    }
+
+    @Override
+    protected InternalGeoBounds mutateInstance(InternalGeoBounds instance) {
+        String name = instance.getName();
+        double top = instance.top;
+        double bottom = instance.bottom;
+        double posLeft = instance.posLeft;
+        double posRight = instance.posRight;
+        double negLeft = instance.negLeft;
+        double negRight = instance.negRight;
+        boolean wrapLongitude = instance.wrapLongitude;
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 8)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            if (Double.isFinite(top)) {
+                top += between(1, 20);
+            } else {
+                top = randomDouble();
+            }
+            break;
+        case 2:
+            bottom += between(1, 20);
+            break;
+        case 3:
+            posLeft += between(1, 20);
+            break;
+        case 4:
+            posRight += between(1, 20);
+            break;
+        case 5:
+            negLeft += between(1, 20);
+            break;
+        case 6:
+            negRight += between(1, 20);
+            break;
+        case 7:
+            wrapLongitude = wrapLongitude == false;
+            break;
+        case 8:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, pipelineAggregators, metaData);
     }
 }

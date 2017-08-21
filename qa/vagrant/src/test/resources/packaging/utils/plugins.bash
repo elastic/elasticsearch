@@ -1,12 +1,17 @@
 #!/bin/bash
 
-# This file contains some utilities to test the elasticsearch scripts,
-# the .deb/.rpm packages and the SysV/Systemd scripts.
+# This file contains some utilities to test the elasticsearch
+# plugin installation and uninstallation process.
 
 # WARNING: This testing file must be executed as root and can
-# dramatically change your system. It removes the 'elasticsearch'
-# user/group and also many directories. Do not execute this file
-# unless you know exactly what you are doing.
+# dramatically change your system. It should only be executed
+# in a throw-away VM like those made by the Vagrantfile at
+# the root of the Elasticsearch source code. This should
+# cause the script to fail if it is executed any other way:
+[ -f /etc/is_vagrant_vm ] || {
+  >&2 echo "must be run on a vagrant VM"
+  exit 1
+}
 
 # Licensed to Elasticsearch under one or more contributor
 # license agreements. See the NOTICE file distributed with
@@ -29,10 +34,23 @@
 install_plugin() {
     local name=$1
     local path="$2"
+    local umask="$3"
 
     assert_file_exist "$path"
 
-    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install -batch "file://$path"
+    if [ ! -z "$ES_PATH_CONF" ] ; then
+        if is_dpkg; then
+            echo "ES_PATH_CONF=$ES_PATH_CONF" >> /etc/default/elasticsearch;
+        elif is_rpm; then
+            echo "ES_PATH_CONF=$ES_PATH_CONF" >> /etc/sysconfig/elasticsearch;
+        fi
+    fi
+
+    if [ -z "$umask" ]; then
+      sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install -batch "file://$path"
+    else
+      sudo -E -u $ESPLUGIN_COMMAND_USER bash -c "umask $umask && \"$ESHOME/bin/elasticsearch-plugin\" install -batch \"file://$path\""
+    fi
 
     assert_file_exist "$ESPLUGINS/$name"
     assert_file_exist "$ESPLUGINS/$name/plugin-descriptor.properties"
@@ -51,7 +69,7 @@ install_plugin() {
 install_jvm_plugin() {
     local name=$1
     local path="$2"
-    install_plugin $name "$path"
+    install_plugin $name "$path" $3
     assert_file_exist "$ESPLUGINS/$name/$name"*".jar"
 }
 
@@ -77,12 +95,16 @@ remove_plugin() {
 # placements for non-site plugins.
 install_jvm_example() {
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
-    install_jvm_plugin jvm-example "$relativePath"
+    install_jvm_plugin jvm-example "$relativePath" $2
+
+    bin_user=$(find "$ESHOME/bin" -maxdepth 0 -printf "%u")
+    bin_owner=$(find "$ESHOME/bin" -maxdepth 0 -printf "%g")
+
+    assert_file "$ESHOME/plugins/jvm-example" d $bin_user $bin_owner 755
+    assert_file "$ESHOME/plugins/jvm-example/jvm-example-$(cat version).jar" f $bin_user $bin_owner 644
 
     #owner group and permissions vary depending on how es was installed
     #just make sure that everything is the same as the parent bin dir, which was properly set up during install
-    bin_user=$(find "$ESHOME/bin" -maxdepth 0 -printf "%u")
-    bin_owner=$(find "$ESHOME/bin" -maxdepth 0 -printf "%g")
     assert_file "$ESHOME/bin/jvm-example" d $bin_user $bin_owner 755
     assert_file "$ESHOME/bin/jvm-example/test" f $bin_user $bin_owner 755
 
@@ -92,9 +114,9 @@ install_jvm_example() {
     config_owner=$(find "$ESCONFIG" -maxdepth 0 -printf "%g")
     # directories should user the user file-creation mask
     assert_file "$ESCONFIG/jvm-example" d $config_user $config_owner 750
-    assert_file "$ESCONFIG/jvm-example/example.yaml" f $config_user $config_owner 660
+    assert_file "$ESCONFIG/jvm-example/example.yml" f $config_user $config_owner 660
 
-    run sudo -E -u vagrant LANG="en_US.UTF-8" cat "$ESCONFIG/jvm-example/example.yaml"
+    run sudo -E -u vagrant LANG="en_US.UTF-8" cat "$ESCONFIG/jvm-example/example.yml"
     [ $status = 1 ]
     [[ "$output" == *"Permission denied"* ]] || {
         echo "Expected permission denied but found $output:"
@@ -112,7 +134,7 @@ remove_jvm_example() {
 
     assert_file_not_exist "$ESHOME/bin/jvm-example"
     assert_file_exist "$ESCONFIG/jvm-example"
-    assert_file_exist "$ESCONFIG/jvm-example/example.yaml"
+    assert_file_exist "$ESCONFIG/jvm-example/example.yml"
 }
 
 # Install a plugin with a special prefix. For the most part prefixes are just
@@ -159,8 +181,6 @@ install_and_check_plugin() {
 # $2 description of the source of the plugin list
 compare_plugins_list() {
     cat $1 | sort > /tmp/plugins
-    ls /elasticsearch/plugins/*/build.gradle | cut -d '/' -f 4 |
-        sort > /tmp/expected
     echo "Checking plugins from $2 (<) against expected plugins (>):"
-    diff /tmp/expected /tmp/plugins
+    diff -w /elasticsearch/qa/vagrant/build/plugins/expected /tmp/plugins
 }

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.indices.template;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -37,13 +38,16 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -66,6 +70,11 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SimpleIndexTemplateIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(InternalSettingsPlugin.class);
+    }
 
     @After
     public void cleanupTemplates() {
@@ -383,7 +392,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .get();
 
         assertAcked(prepareCreate("test_index")
-                        .addMapping("type1").addMapping("type2").addMapping("typeX").addMapping("typeY").addMapping("typeZ"));
+                .setSettings("index.version.created", Version.V_5_6_0.id) // allow for multiple version
+                .addMapping("type1").addMapping("type2").addMapping("typeX").addMapping("typeY").addMapping("typeZ"));
         ensureGreen();
 
         client().prepareIndex("test_index", "type1", "1").setSource("field", "A value").get();
@@ -430,8 +440,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                         "    \"aliases\" : {\n" +
                         "        \"my_alias\" : {\n" +
                         "            \"filter\" : {\n" +
-                        "                \"type\" : {\n" +
-                        "                    \"value\" : \"type2\"\n" +
+                        "                \"term\" : {\n" +
+                        "                    \"field\" : \"value2\"\n" +
                         "                }\n" +
                         "            }\n" +
                         "        }\n" +
@@ -439,15 +449,16 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                         "}"), XContentType.JSON).get();
 
 
-        assertAcked(prepareCreate("test_index").addMapping("type1").addMapping("type2"));
+        assertAcked(prepareCreate("test_index")
+                .addMapping("doc"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(1));
 
-        client().prepareIndex("test_index", "type1", "1").setSource("field", "value1").get();
-        client().prepareIndex("test_index", "type2", "2").setSource("field", "value2").get();
+        client().prepareIndex("test_index", "doc", "1").setSource("field", "value1").get();
+        client().prepareIndex("test_index", "doc", "2").setSource("field", "value2").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test_index").get();
@@ -455,7 +466,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("my_alias").get();
         assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).getType(), equalTo("type2"));
+        assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value2"));
     }
 
     public void testIndexTemplateWithAliasesSource() {
@@ -466,23 +477,24 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                         "        \"alias1\" : {},\n" +
                         "        \"alias2\" : {\n" +
                         "            \"filter\" : {\n" +
-                        "                \"type\" : {\n" +
-                        "                    \"value\" : \"type2\"\n" +
+                        "                \"term\" : {\n" +
+                        "                    \"field\" : \"value2\"\n" +
                         "                }\n" +
                         "            }\n" +
                         "         },\n" +
                         "        \"alias3\" : { \"routing\" : \"1\" }" +
                         "    }\n").get();
 
-        assertAcked(prepareCreate("test_index").addMapping("type1").addMapping("type2"));
+        assertAcked(prepareCreate("test_index")
+                .addMapping("doc"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(3));
 
-        client().prepareIndex("test_index", "type1", "1").setSource("field", "value1").get();
-        client().prepareIndex("test_index", "type2", "2").setSource("field", "value2").get();
+        client().prepareIndex("test_index", "doc", "1").setSource("field", "value1").get();
+        client().prepareIndex("test_index", "doc", "2").setSource("field", "value2").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test_index").get();
@@ -493,7 +505,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("alias2").get();
         assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).getType(), equalTo("type2"));
+        assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value2"));
     }
 
     public void testDuplicateAlias() throws Exception {

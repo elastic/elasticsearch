@@ -35,11 +35,14 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.plugins.Plugin;
 
 import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 /**
  * This service is responsible for upgrading legacy index metadata to the current version
@@ -54,14 +57,23 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
+    private final UnaryOperator<IndexMetaData> upgraders;
 
     @Inject
     public MetaDataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-            IndexScopedSettings indexScopedSettings) {
+                                       IndexScopedSettings indexScopedSettings,
+                                       Collection<UnaryOperator<IndexMetaData>> indexMetaDataUpgraders) {
         super(settings);
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
+        this.upgraders = indexMetaData -> {
+            IndexMetaData newIndexMetaData = indexMetaData;
+            for (UnaryOperator<IndexMetaData> upgrader : indexMetaDataUpgraders) {
+                newIndexMetaData = upgrader.apply(newIndexMetaData);
+            }
+            return newIndexMetaData;
+        };
     }
 
     /**
@@ -84,6 +96,8 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         newMetaData = archiveBrokenIndexSettings(newMetaData);
         // only run the check with the upgraded settings!!
         checkMappingsCompatibility(newMetaData);
+        // apply plugin checks
+        newMetaData = upgraders.apply(newMetaData);
         return markAsUpgraded(newMetaData);
     }
 
@@ -126,8 +140,8 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             // We cannot instantiate real analysis server at this point because the node might not have
             // been started yet. However, we don't really need real analyzers at this stage - so we can fake it
             IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings);
-            SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
-            final NamedAnalyzer fakeDefault = new NamedAnalyzer("fake_default", AnalyzerScope.INDEX, new Analyzer() {
+            SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
+            final NamedAnalyzer fakeDefault = new NamedAnalyzer("default", AnalyzerScope.INDEX, new Analyzer() {
                 @Override
                 protected TokenStreamComponents createComponents(String fieldName) {
                     throw new UnsupportedOperationException("shouldn't be here");

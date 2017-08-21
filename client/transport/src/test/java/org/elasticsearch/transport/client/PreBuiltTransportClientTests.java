@@ -25,6 +25,7 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.percolator.PercolatorPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.mustache.MustachePlugin;
@@ -50,7 +51,8 @@ public class PreBuiltTransportClientTests extends RandomizedTest {
 
     @Test
     public void testInstallPluginTwice() {
-        for (Class<? extends Plugin> plugin : Arrays.asList(ReindexPlugin.class, PercolatorPlugin.class, MustachePlugin.class)) {
+        for (Class<? extends Plugin> plugin :
+                Arrays.asList(ParentJoinPlugin.class, ReindexPlugin.class, PercolatorPlugin.class, MustachePlugin.class)) {
             try {
                 new PreBuiltTransportClient(Settings.EMPTY, plugin);
                 fail("exception expected");

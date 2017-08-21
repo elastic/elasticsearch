@@ -54,11 +54,6 @@ abstract class CustomDocValuesField implements IndexableField {
     }
 
     @Override
-    public float boost() {
-        return 1f;
-    }
-
-    @Override
     public String stringValue() {
         return null;
     }

@@ -77,7 +77,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         Settings diskSettings = Settings.builder()
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.7)
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.8).build();
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.8)
+                .build();
 
         ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
         usagesBuilder.put("node1", new DiskUsage("node1", "node1", "/dev/null", 100, 10)); // 90% used
@@ -92,9 +93,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
         ClusterInfoService cis = new ClusterInfoService() {
@@ -102,11 +104,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             public ClusterInfo getClusterInfo() {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
-            }
-
-            @Override
-            public void addListener(Listener listener) {
-                // noop
             }
         };
         AllocationService strategy = new AllocationService(Settings.builder()
@@ -183,11 +180,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         diskSettings = Settings.builder()
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "60%")
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.7).build();
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.7)
+                .build();
 
         deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
         strategy = new AllocationService(Settings.builder()
@@ -213,11 +211,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         diskSettings = Settings.builder()
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.5)
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.6).build();
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.6)
+                .build();
 
         deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
         strategy = new AllocationService(Settings.builder()
@@ -263,7 +262,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         Settings diskSettings = Settings.builder()
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "30b")
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "9b").build();
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "9b")
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "5b")
+                .build();
 
         ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
         usagesBuilder.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 10)); // 90% used
@@ -279,9 +280,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
         ClusterInfoService cis = new ClusterInfoService() {
@@ -289,11 +291,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             public ClusterInfo getClusterInfo() {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
-            }
-
-            @Override
-            public void addListener(Listener listener) {
-                // noop
             }
         };
 
@@ -347,11 +344,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             public ClusterInfo getClusterInfo() {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo2;
-            }
-
-            @Override
-            public void addListener(Listener listener) {
-                // noop
             }
         };
         strategy = new AllocationService(Settings.builder()
@@ -410,11 +402,13 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         diskSettings = Settings.builder()
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "40b")
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "30b").build();
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "30b")
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "20b")
+                .build();
 
         deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
         strategy = new AllocationService(Settings.builder()
@@ -440,11 +434,13 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         diskSettings = Settings.builder()
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "50b")
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "40b").build();
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "40b")
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "30b")
+                .build();
 
         deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
         strategy = new AllocationService(Settings.builder()
@@ -535,7 +531,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(
+                            Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                        ),
                         makeDecider(diskSettings))));
 
         ClusterInfoService cis = new ClusterInfoService() {
@@ -543,11 +541,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             public ClusterInfo getClusterInfo() {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
-            }
-
-            @Override
-            public void addListener(Listener listener) {
-                // noop
             }
         };
 
@@ -605,7 +598,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(
+                            Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                        ),
                         makeDecider(diskSettings))));
 
         ClusterInfoService cis = new ClusterInfoService() {
@@ -613,11 +608,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             public ClusterInfo getClusterInfo() {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
-            }
-
-            @Override
-            public void addListener(Listener listener) {
-                // noop
             }
         };
 
@@ -710,18 +700,15 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         DiskThresholdDecider decider = makeDecider(diskSettings);
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
-                new HashSet<>(Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY), decider)));
+                new HashSet<>(Arrays.asList(new SameShardAllocationDecider(
+                    Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                ), decider)));
 
         ClusterInfoService cis = new ClusterInfoService() {
             @Override
             public ClusterInfo getClusterInfo() {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
-            }
-
-            @Override
-            public void addListener(Listener listener) {
-                // noop
             }
         };
 
@@ -866,7 +853,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         // Two shards consuming each 80% of disk space while 70% is allowed, but one is relocating, so shard 0 can stay
         firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED);
         secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", "node2", true, ShardRoutingState.RELOCATING);
-        ShardRouting fooRouting = TestShardRouting.newShardRouting("foo", 0, "node1", null, true, ShardRoutingState.UNASSIGNED);
+        ShardRouting fooRouting = TestShardRouting.newShardRouting("foo", 0, null, true, ShardRoutingState.UNASSIGNED);
         firstRoutingNode = new RoutingNode("node1", discoveryNode1, firstRouting, secondRouting);
         builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder(firstRouting.index())
@@ -906,14 +893,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
             }
-
-            @Override
-            public void addListener(Listener listener) {
-                // noop
-            }
         };
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, new HashSet<>(Arrays.asList(
-                new SameShardAllocationDecider(Settings.EMPTY), diskThresholdDecider
+                new SameShardAllocationDecider(
+                    Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                ),
+                diskThresholdDecider
         )));
         AllocationService strategy = new AllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
@@ -1004,14 +989,13 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
             }
-
-            @Override
-            public void addListener(Listener listener) {
-            }
         };
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, new HashSet<>(Arrays.asList(
-                new SameShardAllocationDecider(Settings.EMPTY), diskThresholdDecider
+                new SameShardAllocationDecider(
+                    Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                ),
+                diskThresholdDecider
         )));
 
         AllocationService strategy = new AllocationService(Settings.builder()

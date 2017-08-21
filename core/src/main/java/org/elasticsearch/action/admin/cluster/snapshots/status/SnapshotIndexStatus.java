@@ -19,7 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -33,7 +34,7 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * Represents snapshot status of all shards in the index
  */
-public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, ToXContent {
+public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, ToXContentFragment {
 
     private final String index;
 

@@ -94,21 +94,22 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
                     maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
                 }
 
-                values.setDocument(doc);
-                final int valuesCount = values.count();
-                counts.increment(bucket, valuesCount);
-                double sum = 0;
-                double min = mins.get(bucket);
-                double max = maxes.get(bucket);
-                for (int i = 0; i < valuesCount; i++) {
-                    double value = values.valueAt(i);
-                    sum += value;
-                    min = Math.min(min, value);
-                    max = Math.max(max, value);
+                if (values.advanceExact(doc)) {
+                    final int valuesCount = values.docValueCount();
+                    counts.increment(bucket, valuesCount);
+                    double sum = 0;
+                    double min = mins.get(bucket);
+                    double max = maxes.get(bucket);
+                    for (int i = 0; i < valuesCount; i++) {
+                        double value = values.nextValue();
+                        sum += value;
+                        min = Math.min(min, value);
+                        max = Math.max(max, value);
+                    }
+                    sums.increment(bucket, sum);
+                    mins.set(bucket, min);
+                    maxes.set(bucket, max);
                 }
-                sums.increment(bucket, sum);
-                mins.set(bucket, min);
-                maxes.set(bucket, max);
             }
         };
     }

@@ -153,7 +153,7 @@ public final class ConvertProcessor extends AbstractProcessor {
 
         if (oldValue instanceof List) {
             List<?> list = (List<?>) oldValue;
-            List<Object> newList = new ArrayList<>();
+            List<Object> newList = new ArrayList<>(list.size());
             for (Object value : list) {
                 newList.add(convertType.convert(value));
             }

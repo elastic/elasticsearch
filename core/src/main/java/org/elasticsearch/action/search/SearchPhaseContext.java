@@ -20,8 +20,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -84,7 +83,7 @@ interface SearchPhaseContext extends ActionListener<SearchResponse>, Executor {
      * Returns a connection to the node if connected otherwise and {@link org.elasticsearch.transport.ConnectTransportException} will be
      * thrown.
      */
-    Transport.Connection getConnection(String nodeId);
+    Transport.Connection getConnection(String clusterAlias, String nodeId);
 
     /**
      * Returns the {@link SearchTransportService} to send shard request to other nodes
@@ -93,20 +92,20 @@ interface SearchPhaseContext extends ActionListener<SearchResponse>, Executor {
 
     /**
      * Releases a search context with the given context ID on the node the given connection is connected to.
-     * @see org.elasticsearch.search.query.QuerySearchResult#id()
-     * @see org.elasticsearch.search.fetch.FetchSearchResult#id()
+     * @see org.elasticsearch.search.query.QuerySearchResult#getRequestId()
+     * @see org.elasticsearch.search.fetch.FetchSearchResult#getRequestId()
      *
      */
-    default void sendReleaseSearchContext(long contextId, Transport.Connection connection) {
+    default void sendReleaseSearchContext(long contextId, Transport.Connection connection, OriginalIndices originalIndices) {
         if (connection != null) {
-            getSearchTransport().sendFreeContext(connection, contextId, getRequest());
+            getSearchTransport().sendFreeContext(connection, contextId, originalIndices);
         }
     }
 
     /**
      * Builds an request for the initial search phase.
      */
-    ShardSearchTransportRequest buildShardSearchRequest(ShardIterator shardIt, ShardRouting shard);
+    ShardSearchTransportRequest buildShardSearchRequest(SearchShardIterator shardIt);
 
     /**
      * Processes the phase transition from on phase to another. This method handles all errors that happen during the initial run execution

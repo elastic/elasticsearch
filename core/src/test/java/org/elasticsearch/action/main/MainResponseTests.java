@@ -22,71 +22,110 @@ package org.elasticsearch.action.main;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Date;
 
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
-public class MainResponseTests extends ESTestCase {
+public class MainResponseTests extends AbstractStreamableXContentTestCase<MainResponse> {
 
-    public static MainResponse createTestItem() {
-        String clusterUuid = randomAsciiOfLength(10);
-        ClusterName clusterName = new ClusterName(randomAsciiOfLength(10));
-        String nodeName = randomAsciiOfLength(10);
-        Build build = new Build(randomAsciiOfLength(8), new Date(randomNonNegativeLong()).toString(), randomBoolean());
+    @Override
+    protected MainResponse getExpectedFromXContent(MainResponse testInstance) {
+        // we cannot recreate the "available" flag from xContent, but should be "true" if request came through
+        testInstance.available = true;
+        return testInstance;
+    }
+
+    @Override
+    protected MainResponse createTestInstance() {
+        String clusterUuid = randomAlphaOfLength(10);
+        ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
+        String nodeName = randomAlphaOfLength(10);
+        Build build = new Build(randomAlphaOfLength(8), new Date(randomNonNegativeLong()).toString(), randomBoolean());
         Version version = VersionUtils.randomVersion(random());
         boolean available = randomBoolean();
         return new MainResponse(nodeName, version, clusterName, clusterUuid , build, available);
     }
 
-    public void testFromXContent() throws IOException {
-        MainResponse mainResponse = createTestItem();
-        XContentType xContentType = randomFrom(XContentType.values());
-        boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(mainResponse, xContentType, humanReadable);
-        MainResponse parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            parsed = MainResponse.fromXContent(parser);
-            assertNull(parser.nextToken());
-        }
-        assertEquals(mainResponse.getClusterUuid(), parsed.getClusterUuid());
-        assertEquals(mainResponse.getClusterName(), parsed.getClusterName());
-        assertEquals(mainResponse.getNodeName(), parsed.getNodeName());
-        assertEquals(mainResponse.getBuild(), parsed.getBuild());
-        assertEquals(mainResponse.getVersion(), parsed.getVersion());
-        // we cannot recreate the "available" flag from xContent, but should be "true" if request came through
-        assertEquals(true, parsed.isAvailable());
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+    @Override
+    protected MainResponse createBlankInstance() {
+        return new MainResponse();
+    }
+
+    @Override
+    protected MainResponse doParseInstance(XContentParser parser) {
+        return MainResponse.fromXContent(parser);
     }
 
     public void testToXContent() throws IOException {
-        Build build = new Build("buildHash", "2016-11-15".toString(), true);
-        Version version = Version.V_2_4_5;
-        MainResponse response = new MainResponse("nodeName", version, new ClusterName("clusterName"), "clusterUuid", build, true);
+        String clusterUUID = randomAlphaOfLengthBetween(10, 20);
+        Build build = new Build(Build.CURRENT.shortHash(), Build.CURRENT.date(), Build.CURRENT.isSnapshot());
+        Version version = Version.CURRENT;
+        MainResponse response = new MainResponse("nodeName", version, new ClusterName("clusterName"), clusterUUID, build, true);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{"
                 + "\"name\":\"nodeName\","
                 + "\"cluster_name\":\"clusterName\","
-                + "\"cluster_uuid\":\"clusterUuid\","
+                + "\"cluster_uuid\":\"" + clusterUUID + "\","
                 + "\"version\":{"
-                    + "\"number\":\"2.4.5\","
-                    + "\"build_hash\":\"buildHash\","
-                    + "\"build_date\":\"2016-11-15\","
-                    + "\"build_snapshot\":true,"
-                    + "\"lucene_version\":\"5.5.2\"},"
+                    + "\"number\":\"" + version.toString() + "\","
+                    + "\"build_hash\":\"" + Build.CURRENT.shortHash() + "\","
+                    + "\"build_date\":\"" + Build.CURRENT.date() + "\","
+                    + "\"build_snapshot\":" + Build.CURRENT.isSnapshot() + ","
+                    + "\"lucene_version\":\"" + version.luceneVersion.toString() + "\","
+                    + "\"minimum_wire_compatibility_version\":\"" + version.minimumCompatibilityVersion().toString() + "\","
+                    + "\"minimum_index_compatibility_version\":\"" + version.minimumIndexCompatibilityVersion().toString() + "\"},"
                 + "\"tagline\":\"You Know, for Search\""
           + "}", builder.string());
     }
 
+    //TODO this should be removed and the metehod from AbstractStreamableTestCase should be
+    //used instead once https://github.com/elastic/elasticsearch/pull/25910 goes in
+    public void testEqualsAndHashcode() {
+        MainResponse original = createTestInstance();
+        checkEqualsAndHashCode(original, MainResponseTests::copy, MainResponseTests::mutate);
+    }
+
+    private static MainResponse copy(MainResponse o) {
+        return new MainResponse(o.getNodeName(), o.getVersion(), o.getClusterName(), o.getClusterUuid(), o.getBuild(), o.isAvailable());
+    }
+
+    private static MainResponse mutate(MainResponse o) {
+        String clusterUuid = o.getClusterUuid();
+        boolean available = o.isAvailable();
+        Build build = o.getBuild();
+        Version version = o.getVersion();
+        String nodeName = o.getNodeName();
+        ClusterName clusterName = o.getClusterName();
+        switch (randomIntBetween(0, 5)) {
+        case 0:
+            clusterUuid = clusterUuid + randomAlphaOfLength(5);
+            break;
+        case 1:
+            nodeName = nodeName + randomAlphaOfLength(5);
+            break;
+        case 2:
+            available = !available;
+            break;
+        case 3:
+            // toggle the snapshot flag of the original Build parameter
+            build = new Build(build.shortHash(), build.date(), !build.isSnapshot());
+            break;
+        case 4:
+            version = randomValueOtherThan(version, () -> VersionUtils.randomVersion(random()));
+            break;
+        case 5:
+            clusterName = new ClusterName(clusterName + randomAlphaOfLength(5));
+            break;
+        }
+        return new MainResponse(nodeName, version, clusterName, clusterUuid, build, available);
+    }
 }

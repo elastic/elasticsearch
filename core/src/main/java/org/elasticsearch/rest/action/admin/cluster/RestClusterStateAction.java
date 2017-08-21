@@ -57,6 +57,11 @@ public class RestClusterStateAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "cluster_state_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
         clusterStateRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterStateRequest.indicesOptions()));
@@ -90,6 +95,7 @@ public class RestClusterStateAction extends BaseRestHandler {
             public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
+                builder.byteSizeField(Fields.CLUSTER_STATE_SIZE_IN_BYTES, Fields.CLUSTER_STATE_SIZE, response.getTotalCompressedSize());
                 response.getState().toXContent(builder, request);
                 builder.endObject();
                 return new BytesRestResponse(RestStatus.OK, builder);
@@ -118,5 +124,7 @@ public class RestClusterStateAction extends BaseRestHandler {
 
     static final class Fields {
         static final String CLUSTER_NAME = "cluster_name";
+        static final String CLUSTER_STATE_SIZE = "compressed_size";
+        static final String CLUSTER_STATE_SIZE_IN_BYTES = "compressed_size_in_bytes";
     }
 }

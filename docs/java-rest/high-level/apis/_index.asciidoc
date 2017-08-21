@@ -1,0 +1,149 @@
+[[java-rest-high-document-index]]
+=== Index API
+
+[[java-rest-high-document-index-request]]
+==== Index Request
+
+An `IndexRequest` requires the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-string]
+--------------------------------------------------
+<1> Index
+<2> Type
+<3> Document id
+<4> Document source provided as a `String`
+
+==== Providing the document source
+The document source can be provided in different ways:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-map]
+--------------------------------------------------
+<1> Document source provided as a `Map` which gets automatically converted
+to JSON format
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-xcontent]
+--------------------------------------------------
+<1> Document source provided as an `XContentBuilder` object, the Elasticsearch
+built-in helpers to generate JSON content
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-shortcut]
+--------------------------------------------------
+<1> Document source provided as `Object` key-pairs, which gets converted to
+JSON format
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-routing]
+--------------------------------------------------
+<1> Routing value
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-parent]
+--------------------------------------------------
+<1> Parent value
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for primary shard to become available as a `TimeValue`
+<2> Timeout to wait for primary shard to become available as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-refresh]
+--------------------------------------------------
+<1> Refresh policy as a `WriteRequest.RefreshPolicy` instance
+<2> Refresh policy as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-version]
+--------------------------------------------------
+<1> Version
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-version-type]
+--------------------------------------------------
+<1> Version type
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-op-type]
+--------------------------------------------------
+<1> Operation type provided as an `DocWriteRequest.OpType` value
+<2> Operation type provided as a `String`: can be `create` or `update` (default)
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-pipeline]
+--------------------------------------------------
+<1> The name of the ingest pipeline to be executed before indexing the document
+
+[[java-rest-high-document-index-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-execute]
+--------------------------------------------------
+
+[[java-rest-high-document-index-async]]
+==== Asynchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-execute-async]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[[java-rest-high-document-index-response]]
+==== Index Response
+
+The returned `IndexResponse` allows to retrieve information about the executed
+ operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-response]
+--------------------------------------------------
+<1> Handle (if needed) the case where the document was created for the first
+time
+<2> Handle (if needed) the case where the document was rewritten as it was
+already existing
+<3> Handle the situation where number of successful shards is less than
+total shards
+<4> Handle the potential failures
+
+If there is a version conflict, an `ElasticsearchException` will
+be thrown:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-conflict]
+--------------------------------------------------
+<1> The raised exception indicates that a version conflict error was returned
+
+Same will happen in case `opType` was set to `create` and a document with
+same index, type and id already existed:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-optype]
+--------------------------------------------------
+<1> The raised exception indicates that a version conflict error was returned

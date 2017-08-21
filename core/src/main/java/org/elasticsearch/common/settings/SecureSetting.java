@@ -19,15 +19,13 @@
 
 package org.elasticsearch.common.settings;
 
+import java.io.InputStream;
 import java.security.GeneralSecurityException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Objects;
+import java.util.EnumSet;
 import java.util.Set;
 
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.util.ArrayUtils;
-
 
 /**
  * A secure setting.
@@ -35,16 +33,14 @@ import org.elasticsearch.common.util.ArrayUtils;
  * This class allows access to settings from the Elasticsearch keystore.
  */
 public abstract class SecureSetting<T> extends Setting<T> {
-    private static final Set<Property> ALLOWED_PROPERTIES = new HashSet<>(
-        Arrays.asList(Property.Deprecated, Property.Shared)
-    );
+
+    /** Determines whether legacy settings with sensitive values should be allowed. */
+    private static final boolean ALLOW_INSECURE_SETTINGS = Booleans.parseBoolean(System.getProperty("es.allow_insecure_settings", "false"));
+
+    private static final Set<Property> ALLOWED_PROPERTIES = EnumSet.of(Property.Deprecated);
 
     private static final Property[] FIXED_PROPERTIES = {
         Property.NodeScope
-    };
-
-    private static final Property[] LEGACY_PROPERTIES = {
-        Property.NodeScope, Property.Deprecated, Property.Filtered
     };
 
     private SecureSetting(String key, Property... properties) {
@@ -87,6 +83,10 @@ public abstract class SecureSetting<T> extends Setting<T> {
         checkDeprecation(settings);
         final SecureSettings secureSettings = settings.getSecureSettings();
         if (secureSettings == null || secureSettings.getSettingNames().contains(getKey()) == false) {
+            if (super.exists(settings)) {
+                throw new IllegalArgumentException("Setting [" + getKey() + "] is a secure setting" +
+                    " and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml");
+            }
             return getFallback(settings);
         }
         try {
@@ -105,19 +105,19 @@ public abstract class SecureSetting<T> extends Setting<T> {
     // TODO: override toXContent
 
     /**
+     * Overrides the diff operation to make this a no-op for secure settings as they shouldn't be returned in a diff
+     */
+    @Override
+    public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+    }
+
+    /**
      * A setting which contains a sensitive string.
      *
      * This may be any sensitive string, e.g. a username, a password, an auth token, etc.
      */
     public static Setting<SecureString> secureString(String name, Setting<SecureString> fallback,
-                                                     boolean allowLegacy, Property... properties) {
-        final Setting<String> legacy;
-        if (allowLegacy) {
-            Property[] legacyProperties = ArrayUtils.concat(properties, LEGACY_PROPERTIES, Property.class);
-            legacy = Setting.simpleString(name, legacyProperties);
-        } else {
-            legacy = null;
-        }
+                                                     Property... properties) {
         return new SecureSetting<SecureString>(name, properties) {
             @Override
             protected SecureString getSecret(SecureSettings secureSettings) throws GeneralSecurityException {
@@ -125,28 +125,51 @@ public abstract class SecureSetting<T> extends Setting<T> {
             }
             @Override
             SecureString getFallback(Settings settings) {
-                if (legacy != null && legacy.exists(settings)) {
-                    return new SecureString(legacy.get(settings).toCharArray());
-                }
                 if (fallback != null) {
                     return fallback.get(settings);
                 }
                 return new SecureString(new char[0]); // this means "setting does not exist"
             }
+        };
+    }
+
+    /**
+     * A setting which contains a sensitive string, but which for legacy reasons must be found outside secure settings.
+     * @see #secureString(String, Setting, Property...)
+     */
+    public static Setting<SecureString> insecureString(String name) {
+        return new Setting<SecureString>(name, "", SecureString::new, Property.Deprecated, Property.Filtered, Property.NodeScope) {
             @Override
-            protected void checkDeprecation(Settings settings) {
-                super.checkDeprecation(settings);
-                if (legacy != null) {
-                    legacy.checkDeprecation(settings);
+            public SecureString get(Settings settings) {
+                if (ALLOW_INSECURE_SETTINGS == false && exists(settings)) {
+                    throw new IllegalArgumentException("Setting [" + name + "] is insecure, " +
+                        "but property [allow_insecure_settings] is not set");
                 }
-            }
-            @Override
-            public boolean exists(Settings settings) {
-                // handle legacy, which is internal to this setting
-                return super.exists(settings) || legacy != null && legacy.exists(settings);
+                return super.get(settings);
             }
         };
     }
 
+    /**
+     * A setting which contains a file. Reading the setting opens an input stream to the file.
+     *
+     * This may be any sensitive file, e.g. a set of credentials normally in plaintext.
+     */
+    public static Setting<InputStream> secureFile(String name, Setting<InputStream> fallback,
+                                                  Property... properties) {
+        return new SecureSetting<InputStream>(name, properties) {
+            @Override
+            protected InputStream getSecret(SecureSettings secureSettings) throws GeneralSecurityException {
+                return secureSettings.getFile(getKey());
+            }
+            @Override
+            InputStream getFallback(Settings settings) {
+                if (fallback != null) {
+                    return fallback.get(settings);
+                }
+                return null;
+            }
+        };
+    }
 
 }

@@ -41,13 +41,16 @@ import org.elasticsearch.painless.Location;
  * </ul>
  */
 final class EnhancedPainlessLexer extends PainlessLexer {
-    final String sourceName;
+    private final String sourceName;
+    private final Definition definition;
+
     private Token stashedNext = null;
     private Token previous = null;
 
-    EnhancedPainlessLexer(CharStream charStream, String sourceName) {
+    EnhancedPainlessLexer(CharStream charStream, String sourceName, Definition definition) {
         super(charStream);
         this.sourceName = sourceName;
+        this.definition = definition;
     }
 
     public Token getPreviousToken() {
@@ -93,7 +96,7 @@ final class EnhancedPainlessLexer extends PainlessLexer {
 
     @Override
     protected boolean isSimpleType(String name) {
-        return Definition.isSimpleType(name);
+        return definition.isSimpleType(name);
     }
 
     @Override

@@ -20,40 +20,37 @@
 package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CharFilter;
+import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
-import org.apache.lucene.analysis.core.KeywordAnalyzer;
-import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.apache.lucene.analysis.de.GermanAnalyzer;
-import org.apache.lucene.analysis.en.EnglishAnalyzer;
-import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
 import org.apache.lucene.analysis.hunspell.Dictionary;
-import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.AnalysisTestsHelper;
+import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.MappingCharFilterFactory;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.PatternReplaceCharFilterFactory;
+import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
+import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
+import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory;
+import org.elasticsearch.index.analysis.MyFilterTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
@@ -61,21 +58,27 @@ import org.hamcrest.MatcherAssert;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.StringReader;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class AnalysisModuleTests extends ModuleTestCase {
+public class AnalysisModuleTests extends ESTestCase {
+    private final Settings emptyNodeSettings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
 
     public IndexAnalyzers getIndexAnalyzers(Settings settings) throws IOException {
         return getIndexAnalyzers(getNewRegistry(settings), settings);
@@ -92,6 +95,11 @@ public class AnalysisModuleTests extends ModuleTestCase {
                 @Override
                 public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
                     return singletonMap("myfilter", MyFilterTokenFilterFactory::new);
+                }
+
+                @Override
+                public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
+                    return AnalysisPlugin.super.getCharFilters();
                 }
             })).getAnalysisRegistry();
         } catch (IOException e) {
@@ -117,89 +125,6 @@ public class AnalysisModuleTests extends ModuleTestCase {
         testSimpleConfiguration(settings);
     }
 
-    public void testDefaultFactoryTokenFilters() throws IOException {
-        assertTokenFilter("keyword_repeat", KeywordRepeatFilter.class);
-        assertTokenFilter("persian_normalization", PersianNormalizationFilter.class);
-        assertTokenFilter("arabic_normalization", ArabicNormalizationFilter.class);
-    }
-
-    public void testAnalyzerAlias() throws IOException {
-        Settings settings = Settings.builder()
-            .put("index.analysis.analyzer.foobar.alias","default")
-            .put("index.analysis.analyzer.foobar.type", "keyword")
-            .put("index.analysis.analyzer.foobar_search.alias","default_search")
-            .put("index.analysis.analyzer.foobar_search.type","english")
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            // analyzer aliases are only allowed in 2.x indices
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_3_5))
-            .build();
-        AnalysisRegistry newRegistry = getNewRegistry(settings);
-        IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings);
-        assertThat(indexAnalyzers.get("default").analyzer(), is(instanceOf(KeywordAnalyzer.class)));
-        assertThat(indexAnalyzers.get("default_search").analyzer(), is(instanceOf(EnglishAnalyzer.class)));
-        assertWarnings("setting [index.analysis.analyzer.foobar.alias] is only allowed on index [test] because it was created before " +
-                        "5.x; analyzer aliases can no longer be created on new indices.",
-                "setting [index.analysis.analyzer.foobar_search.alias] is only allowed on index [test] because it was created before " +
-                        "5.x; analyzer aliases can no longer be created on new indices.");
-    }
-
-    public void testAnalyzerAliasReferencesAlias() throws IOException {
-        Settings settings = Settings.builder()
-            .put("index.analysis.analyzer.foobar.alias","default")
-            .put("index.analysis.analyzer.foobar.type", "german")
-            .put("index.analysis.analyzer.foobar_search.alias","default_search")
-            .put("index.analysis.analyzer.foobar_search.type", "default")
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            // analyzer aliases are only allowed in 2.x indices
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_3_5))
-            .build();
-        AnalysisRegistry newRegistry = getNewRegistry(settings);
-        IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings);
-
-        assertThat(indexAnalyzers.get("default").analyzer(), is(instanceOf(GermanAnalyzer.class)));
-        // analyzer types are bound early before we resolve aliases
-        assertThat(indexAnalyzers.get("default_search").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertWarnings("setting [index.analysis.analyzer.foobar.alias] is only allowed on index [test] because it was created before " +
-                "5.x; analyzer aliases can no longer be created on new indices.",
-                "setting [index.analysis.analyzer.foobar_search.alias] is only allowed on index [test] because it was created before " +
-                        "5.x; analyzer aliases can no longer be created on new indices.");
-    }
-
-    public void testAnalyzerAliasDefault() throws IOException {
-        Settings settings = Settings.builder()
-            .put("index.analysis.analyzer.foobar.alias","default")
-            .put("index.analysis.analyzer.foobar.type", "keyword")
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            // analyzer aliases are only allowed in 2.x indices
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_3_5))
-            .build();
-        AnalysisRegistry newRegistry = getNewRegistry(settings);
-        IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings);
-        assertThat(indexAnalyzers.get("default").analyzer(), is(instanceOf(KeywordAnalyzer.class)));
-        assertThat(indexAnalyzers.get("default_search").analyzer(), is(instanceOf(KeywordAnalyzer.class)));
-        assertWarnings("setting [index.analysis.analyzer.foobar.alias] is only allowed on index [test] because it was created before " +
-                "5.x; analyzer aliases can no longer be created on new indices.");
-    }
-
-    public void testAnalyzerAliasMoreThanOnce() throws IOException {
-        Settings settings = Settings.builder()
-            .put("index.analysis.analyzer.foobar.alias","default")
-            .put("index.analysis.analyzer.foobar.type", "keyword")
-            .put("index.analysis.analyzer.foobar1.alias","default")
-            .put("index.analysis.analyzer.foobar1.type", "english")
-            // analyzer aliases are only allowed in 2.x indices
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_3_5))
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .build();
-        AnalysisRegistry newRegistry = getNewRegistry(settings);
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> getIndexAnalyzers(newRegistry, settings));
-        assertEquals("alias [default] is already used by [foobar]", ise.getMessage());
-        assertWarnings("setting [index.analysis.analyzer.foobar.alias] is only allowed on index [test] because it was created before " +
-                "5.x; analyzer aliases can no longer be created on new indices.",
-                "setting [index.analysis.analyzer.foobar1.alias] is only allowed on index [test] because it was created before " +
-                        "5.x; analyzer aliases can no longer be created on new indices.");
-    }
-
     public void testAnalyzerAliasNotAllowedPost5x() throws IOException {
         Settings settings = Settings.builder()
             .put("index.analysis.analyzer.foobar.type", "standard")
@@ -218,7 +143,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
         Settings settings2 = Settings.builder()
                 .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_0_0)
                 .build();
         AnalysisRegistry newRegistry = getNewRegistry(settings2);
         IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings2);
@@ -231,23 +156,13 @@ public class AnalysisModuleTests extends ModuleTestCase {
 
         // analysis service has the expected version
         assertThat(indexAnalyzers.get("standard").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(Version.V_2_0_0.luceneVersion, indexAnalyzers.get("standard").analyzer().getVersion());
-        assertEquals(Version.V_2_0_0.luceneVersion, indexAnalyzers.get("thai").analyzer().getVersion());
+        assertEquals(Version.V_5_0_0.luceneVersion,
+                indexAnalyzers.get("standard").analyzer().getVersion());
+        assertEquals(Version.V_5_0_0.luceneVersion,
+                indexAnalyzers.get("thai").analyzer().getVersion());
 
         assertThat(indexAnalyzers.get("custom7").analyzer(), is(instanceOf(StandardAnalyzer.class)));
         assertEquals(org.apache.lucene.util.Version.fromBits(3,6,0), indexAnalyzers.get("custom7").analyzer().getVersion());
-    }
-
-    private void assertTokenFilter(String name, Class<?> clazz) throws IOException {
-        Settings settings = Settings.builder()
-                               .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                               .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
-        TokenFilterFactory tokenFilter = analysis.tokenFilter.get(name);
-        Tokenizer tokenizer = new WhitespaceTokenizer();
-        tokenizer.setReader(new StringReader("foo bar"));
-        TokenStream stream = tokenFilter.create(tokenizer);
-        assertThat(stream, instanceOf(clazz));
     }
 
     private void testSimpleConfiguration(Settings settings) throws IOException {
@@ -262,54 +177,17 @@ public class AnalysisModuleTests extends ModuleTestCase {
         StopTokenFilterFactory stop1 = (StopTokenFilterFactory) custom1.tokenFilters()[0];
         assertThat(stop1.stopWords().size(), equalTo(1));
 
-        analyzer = indexAnalyzers.get("custom2").analyzer();
-        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
-
         // verify position increment gap
         analyzer = indexAnalyzers.get("custom6").analyzer();
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));
         CustomAnalyzer custom6 = (CustomAnalyzer) analyzer;
         assertThat(custom6.getPositionIncrementGap("any_string"), equalTo(256));
 
-        // verify characters  mapping
-        analyzer = indexAnalyzers.get("custom5").analyzer();
-        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
-        CustomAnalyzer custom5 = (CustomAnalyzer) analyzer;
-        assertThat(custom5.charFilters()[0], instanceOf(MappingCharFilterFactory.class));
-
-        // check custom pattern replace filter
-        analyzer = indexAnalyzers.get("custom3").analyzer();
-        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
-        CustomAnalyzer custom3 = (CustomAnalyzer) analyzer;
-        PatternReplaceCharFilterFactory patternReplaceCharFilterFactory = (PatternReplaceCharFilterFactory) custom3.charFilters()[0];
-        assertThat(patternReplaceCharFilterFactory.getPattern().pattern(), equalTo("sample(.*)"));
-        assertThat(patternReplaceCharFilterFactory.getReplacement(), equalTo("replacedSample $1"));
-
         // check custom class name (my)
         analyzer = indexAnalyzers.get("custom4").analyzer();
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));
         CustomAnalyzer custom4 = (CustomAnalyzer) analyzer;
         assertThat(custom4.tokenFilters()[0], instanceOf(MyFilterTokenFilterFactory.class));
-
-//        // verify Czech stemmer
-//        analyzer = analysisService.analyzer("czechAnalyzerWithStemmer").analyzer();
-//        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
-//        CustomAnalyzer czechstemmeranalyzer = (CustomAnalyzer) analyzer;
-//        assertThat(czechstemmeranalyzer.tokenizerFactory(), instanceOf(StandardTokenizerFactory.class));
-//        assertThat(czechstemmeranalyzer.tokenFilters().length, equalTo(4));
-//        assertThat(czechstemmeranalyzer.tokenFilters()[3], instanceOf(CzechStemTokenFilterFactory.class));
-//
-//        // check dictionary decompounder
-//        analyzer = analysisService.analyzer("decompoundingAnalyzer").analyzer();
-//        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
-//        CustomAnalyzer dictionaryDecompounderAnalyze = (CustomAnalyzer) analyzer;
-//        assertThat(dictionaryDecompounderAnalyze.tokenizerFactory(), instanceOf(StandardTokenizerFactory.class));
-//        assertThat(dictionaryDecompounderAnalyze.tokenFilters().length, equalTo(1));
-//        assertThat(dictionaryDecompounderAnalyze.tokenFilters()[0], instanceOf(DictionaryCompoundWordTokenFilterFactory.class));
-
-        Set<?> wordList = Analysis.getWordSet(null, Version.CURRENT, settings, "index.analysis.filter.dict_dec.word_list");
-        MatcherAssert.assertThat(wordList.size(), equalTo(6));
-//        MatcherAssert.assertThat(wordList, hasItems("donau", "dampf", "schiff", "spargel", "creme", "suppe"));
     }
 
     public void testWordListPath() throws Exception {
@@ -355,38 +233,168 @@ public class AnalysisModuleTests extends ModuleTestCase {
         }
     }
 
-    public void testUnderscoreInAnalyzerNameAlias() throws IOException {
-        Settings settings = Settings.builder()
-                .put("index.analysis.analyzer.valid_name.tokenizer", "keyword")
-                .put("index.analysis.analyzer.valid_name.alias", "_invalid_name")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                // analyzer aliases are only allowed for 2.x indices
-                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_3_5))
-                .build();
-        try {
-            getIndexAnalyzers(settings);
-            fail("This should fail with IllegalArgumentException because the analyzers alias starts with _");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("analyzer name must not start with '_'. got \"_invalid_name\""));
-        }
-        assertWarnings("setting [index.analysis.analyzer.valid_name.alias] is only allowed on index [test] because it was " +
-                "created before 5.x; analyzer aliases can no longer be created on new indices.");
+    /**
+     * Tests that plugins can register pre-configured char filters that vary in behavior based on Elasticsearch version, Lucene version,
+     * and that do not vary based on version at all.
+     */
+    public void testPluginPreConfiguredCharFilters() throws IOException {
+        boolean noVersionSupportsMultiTerm = randomBoolean();
+        boolean luceneVersionSupportsMultiTerm = randomBoolean();
+        boolean elasticsearchVersionSupportsMultiTerm = randomBoolean();
+        AnalysisRegistry registry = new AnalysisModule(new Environment(emptyNodeSettings), singletonList(new AnalysisPlugin() {
+            @Override
+            public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
+                return Arrays.asList(
+                        PreConfiguredCharFilter.singleton("no_version", noVersionSupportsMultiTerm,
+                                tokenStream -> new AppendCharFilter(tokenStream, "no_version")),
+                        PreConfiguredCharFilter.luceneVersion("lucene_version", luceneVersionSupportsMultiTerm,
+                                (tokenStream, luceneVersion) -> new AppendCharFilter(tokenStream, luceneVersion.toString())),
+                        PreConfiguredCharFilter.elasticsearchVersion("elasticsearch_version", elasticsearchVersionSupportsMultiTerm,
+                                (tokenStream, esVersion) -> new AppendCharFilter(tokenStream, esVersion.toString()))
+                        );
+            }
+        })).getAnalysisRegistry();
+
+        Version version = VersionUtils.randomVersion(random());
+        IndexAnalyzers analyzers = getIndexAnalyzers(registry, Settings.builder()
+                .put("index.analysis.analyzer.no_version.tokenizer", "keyword")
+                .put("index.analysis.analyzer.no_version.char_filter", "no_version")
+                .put("index.analysis.analyzer.lucene_version.tokenizer", "keyword")
+                .put("index.analysis.analyzer.lucene_version.char_filter", "lucene_version")
+                .put("index.analysis.analyzer.elasticsearch_version.tokenizer", "keyword")
+                .put("index.analysis.analyzer.elasticsearch_version.char_filter", "elasticsearch_version")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+                .build());
+        assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] {"testno_version"});
+        assertTokenStreamContents(analyzers.get("lucene_version").tokenStream("", "test"), new String[] {"test" + version.luceneVersion});
+        assertTokenStreamContents(analyzers.get("elasticsearch_version").tokenStream("", "test"), new String[] {"test" + version});
+
+        assertEquals("test" + (noVersionSupportsMultiTerm ? "no_version" : ""),
+                analyzers.get("no_version").normalize("", "test").utf8ToString());
+        assertEquals("test" + (luceneVersionSupportsMultiTerm ? version.luceneVersion.toString() : ""),
+                analyzers.get("lucene_version").normalize("", "test").utf8ToString());
+        assertEquals("test" + (elasticsearchVersionSupportsMultiTerm ? version.toString() : ""),
+                analyzers.get("elasticsearch_version").normalize("", "test").utf8ToString());
     }
 
-    public void testDeprecatedPositionOffsetGap() throws IOException {
-        Settings settings = Settings.builder()
-                .put("index.analysis.analyzer.custom.tokenizer", "standard")
-                .put("index.analysis.analyzer.custom.position_offset_gap", "128")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .build();
-        try {
-            getIndexAnalyzers(settings);
-            fail("Analyzer should fail if it has position_offset_gap");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Option [position_offset_gap] in Custom Analyzer [custom] " +
-                    "has been renamed, please use [position_increment_gap] instead."));
+    /**
+     * Tests that plugins can register pre-configured token filters that vary in behavior based on Elasticsearch version, Lucene version,
+     * and that do not vary based on version at all.
+     */
+    public void testPluginPreConfiguredTokenFilters() throws IOException {
+        boolean noVersionSupportsMultiTerm = randomBoolean();
+        boolean luceneVersionSupportsMultiTerm = randomBoolean();
+        boolean elasticsearchVersionSupportsMultiTerm = randomBoolean();
+        AnalysisRegistry registry = new AnalysisModule(new Environment(emptyNodeSettings), singletonList(new AnalysisPlugin() {
+            @Override
+            public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
+                return Arrays.asList(
+                        PreConfiguredTokenFilter.singleton("no_version", noVersionSupportsMultiTerm,
+                                tokenStream -> new AppendTokenFilter(tokenStream, "no_version")),
+                        PreConfiguredTokenFilter.luceneVersion("lucene_version", luceneVersionSupportsMultiTerm,
+                                (tokenStream, luceneVersion) -> new AppendTokenFilter(tokenStream, luceneVersion.toString())),
+                        PreConfiguredTokenFilter.elasticsearchVersion("elasticsearch_version", elasticsearchVersionSupportsMultiTerm,
+                                (tokenStream, esVersion) -> new AppendTokenFilter(tokenStream, esVersion.toString()))
+                        );
+            }
+        })).getAnalysisRegistry();
+
+        Version version = VersionUtils.randomVersion(random());
+        IndexAnalyzers analyzers = getIndexAnalyzers(registry, Settings.builder()
+                .put("index.analysis.analyzer.no_version.tokenizer", "keyword")
+                .put("index.analysis.analyzer.no_version.filter", "no_version")
+                .put("index.analysis.analyzer.lucene_version.tokenizer", "keyword")
+                .put("index.analysis.analyzer.lucene_version.filter", "lucene_version")
+                .put("index.analysis.analyzer.elasticsearch_version.tokenizer", "keyword")
+                .put("index.analysis.analyzer.elasticsearch_version.filter", "elasticsearch_version")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+                .build());
+        assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] {"testno_version"});
+        assertTokenStreamContents(analyzers.get("lucene_version").tokenStream("", "test"), new String[] {"test" + version.luceneVersion});
+        assertTokenStreamContents(analyzers.get("elasticsearch_version").tokenStream("", "test"), new String[] {"test" + version});
+
+        assertEquals("test" + (noVersionSupportsMultiTerm ? "no_version" : ""),
+                analyzers.get("no_version").normalize("", "test").utf8ToString());
+        assertEquals("test" + (luceneVersionSupportsMultiTerm ? version.luceneVersion.toString() : ""),
+                analyzers.get("lucene_version").normalize("", "test").utf8ToString());
+        assertEquals("test" + (elasticsearchVersionSupportsMultiTerm ? version.toString() : ""),
+                analyzers.get("elasticsearch_version").normalize("", "test").utf8ToString());
+    }
+
+    /**
+     * Tests that plugins can register pre-configured token filters that vary in behavior based on Elasticsearch version, Lucene version,
+     * and that do not vary based on version at all.
+     */
+    public void testPluginPreConfiguredTokenizers() throws IOException {
+        boolean noVersionSupportsMultiTerm = randomBoolean();
+        boolean luceneVersionSupportsMultiTerm = randomBoolean();
+        boolean elasticsearchVersionSupportsMultiTerm = randomBoolean();
+
+        // Simple tokenizer that always spits out a single token with some preconfigured characters
+        final class FixedTokenizer extends Tokenizer {
+            private final CharTermAttribute term = addAttribute(CharTermAttribute.class);
+            private final char[] chars;
+            private boolean read = false;
+
+            protected FixedTokenizer(String chars) {
+                this.chars = chars.toCharArray();
+            }
+
+            @Override
+            public boolean incrementToken() throws IOException {
+                if (read) {
+                    return false;
+                }
+                clearAttributes();
+                read = true;
+                term.resizeBuffer(chars.length);
+                System.arraycopy(chars, 0, term.buffer(), 0, chars.length);
+                term.setLength(chars.length);
+                return true;
+            }
+
+            @Override
+            public void reset() throws IOException {
+                super.reset();
+                read = false;
+            }
         }
+        AnalysisRegistry registry = new AnalysisModule(new Environment(emptyNodeSettings), singletonList(new AnalysisPlugin() {
+            @Override
+            public List<PreConfiguredTokenizer> getPreConfiguredTokenizers() {
+                return Arrays.asList(
+                        PreConfiguredTokenizer.singleton("no_version", () -> new FixedTokenizer("no_version"),
+                                noVersionSupportsMultiTerm ? () -> AppendTokenFilter.factoryForSuffix("no_version") : null),
+                        PreConfiguredTokenizer.luceneVersion("lucene_version",
+                                luceneVersion -> new FixedTokenizer(luceneVersion.toString()),
+                                luceneVersionSupportsMultiTerm ?
+                                        luceneVersion -> AppendTokenFilter.factoryForSuffix(luceneVersion.toString()) : null),
+                        PreConfiguredTokenizer.elasticsearchVersion("elasticsearch_version",
+                                esVersion -> new FixedTokenizer(esVersion.toString()),
+                                elasticsearchVersionSupportsMultiTerm ?
+                                        esVersion -> AppendTokenFilter.factoryForSuffix(esVersion.toString()) : null)
+                        );
+            }
+        })).getAnalysisRegistry();
+
+        Version version = VersionUtils.randomVersion(random());
+        IndexAnalyzers analyzers = getIndexAnalyzers(registry, Settings.builder()
+                .put("index.analysis.analyzer.no_version.tokenizer", "no_version")
+                .put("index.analysis.analyzer.lucene_version.tokenizer", "lucene_version")
+                .put("index.analysis.analyzer.elasticsearch_version.tokenizer", "elasticsearch_version")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+                .build());
+        assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] {"no_version"});
+        assertTokenStreamContents(analyzers.get("lucene_version").tokenStream("", "test"), new String[] {version.luceneVersion.toString()});
+        assertTokenStreamContents(analyzers.get("elasticsearch_version").tokenStream("", "test"), new String[] {version.toString()});
+
+        // These are current broken by https://github.com/elastic/elasticsearch/issues/24752
+//        assertEquals("test" + (noVersionSupportsMultiTerm ? "no_version" : ""),
+//                analyzers.get("no_version").normalize("", "test").utf8ToString());
+//        assertEquals("test" + (luceneVersionSupportsMultiTerm ? version.luceneVersion.toString() : ""),
+//                analyzers.get("lucene_version").normalize("", "test").utf8ToString());
+//        assertEquals("test" + (elasticsearchVersionSupportsMultiTerm ? version.toString() : ""),
+//                analyzers.get("elasticsearch_version").normalize("", "test").utf8ToString());
     }
 
     public void testRegisterHunspellDictionary() throws Exception {
@@ -409,4 +417,79 @@ public class AnalysisModuleTests extends ModuleTestCase {
         }));
         assertSame(dictionary, module.getHunspellService().getDictionary("foo"));
     }
+
+    // Simple char filter that appends text to the term
+    public static class AppendCharFilter extends CharFilter {
+        private final char[] appendMe;
+        private int offsetInAppendMe = -1;
+
+        public AppendCharFilter(Reader input, String appendMe) {
+            super(input);
+            this.appendMe = appendMe.toCharArray();
+        }
+
+        @Override
+        protected int correct(int currentOff) {
+            return currentOff;
+        }
+
+        @Override
+        public int read(char[] cbuf, int off, int len) throws IOException {
+            if (offsetInAppendMe < 0) {
+                int read = input.read(cbuf, off, len);
+                if (read == len) {
+                    return read;
+                }
+                off += read;
+                len -= read;
+                int allowedLen = Math.min(len, appendMe.length);
+                System.arraycopy(appendMe, 0, cbuf, off, allowedLen);
+                offsetInAppendMe = allowedLen;
+                return read + allowedLen;
+            }
+            if (offsetInAppendMe >= appendMe.length) {
+                return -1;
+            }
+            int allowedLen = Math.max(len, appendMe.length - offsetInAppendMe);
+            System.arraycopy(appendMe, offsetInAppendMe, cbuf, off, allowedLen);
+            return allowedLen;
+        }
+    }
+
+    // Simple token filter that appends text to the term
+    private static class AppendTokenFilter extends TokenFilter {
+        public static TokenFilterFactory factoryForSuffix(String suffix) {
+            return new TokenFilterFactory() {
+                @Override
+                public String name() {
+                    return suffix;
+                }
+
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    return new AppendTokenFilter(tokenStream, suffix);
+                }
+            };
+        }
+
+        private final CharTermAttribute term = addAttribute(CharTermAttribute.class);
+        private final char[] appendMe;
+
+        protected AppendTokenFilter(TokenStream input, String appendMe) {
+            super(input);
+            this.appendMe = appendMe.toCharArray();
+        }
+
+        @Override
+        public boolean incrementToken() throws IOException {
+            if (false == input.incrementToken()) {
+                return false;
+            }
+            term.resizeBuffer(term.length() + appendMe.length);
+            System.arraycopy(appendMe, 0, term.buffer(), term.length(), appendMe.length);
+            term.setLength(term.length() + appendMe.length);
+            return true;
+        }
+    }
+
 }

@@ -60,10 +60,13 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
         return new Entry();
     }
 
+    public static PhraseSuggestion fromXContent(XContentParser parser, String name) throws IOException {
+        PhraseSuggestion suggestion = new PhraseSuggestion(name, -1);
+        parseEntries(parser, suggestion, PhraseSuggestion.Entry::fromXContent);
+        return suggestion;
+    }
+
     public static class Entry extends Suggestion.Entry<Suggestion.Entry.Option> {
-        static class Fields {
-            static final String CUTOFF_SCORE = "cutoff_score";
-        }
 
         protected double cutoffScore = Double.MIN_VALUE;
 

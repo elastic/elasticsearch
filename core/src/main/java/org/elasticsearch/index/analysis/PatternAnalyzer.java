@@ -53,4 +53,13 @@ public final class PatternAnalyzer extends Analyzer {
         }
         return new TokenStreamComponents(tokenizer, stream);
     }
+
+    @Override
+    protected TokenStream normalize(String fieldName, TokenStream in) {
+        TokenStream stream = in;
+        if (lowercase) {
+            stream = new LowerCaseFilter(stream);
+        }
+        return stream;
+    }
 }

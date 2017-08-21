@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
@@ -245,7 +246,7 @@ public class NestedIT extends ESIntegTestCase {
         assertThat(nested, notNullValue());
         assertThat(nested.getName(), equalTo("nested"));
         assertThat(nested.getDocCount(), equalTo(docCount));
-        assertThat(nested.getProperty("_count"), equalTo(docCount));
+        assertThat(((InternalAggregation)nested).getProperty("_count"), equalTo(docCount));
         assertThat(nested.getAggregations().asList().isEmpty(), is(false));
 
         LongTerms values = nested.getAggregations().get("values");
@@ -263,7 +264,7 @@ public class NestedIT extends ESIntegTestCase {
                 assertEquals(counts[i], bucket.getDocCount());
             }
         }
-        assertThat(nested.getProperty("values"), sameInstance(values));
+        assertThat(((InternalAggregation)nested).getProperty("values"), sameInstance(values));
     }
 
     public void testNestedAsSubAggregation() throws Exception {

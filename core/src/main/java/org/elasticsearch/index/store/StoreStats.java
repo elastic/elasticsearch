@@ -24,12 +24,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class StoreStats implements Streamable, ToXContent {
+public class StoreStats implements Streamable, ToXContentFragment {
 
     private long sizeInBytes;
 
@@ -68,7 +69,7 @@ public class StoreStats implements Streamable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         sizeInBytes = in.readVLong();
-        if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
             in.readVLong(); // throttleTimeInNanos
         }
     }
@@ -76,7 +77,7 @@ public class StoreStats implements Streamable, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(sizeInBytes);
-        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
             out.writeVLong(0L); // throttleTimeInNanos
         }
     }

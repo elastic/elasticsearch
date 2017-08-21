@@ -31,7 +31,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -133,34 +132,6 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         assertEquals(10/ft.getScalingFactor(), ft.valueForDisplay(10L));
     }
 
-    public void testStats() throws IOException {
-        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType();
-        ft.setName("scaled_float");
-        ft.setScalingFactor(0.1 + randomDouble() * 100);
-        Directory dir = newDirectory();
-        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
-        try (DirectoryReader reader = DirectoryReader.open(w)) {
-            assertNull(ft.stats(reader));
-        }
-        Document doc = new Document();
-        LongPoint point = new LongPoint("scaled_float", -1);
-        doc.add(point);
-        w.addDocument(doc);
-        point.setLongValue(10);
-        w.addDocument(doc);
-        try (DirectoryReader reader = DirectoryReader.open(w)) {
-            FieldStats<?> stats = ft.stats(reader);
-            assertEquals(-1/ft.getScalingFactor(), stats.getMinValue());
-            assertEquals(10/ft.getScalingFactor(), stats.getMaxValue());
-            assertEquals(2, stats.getMaxDoc());
-        }
-        w.deleteAll();
-        try (DirectoryReader reader = DirectoryReader.open(w)) {
-            assertNull(ft.stats(reader));
-        }
-        IOUtils.close(w, dir);
-    }
-
     public void testFieldData() throws IOException {
         ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType();
         ft.setScalingFactor(0.1 + randomDouble() * 100);
@@ -181,23 +152,24 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
 
             // single-valued
             ft.setName("scaled_float1");
-            IndexNumericFieldData fielddata = (IndexNumericFieldData) ft.fielddataBuilder().build(indexSettings, ft, null, null, null);
+            IndexNumericFieldData fielddata = (IndexNumericFieldData) ft.fielddataBuilder("index")
+                .build(indexSettings, ft, null, null, null);
             assertEquals(fielddata.getNumericType(), IndexNumericFieldData.NumericType.DOUBLE);
             AtomicNumericFieldData leafFieldData = fielddata.load(reader.leaves().get(0));
             SortedNumericDoubleValues values = leafFieldData.getDoubleValues();
-            values.setDocument(0);
-            assertEquals(1, values.count());
-            assertEquals(10/ft.getScalingFactor(), values.valueAt(0), 10e-5);
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(10/ft.getScalingFactor(), values.nextValue(), 10e-5);
 
             // multi-valued
             ft.setName("scaled_float2");
-            fielddata = (IndexNumericFieldData) ft.fielddataBuilder().build(indexSettings, ft, null, null, null);
+            fielddata = (IndexNumericFieldData) ft.fielddataBuilder("index").build(indexSettings, ft, null, null, null);
             leafFieldData = fielddata.load(reader.leaves().get(0));
             values = leafFieldData.getDoubleValues();
-            values.setDocument(0);
-            assertEquals(2, values.count());
-            assertEquals(5/ft.getScalingFactor(), values.valueAt(0), 10e-5);
-            assertEquals(12/ft.getScalingFactor(), values.valueAt(1), 10e-5);
+            assertTrue(values.advanceExact(0));
+            assertEquals(2, values.docValueCount());
+            assertEquals(5/ft.getScalingFactor(), values.nextValue(), 10e-5);
+            assertEquals(12/ft.getScalingFactor(), values.nextValue(), 10e-5);
         }
         IOUtils.close(w, dir);
     }

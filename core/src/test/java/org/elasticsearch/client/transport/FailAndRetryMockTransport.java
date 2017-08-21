@@ -41,6 +41,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportServiceAdapter;
+import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -96,7 +97,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                     } else if (ClusterStateAction.NAME.equals(action)) {
                         TransportResponseHandler transportResponseHandler = transportServiceAdapter.onResponseReceived(requestId);
                         ClusterState clusterState = getMockClusterState(node);
-                        transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState));
+                        transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState, 0L));
                     } else {
                         throw new UnsupportedOperationException("Mock transport does not understand action " + action);
                     }
@@ -194,11 +195,6 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     }
 
     @Override
-    public long serverOpen() {
-        return 0;
-    }
-
-    @Override
     public Lifecycle.State lifecycleState() {
         return null;
     }
@@ -230,5 +226,10 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     @Override
     public long newRequestId() {
         return requestId.incrementAndGet();
+    }
+
+    @Override
+    public TransportStats getStats() {
+        throw new UnsupportedOperationException();
     }
 }

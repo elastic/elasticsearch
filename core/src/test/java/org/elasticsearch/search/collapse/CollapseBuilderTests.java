@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -39,17 +40,19 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class CollapseBuilderTests extends AbstractWireSerializingTestCase {
+public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBuilder> {
     private static NamedWriteableRegistry namedWriteableRegistry;
     private static NamedXContentRegistry xContentRegistry;
 
@@ -67,23 +70,62 @@ public class CollapseBuilderTests extends AbstractWireSerializingTestCase {
     }
 
     public static CollapseBuilder randomCollapseBuilder() {
-        CollapseBuilder builder = new CollapseBuilder(randomAsciiOfLength(10));
+        return randomCollapseBuilder(true);
+    }
+
+    public static CollapseBuilder randomCollapseBuilder(boolean multiInnerHits) {
+        CollapseBuilder builder = new CollapseBuilder(randomAlphaOfLength(10));
         builder.setMaxConcurrentGroupRequests(randomIntBetween(1, 48));
-        if (randomBoolean()) {
-            InnerHitBuilder innerHit = InnerHitBuilderTests.randomInnerHits(false, false);
+        int numInnerHits = randomIntBetween(0, multiInnerHits ? 5 : 1);
+        if (numInnerHits == 1) {
+            InnerHitBuilder innerHit = InnerHitBuilderTests.randomInnerHits();
             builder.setInnerHits(innerHit);
+        } else if (numInnerHits > 1) {
+            List<InnerHitBuilder> innerHits = new ArrayList<>(numInnerHits);
+            for (int i = 0; i < numInnerHits; i++) {
+                innerHits.add(InnerHitBuilderTests.randomInnerHits());
+            }
+
+            builder.setInnerHits(innerHits);
         }
+
         return builder;
     }
 
     @Override
-    protected Writeable createTestInstance() {
+    protected CollapseBuilder createTestInstance() {
         return randomCollapseBuilder();
     }
 
     @Override
     protected Writeable.Reader<CollapseBuilder> instanceReader() {
         return CollapseBuilder::new;
+    }
+
+    @Override
+    protected CollapseBuilder mutateInstance(CollapseBuilder instance) throws IOException {
+        CollapseBuilder newBuilder;
+        switch (between(0, 2)) {
+        case 0:
+            newBuilder = new CollapseBuilder(instance.getField() + randomAlphaOfLength(10));
+            newBuilder.setMaxConcurrentGroupRequests(instance.getMaxConcurrentGroupRequests());
+            newBuilder.setInnerHits(instance.getInnerHits());
+            break;
+        case 1:
+            newBuilder = copyInstance(instance);
+            newBuilder.setMaxConcurrentGroupRequests(instance.getMaxConcurrentGroupRequests() + between(1, 20));
+            break;
+        case 2:
+        default:
+            newBuilder = copyInstance(instance);
+            List<InnerHitBuilder> innerHits = newBuilder.getInnerHits();
+            for (int i = 0; i < between(1, 5); i++) {
+                innerHits.add(InnerHitBuilderTests.randomInnerHits());
+            }
+            newBuilder.setInnerHits(innerHits);
+            break;
+        }
+        return newBuilder;
     }
 
     @Override
@@ -176,5 +218,16 @@ public class CollapseBuilderTests extends AbstractWireSerializingTestCase {
             SearchContextException exc = expectThrows(SearchContextException.class, () -> builder.build(context));
             assertEquals(exc.getMessage(), "unknown type for collapse field `field`, only keywords and numbers are accepted");
         }
+    }
+
+    @Override
+    protected CollapseBuilder doParseInstance(XContentParser parser) throws IOException {
+        return CollapseBuilder.fromXContent(parser);
+    }
+
+    @Override
+    protected String[] getShuffleFieldsExceptions() {
+        //disable xcontent shuffling on the highlight builder
+        return new String[]{"fields"};
     }
 }

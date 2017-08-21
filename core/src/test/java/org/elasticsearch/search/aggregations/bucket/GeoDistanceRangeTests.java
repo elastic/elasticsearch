@@ -19,13 +19,20 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregationBuilder.Range;
+import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder.Range;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
+
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAggregationBuilder> {
 
@@ -37,7 +44,7 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {
-                key = randomAsciiOfLengthBetween(1, 20);
+                key = randomAlphaOfLengthBetween(1, 20);
             }
             double from = randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE - 1000);
             double to = randomBoolean() ? Double.POSITIVE_INFINITY
@@ -45,7 +52,7 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
                             : randomIntBetween((int) from, Integer.MAX_VALUE));
             factory.addRange(new Range(key, from, to));
         }
-        factory.field(randomAsciiOfLengthBetween(1, 20));
+        factory.field(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
             factory.keyed(randomBoolean());
         }
@@ -61,4 +68,37 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
         return factory;
     }
 
+    public void testParsingRangeStrict() throws IOException {
+        final String rangeAggregation = "{\n" +
+                "\"field\" : \"location\",\n" +
+                "\"origin\" : \"52.3760, 4.894\",\n" +
+                "\"unit\" : \"m\",\n" +
+                "\"ranges\" : [\n" +
+                "    { \"from\" : 10000, \"to\" : 20000, \"badField\" : \"abcd\" }\n" +
+                "]\n" +
+            "}";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
+        ParsingException ex = expectThrows(ParsingException.class, () -> GeoDistanceAggregationBuilder.parse("aggregationName", parser));
+        assertThat(ex.getDetailedMessage(), containsString("badField"));
+    }
+
+    /**
+     * We never render "null" values to xContent, but we should test that we can parse them (and they return correct defaults)
+     */
+    public void testParsingNull() throws IOException {
+        final String rangeAggregation = "{\n" +
+                "\"field\" : \"location\",\n" +
+                "\"origin\" : \"52.3760, 4.894\",\n" +
+                "\"unit\" : \"m\",\n" +
+                "\"ranges\" : [\n" +
+                "    { \"from\" : null, \"to\" : null }\n" +
+                "]\n" +
+            "}";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
+        GeoDistanceAggregationBuilder aggregationBuilder = (GeoDistanceAggregationBuilder) GeoDistanceAggregationBuilder
+                .parse("aggregationName", parser);
+        assertEquals(1, aggregationBuilder.range().size());
+        assertEquals(0.0, aggregationBuilder.range().get(0).getFrom(), 0.0);
+        assertEquals(Double.POSITIVE_INFINITY, aggregationBuilder.range().get(0).getTo(), 0.0);
+    }
 }

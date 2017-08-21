@@ -23,7 +23,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -40,7 +39,7 @@ public abstract class QueryContextTestCase<QC extends ToXContent> extends ESTest
     /**
      * read the context
      */
-    protected abstract QC fromXContent(QueryParseContext context) throws IOException;
+    protected abstract QC fromXContent(XContentParser parser) throws IOException;
 
     public void testToXContext() throws IOException {
         for (int i = 0; i < NUMBER_OF_RUNS; i++) {
@@ -49,7 +48,7 @@ public abstract class QueryContextTestCase<QC extends ToXContent> extends ESTest
             toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
             XContentParser parser = createParser(builder);
             parser.nextToken();
-            QC fromXContext = fromXContent(new QueryParseContext(parser));
+            QC fromXContext = fromXContent(parser);
             assertEquals(toXContent, fromXContext);
             assertEquals(toXContent.hashCode(), fromXContext.hashCode());
         }

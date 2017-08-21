@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollTask;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
@@ -54,25 +54,54 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
 
     @Override
     protected void taskOperation(RethrottleRequest request, BulkByScrollTask task, ActionListener<TaskInfo> listener) {
-        rethrottle(clusterService.localNode().getId(), client, task, request.getRequestsPerSecond(), listener);
+        rethrottle(logger, clusterService.localNode().getId(), client, task, request.getRequestsPerSecond(), listener);
     }
 
-    static void rethrottle(String localNodeId, Client client, BulkByScrollTask task, float newRequestsPerSecond,
+    static void rethrottle(Logger logger, String localNodeId, Client client, BulkByScrollTask task, float newRequestsPerSecond,
             ActionListener<TaskInfo> listener) {
-        int runningSubTasks = task.runningSliceSubTasks();
-        if (runningSubTasks == 0) {
-            // Nothing to do, all sub tasks are done
-            task.rethrottle(newRequestsPerSecond);
-            listener.onResponse(task.taskInfo(localNodeId, true));
+
+        if (task.isWorker()) {
+            rethrottleChildTask(logger, localNodeId, task, newRequestsPerSecond, listener);
             return;
         }
-        RethrottleRequest subRequest = new RethrottleRequest();
-        subRequest.setRequestsPerSecond(newRequestsPerSecond / runningSubTasks);
-        subRequest.setParentTaskId(new TaskId(localNodeId, task.getId()));
-        client.execute(RethrottleAction.INSTANCE, subRequest, ActionListener.wrap(r -> {
-            r.rethrowFailures("Rethrottle");
-            listener.onResponse(task.getInfoGivenSliceInfo(localNodeId, r.getTasks()));
-        }, listener::onFailure));
+
+        if (task.isLeader()) {
+            rethrottleParentTask(logger, localNodeId, client, task, newRequestsPerSecond, listener);
+            return;
+        }
+
+        throw new IllegalArgumentException("task [" + task.getId() + "] has not yet been initialized to the point where it knows how to " +
+            "rethrottle itself");
+    }
+
+    private static void rethrottleParentTask(Logger logger, String localNodeId, Client client, BulkByScrollTask task,
+                                             float newRequestsPerSecond, ActionListener<TaskInfo> listener) {
+        final LeaderBulkByScrollTaskState leaderState = task.getLeaderState();
+        final int runningSubtasks = leaderState.runningSliceSubTasks();
+
+        if (runningSubtasks > 0) {
+            RethrottleRequest subRequest = new RethrottleRequest();
+            subRequest.setRequestsPerSecond(newRequestsPerSecond / runningSubtasks);
+            subRequest.setParentTaskId(new TaskId(localNodeId, task.getId()));
+            logger.debug("rethrottling children of task [{}] to [{}] requests per second", task.getId(),
+                subRequest.getRequestsPerSecond());
+            client.execute(RethrottleAction.INSTANCE, subRequest, ActionListener.wrap(
+                r -> {
+                    r.rethrowFailures("Rethrottle");
+                    listener.onResponse(task.taskInfoGivenSubtaskInfo(localNodeId, r.getTasks()));
+                },
+                listener::onFailure));
+        } else {
+            logger.debug("children of task [{}] are already finished, nothing to rethrottle", task.getId());
+            listener.onResponse(task.taskInfo(localNodeId, true));
+        }
+    }
+
+    private static void rethrottleChildTask(Logger logger, String localNodeId, BulkByScrollTask task, float newRequestsPerSecond,
+                                            ActionListener<TaskInfo> listener) {
+        logger.debug("rethrottling local task [{}] to [{}] requests per second", task.getId(), newRequestsPerSecond);
+        task.getWorkerState().rethrottle(newRequestsPerSecond);
+        listener.onResponse(task.taskInfo(localNodeId, true));
     }
 
     @Override
@@ -86,8 +115,4 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         return new ListTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
     }
 
-    @Override
-    protected boolean accumulateExceptions() {
-        return true;
-    }
 }

@@ -28,8 +28,8 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery.ScoreMode;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery.ScoreMode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -71,7 +71,6 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.lessThan;
 
 public class DecayFunctionScoreIT extends ESIntegTestCase {
@@ -273,14 +272,14 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 .setId("1")
                 .setIndex("test")
                 .setSource(
-                        jsonBuilder().startObject().field("test", "value").startObject("loc").field("lat", 11).field("lon", 21).endObject()
-                                .endObject()));
+                        jsonBuilder().startObject().field("test", "value value").startObject("loc").field("lat", 11).field("lon", 21)
+                                .endObject().endObject()));
         indexBuilders.add(client().prepareIndex()
                 .setType("type1")
                 .setId("2")
                 .setIndex("test")
                 .setSource(
-                        jsonBuilder().startObject().field("test", "value value").startObject("loc").field("lat", 11).field("lon", 20)
+                        jsonBuilder().startObject().field("test", "value").startObject("loc").field("lat", 11).field("lon", 20)
                                 .endObject().endObject()));
         indexRandom(true, false, indexBuilders); // force no dummy docs
 
@@ -297,10 +296,19 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (2)));
-        assertThat(sh.getAt(0).getId(), isOneOf("1"));
+        assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
 
         // Test Exp
+        response = client().search(
+                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
+                        searchSource().query(termQuery("test", "value"))));
+        sr = response.actionGet();
+        sh = sr.getHits();
+        assertThat(sh.getTotalHits(), equalTo((long) (2)));
+        assertThat(sh.getAt(0).getId(), equalTo("1"));
+        assertThat(sh.getAt(1).getId(), equalTo("2"));
+
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(
@@ -537,7 +545,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                 functionScoreQuery(baseQuery, new FilterFunctionBuilder[]{
                                         new FilterFunctionBuilder(linearDecayFunction("num1", "2013-05-28", "+3d")),
                                         new FilterFunctionBuilder(linearDecayFunction("num2", "0.0", "1"))
-                                }).scoreMode(FiltersFunctionScoreQuery.ScoreMode.MULTIPLY))));
+                                }).scoreMode(FunctionScoreQuery.ScoreMode.MULTIPLY))));
 
         SearchResponse sr = response.actionGet();
 
@@ -589,7 +597,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                         new FilterFunctionBuilder(linearDecayFunction("num1", null, "7000d")),
                                         new FilterFunctionBuilder(gaussDecayFunction("num1", null, "1d")),
                                         new FilterFunctionBuilder(exponentialDecayFunction("num1", null, "7000d"))
-                                }).scoreMode(FiltersFunctionScoreQuery.ScoreMode.MULTIPLY))));
+                                }).scoreMode(FunctionScoreQuery.ScoreMode.MULTIPLY))));
 
         SearchResponse sr = response.actionGet();
         assertNoFailures(sr);
@@ -677,7 +685,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                         searchSource()
                                 .size(numDocs)
                                 .query(functionScoreQuery(termQuery("test", "value"), linearDecayFunction("type.geo", lonlat, "1000km"))
-                                        .scoreMode(FiltersFunctionScoreQuery.ScoreMode.MULTIPLY))));
+                                        .scoreMode(FunctionScoreQuery.ScoreMode.MULTIPLY))));
         try {
             response.actionGet();
             fail("Expected SearchPhaseExecutionException");
@@ -721,7 +729,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(
                                 functionScoreQuery(linearDecayFunction("num", 1, 0.5)).scoreMode(
-                                        FiltersFunctionScoreQuery.ScoreMode.MULTIPLY))));
+                                        FunctionScoreQuery.ScoreMode.MULTIPLY))));
         response.actionGet();
     }
 

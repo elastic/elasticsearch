@@ -69,7 +69,7 @@ public class PainlessDocGenerator {
             emitGeneratedWarning(indexStream);
             List<Type> types = Definition.allSimpleTypes().stream().sorted(comparing(t -> t.name)).collect(toList());
             for (Type type : types) {
-                if (type.sort.primitive) {
+                if (type.clazz.isPrimitive()) {
                     // Primitives don't have methods to reference
                     continue;
                 }
@@ -164,7 +164,7 @@ public class PainlessDocGenerator {
         emitAnchor(stream, method);
         stream.print("]]");
 
-        if (false == method.augmentation && Modifier.isStatic(method.modifiers)) {
+        if (null == method.augmentation && Modifier.isStatic(method.modifiers)) {
             stream.print("static ");
         }
 
@@ -268,12 +268,12 @@ public class PainlessDocGenerator {
         stream.print("link:{");
         stream.print(root);
         stream.print("-javadoc}/");
-        stream.print((method.augmentation ? Augmentation.class : method.owner.clazz).getName().replace('.', '/'));
+        stream.print(classUrlPath(method.augmentation != null ? method.augmentation : method.owner.clazz));
         stream.print(".html#");
         stream.print(methodName(method));
         stream.print("%2D");
         boolean first = true;
-        if (method.augmentation) {
+        if (method.augmentation != null) {
             first = false;
             stream.print(method.owner.clazz.getName());
         }
@@ -300,7 +300,7 @@ public class PainlessDocGenerator {
         stream.print("link:{");
         stream.print(root);
         stream.print("-javadoc}/");
-        stream.print(field.owner.clazz.getName().replace('.', '/'));
+        stream.print(classUrlPath(field.owner.clazz));
         stream.print(".html#");
         stream.print(field.javaName);
     }
@@ -309,7 +309,7 @@ public class PainlessDocGenerator {
      * Pick the javadoc root for a {@link Method}.
      */
     private static String javadocRoot(Method method) {
-        if (method.augmentation) {
+        if (method.augmentation != null) {
             return "painless";
         }
         return javadocRoot(method.owner);
@@ -351,5 +351,9 @@ public class PainlessDocGenerator {
         stream.println("Rebuild by running `gradle generatePainlessApi`.");
         stream.println("////");
         stream.println();
+    }
+
+    private static String classUrlPath(Class<?> clazz) {
+        return clazz.getName().replace('.', '/').replace('$', '.');
     }
 }

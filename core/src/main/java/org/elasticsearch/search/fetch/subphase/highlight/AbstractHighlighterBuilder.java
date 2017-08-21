@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Order;
 
@@ -44,12 +44,14 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 /**
  * This abstract class holds parameters shared by {@link HighlightBuilder} and {@link HighlightBuilder.Field}
  * and provides the common setters, equality, hashCode calculation and common serialization
  */
-public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>> extends ToXContentToBytes implements Writeable {
+public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>> extends ToXContentToBytes implements
+    Writeable, Rewriteable<HB> {
     public static final ParseField PRE_TAGS_FIELD = new ParseField("pre_tags");
     public static final ParseField POST_TAGS_FIELD = new ParseField("post_tags");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
@@ -112,6 +114,27 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public AbstractHighlighterBuilder() {
     }
 
+    protected AbstractHighlighterBuilder(AbstractHighlighterBuilder template, QueryBuilder queryBuilder) {
+        preTags = template.preTags;
+        postTags = template.postTags;
+        fragmentSize = template.fragmentSize;
+        numOfFragments = template.numOfFragments;
+        highlighterType = template.highlighterType;
+        fragmenter = template.fragmenter;
+        highlightQuery = queryBuilder;
+        order = template.order;
+        highlightFilter = template.highlightFilter;
+        forceSource = template.forceSource;
+        boundaryScannerType = template.boundaryScannerType;
+        boundaryMaxScan = template.boundaryMaxScan;
+        boundaryChars = template.boundaryChars;
+        boundaryScannerLocale = template.boundaryScannerLocale;
+        noMatchSize = template.noMatchSize;
+        phraseLimit = template.phraseLimit;
+        options = template.options;
+        requireFieldMatch = template.requireFieldMatch;
+    }
+
     /**
      * Read from a stream.
      */
@@ -128,14 +151,14 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         order(in.readOptionalWriteable(Order::readFromStream));
         highlightFilter(in.readOptionalBoolean());
         forceSource(in.readOptionalBoolean());
-        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
             boundaryScannerType(in.readOptionalWriteable(BoundaryScannerType::readFromStream));
         }
         boundaryMaxScan(in.readOptionalVInt());
         if (in.readBoolean()) {
             boundaryChars(in.readString().toCharArray());
         }
-        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
             if (in.readBoolean()) {
                 boundaryScannerLocale(in.readString());
             }
@@ -167,7 +190,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         out.writeOptionalWriteable(order);
         out.writeOptionalBoolean(highlightFilter);
         out.writeOptionalBoolean(forceSource);
-        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
             out.writeOptionalWriteable(boundaryScannerType);
         }
         out.writeOptionalVInt(boundaryMaxScan);
@@ -176,7 +199,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (hasBounaryChars) {
             out.writeString(String.valueOf(boundaryChars));
         }
-        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
             boolean hasBoundaryScannerLocale = boundaryScannerLocale != null;
             out.writeBoolean(hasBoundaryScannerLocale);
             if (hasBoundaryScannerLocale) {
@@ -262,8 +285,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     /**
      * Set type of highlighter to use. Out of the box supported types
-     * are <tt>plain</tt>, <tt>fvh</tt> and <tt>postings</tt>.
-     * The default option selected is dependent on the mappings defined for your index.
+     * are <tt>unified</tt>, <tt>plain</tt> and <tt>fvj</tt>.
+     * Defaults to <tt>unified</tt>.
      * Details of the different highlighter types are covered in the reference guide.
      */
     @SuppressWarnings("unchecked")
@@ -593,8 +616,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         }
     }
 
-    static <HB extends AbstractHighlighterBuilder<HB>> BiFunction<QueryParseContext, HB, HB> setupParser(
-            ObjectParser<HB, QueryParseContext> parser) {
+    static <HB extends AbstractHighlighterBuilder<HB>> BiFunction<XContentParser, HB, HB> setupParser(
+            ObjectParser<HB, Void> parser) {
         parser.declareStringArray(fromList(String.class, HB::preTags), PRE_TAGS_FIELD);
         parser.declareStringArray(fromList(String.class, HB::postTags), POST_TAGS_FIELD);
         parser.declareString(HB::order, ORDER_FIELD);
@@ -611,25 +634,25 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         parser.declareInt(HB::noMatchSize, NO_MATCH_SIZE_FIELD);
         parser.declareBoolean(HB::forceSource, FORCE_SOURCE_FIELD);
         parser.declareInt(HB::phraseLimit, PHRASE_LIMIT_FIELD);
-        parser.declareObject(HB::options, (XContentParser p, QueryParseContext c) -> {
+        parser.declareObject(HB::options, (XContentParser p, Void c) -> {
             try {
                 return p.map();
             } catch (IOException e) {
                 throw new RuntimeException("Error parsing options", e);
             }
         }, OPTIONS_FIELD);
-        parser.declareObject(HB::highlightQuery, (XContentParser p, QueryParseContext c) -> {
+        parser.declareObject(HB::highlightQuery, (XContentParser p, Void c) -> {
             try {
-                return c.parseInnerQueryBuilder();
+                return parseInnerQueryBuilder(p);
             } catch (IOException e) {
                 throw new RuntimeException("Error parsing query", e);
             }
         }, HIGHLIGHT_QUERY_FIELD);
-        return (QueryParseContext c, HB hb) -> {
+        return (XContentParser p, HB hb) -> {
             try {
-                parser.parse(c.parser(), hb, c);
+                parser.parse(p, hb, null);
                 if (hb.preTags() != null && hb.postTags() == null) {
-                    throw new ParsingException(c.parser().getTokenLocation(),
+                    throw new ParsingException(p.getTokenLocation(),
                             "pre_tags are set but post_tags are not set");
                 }
             } catch (IOException e) {

@@ -63,9 +63,4 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
         logger.trace("{} flush request executed on replica", replica.shardId());
         return new ReplicaResult();
     }
-
-    @Override
-    protected boolean shouldExecuteReplication(IndexMetaData indexMetaData) {
-        return true;
-    }
 }

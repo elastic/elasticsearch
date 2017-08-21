@@ -41,7 +41,8 @@ public class RoutingFieldMapperTests extends ESSingleNodeTestCase {
             .startObject()
             .field("field", "value")
             .endObject()
-            .bytes(), XContentType.JSON).routing("routing_value"));
+            .bytes(), 
+            XContentType.JSON).routing("routing_value"));
 
         assertThat(doc.rootDoc().get("_routing"), equalTo("routing_value"));
         assertThat(doc.rootDoc().get("field"), equalTo("value"));
@@ -52,8 +53,8 @@ public class RoutingFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         try {
-            docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject().field("_routing", "foo").endObject().bytes());
+            docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject().field("_routing", "foo").endObject().bytes(),XContentType.JSON));
             fail("Expected failure to parse metadata field");
         } catch (MapperParsingException e) {
             assertTrue(e.getMessage(), e.getMessage().contains("Field [_routing] is a metadata field and cannot be added inside a document"));

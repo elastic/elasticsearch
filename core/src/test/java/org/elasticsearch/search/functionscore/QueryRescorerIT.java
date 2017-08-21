@@ -294,8 +294,8 @@ public class QueryRescorerIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits().length, equalTo(4));
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().getMaxScore(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
-        assertFirstHit(searchResponse, hasId("6"));
-        assertSecondHit(searchResponse, hasId("1"));
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("6"));
         assertThirdHit(searchResponse, hasId("3"));
         assertFourthHit(searchResponse, hasId("2"));
     }
@@ -392,29 +392,6 @@ public class QueryRescorerIT extends ESIntegTestCase {
         }
     }
 
-    private static void assertEquivalentOrSubstringMatch(String query, SearchResponse plain, SearchResponse rescored) {
-        assertNoFailures(plain);
-        assertNoFailures(rescored);
-        SearchHits leftHits = plain.getHits();
-        SearchHits rightHits = rescored.getHits();
-        assertThat(leftHits.getTotalHits(), equalTo(rightHits.getTotalHits()));
-        assertThat(leftHits.getHits().length, equalTo(rightHits.getHits().length));
-        SearchHit[] hits = leftHits.getHits();
-        SearchHit[] otherHits = rightHits.getHits();
-        if (!hits[0].getId().equals(otherHits[0].getId())) {
-            assertThat(((String) otherHits[0].getSourceAsMap().get("field1")).contains(query), equalTo(true));
-        } else {
-            Arrays.sort(hits, searchHitsComparator);
-            Arrays.sort(otherHits, searchHitsComparator);
-            for (int i = 0; i < hits.length; i++) {
-                if (hits[i].getScore() == hits[hits.length-1].getScore()) {
-                    return; // we need to cut off here since this is the tail of the queue and we might not have fetched enough docs
-                }
-                assertThat(query, hits[i].getId(), equalTo(rightHits.getHits()[i].getId()));
-            }
-        }
-    }
-
     // forces QUERY_THEN_FETCH because of https://github.com/elastic/elasticsearch/issues/4829
     public void testEquivalence() throws Exception {
         // no dummy docs since merges can change scores while we run queries.
@@ -461,18 +438,6 @@ public class QueryRescorerIT extends ESIntegTestCase {
                     .actionGet();
             // check equivalence
             assertEquivalent(query, plain, rescored);
-
-            rescored = client()
-                    .prepareSearch()
-                    .setSearchType(SearchType.QUERY_THEN_FETCH)
-                    .setPreference("test") // ensure we hit the same shards for tie-breaking
-                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
-                    .setFrom(0)
-                    .setSize(resultSize)
-                    .setRescorer(queryRescorer(matchPhraseQuery("field1", intToEnglish).slop(0))
-                                    .setQueryWeight(1.0f).setRescoreQueryWeight(1.0f), 2 * rescoreWindow).execute().actionGet();
-            // check equivalence or if the first match differs we check if the phrase is a substring of the top doc
-            assertEquivalentOrSubstringMatch(intToEnglish, plain, rescored);
         }
     }
 
@@ -587,12 +552,12 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 String[] intToEnglish = new String[] { English.intToEnglish(i), English.intToEnglish(i + 1), English.intToEnglish(i + 2),
                         English.intToEnglish(i + 3) };
 
-                QueryBuilder query = boolQuery().disableCoord(true)
+                QueryBuilder query = boolQuery()
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[0]), weightFactorFunction(2.0f)).boostMode(REPLACE))
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[1]), weightFactorFunction(3.0f)).boostMode(REPLACE))
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[2]), weightFactorFunction(5.0f)).boostMode(REPLACE))
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[3]), weightFactorFunction(0.2f)).boostMode(REPLACE));
-                QueryRescorerBuilder rescoreQuery = queryRescorer(boolQuery().disableCoord(true)
+                QueryRescorerBuilder rescoreQuery = queryRescorer(boolQuery()
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[0]), weightFactorFunction(5.0f)).boostMode(REPLACE))
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[1]), weightFactorFunction(7.0f)).boostMode(REPLACE))
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[3]), weightFactorFunction(0.0f)).boostMode(REPLACE)));

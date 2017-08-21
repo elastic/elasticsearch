@@ -1,8 +1,0 @@
-{
-    "date_detection" : false,
-    "properties": {
-        "foo": {
-            "type": "text"
-        }
-    }
-}

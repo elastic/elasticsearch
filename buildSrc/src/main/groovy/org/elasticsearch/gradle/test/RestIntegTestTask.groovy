@@ -22,10 +22,14 @@ import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.BuildPlugin
 import org.gradle.api.DefaultTask
 import org.gradle.api.Task
+import org.gradle.api.execution.TaskExecutionAdapter
 import org.gradle.api.internal.tasks.options.Option
-import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.tasks.Input
-import org.gradle.util.ConfigureUtil
+import org.gradle.api.tasks.TaskState
+
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.util.stream.Stream
 
 /**
  * A wrapper task around setting up a cluster and running rest tests.
@@ -46,8 +50,6 @@ public class RestIntegTestTask extends DefaultTask {
     boolean includePackaged = false
 
     public RestIntegTestTask() {
-        description = 'Runs rest tests against an elasticsearch cluster.'
-        group = JavaBasePlugin.VERIFICATION_GROUP
         runner = project.tasks.create("${name}Runner", RandomizedTestingTask.class)
         super.dependsOn(runner)
         clusterInit = project.tasks.create(name: "${name}Cluster#init", dependsOn: project.testClasses)
@@ -65,11 +67,29 @@ public class RestIntegTestTask extends DefaultTask {
         // we pass all nodes to the rest cluster to allow the clients to round-robin between them
         // this is more realistic than just talking to a single node
         runner.systemProperty('tests.rest.cluster', "${-> nodes.collect{it.httpUri()}.join(",")}")
-        runner.systemProperty('tests.config.dir', "${-> nodes[0].confDir}")
+        runner.systemProperty('tests.config.dir', "${-> nodes[0].pathConf}")
         // TODO: our "client" qa tests currently use the rest-test plugin. instead they should have their own plugin
         // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
         // both as separate sysprops
         runner.systemProperty('tests.cluster', "${-> nodes[0].transportUri()}")
+
+        // dump errors and warnings from cluster log on failure
+        TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
+            @Override
+            void afterExecute(Task task, TaskState state) {
+                if (state.failure != null) {
+                    for (NodeInfo nodeInfo : nodes) {
+                        printLogExcerpt(nodeInfo)
+                    }
+                }
+            }
+        }
+        runner.doFirst {
+            project.gradle.addListener(logDumpListener)
+        }
+        runner.doLast {
+            project.gradle.removeListener(logDumpListener)
+        }
 
         // copy the rest spec/tests into the test resources
         RestSpecHack.configureDependencies(project)
@@ -106,7 +126,7 @@ public class RestIntegTestTask extends DefaultTask {
         runner.dependsOn(dependencies)
         for (Object dependency : dependencies) {
             if (dependency instanceof Fixture) {
-                runner.finalizedBy(((Fixture)dependency).stopTask)
+                runner.finalizedBy(((Fixture)dependency).getStopTask())
             }
         }
         return this
@@ -117,7 +137,7 @@ public class RestIntegTestTask extends DefaultTask {
         runner.setDependsOn(dependencies)
         for (Object dependency : dependencies) {
             if (dependency instanceof Fixture) {
-                runner.finalizedBy(((Fixture)dependency).stopTask)
+                runner.finalizedBy(((Fixture)dependency).getStopTask())
             }
         }
     }
@@ -125,5 +145,43 @@ public class RestIntegTestTask extends DefaultTask {
     @Override
     public Task mustRunAfter(Object... tasks) {
         clusterInit.mustRunAfter(tasks)
+    }
+
+    /** Print out an excerpt of the log from the given node. */
+    protected static void printLogExcerpt(NodeInfo nodeInfo) {
+        File logFile = new File(nodeInfo.homeDir, "logs/${nodeInfo.clusterName}.log")
+        println("\nCluster ${nodeInfo.clusterName} - node ${nodeInfo.nodeNum} log excerpt:")
+        println("(full log at ${logFile})")
+        println('-----------------------------------------')
+        Stream<String> stream = Files.lines(logFile.toPath(), StandardCharsets.UTF_8)
+        try {
+            boolean inStartup = true
+            boolean inExcerpt = false
+            int linesSkipped = 0
+            for (String line : stream) {
+                if (line.startsWith("[")) {
+                    inExcerpt = false // clear with the next log message
+                }
+                if (line =~ /(\[WARN\])|(\[ERROR\])/) {
+                    inExcerpt = true // show warnings and errors
+                }
+                if (inStartup || inExcerpt) {
+                    if (linesSkipped != 0) {
+                        println("... SKIPPED ${linesSkipped} LINES ...")
+                    }
+                    println(line)
+                    linesSkipped = 0
+                } else {
+                    ++linesSkipped
+                }
+                if (line =~ /recovered \[\d+\] indices into cluster_state/) {
+                    inStartup = false
+                }
+            }
+        } finally {
+            stream.close()
+        }
+        println('=========================================')
+
     }
 }

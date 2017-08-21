@@ -19,8 +19,10 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -31,28 +33,47 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class ShardSearchFailureTests extends ESTestCase {
 
     public static ShardSearchFailure createTestItem() {
-        String randomMessage = randomAsciiOfLengthBetween(3, 20);
+        String randomMessage = randomAlphaOfLengthBetween(3, 20);
         Exception ex = new ParsingException(0, 0, randomMessage , new IllegalArgumentException("some bad argument"));
-        String nodeId = randomAsciiOfLengthBetween(5, 10);
-        String indexName = randomAsciiOfLengthBetween(5, 10);
-        String indexUuid = randomAsciiOfLengthBetween(5, 10);
+        String nodeId = randomAlphaOfLengthBetween(5, 10);
+        String indexName = randomAlphaOfLengthBetween(5, 10);
+        String indexUuid = randomAlphaOfLengthBetween(5, 10);
         int shardId = randomInt();
         return new ShardSearchFailure(ex,
-                new SearchShardTarget(nodeId, new ShardId(new Index(indexName, indexUuid), shardId)));
+                new SearchShardTarget(nodeId, new ShardId(new Index(indexName, indexUuid), shardId), null, null));
     }
 
     public void testFromXContent() throws IOException {
+        doFromXContentTestWithRandomFields(false);
+    }
+
+    /**
+     * This test adds random fields and objects to the xContent rendered out to
+     * ensure we can parse it back to be forward compatible with additions to
+     * the xContent
+     */
+    public void testFromXContentWithRandomFields() throws IOException {
+        doFromXContentTestWithRandomFields(true);
+    }
+
+    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
         ShardSearchFailure response = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(response, xContentType, humanReadable);
-
+        BytesReference originalBytes = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference mutated;
+        if (addRandomFields) {
+            mutated = insertRandomFields(xContentType, originalBytes, null, random());
+        } else {
+            mutated = originalBytes;
+        }
         ShardSearchFailure parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             parsed = ShardSearchFailure.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
@@ -62,8 +83,11 @@ public class ShardSearchFailureTests extends ESTestCase {
         assertEquals(response.shard().getNodeId(), parsed.shard().getNodeId());
         assertEquals(response.shardId(), parsed.shardId());
 
-        // we cannot compare the cause, because it will be wrapped in an outer ElasticSearchException
-        // best effort: try to check that the original message appears somewhere in the rendered xContent
+        /**
+         * we cannot compare the cause, because it will be wrapped in an outer
+         * ElasticSearchException best effort: try to check that the original
+         * message appears somewhere in the rendered xContent
+         */
         String originalMsg = response.getCause().getMessage();
         assertEquals(parsed.getCause().getMessage(), "Elasticsearch exception [type=parsing_exception, reason=" + originalMsg + "]");
         String nestedMsg = response.getCause().getCause().getMessage();
@@ -73,7 +97,7 @@ public class ShardSearchFailureTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(0, 0, "some message", null),
-                new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123)));
+                new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), null, OriginalIndices.NONE));
         BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
         assertEquals(
                 "{\"shard\":123,"

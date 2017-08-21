@@ -21,9 +21,10 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.AbstractObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.joda.time.DateTimeZone;
 
@@ -32,32 +33,32 @@ public final class ValuesSourceParserHelper {
 
     private ValuesSourceParserHelper() {} // utility class, no instantiation
 
-    public static void declareAnyFields(
-            ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource, ?>, QueryParseContext> objectParser,
+    public static <T> void declareAnyFields(
+            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource, ?>, T> objectParser,
             boolean scriptable, boolean formattable) {
         declareFields(objectParser, scriptable, formattable, false, null);
     }
 
-    public static void declareNumericFields(
-            ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, ?>, QueryParseContext> objectParser,
+    public static <T> void declareNumericFields(
+            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, ?>, T> objectParser,
             boolean scriptable, boolean formattable, boolean timezoneAware) {
         declareFields(objectParser, scriptable, formattable, timezoneAware, ValueType.NUMERIC);
     }
 
-    public static void declareBytesFields(
-            ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Bytes, ?>, QueryParseContext> objectParser,
+    public static <T> void declareBytesFields(
+            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Bytes, ?>, T> objectParser,
             boolean scriptable, boolean formattable) {
         declareFields(objectParser, scriptable, formattable, false, ValueType.STRING);
     }
 
-    public static void declareGeoFields(
-            ObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, ?>, QueryParseContext> objectParser,
+    public static <T> void declareGeoFields(
+            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, ?>, T> objectParser,
             boolean scriptable, boolean formattable) {
         declareFields(objectParser, scriptable, formattable, false, ValueType.GEOPOINT);
     }
 
-    private static <VS extends ValuesSource> void declareFields(
-            ObjectParser<? extends ValuesSourceAggregationBuilder<VS, ?>, QueryParseContext> objectParser,
+    private static <VS extends ValuesSource, T> void declareFields(
+            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<VS, ?>, T> objectParser,
             boolean scriptable, boolean formattable, boolean timezoneAware, ValueType targetValueType) {
 
 
@@ -99,5 +100,7 @@ public final class ValuesSourceParserHelper {
             }, TIME_ZONE, ObjectParser.ValueType.LONG);
         }
     }
+
+
 
 }

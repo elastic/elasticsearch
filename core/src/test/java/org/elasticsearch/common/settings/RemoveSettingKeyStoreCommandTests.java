@@ -19,17 +19,14 @@
 
 package org.elasticsearch.common.settings;
 
-import javax.crypto.SecretKeyFactory;
-import java.security.Provider;
-import java.security.Security;
-import java.util.Map;
-import java.util.Set;
-
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
+
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -39,7 +36,7 @@ public class RemoveSettingKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new RemoveSettingKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Terminal terminal, Map<String, String> settings) {
+            protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
                 return env;
             }
         };
@@ -78,6 +75,6 @@ public class RemoveSettingKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertFalse(settings.contains("foo"));
         assertFalse(settings.contains("baz"));
         assertTrue(settings.contains("bar"));
-        assertEquals(1, settings.size());
+        assertEquals(2, settings.size()); // account for keystore.seed too
     }
 }

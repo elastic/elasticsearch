@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class MainResponse extends ActionResponse implements ToXContentObject {
 
@@ -40,7 +41,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     private ClusterName clusterName;
     private String clusterUuid;
     private Build build;
-    private boolean available;
+    boolean available;
 
     MainResponse() {
     }
@@ -112,6 +113,8 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             .field("build_date", build.date())
             .field("build_snapshot", build.isSnapshot())
             .field("lucene_version", version.luceneVersion.toString())
+            .field("minimum_wire_compatibility_version", version.minimumCompatibilityVersion().toString())
+            .field("minimum_index_compatibility_version", version.minimumIndexCompatibilityVersion().toString())
             .endObject();
         builder.field("tagline", "You Know, for Search");
         builder.endObject();
@@ -119,7 +122,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     }
 
     private static final ObjectParser<MainResponse, Void> PARSER = new ObjectParser<>(MainResponse.class.getName(), true,
-            () -> new MainResponse());
+            MainResponse::new);
 
     static {
         PARSER.declareString((response, value) -> response.nodeName = value, new ParseField("name"));
@@ -136,5 +139,27 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
 
     public static MainResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        MainResponse other = (MainResponse) o;
+        return Objects.equals(nodeName, other.nodeName) &&
+                Objects.equals(version, other.version) &&
+                Objects.equals(clusterUuid, other.clusterUuid) &&
+                Objects.equals(build, other.build) &&
+                Objects.equals(available, other.available) &&
+                Objects.equals(clusterName, other.clusterName);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(nodeName, version, clusterUuid, build, clusterName, available);
     }
 }

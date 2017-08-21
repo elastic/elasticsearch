@@ -52,7 +52,7 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
             int terms = randomIntBetween(0, 3);
             StringBuilder builder = new StringBuilder();
             for (int i = 0; i < terms; i++) {
-                builder.append(randomAsciiOfLengthBetween(1, 10)).append(" ");
+                builder.append(randomAlphaOfLengthBetween(1, 10)).append(" ");
             }
             value = builder.toString().trim();
         } else {
@@ -74,8 +74,8 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
     @Override
     protected Map<String, MatchPhraseQueryBuilder> getAlternateVersions() {
         Map<String, MatchPhraseQueryBuilder> alternateVersions = new HashMap<>();
-        MatchPhraseQueryBuilder matchPhraseQuery = new MatchPhraseQueryBuilder(randomAsciiOfLengthBetween(1, 10),
-                randomAsciiOfLengthBetween(1, 10));
+        MatchPhraseQueryBuilder matchPhraseQuery = new MatchPhraseQueryBuilder(randomAlphaOfLengthBetween(1, 10),
+                randomAlphaOfLengthBetween(1, 10));
         String contentString = "{\n" +
                 "    \"match_phrase\" : {\n" +
                 "        \"" + matchPhraseQuery.fieldName() + "\" : \"" + matchPhraseQuery.value() + "\"\n" +

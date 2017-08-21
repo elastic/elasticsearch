@@ -32,10 +32,14 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -46,19 +50,23 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
+import static org.elasticsearch.script.MockScriptPlugin.NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -76,9 +84,34 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FieldSortIT extends ESIntegTestCase {
+    public static class CustomScriptPlugin extends MockScriptPlugin {
+        @Override
+        @SuppressWarnings("unchecked")
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+            scripts.put("doc['number'].value", vars -> sortDoubleScript(vars));
+            scripts.put("doc['keyword'].value", vars -> sortStringScript(vars));
+            return scripts;
+        }
+
+        @SuppressWarnings("unchecked")
+        static Double sortDoubleScript(Map<String, Object> vars) {
+            Map<?, ?> doc = (Map) vars.get("doc");
+            Double index = ((Number) ((ScriptDocValues<?>) doc.get("number")).getValues().get(0)).doubleValue();
+            return index;
+        }
+
+        @SuppressWarnings("unchecked")
+        static String sortStringScript(Map<String, Object> vars) {
+            Map<?, ?> doc = (Map) vars.get("doc");
+            String value = ((String) ((ScriptDocValues<?>) doc.get("keyword")).getValues().get(0));
+            return value;
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class, CustomScriptPlugin.class);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/9421")
@@ -176,7 +209,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testTrackScores() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type", "svalue", "type=keyword").get());
+                .addMapping("type1", "svalue", "type=keyword").get());
         ensureGreen();
         index("test", "type1", jsonBuilder().startObject()
                 .field("id", "1")
@@ -421,7 +454,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testIssue2986() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type", "field1", "type=keyword").get());
+                .addMapping("post", "field1", "type=keyword").get());
 
         client().prepareIndex("test", "post", "1").setSource("{\"field1\":\"value1\"}", XContentType.JSON).execute().actionGet();
         client().prepareIndex("test", "post", "2").setSource("{\"field1\":\"value2\"}", XContentType.JSON).execute().actionGet();
@@ -1356,7 +1389,9 @@ public class FieldSortIT extends ESIntegTestCase {
         SearchHit[] hits = searchResponse.getHits().getHits();
         BytesRef previous = order == SortOrder.ASC ? new BytesRef() : UnicodeUtil.BIG_TERM;
         for (int i = 0; i < hits.length; ++i) {
-            final BytesRef uid = new BytesRef(Uid.createUid(hits[i].getType(), hits[i].getId()));
+            String uidString = Uid.createUid(hits[i].getType(), hits[i].getId());
+            final BytesRef uid = new BytesRef(uidString);
+            assertEquals(uidString, hits[i].getSortValues()[0]);
             assertThat(previous, order == SortOrder.ASC ? lessThan(uid) : greaterThan(uid));
             previous = uid;
         }
@@ -1488,5 +1523,55 @@ public class FieldSortIT extends ESIntegTestCase {
         assertEquals(1, response.getHits().getHits().length);
         assertArrayEquals(new String[] {"2001:db8::ff00:42:8329"},
                 response.getHits().getAt(0).getSortValues());
+    }
+
+    public void testScriptFieldSort() throws Exception {
+        assertAcked(prepareCreate("test")
+            .addMapping("t", "keyword", "type=keyword", "number", "type=integer"));
+        ensureGreen();
+        final int numDocs = randomIntBetween(10, 20);
+        IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
+        List<String> keywords = new ArrayList<>();
+        for (int i = 0; i < numDocs; ++i) {
+            indexReqs[i] = client().prepareIndex("test", "t")
+                .setSource("number", i, "keyword", Integer.toString(i));
+            keywords.add(Integer.toString(i));
+        }
+        Collections.sort(keywords);
+        indexRandom(true, indexReqs);
+
+        {
+            Script script = new Script(ScriptType.INLINE, NAME, "doc['number'].value", Collections.emptyMap());
+            SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(randomIntBetween(1, numDocs + 5))
+                .addSort(SortBuilders.scriptSort(script, ScriptSortBuilder.ScriptSortType.NUMBER))
+                .addSort(SortBuilders.scoreSort())
+                .execute().actionGet();
+
+            double expectedValue = 0;
+            for (SearchHit hit : searchResponse.getHits()) {
+                assertThat(hit.getSortValues().length, equalTo(2));
+                assertThat(hit.getSortValues()[0], equalTo(expectedValue++));
+                assertThat(hit.getSortValues()[1], equalTo(1f));
+            }
+        }
+
+        {
+            Script script = new Script(ScriptType.INLINE, NAME, "doc['keyword'].value", Collections.emptyMap());
+            SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(randomIntBetween(1, numDocs + 5))
+                .addSort(SortBuilders.scriptSort(script, ScriptSortBuilder.ScriptSortType.STRING))
+                .addSort(SortBuilders.scoreSort())
+                .execute().actionGet();
+
+            int expectedValue = 0;
+            for (SearchHit hit : searchResponse.getHits()) {
+                assertThat(hit.getSortValues().length, equalTo(2));
+                assertThat(hit.getSortValues()[0], equalTo(keywords.get(expectedValue++)));
+                assertThat(hit.getSortValues()[1], equalTo(1f));
+            }
+        }
     }
 }

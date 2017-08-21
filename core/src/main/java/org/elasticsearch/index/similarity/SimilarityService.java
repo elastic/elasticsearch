@@ -22,13 +22,15 @@ package org.elasticsearch.index.similarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -36,37 +38,48 @@ import java.util.Map;
 
 public final class SimilarityService extends AbstractIndexComponent {
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(SimilarityService.class));
     public static final String DEFAULT_SIMILARITY = "BM25";
     private final Similarity defaultSimilarity;
-    private final Similarity baseSimilarity;
     private final Map<String, SimilarityProvider> similarities;
-    private static final Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> DEFAULTS;
-    public static final Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> BUILT_IN;
+    private static final Map<String, SimilarityProvider.Factory> DEFAULTS;
+    public static final Map<String, SimilarityProvider.Factory> BUILT_IN;
     static {
-        Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> defaults = new HashMap<>();
-        Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> buildIn = new HashMap<>();
-        defaults.put("classic", ClassicSimilarityProvider::new);
-        defaults.put("BM25", BM25SimilarityProvider::new);
-        buildIn.put("classic", ClassicSimilarityProvider::new);
-        buildIn.put("BM25", BM25SimilarityProvider::new);
-        buildIn.put("DFR", DFRSimilarityProvider::new);
-        buildIn.put("IB", IBSimilarityProvider::new);
-        buildIn.put("LMDirichlet", LMDirichletSimilarityProvider::new);
-        buildIn.put("LMJelinekMercer", LMJelinekMercerSimilarityProvider::new);
-        buildIn.put("DFI", DFISimilarityProvider::new);
+        Map<String, SimilarityProvider.Factory> defaults = new HashMap<>();
+        Map<String, SimilarityProvider.Factory> buildIn = new HashMap<>();
+        defaults.put("classic",
+                (name, settings, indexSettings, scriptService) -> new ClassicSimilarityProvider(name, settings, indexSettings));
+        defaults.put("BM25",
+                (name, settings, indexSettings, scriptService) -> new BM25SimilarityProvider(name, settings, indexSettings));
+        defaults.put("boolean",
+                (name, settings, indexSettings, scriptService) -> new BooleanSimilarityProvider(name, settings, indexSettings));
+        buildIn.put("classic",
+                (name, settings, indexSettings, scriptService) -> new ClassicSimilarityProvider(name, settings, indexSettings));
+        buildIn.put("BM25",
+                (name, settings, indexSettings, scriptService) -> new BM25SimilarityProvider(name, settings, indexSettings));
+        buildIn.put("DFR",
+                (name, settings, indexSettings, scriptService) -> new DFRSimilarityProvider(name, settings, indexSettings));
+        buildIn.put("IB",
+                (name, settings, indexSettings, scriptService) -> new IBSimilarityProvider(name, settings, indexSettings));
+        buildIn.put("LMDirichlet",
+                (name, settings, indexSettings, scriptService) -> new LMDirichletSimilarityProvider(name, settings, indexSettings));
+        buildIn.put("LMJelinekMercer",
+                (name, settings, indexSettings, scriptService) -> new LMJelinekMercerSimilarityProvider(name, settings, indexSettings));
+        buildIn.put("DFI",
+                (name, settings, indexSettings, scriptService) -> new DFISimilarityProvider(name, settings, indexSettings));
+        buildIn.put("scripted", ScriptedSimilarityProvider::new);
         DEFAULTS = Collections.unmodifiableMap(defaults);
         BUILT_IN = Collections.unmodifiableMap(buildIn);
     }
 
-    public SimilarityService(IndexSettings indexSettings,
-                             Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> similarities) {
+    public SimilarityService(IndexSettings indexSettings, ScriptService scriptService,
+                             Map<String, SimilarityProvider.Factory> similarities) {
         super(indexSettings);
         Map<String, SimilarityProvider> providers = new HashMap<>(similarities.size());
         Map<String, Settings> similaritySettings = this.indexSettings.getSettings().getGroups(IndexModule.SIMILARITY_SETTINGS_PREFIX);
         for (Map.Entry<String, Settings> entry : similaritySettings.entrySet()) {
             String name = entry.getKey();
-            // Starting with v5.0 indices, it should no longer be possible to redefine built-in similarities
-            if(BUILT_IN.containsKey(name) && indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_0_0_alpha1)) {
+            if (BUILT_IN.containsKey(name)) {
                 throw new IllegalArgumentException("Cannot redefine built-in Similarity [" + name + "]");
             }
             Settings providerSettings = entry.getValue();
@@ -76,46 +89,40 @@ public final class SimilarityService extends AbstractIndexComponent {
             } else if ((similarities.containsKey(typeName) || BUILT_IN.containsKey(typeName)) == false) {
                 throw new IllegalArgumentException("Unknown Similarity type [" + typeName + "] for [" + name + "]");
             }
-            TriFunction<String, Settings, Settings, SimilarityProvider> defaultFactory = BUILT_IN.get(typeName);
-            TriFunction<String, Settings, Settings, SimilarityProvider> factory = similarities.getOrDefault(typeName, defaultFactory);
-            if (providerSettings == null) {
-                providerSettings = Settings.Builder.EMPTY_SETTINGS;
-            }
-            providers.put(name, factory.apply(name, providerSettings, indexSettings.getSettings()));
+            SimilarityProvider.Factory defaultFactory = BUILT_IN.get(typeName);
+            SimilarityProvider.Factory factory = similarities.getOrDefault(typeName, defaultFactory);
+            providers.put(name, factory.create(name, providerSettings, indexSettings.getSettings(), scriptService));
         }
-        Map<String, SimilarityProvider> providerMapping = addSimilarities(similaritySettings, indexSettings.getSettings(), DEFAULTS);
+        Map<String, SimilarityProvider> providerMapping = addSimilarities(similaritySettings, indexSettings.getSettings(), scriptService,
+                DEFAULTS);
         for (Map.Entry<String, SimilarityProvider> entry : providerMapping.entrySet()) {
-            // Avoid overwriting custom providers for indices older that v5.0
-            if (providers.containsKey(entry.getKey()) && indexSettings.getIndexVersionCreated().before(Version.V_5_0_0_alpha1)) {
-                continue;
-            }
             providers.put(entry.getKey(), entry.getValue());
         }
         this.similarities = providers;
         defaultSimilarity = (providers.get("default") != null) ? providers.get("default").get()
                                                               : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
-        // Expert users can configure the base type as being different to default, but out-of-box we use default.
-        baseSimilarity = (providers.get("base") != null) ? providers.get("base").get() :
-                defaultSimilarity;
+        if (providers.get("base") != null) {
+            DEPRECATION_LOGGER.deprecated("The [base] similarity is ignored since query normalization and coords have been removed");
+        }
     }
 
     public Similarity similarity(MapperService mapperService) {
         // TODO we can maybe factor out MapperService here entirely by introducing an interface for the lookup?
-        return (mapperService != null) ? new PerFieldSimilarity(defaultSimilarity, baseSimilarity, mapperService) :
+        return (mapperService != null) ? new PerFieldSimilarity(defaultSimilarity, mapperService) :
                 defaultSimilarity;
     }
 
     private Map<String, SimilarityProvider> addSimilarities(Map<String, Settings>  similaritySettings, Settings indexSettings,
-                                 Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> similarities)  {
+                                 ScriptService scriptService, Map<String, SimilarityProvider.Factory> similarities)  {
         Map<String, SimilarityProvider> providers = new HashMap<>(similarities.size());
-        for (Map.Entry<String, TriFunction<String, Settings, Settings, SimilarityProvider>> entry : similarities.entrySet()) {
+        for (Map.Entry<String, SimilarityProvider.Factory> entry : similarities.entrySet()) {
             String name = entry.getKey();
-            TriFunction<String, Settings, Settings, SimilarityProvider> factory = entry.getValue();
+            SimilarityProvider.Factory factory = entry.getValue();
             Settings providerSettings = similaritySettings.get(name);
             if (providerSettings == null) {
                 providerSettings = Settings.Builder.EMPTY_SETTINGS;
             }
-            providers.put(name, factory.apply(name, providerSettings, indexSettings));
+            providers.put(name, factory.create(name, providerSettings, indexSettings, scriptService));
         }
         return providers;
     }
@@ -133,8 +140,8 @@ public final class SimilarityService extends AbstractIndexComponent {
         private final Similarity defaultSimilarity;
         private final MapperService mapperService;
 
-        PerFieldSimilarity(Similarity defaultSimilarity, Similarity baseSimilarity, MapperService mapperService) {
-            super(baseSimilarity);
+        PerFieldSimilarity(Similarity defaultSimilarity, MapperService mapperService) {
+            super();
             this.defaultSimilarity = defaultSimilarity;
             this.mapperService = mapperService;
         }

@@ -89,6 +89,10 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         return topDocs;
     }
 
+    int getFrom() {
+        return from;
+    }
+
     int getSize() {
         return size;
     }
@@ -119,7 +123,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
                 shardDocs[i] = topHitsAgg.topDocs;
                 shardHits[i] = topHitsAgg.searchHits;
             }
-            reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs);
+            reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs, true);
         } else {
             shardDocs = new TopDocs[aggregations.size()];
             for (int i = 0; i < shardDocs.length; i++) {
@@ -127,7 +131,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
                 shardDocs[i] = topHitsAgg.topDocs;
                 shardHits[i] = topHitsAgg.searchHits;
             }
-            reducedTopDocs = TopDocs.merge(from, size, shardDocs);
+            reducedTopDocs = TopDocs.merge(from, size, shardDocs, true);
         }
 
         final int[] tracker = new int[shardHits.length];
@@ -191,7 +195,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     protected int doHashCode() {
         int hashCode = from;
         hashCode = 31 * hashCode + size;
-        hashCode = 31 * hashCode + topDocs.totalHits;
+        hashCode = 31 * hashCode + Long.hashCode(topDocs.totalHits);
         for (int d = 0; d < topDocs.scoreDocs.length; d++) {
             ScoreDoc doc = topDocs.scoreDocs[d];
             hashCode = 31 * hashCode + doc.doc;

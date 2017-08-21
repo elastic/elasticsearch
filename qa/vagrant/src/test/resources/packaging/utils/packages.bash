@@ -4,9 +4,14 @@
 # the .deb/.rpm packages.
 
 # WARNING: This testing file must be executed as root and can
-# dramatically change your system. It removes the 'elasticsearch'
-# user/group and also many directories. Do not execute this file
-# unless you know exactly what you are doing.
+# dramatically change your system. It should only be executed
+# in a throw-away VM like those made by the Vagrantfile at
+# the root of the Elasticsearch source code. This should
+# cause the script to fail if it is executed any other way:
+[ -f /etc/is_vagrant_vm ] || {
+  >&2 echo "must be run on a vagrant VM"
+  exit 1
+}
 
 # Licensed to Elasticsearch under one or more contributor
 # license agreements. See the NOTICE file distributed with
@@ -32,7 +37,6 @@ export_elasticsearch_paths() {
     export ESPLUGINS="$ESHOME/plugins"
     export ESMODULES="$ESHOME/modules"
     export ESCONFIG="/etc/elasticsearch"
-    export ESSCRIPTS="$ESCONFIG/scripts"
     export ESDATA="/var/lib/elasticsearch"
     export ESLOG="/var/log/elasticsearch"
     export ESPIDDIR="/var/run/elasticsearch"
@@ -94,7 +98,6 @@ verify_package_installation() {
     assert_file "$ESCONFIG/elasticsearch.yml" f root elasticsearch 660
     assert_file "$ESCONFIG/jvm.options" f root elasticsearch 660
     assert_file "$ESCONFIG/log4j2.properties" f root elasticsearch 660
-    assert_file "$ESSCRIPTS" d root elasticsearch 750
     assert_file "$ESDATA" d elasticsearch elasticsearch 750
     assert_file "$ESLOG" d elasticsearch elasticsearch 750
     assert_file "$ESPLUGINS" d root root 755
@@ -105,7 +108,7 @@ verify_package_installation() {
 
     if is_dpkg; then
         # Env file
-        assert_file "/etc/default/elasticsearch" f root root 660
+        assert_file "/etc/default/elasticsearch" f root elasticsearch 660
 
         # Doc files
         assert_file "/usr/share/doc/elasticsearch" d root root 755
@@ -114,7 +117,7 @@ verify_package_installation() {
 
     if is_rpm; then
         # Env file
-        assert_file "/etc/sysconfig/elasticsearch" f root root 660
+        assert_file "/etc/sysconfig/elasticsearch" f root elasticsearch 660
         # License file
         assert_file "/usr/share/elasticsearch/LICENSE.txt" f root root 644
     fi

@@ -55,8 +55,7 @@ public class BlobPath implements Iterable<String> {
     }
 
     public BlobPath add(String path) {
-        List<String> paths = new ArrayList<>();
-        paths.addAll(this.paths);
+        List<String> paths = new ArrayList<>(this.paths);
         paths.add(path);
         return new BlobPath(Collections.unmodifiableList(paths));
     }

@@ -1,0 +1,68 @@
+---
+setup:
+  - do:
+      indices.create:
+          index: test
+          body:
+           settings:
+             index:
+               # initializing replicas maintain the translog causing the test to fail.
+               # remove once https://github.com/elastic/elasticsearch/issues/25623 is fixed.
+               number_of_replicas: 0
+
+---
+"Translog retention":
+  - skip:
+      version: " - 5.99.0"
+      reason: translog retention was added in 6.0.0
+  - do:
+      indices.stats:
+        metric: [ translog ]
+  - set: { indices.test.primaries.translog.size_in_bytes: empty_size }
+
+  - do:
+      index:
+        index: test
+        type:  bar
+        id:    1
+        body:  { "foo": "bar" }
+
+  - do:
+      indices.stats:
+        metric: [ translog ]
+  - gt: { indices.test.primaries.translog.size_in_bytes: $empty_size }
+  - match: { indices.test.primaries.translog.operations: 1 }
+  - gt: { indices.test.primaries.translog.uncommitted_size_in_bytes: $empty_size }
+  - match: { indices.test.primaries.translog.uncommitted_operations: 1 }
+
+  - do:
+      indices.flush:
+        index: test
+
+  - do:
+      indices.stats:
+        metric: [ translog ]
+  - gt: { indices.test.primaries.translog.size_in_bytes: $empty_size }
+  - match: { indices.test.primaries.translog.operations: 1 }
+  - match: { indices.test.primaries.translog.uncommitted_size_in_bytes: $empty_size }
+  - match: { indices.test.primaries.translog.uncommitted_operations: 0 }
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.translog.retention.size: -1
+          index.translog.retention.age: -1
+
+  - do:
+      indices.flush:
+        index: test
+        force: true # force flush as we don't have pending ops
+
+  - do:
+      indices.stats:
+        metric: [ translog ]
+  - match: { indices.test.primaries.translog.size_in_bytes: $empty_size }
+  - match: { indices.test.primaries.translog.operations: 0 }
+  - match: { indices.test.primaries.translog.uncommitted_size_in_bytes: $empty_size }
+  - match: { indices.test.primaries.translog.uncommitted_operations: 0 }

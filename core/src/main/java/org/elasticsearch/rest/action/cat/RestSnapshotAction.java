@@ -50,6 +50,11 @@ public class RestSnapshotAction extends AbstractCatAction {
     }
 
     @Override
+    public String getName() {
+        return "cat_snapshot_action";
+    }
+
+    @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest()
                 .repository(request.param("repository"))

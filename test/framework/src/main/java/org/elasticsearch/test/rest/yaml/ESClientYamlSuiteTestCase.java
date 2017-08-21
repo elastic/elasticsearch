@@ -20,18 +20,14 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-
-import org.apache.http.HttpHost;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.client.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -43,17 +39,12 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -77,15 +68,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * Property that allows to control whether spec validation is enabled or not (default true).
      */
     private static final String REST_TESTS_VALIDATE_SPEC = "tests.rest.validate_spec";
-    /**
-     * Property that allows to control where the REST spec files need to be loaded from
-     */
-    public static final String REST_TESTS_SPEC = "tests.rest.spec";
 
-    private static final String REST_LOAD_PACKAGED_TESTS = "tests.rest.load_packaged";
-
-    private static final String DEFAULT_TESTS_PATH = "/rest-api-spec/test";
-    private static final String DEFAULT_SPEC_PATH = "/rest-api-spec/api";
+    private static final String TESTS_PATH = "/rest-api-spec/test";
+    private static final String SPEC_PATH = "/rest-api-spec/api";
 
     /**
      * This separator pattern matches ',' except it is preceded by a '\'.
@@ -109,20 +94,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     }
 
     @Before
-    public void initAndResetContext() throws IOException {
+    public void initAndResetContext() throws Exception {
         if (restTestExecutionContext == null) {
             assert adminExecutionContext == null;
             assert blacklistPathMatchers == null;
-            String[] specPaths = resolvePathsProperty(REST_TESTS_SPEC, DEFAULT_SPEC_PATH);
-            ClientYamlSuiteRestSpec restSpec = null;
-            FileSystem fileSystem = getFileSystem();
-            // don't make a try-with, getFileSystem returns null
-            // ... and you can't close() the default filesystem
-            try {
-                restSpec = ClientYamlSuiteRestSpec.parseFrom(fileSystem, DEFAULT_SPEC_PATH, specPaths);
-            } finally {
-                IOUtils.close(fileSystem);
-            }
+            ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load(SPEC_PATH);
             validateSpec(restSpec);
             List<HttpHost> hosts = getClusterHosts();
             RestClient restClient = client();
@@ -143,10 +119,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                     throw ex;
                 }
             }
-            ClientYamlTestClient clientYamlTestClient =
-                new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
-            restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient);
-            adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient);
+            ClientYamlTestClient clientYamlTestClient = initClientYamlTestClient(restSpec, restClient, hosts, esVersion);
+            restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
+            adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
             String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
             for (String entry : blacklist) {
@@ -160,69 +135,77 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         // admin context must be available for @After always, regardless of whether the test was blacklisted
         adminExecutionContext.clear();
 
-        //skip test if it matches one of the blacklist globs
-        for (BlacklistedPathPatternMatcher blacklistedPathMatcher : blacklistPathMatchers) {
-            String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
-            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher
-                    .isSuffixMatch(testPath));
-        }
-
         restTestExecutionContext.clear();
+    }
 
-        //skip test if the whole suite (yaml file) is disabled
-        assumeFalse(testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-                testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-        //skip test if the whole suite (yaml file) is disabled
-        assumeFalse(testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-                testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-        //skip test if test section is disabled
-        assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-                testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+    protected ClientYamlTestClient initClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient,
+                                                            List<HttpHost> hosts, Version esVersion) throws IOException {
+        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
     }
 
     @Override
     protected void afterIfFailed(List<Throwable> errors) {
         // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
         logger.info("Stash dump on failure [{}]",
-                XContentHelper.toString(restTestExecutionContext.stash()).replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
+                Strings.toString(restTestExecutionContext.stash(), true, true)
+                        .replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
         super.afterIfFailed(errors);
     }
 
-    public static Iterable<Object[]> createParameters() throws IOException {
-        List<ClientYamlTestCandidate> restTestCandidates = collectTestCandidates();
-        List<Object[]> objects = new ArrayList<>();
-        for (ClientYamlTestCandidate restTestCandidate : restTestCandidates) {
-            objects.add(new Object[]{restTestCandidate});
-        }
-        return objects;
-    }
-
-    private static List<ClientYamlTestCandidate> collectTestCandidates() throws IOException {
-        List<ClientYamlTestCandidate> testCandidates = new ArrayList<>();
-        FileSystem fileSystem = getFileSystem();
-        // don't make a try-with, getFileSystem returns null
-        // ... and you can't close() the default filesystem
-        try {
-            String[] paths = resolvePathsProperty(REST_TESTS_SUITE, DEFAULT_TESTS_PATH);
-            Map<String, Set<Path>> yamlSuites = FileUtils.findYamlSuites(fileSystem, DEFAULT_TESTS_PATH, paths);
-            //yaml suites are grouped by directory (effectively by api)
-            for (String api : yamlSuites.keySet()) {
-                List<Path> yamlFiles = new ArrayList<>(yamlSuites.get(api));
-                for (Path yamlFile : yamlFiles) {
-                    ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(api, yamlFile);
-                    for (ClientYamlTestSection testSection : restTestSuite.getTestSections()) {
-                        testCandidates.add(new ClientYamlTestCandidate(restTestSuite, testSection));
-                    }
+    public static Iterable<Object[]> createParameters() throws Exception {
+        String[] paths = resolvePathsProperty(REST_TESTS_SUITE, ""); // default to all tests under the test root
+        List<Object[]> tests = new ArrayList<>();
+        Map<String, Set<Path>> yamlSuites = loadSuites(paths);
+        // yaml suites are grouped by directory (effectively by api)
+        for (String api : yamlSuites.keySet()) {
+            List<Path> yamlFiles = new ArrayList<>(yamlSuites.get(api));
+            for (Path yamlFile : yamlFiles) {
+                ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(api, yamlFile);
+                for (ClientYamlTestSection testSection : restTestSuite.getTestSections()) {
+                    tests.add(new Object[]{ new ClientYamlTestCandidate(restTestSuite, testSection) });
                 }
             }
-        } finally {
-            IOUtils.close(fileSystem);
         }
 
         //sort the candidates so they will always be in the same order before being shuffled, for repeatability
-        Collections.sort(testCandidates, (o1, o2) -> o1.getTestPath().compareTo(o2.getTestPath()));
+        Collections.sort(tests,
+            (o1, o2) -> ((ClientYamlTestCandidate)o1[0]).getTestPath().compareTo(((ClientYamlTestCandidate)o2[0]).getTestPath()));
+        return tests;
+    }
 
-        return testCandidates;
+    /** Find all yaml suites that match the given list of paths from the root test path. */
+    // pkg private for tests
+    static Map<String, Set<Path>> loadSuites(String... paths) throws Exception {
+        Map<String, Set<Path>> files = new HashMap<>();
+        Path root = PathUtils.get(ESClientYamlSuiteTestCase.class.getResource(TESTS_PATH).toURI());
+        for (String strPath : paths) {
+            Path path = root.resolve(strPath);
+            if (Files.isDirectory(path)) {
+                Files.walk(path).forEach(file -> {
+                    if (file.toString().endsWith(".yml")) {
+                        addSuite(root, file, files);
+                    } else if (file.toString().endsWith(".yaml")) {
+                        throw new IllegalArgumentException("yaml files are no longer supported: " + file);
+                    }
+                });
+            } else {
+                path = root.resolve(strPath + ".yml");
+                assert Files.exists(path);
+                addSuite(root, path, files);
+            }
+        }
+        return files;
+    }
+
+    /** Add a single suite file to the set of suites. */
+    private static void addSuite(Path root, Path file, Map<String, Set<Path>> files) {
+        String groupName = root.relativize(file.getParent()).toString();
+        Set<Path> filesSet = files.get(groupName);
+        if (filesSet == null) {
+            filesSet = new HashSet<>();
+            files.put(groupName, filesSet);
+        }
+        filesSet.add(file);
     }
 
     private static String[] resolvePathsProperty(String propertyName, String defaultValue) {
@@ -231,34 +214,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             return defaultValue == null ? Strings.EMPTY_ARRAY : new String[]{defaultValue};
         } else {
             return property.split(PATHS_SEPARATOR);
-        }
-    }
-
-    /**
-     * Returns a new FileSystem to read REST resources, or null if they
-     * are available from classpath.
-     */
-    @SuppressForbidden(reason = "proper use of URL, hack around a JDK bug")
-    protected static FileSystem getFileSystem() throws IOException {
-        // REST suite handling is currently complicated, with lots of filtering and so on
-        // For now, to work embedded in a jar, return a ZipFileSystem over the jar contents.
-        URL codeLocation = FileUtils.class.getProtectionDomain().getCodeSource().getLocation();
-        boolean loadPackaged = RandomizedTest.systemPropertyAsBoolean(REST_LOAD_PACKAGED_TESTS, true);
-        if (codeLocation.getFile().endsWith(".jar") && loadPackaged) {
-            try {
-                // hack around a bug in the zipfilesystem implementation before java 9,
-                // its checkWritable was incorrect and it won't work without write permissions.
-                // if we add the permission, it will open jars r/w, which is too scary! so copy to a safe r-w location.
-                Path tmp = Files.createTempFile(null, ".jar");
-                try (InputStream in = FileSystemUtils.openFileURLStream(codeLocation)) {
-                    Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
-                }
-                return FileSystems.newFileSystem(new URI("jar:" + tmp.toUri()), Collections.emptyMap());
-            } catch (URISyntaxException e) {
-                throw new IOException("couldn't open zipfilesystem: ", e);
-            }
-        } else {
-            return null;
         }
     }
 
@@ -337,6 +292,23 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     }
 
     public void test() throws IOException {
+        //skip test if it matches one of the blacklist globs
+        for (BlacklistedPathPatternMatcher blacklistedPathMatcher : blacklistPathMatchers) {
+            String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
+            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher
+                .isSuffixMatch(testPath));
+        }
+
+        //skip test if the whole suite (yaml file) is disabled
+        assumeFalse(testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
+            testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+        //skip test if the whole suite (yaml file) is disabled
+        assumeFalse(testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
+            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+        //skip test if test section is disabled
+        assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
+            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+
         //let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
             throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");
@@ -380,5 +352,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private String errorMessage(ExecutableSection executableSection, Throwable t) {
         return "Failure at [" + testCandidate.getSuitePath() + ":" + executableSection.getLocation().lineNumber + "]: " + t.getMessage();
+    }
+
+    protected boolean randomizeContentType() {
+        return true;
     }
 }

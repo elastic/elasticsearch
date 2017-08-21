@@ -20,16 +20,15 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.snapshots.Snapshot;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.Objects;
 
 /**
@@ -40,7 +39,7 @@ import java.util.Objects;
  * - {@link SnapshotRecoverySource} recovery from a snapshot
  * - {@link LocalShardsRecoverySource} recovery from other shards of another index on the same node
  */
-public abstract class RecoverySource implements Writeable, ToXContent {
+public abstract class RecoverySource implements Writeable, ToXContentObject {
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -248,15 +247,5 @@ public abstract class RecoverySource implements Writeable, ToXContent {
         public String toString() {
             return "peer recovery";
         }
-    }
-
-    private static EnumSet<RecoverySource.Type> INITIAL_RECOVERY_TYPES = EnumSet.of(Type.EMPTY_STORE, Type.LOCAL_SHARDS, Type.SNAPSHOT);
-
-    /**
-     * returns true for recovery types that indicate that a primary is being allocated for the very first time.
-     * This recoveries can be controlled by {@link IndexMetaData#INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING}
-     */
-    public static boolean isInitialRecovery(RecoverySource.Type type) {
-           return INITIAL_RECOVERY_TYPES.contains(type);
     }
 }

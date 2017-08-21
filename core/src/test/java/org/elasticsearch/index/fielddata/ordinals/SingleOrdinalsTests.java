@@ -19,8 +19,8 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -48,12 +48,13 @@ public class SingleOrdinalsTests extends ESTestCase {
 
         Ordinals ords = builder.build();
         assertThat(ords, instanceOf(SinglePackedOrdinals.class));
-        RandomAccessOrds docs = ords.ordinals();
+        SortedSetDocValues docs = ords.ordinals();
         final SortedDocValues singleOrds = DocValues.unwrapSingleton(docs);
         assertNotNull(singleOrds);
 
         for (Map.Entry<Integer, Long> entry : controlDocToOrdinal.entrySet()) {
-            assertThat(entry.getValue(), equalTo((long) singleOrds.getOrd(entry.getKey())));
+            assertTrue(singleOrds.advanceExact(entry.getKey()));
+            assertEquals(singleOrds.ordValue(), (long) entry.getValue());
         }
     }
 

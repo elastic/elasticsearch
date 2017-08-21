@@ -19,9 +19,6 @@
 
 package org.elasticsearch.action.termvectors;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-
-import org.apache.lucene.analysis.payloads.PayloadHelper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Fields;
@@ -29,7 +26,6 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -193,7 +189,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
-                        .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
+                        .putArray("index.analysis.analyzer.tv_test.filter", "lowercase")));
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog")
@@ -216,10 +212,9 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
     public void testRandomSingleTermVectors() throws IOException {
         FieldType ft = new FieldType();
-        int config = randomInt(6);
+        int config = randomInt(4);
         boolean storePositions = false;
         boolean storeOffsets = false;
-        boolean storePayloads = false;
         boolean storeTermVectors = false;
         switch (config) {
             case 0: {
@@ -246,23 +241,11 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 storeOffsets = true;
                 break;
             }
-            case 5: {
-                storeTermVectors = true;
-                storePositions = true;
-                storePayloads = true;
-                break;
-            }
-            case 6: {
-                storeTermVectors = true;
-                storePositions = true;
-                storeOffsets = true;
-                storePayloads = true;
-                break;
-            }
+            default:
+                throw new IllegalArgumentException("Unsupported option: " + config);
         }
         ft.setStoreTermVectors(storeTermVectors);
         ft.setStoreTermVectorOffsets(storeOffsets);
-        ft.setStoreTermVectorPayloads(storePayloads);
         ft.setStoreTermVectorPositions(storePositions);
 
         String optionString = FieldMapper.termVectorOptionsToString(ft);
@@ -278,7 +261,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", mapping)
                 .setSettings(Settings.builder()
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
-                        .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
+                        .putArray("index.analysis.analyzer.tv_test.filter", "lowercase")));
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog")
@@ -293,13 +276,12 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         int[][] startOffset = {{10}, {40}, {16}, {20}, {35}, {26}, {4}, {0, 31}};
         int[][] endOffset = {{15}, {43}, {19}, {25}, {39}, {30}, {9}, {3, 34}};
 
-        boolean isPayloadRequested = randomBoolean();
         boolean isOffsetRequested = randomBoolean();
         boolean isPositionsRequested = randomBoolean();
-        String infoString = createInfoString(isPositionsRequested, isOffsetRequested, isPayloadRequested, optionString);
+        String infoString = createInfoString(isPositionsRequested, isOffsetRequested, optionString);
         for (int i = 0; i < 10; i++) {
             TermVectorsRequestBuilder resp = client().prepareTermVectors("test", "type1", Integer.toString(i))
-                    .setPayloads(isPayloadRequested).setOffsets(isOffsetRequested).setPositions(isPositionsRequested).setSelectedFields();
+                    .setOffsets(isOffsetRequested).setPositions(isPositionsRequested).setSelectedFields();
             TermVectorsResponse response = resp.execute().actionGet();
             assertThat(infoString + "doc id: " + i + " doesn't exists but should", response.isExists(), equalTo(true));
             Fields fields = response.getFields();
@@ -340,13 +322,8 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         } else {
                             assertThat(infoString + "positions for term: ", nextPosition, equalTo(-1));
                         }
-                        // only return something useful if requested and stored
-                        if (isPayloadRequested && storePayloads) {
-                            assertThat(infoString + "payloads for term: " + string, docsAndPositions.getPayload(), equalTo(new BytesRef(
-                                    "word")));
-                        } else {
-                            assertThat(infoString + "payloads for term: " + string, docsAndPositions.getPayload(), equalTo(null));
-                        }
+                        // payloads are never made by the mapping in this test
+                        assertNull(infoString + "payloads for term: " + string, docsAndPositions.getPayload());
                         // only return something useful if requested and stored
                         if (isOffsetRequested && storeOffsets) {
 
@@ -365,11 +342,9 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         }
     }
 
-    private String createInfoString(boolean isPositionsRequested, boolean isOffsetRequested, boolean isPayloadRequested,
-                                    String optionString) {
+    private String createInfoString(boolean isPositionsRequested, boolean isOffsetRequested, String optionString) {
         String ret = "Store config: " + optionString + "\n" + "Requested: pos-"
-                + (isPositionsRequested ? "yes" : "no") + ", offsets-" + (isOffsetRequested ? "yes" : "no") + ", payload- "
-                + (isPayloadRequested ? "yes" : "no") + "\n";
+                + (isPositionsRequested ? "yes" : "no") + ", offsets-" + (isOffsetRequested ? "yes" : "no") + "\n";
         return ret;
     }
 
@@ -393,171 +368,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
             validateResponse(response, luceneTermVectors, test);
         }
-    }
-
-    public void testRandomPayloadWithDelimitedPayloadTokenFilter() throws IOException {
-        //create the test document
-        int encoding = randomIntBetween(0, 2);
-        String encodingString = "";
-        if (encoding == 0) {
-            encodingString = "float";
-        }
-        if (encoding == 1) {
-            encodingString = "int";
-        }
-        if (encoding == 2) {
-            encodingString = "identity";
-        }
-        String[] tokens = crateRandomTokens();
-        Map<String, List<BytesRef>> payloads = createPayloads(tokens, encoding);
-        String delimiter = createRandomDelimiter(tokens);
-        String queryString = createString(tokens, payloads, encoding, delimiter.charAt(0));
-        //create the mapping
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("field").field("type", "text").field("term_vector", "with_positions_offsets_payloads")
-                .field("analyzer", "payload_test").endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
-                Settings.builder()
-                        .put(indexSettings())
-                        .put("index.analysis.analyzer.payload_test.tokenizer", "whitespace")
-                        .putArray("index.analysis.analyzer.payload_test.filter", "my_delimited_payload_filter")
-                        .put("index.analysis.filter.my_delimited_payload_filter.delimiter", delimiter)
-                        .put("index.analysis.filter.my_delimited_payload_filter.encoding", encodingString)
-                        .put("index.analysis.filter.my_delimited_payload_filter.type", "delimited_payload_filter")));
-
-        client().prepareIndex("test", "type1", Integer.toString(1))
-                .setSource(jsonBuilder().startObject().field("field", queryString).endObject()).execute().actionGet();
-        refresh();
-        TermVectorsRequestBuilder resp = client().prepareTermVectors("test", "type1", Integer.toString(1)).setPayloads(true).setOffsets(true)
-                .setPositions(true).setSelectedFields();
-        TermVectorsResponse response = resp.execute().actionGet();
-        assertThat("doc id 1 doesn't exists but should", response.isExists(), equalTo(true));
-        Fields fields = response.getFields();
-        assertThat(fields.size(), equalTo(1));
-        Terms terms = fields.terms("field");
-        TermsEnum iterator = terms.iterator();
-        while (iterator.next() != null) {
-            String term = iterator.term().utf8ToString();
-            PostingsEnum docsAndPositions = iterator.postings(null, PostingsEnum.ALL);
-            assertThat(docsAndPositions.nextDoc(), equalTo(0));
-            List<BytesRef> curPayloads = payloads.get(term);
-            assertThat(term, curPayloads, notNullValue());
-            assertNotNull(docsAndPositions);
-            for (int k = 0; k < docsAndPositions.freq(); k++) {
-                docsAndPositions.nextPosition();
-                if (docsAndPositions.getPayload()!=null){
-                    String infoString = "\nterm: " + term + " has payload \n"+ docsAndPositions.getPayload().toString() + "\n but should have payload \n"+curPayloads.get(k).toString();
-                    assertThat(infoString, docsAndPositions.getPayload(), equalTo(curPayloads.get(k)));
-                } else {
-                    String infoString = "\nterm: " + term + " has no payload but should have payload \n"+curPayloads.get(k).toString();
-                    assertThat(infoString, curPayloads.get(k).length, equalTo(0));
-                }
-            }
-        }
-        assertThat(iterator.next(), nullValue());
-    }
-
-    private String createRandomDelimiter(String[] tokens) {
-        String delimiter = "";
-        boolean isTokenOrWhitespace = true;
-        while(isTokenOrWhitespace) {
-            isTokenOrWhitespace = false;
-            delimiter = randomUnicodeOfLength(1);
-            for(String token:tokens) {
-                if(token.contains(delimiter)) {
-                    isTokenOrWhitespace = true;
-                }
-            }
-            if(Character.isWhitespace(delimiter.charAt(0))) {
-                isTokenOrWhitespace = true;
-            }
-        }
-        return delimiter;
-    }
-
-    private String createString(String[] tokens, Map<String, List<BytesRef>> payloads, int encoding, char delimiter) {
-        String resultString = "";
-        ObjectIntHashMap<String> payloadCounter = new ObjectIntHashMap<>();
-        for (String token : tokens) {
-            if (!payloadCounter.containsKey(token)) {
-                payloadCounter.putIfAbsent(token, 0);
-            } else {
-                payloadCounter.put(token, payloadCounter.get(token) + 1);
-            }
-            resultString = resultString + token;
-            BytesRef payload = payloads.get(token).get(payloadCounter.get(token));
-            if (payload.length > 0) {
-                resultString = resultString + delimiter;
-                switch (encoding) {
-                case 0: {
-                    resultString = resultString + Float.toString(PayloadHelper.decodeFloat(payload.bytes, payload.offset));
-                    break;
-                }
-                case 1: {
-                    resultString = resultString + Integer.toString(PayloadHelper.decodeInt(payload.bytes, payload.offset));
-                    break;
-                }
-                case 2: {
-                    resultString = resultString + payload.utf8ToString();
-                    break;
-                }
-                default: {
-                    throw new ElasticsearchException("unsupported encoding type");
-                }
-                }
-            }
-            resultString = resultString + " ";
-        }
-        return resultString;
-    }
-
-    private Map<String, List<BytesRef>> createPayloads(String[] tokens, int encoding) {
-        Map<String, List<BytesRef>> payloads = new HashMap<>();
-        for (String token : tokens) {
-            if (payloads.get(token) == null) {
-                payloads.put(token, new ArrayList<BytesRef>());
-            }
-            boolean createPayload = randomBoolean();
-            if (createPayload) {
-                switch (encoding) {
-                case 0: {
-                    float theFloat = randomFloat();
-                    payloads.get(token).add(new BytesRef(PayloadHelper.encodeFloat(theFloat)));
-                    break;
-                }
-                case 1: {
-                    payloads.get(token).add(new BytesRef(PayloadHelper.encodeInt(randomInt())));
-                    break;
-                }
-                case 2: {
-                    String payload = randomUnicodeOfLengthBetween(50, 100);
-                    for (int c = 0; c < payload.length(); c++) {
-                        if (Character.isWhitespace(payload.charAt(c))) {
-                            payload = payload.replace(payload.charAt(c), 'w');
-                        }
-                    }
-                    payloads.get(token).add(new BytesRef(payload));
-                    break;
-                }
-                default: {
-                    throw new ElasticsearchException("unsupported encoding type");
-                }
-                }
-            } else {
-                payloads.get(token).add(new BytesRef());
-            }
-        }
-        return payloads;
-    }
-
-    private String[] crateRandomTokens() {
-        String[] tokens = { "the", "quick", "brown", "fox" };
-        int numTokensWithDuplicates = randomIntBetween(3, 15);
-        String[] finalTokens = new String[numTokensWithDuplicates];
-        for (int i = 0; i < numTokensWithDuplicates; i++) {
-            finalTokens[i] = tokens[randomIntBetween(0, tokens.length - 1)];
-        }
-        return finalTokens;
     }
 
     // like testSimpleTermVectors but we create fields with no term vectors
@@ -585,7 +395,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
-                        .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
+                        .putArray("index.analysis.analyzer.tv_test.filter", "lowercase")));
 
         ensureGreen();
 
@@ -645,9 +455,8 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 assertThat("term: " + string, nextPosition, equalTo(termPos[k]));
                 assertThat("term: " + string, docsAndPositions.startOffset(), equalTo(termStartOffset[k]));
                 assertThat("term: " + string, docsAndPositions.endOffset(), equalTo(termEndOffset[k]));
-                if (withPayloads) {
-                    assertThat("term: " + string, docsAndPositions.getPayload(), equalTo(new BytesRef("word")));
-                }
+                // We never configure an analyzer with payloads for this test so this is never returned
+                assertNull("term: " + string, docsAndPositions.getPayload());
             }
         }
         assertThat(iterator.next(), nullValue());

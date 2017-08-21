@@ -154,7 +154,7 @@
         },
         "wait_for_completion": {
            "type" : "boolean",
-           "default": false,
+           "default": true,
            "description" : "Should the request should block until the update by query operation is complete."
         },
         "requests_per_second": {

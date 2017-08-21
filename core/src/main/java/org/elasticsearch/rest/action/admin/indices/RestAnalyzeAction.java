@@ -46,6 +46,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
         public static final ParseField CHAR_FILTERS = new ParseField("char_filter");
         public static final ParseField EXPLAIN = new ParseField("explain");
         public static final ParseField ATTRIBUTES = new ParseField("attributes");
+        public static final ParseField NORMALIZER = new ParseField("normalizer");
     }
 
     public RestAnalyzeAction(Settings settings, RestController controller) {
@@ -54,6 +55,11 @@ public class RestAnalyzeAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/_analyze", this);
         controller.registerHandler(POST, "/_analyze", this);
         controller.registerHandler(POST, "/{index}/_analyze", this);
+    }
+
+    @Override
+    public String getName() {
+        return "analyze_action";
     }
 
     @Override
@@ -142,6 +148,12 @@ public class RestAnalyzeAction extends BaseRestHandler {
                         attributes.add(parser.text());
                     }
                     analyzeRequest.attributes(attributes.toArray(new String[attributes.size()]));
+                } else if (Fields.NORMALIZER.match(currentFieldName)) {
+                    if (token == XContentParser.Token.VALUE_STRING) {
+                        analyzeRequest.normalizer(parser.text());
+                    } else {
+                        throw new IllegalArgumentException(currentFieldName + " should be normalizer's name");
+                    }
                 } else {
                     throw new IllegalArgumentException("Unknown parameter ["
                             + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");

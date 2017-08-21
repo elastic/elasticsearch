@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.StringDistanceImpl;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 
@@ -40,6 +41,7 @@ import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAUL
 import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_MIN_WORD_LENGTH;
 import static org.elasticsearch.search.suggest.DirectSpellcheckerSettings.DEFAULT_PREFIX_LENGTH;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Test the {@link TermSuggestionBuilder} class.
@@ -58,7 +60,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
      * Creates a random TermSuggestionBuilder
      */
     public static TermSuggestionBuilder randomTermSuggestionBuilder() {
-        TermSuggestionBuilder testBuilder = new TermSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
+        TermSuggestionBuilder testBuilder = new TermSuggestionBuilder(randomAlphaOfLengthBetween(2, 20));
         setCommonPropertiesOnRandomBuilder(testBuilder);
         maybeSet(testBuilder::suggestMode, randomSuggestMode());
         maybeSet(testBuilder::accuracy, randomFloat());
@@ -142,7 +144,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
         }
     }
 
-    public void testInvalidParameters() throws IOException {
+    public void testInvalidParameters() {
         // test missing field name
         Exception e = expectThrows(NullPointerException.class, () -> new TermSuggestionBuilder((String) null));
         assertEquals("suggestion requires a field name", e.getMessage());
@@ -151,7 +153,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
         e = expectThrows(IllegalArgumentException.class, () -> new TermSuggestionBuilder(""));
         assertEquals("suggestion field name is empty", e.getMessage());
 
-        TermSuggestionBuilder builder = new TermSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
+        TermSuggestionBuilder builder = new TermSuggestionBuilder(randomAlphaOfLengthBetween(2, 20));
 
         // test invalid accuracy values
         expectThrows(IllegalArgumentException.class, () -> builder.accuracy(-0.5f));
@@ -193,7 +195,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
     }
 
     public void testDefaultValuesSet() {
-        TermSuggestionBuilder builder = new TermSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
+        TermSuggestionBuilder builder = new TermSuggestionBuilder(randomAlphaOfLengthBetween(2, 20));
         assertEquals(DEFAULT_ACCURACY, builder.accuracy(), Float.MIN_VALUE);
         assertEquals(DEFAULT_MAX_EDITS, builder.maxEdits());
         assertEquals(DEFAULT_MAX_INSPECTIONS, builder.maxInspections());
@@ -222,5 +224,25 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
         } catch (Exception e) {
             assertThat(e.getMessage(), containsString("parsing failed"));
         }
+    }
+
+    @Override
+    protected void assertSuggestionContext(TermSuggestionBuilder builder, SuggestionContext context) {
+        assertThat(context, instanceOf(TermSuggestionContext.class));
+        assertThat(context.getSuggester(), instanceOf(TermSuggester.class));
+        TermSuggestionContext termSuggesterCtx = (TermSuggestionContext) context;
+        assertEquals(builder.accuracy(), termSuggesterCtx.getDirectSpellCheckerSettings().accuracy(), 0.0);
+        assertEquals(builder.maxTermFreq(), termSuggesterCtx.getDirectSpellCheckerSettings().maxTermFreq(), 0.0);
+        assertEquals(builder.minDocFreq(), termSuggesterCtx.getDirectSpellCheckerSettings().minDocFreq(), 0.0);
+        assertEquals(builder.maxEdits(), termSuggesterCtx.getDirectSpellCheckerSettings().maxEdits());
+        assertEquals(builder.maxInspections(), termSuggesterCtx.getDirectSpellCheckerSettings().maxInspections());
+        assertEquals(builder.minWordLength(), termSuggesterCtx.getDirectSpellCheckerSettings().minWordLength());
+        assertEquals(builder.prefixLength(), termSuggesterCtx.getDirectSpellCheckerSettings().prefixLength());
+        assertEquals(builder.prefixLength(), termSuggesterCtx.getDirectSpellCheckerSettings().prefixLength());
+        assertEquals(builder.suggestMode().toLucene(), termSuggesterCtx.getDirectSpellCheckerSettings().suggestMode());
+        assertEquals(builder.sort(), termSuggesterCtx.getDirectSpellCheckerSettings().sort());
+        // distance implementations don't implement equals() and have little to compare, so we only check class
+        assertEquals(builder.stringDistance().toLucene().getClass(),
+                termSuggesterCtx.getDirectSpellCheckerSettings().stringDistance().getClass());
     }
 }

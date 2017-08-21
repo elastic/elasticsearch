@@ -64,6 +64,11 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "cluster_reroute_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ClusterRerouteRequest clusterRerouteRequest = createRequest(request);
 

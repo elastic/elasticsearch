@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -30,6 +31,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -56,7 +58,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     @Override
     protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {
-        SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(randomAsciiOfLengthBetween(1, 10));
+        SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(randomAlphaOfLengthBetween(1, 10));
         if (randomBoolean()) {
             result.analyzeWildcard(randomBoolean());
         }
@@ -87,13 +89,15 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         Map<String, Float> fields = new HashMap<>();
         for (int i = 0; i < fieldCount; i++) {
             if (randomBoolean()) {
-                fields.put(randomAsciiOfLengthBetween(1, 10), AbstractQueryBuilder.DEFAULT_BOOST);
+                fields.put(randomAlphaOfLengthBetween(1, 10), AbstractQueryBuilder.DEFAULT_BOOST);
             } else {
-                fields.put(randomBoolean() ? STRING_FIELD_NAME : randomAsciiOfLengthBetween(1, 10), 2.0f / randomIntBetween(1, 20));
+                fields.put(randomBoolean() ? STRING_FIELD_NAME : randomAlphaOfLengthBetween(1, 10), 2.0f / randomIntBetween(1, 20));
             }
         }
         result.fields(fields);
-
+        if (randomBoolean()) {
+            result.autoGenerateSynonymsPhraseQuery(randomBoolean());
+        }
         return result;
     }
 
@@ -197,7 +201,10 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testDefaultFieldParsing() throws IOException {
-        String query = randomAsciiOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
+        assumeTrue("5.x behaves differently, so skip on non-6.x indices",
+                indexVersionCreated.onOrAfter(Version.V_6_0_0_alpha1));
+
+        String query = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
         String contentString = "{\n" +
                 "    \"simple_query_string\" : {\n" +
                 "      \"query\" : \"" + query + "\"" +
@@ -212,7 +219,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         // the remaining tests requires either a mapping that we register with types in base test setup
         if (getCurrentTypes().length > 0) {
             Query luceneQuery = queryBuilder.toQuery(shardContext);
-            assertThat(luceneQuery, instanceOf(BooleanQuery.class));
+            assertThat(luceneQuery, anyOf(instanceOf(BooleanQuery.class), instanceOf(DisjunctionMaxQuery.class)));
         }
     }
 
@@ -230,22 +237,38 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         if ("".equals(queryBuilder.value())) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else if (queryBuilder.fields().size() > 1) {
-            assertThat(query, instanceOf(BooleanQuery.class));
-            BooleanQuery boolQuery = (BooleanQuery) query;
-            for (BooleanClause clause : boolQuery.clauses()) {
-                if (clause.getQuery() instanceof TermQuery) {
-                    TermQuery inner = (TermQuery) clause.getQuery();
-                    assertThat(inner.getTerm().bytes().toString(), is(inner.getTerm().bytes().toString().toLowerCase(Locale.ROOT)));
+            assertThat(query, anyOf(instanceOf(BooleanQuery.class), instanceOf(DisjunctionMaxQuery.class)));
+            if (query instanceof BooleanQuery) {
+                BooleanQuery boolQuery = (BooleanQuery) query;
+                for (BooleanClause clause : boolQuery.clauses()) {
+                    if (clause.getQuery() instanceof TermQuery) {
+                        TermQuery inner = (TermQuery) clause.getQuery();
+                        assertThat(inner.getTerm().bytes().toString(), is(inner.getTerm().bytes().toString().toLowerCase(Locale.ROOT)));
+                    }
                 }
-            }
-            assertThat(boolQuery.clauses().size(), equalTo(queryBuilder.fields().size()));
-            Iterator<Map.Entry<String, Float>> fieldsIterator = queryBuilder.fields().entrySet().iterator();
-            for (BooleanClause booleanClause : boolQuery) {
-                Map.Entry<String, Float> field = fieldsIterator.next();
-                assertTermOrBoostQuery(booleanClause.getQuery(), field.getKey(), queryBuilder.value(), field.getValue());
-            }
-            if (queryBuilder.minimumShouldMatch() != null && !boolQuery.isCoordDisabled()) {
-                assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
+                assertThat(boolQuery.clauses().size(), equalTo(queryBuilder.fields().size()));
+                Iterator<Map.Entry<String, Float>> fieldsIterator = queryBuilder.fields().entrySet().iterator();
+                for (BooleanClause booleanClause : boolQuery) {
+                    Map.Entry<String, Float> field = fieldsIterator.next();
+                    assertTermOrBoostQuery(booleanClause.getQuery(), field.getKey(), queryBuilder.value(), field.getValue());
+                }
+                if (queryBuilder.minimumShouldMatch() != null) {
+                    assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
+                }
+            } else if (query instanceof DisjunctionMaxQuery) {
+                DisjunctionMaxQuery maxQuery = (DisjunctionMaxQuery) query;
+                for (Query disjunct : maxQuery.getDisjuncts()) {
+                    if (disjunct instanceof TermQuery) {
+                        TermQuery inner = (TermQuery) disjunct;
+                        assertThat(inner.getTerm().bytes().toString(), is(inner.getTerm().bytes().toString().toLowerCase(Locale.ROOT)));
+                    }
+                }
+                assertThat(maxQuery.getDisjuncts().size(), equalTo(queryBuilder.fields().size()));
+                Iterator<Map.Entry<String, Float>> fieldsIterator = queryBuilder.fields().entrySet().iterator();
+                for (Query disjunct : maxQuery) {
+                    Map.Entry<String, Float> field = fieldsIterator.next();
+                    assertTermOrBoostQuery(disjunct, field.getKey(), queryBuilder.value(), field.getValue());
+                }
             }
         } else if (queryBuilder.fields().size() == 1) {
             Map.Entry<String, Float> field = queryBuilder.fields().entrySet().iterator().next();
@@ -255,7 +278,8 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             if (ms.allEnabled()) {
                 assertTermQuery(query, MetaData.ALL, queryBuilder.value());
             } else {
-                assertThat(query.getClass(), anyOf(equalTo(BooleanQuery.class), equalTo(MatchNoDocsQuery.class)));
+                assertThat(query.getClass(),
+                    anyOf(equalTo(BooleanQuery.class), equalTo(DisjunctionMaxQuery.class), equalTo(MatchNoDocsQuery.class)));
             }
         } else {
             fail("Encountered lucene query type we do not have a validation implementation for in our "
@@ -318,6 +342,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 "    \"lenient\" : false,\n" +
                 "    \"analyze_wildcard\" : false,\n" +
                 "    \"quote_field_suffix\" : \".quote\",\n" +
+                "    \"auto_generate_synonyms_phrase_query\" : true,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
@@ -353,11 +378,13 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         // check special case: one term & one field should get simplified to a TermQuery
         if (numberOfFields * numberOfTerms == 1) {
             assertThat(query, instanceOf(TermQuery.class));
+        } else if (numberOfTerms == 1) {
+            assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         } else {
             assertThat(query, instanceOf(BooleanQuery.class));
             BooleanQuery boolQuery = (BooleanQuery) query;
             int expectedMinimumShouldMatch = numberOfTerms * percent / 100;
-            if (numberOfTerms == 1 || simpleQueryStringBuilder.defaultOperator().equals(Operator.AND)) {
+            if (simpleQueryStringBuilder.defaultOperator().equals(Operator.AND)) {
                 expectedMinimumShouldMatch = 0;
             }
             assertEquals(expectedMinimumShouldMatch, boolQuery.getMinimumNumberShouldMatch());

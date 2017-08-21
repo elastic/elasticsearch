@@ -270,7 +270,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             ShardsIterator shardIt = shards(clusterState, request, concreteIndices);
             nodeIds = new HashMap<>();
 
-            for (ShardRouting shard : shardIt.asUnordered()) {
+            for (ShardRouting shard : shardIt) {
                 // send a request to the shard only if it is assigned to a node that is in the local node's cluster state
                 // a scenario in which a shard can be assigned but to a node that is not in the local node's cluster state
                 // is when the shard is assigned to the master node, the local node has detected the master as failed

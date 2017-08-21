@@ -49,8 +49,11 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
@@ -87,9 +90,9 @@ import java.util.Map;
 import java.util.Objects;
 
 public class Lucene {
-    public static final String LATEST_DOC_VALUES_FORMAT = "Lucene54";
+    public static final String LATEST_DOC_VALUES_FORMAT = "Lucene70";
     public static final String LATEST_POSTINGS_FORMAT = "Lucene50";
-    public static final String LATEST_CODEC = "Lucene62";
+    public static final String LATEST_CODEC = "Lucene70";
 
     static {
         Deprecated annotation = PostingsFormat.forName(LATEST_POSTINGS_FORMAT).getClass().getAnnotation(Deprecated.class);
@@ -244,20 +247,6 @@ public class Lucene {
     }
 
     /**
-     * Wraps <code>delegate</code> with count based early termination collector with a threshold of <code>maxCountHits</code>
-     */
-    public static final EarlyTerminatingCollector wrapCountBasedEarlyTerminatingCollector(final Collector delegate, int maxCountHits) {
-        return new EarlyTerminatingCollector(delegate, maxCountHits);
-    }
-
-    /**
-     * Wraps <code>delegate</code> with a time limited collector with a timeout of <code>timeoutInMillis</code>
-     */
-    public static final TimeLimitingCollector wrapTimeLimitingCollector(final Collector delegate, final Counter counter, long timeoutInMillis) {
-        return new TimeLimitingCollector(delegate, counter, timeoutInMillis);
-    }
-
-    /**
      * Check whether there is one or more documents matching the provided query.
      */
     public static boolean exists(IndexSearcher searcher, Query query) throws IOException {
@@ -283,7 +272,7 @@ public class Lucene {
     public static TopDocs readTopDocs(StreamInput in) throws IOException {
         byte type = in.readByte();
         if (type == 0) {
-            int totalHits = in.readVInt();
+            long totalHits = in.readVLong();
             float maxScore = in.readFloat();
 
             ScoreDoc[] scoreDocs = new ScoreDoc[in.readVInt()];
@@ -292,7 +281,7 @@ public class Lucene {
             }
             return new TopDocs(totalHits, scoreDocs, maxScore);
         } else if (type == 1) {
-            int totalHits = in.readVInt();
+            long totalHits = in.readVLong();
             float maxScore = in.readFloat();
 
             SortField[] fields = new SortField[in.readVInt()];
@@ -306,7 +295,7 @@ public class Lucene {
             }
             return new TopFieldDocs(totalHits, fieldDocs, fields, maxScore);
         } else if (type == 2) {
-            int totalHits = in.readVInt();
+            long totalHits = in.readVLong();
             float maxScore = in.readFloat();
 
             String field = in.readString();
@@ -396,7 +385,7 @@ public class Lucene {
             out.writeByte((byte) 2);
             CollapseTopFieldDocs collapseDocs = (CollapseTopFieldDocs) topDocs;
 
-            out.writeVInt(topDocs.totalHits);
+            out.writeVLong(topDocs.totalHits);
             out.writeFloat(topDocs.getMaxScore());
 
             out.writeString(collapseDocs.field);
@@ -416,7 +405,7 @@ public class Lucene {
             out.writeByte((byte) 1);
             TopFieldDocs topFieldDocs = (TopFieldDocs) topDocs;
 
-            out.writeVInt(topDocs.totalHits);
+            out.writeVLong(topDocs.totalHits);
             out.writeFloat(topDocs.getMaxScore());
 
             out.writeVInt(topFieldDocs.fields.length);
@@ -430,7 +419,7 @@ public class Lucene {
             }
         } else {
             out.writeByte((byte) 0);
-            out.writeVInt(topDocs.totalHits);
+            out.writeVLong(topDocs.totalHits);
             out.writeFloat(topDocs.getMaxScore());
 
             out.writeVInt(topDocs.scoreDocs.length);
@@ -552,7 +541,22 @@ public class Lucene {
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.DOUBLE);
             newSortField.setMissingValue(sortField.getMissingValue());
             sortField = newSortField;
+        } else if (sortField.getClass() == SortedSetSortField.class) {
+            // for multi-valued sort field, we replace the SortedSetSortField with a simple SortField.
+            // It works because the sort field is only used to merge results from different shards.
+            SortField newSortField = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
+            newSortField.setMissingValue(sortField.getMissingValue());
+            sortField = newSortField;
+        } else if (sortField.getClass() == SortedNumericSortField.class) {
+            // for multi-valued sort field, we replace the SortedSetSortField with a simple SortField.
+            // It works because the sort field is only used to merge results from different shards.
+            SortField newSortField = new SortField(sortField.getField(),
+                ((SortedNumericSortField) sortField).getNumericType(),
+                sortField.getReverse());
+            newSortField.setMissingValue(sortField.getMissingValue());
+            sortField = newSortField;
         }
+
         if (sortField.getClass() != SortField.class) {
             throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
         }
@@ -597,71 +601,6 @@ public class Lucene {
         }
         if (explanation.isMatch()) {
             out.writeFloat(explanation.getValue());
-        }
-    }
-
-    /**
-     * This exception is thrown when {@link org.elasticsearch.common.lucene.Lucene.EarlyTerminatingCollector}
-     * reaches early termination
-     * */
-    public static final class EarlyTerminationException extends ElasticsearchException {
-
-        public EarlyTerminationException(String msg) {
-            super(msg);
-        }
-
-        public EarlyTerminationException(StreamInput in) throws IOException{
-            super(in);
-        }
-    }
-
-    /**
-     * A collector that terminates early by throwing {@link org.elasticsearch.common.lucene.Lucene.EarlyTerminationException}
-     * when count of matched documents has reached <code>maxCountHits</code>
-     */
-    public static final class EarlyTerminatingCollector extends SimpleCollector {
-
-        private final int maxCountHits;
-        private final Collector delegate;
-
-        private int count = 0;
-        private LeafCollector leafCollector;
-
-        EarlyTerminatingCollector(final Collector delegate, int maxCountHits) {
-            this.maxCountHits = maxCountHits;
-            this.delegate = Objects.requireNonNull(delegate);
-        }
-
-        public int count() {
-            return count;
-        }
-
-        public boolean exists() {
-            return count > 0;
-        }
-
-        @Override
-        public void setScorer(Scorer scorer) throws IOException {
-            leafCollector.setScorer(scorer);
-        }
-
-        @Override
-        public void collect(int doc) throws IOException {
-            leafCollector.collect(doc);
-
-            if (++count >= maxCountHits) {
-                throw new EarlyTerminationException("early termination [CountBased]");
-            }
-        }
-
-        @Override
-        public void doSetNextReader(LeafReaderContext atomicReaderContext) throws IOException {
-            leafCollector = delegate.getLeafCollector(atomicReaderContext);
-        }
-
-        @Override
-        public boolean needsScores() {
-            return delegate.needsScores();
         }
     }
 
@@ -821,14 +760,16 @@ public class Lucene {
     }
 
     /**
-     * Given a {@link Scorer}, return a {@link Bits} instance that will match
+     * Given a {@link ScorerSupplier}, return a {@link Bits} instance that will match
      * all documents contained in the set. Note that the returned {@link Bits}
      * instance MUST be consumed in order.
      */
-    public static Bits asSequentialAccessBits(final int maxDoc, @Nullable Scorer scorer) throws IOException {
-        if (scorer == null) {
+    public static Bits asSequentialAccessBits(final int maxDoc, @Nullable ScorerSupplier scorerSupplier) throws IOException {
+        if (scorerSupplier == null) {
             return new Bits.MatchNoBits(maxDoc);
         }
+        // Since we want bits, we need random-access
+        final Scorer scorer = scorerSupplier.get(true); // this never returns null
         final TwoPhaseIterator twoPhase = scorer.twoPhaseIterator();
         final DocIdSetIterator iterator;
         if (twoPhase == null) {

@@ -26,6 +26,7 @@ import org.apache.tools.ant.DefaultLogger;
 import org.apache.tools.ant.Project;
 import org.elasticsearch.gradle.AntTask;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.FileCollectionDependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
@@ -85,7 +86,11 @@ public class ThirdPartyAuditTask extends AntTask {
 
             // we only want third party dependencies.
             jars = configuration.fileCollection({ dependency ->
-                dependency.group.startsWith("org.elasticsearch") == false
+                // include SelfResolvingDependency with files in the validation
+                if (dependency instanceof FileCollectionDependency) {
+                    return true
+                }
+                return dependency.group && dependency.group.startsWith("org.elasticsearch") == false
             });
 
             // we don't want provided dependencies, which we have already scanned. e.g. don't
@@ -209,9 +214,11 @@ public class ThirdPartyAuditTask extends AntTask {
         try {
             ant.thirdPartyAudit(failOnUnsupportedJava: false,
                             failOnMissingClasses: false,
-                            signaturesFile: new File(getClass().getResource('/forbidden/third-party-audit.txt').toURI()),
                             classpath: classpath.asPath) {
                 fileset(dir: tmpDir)
+                signatures {
+                    string(value: getClass().getResourceAsStream('/forbidden/third-party-audit.txt').getText('UTF-8'))
+                }
             }
         } catch (BuildException ignore) {}
 

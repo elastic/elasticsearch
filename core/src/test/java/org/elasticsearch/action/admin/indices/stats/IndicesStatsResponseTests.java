@@ -32,7 +32,7 @@ public class IndicesStatsResponseTests extends ESTestCase {
 
     public void testInvalidLevel() {
         final IndicesStatsResponse response = new IndicesStatsResponse();
-        final String level = randomAsciiOfLength(16);
+        final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> response.toXContent(null, params));
         assertThat(

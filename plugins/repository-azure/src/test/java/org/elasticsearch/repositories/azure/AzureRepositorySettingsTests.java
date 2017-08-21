@@ -124,4 +124,5 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             azureRepository(Settings.builder().put("chunk_size", "65mb").build()));
         assertEquals("Failed to parse value [65mb] for setting [chunk_size] must be <= 64mb", e.getMessage());
     }
+
 }

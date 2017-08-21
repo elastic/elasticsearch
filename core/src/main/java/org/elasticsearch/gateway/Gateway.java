@@ -32,13 +32,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
 
 import java.util.Arrays;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public class Gateway extends AbstractComponent implements ClusterStateApplier {
 
@@ -48,18 +47,18 @@ public class Gateway extends AbstractComponent implements ClusterStateApplier {
 
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
 
-    private final Supplier<Integer> minimumMasterNodesProvider;
+    private final int minimumMasterNodes;
     private final IndicesService indicesService;
 
     public Gateway(Settings settings, ClusterService clusterService, GatewayMetaState metaState,
-                   TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery,
+                   TransportNodesListGatewayMetaState listGatewayMetaState,
                    IndicesService indicesService) {
         super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.metaState = metaState;
         this.listGatewayMetaState = listGatewayMetaState;
-        this.minimumMasterNodesProvider = discovery::getMinimumMasterNodes;
+        this.minimumMasterNodes = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
         clusterService.addLowPriorityApplier(this);
     }
 
@@ -69,7 +68,7 @@ public class Gateway extends AbstractComponent implements ClusterStateApplier {
         TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
 
 
-        int requiredAllocation = Math.max(1, minimumMasterNodesProvider.get());
+        int requiredAllocation = Math.max(1, minimumMasterNodes);
 
 
         if (nodesState.hasFailures()) {
@@ -156,7 +155,7 @@ public class Gateway extends AbstractComponent implements ClusterStateApplier {
                 metaDataBuilder.transientSettings(),
                 e -> logUnknownSetting("transient", e),
                 (e, ex) -> logInvalidSetting("transient", e, ex)));
-        ClusterState.Builder builder = ClusterState.builder(clusterService.getClusterName());
+        ClusterState.Builder builder = clusterService.newClusterStateBuilder();
         builder.metaData(metaDataBuilder);
         listener.onSuccess(builder.build());
     }

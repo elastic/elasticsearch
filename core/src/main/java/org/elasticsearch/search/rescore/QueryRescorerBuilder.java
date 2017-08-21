@@ -25,14 +25,18 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
+
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
 
@@ -51,12 +55,12 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
     private static ParseField RESCORE_QUERY_WEIGHT_FIELD = new ParseField("rescore_query_weight");
     private static ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
 
-    private static final ObjectParser<InnerBuilder, QueryParseContext> QUERY_RESCORE_PARSER = new ObjectParser<>(NAME, null);
+    private static final ObjectParser<InnerBuilder, Void> QUERY_RESCORE_PARSER = new ObjectParser<>(NAME, null);
 
     static {
         QUERY_RESCORE_PARSER.declareObject(InnerBuilder::setQueryBuilder, (p, c) -> {
             try {
-                return c.parseInnerQueryBuilder();
+                return parseInnerQueryBuilder(p);
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner query", e);
             }
@@ -159,8 +163,8 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
         builder.endObject();
     }
 
-    public static QueryRescorerBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        InnerBuilder innerBuilder = QUERY_RESCORE_PARSER.parse(parseContext.parser(), new InnerBuilder(), parseContext);
+    public static QueryRescorerBuilder fromXContent(XContentParser parser) throws IOException {
+        InnerBuilder innerBuilder = QUERY_RESCORE_PARSER.parse(parser, new InnerBuilder(), null);
         return innerBuilder.build();
     }
 
@@ -168,7 +172,8 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
     public QueryRescoreContext build(QueryShardContext context) throws IOException {
         org.elasticsearch.search.rescore.QueryRescorer rescorer = new org.elasticsearch.search.rescore.QueryRescorer();
         QueryRescoreContext queryRescoreContext = new QueryRescoreContext(rescorer);
-        queryRescoreContext.setQuery(QueryBuilder.rewriteQuery(this.queryBuilder, context).toQuery(context));
+        // query is rewritten at this point already
+        queryRescoreContext.setQuery(queryBuilder.toQuery(context));
         queryRescoreContext.setQueryWeight(this.queryWeight);
         queryRescoreContext.setRescoreQueryWeight(this.rescoreQueryWeight);
         queryRescoreContext.setScoreMode(this.scoreMode);
@@ -240,5 +245,14 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
         void setScoreMode(QueryRescoreMode scoreMode) {
             this.scoreMode = scoreMode;
         }
+    }
+
+    @Override
+    public RescoreBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        QueryBuilder rewrite = queryBuilder.rewrite(ctx);
+        if (rewrite == queryBuilder) {
+            return this;
+        }
+        return new QueryRescorerBuilder(rewrite);
     }
 }

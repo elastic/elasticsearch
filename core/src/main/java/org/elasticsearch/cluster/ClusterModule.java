@@ -58,9 +58,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -75,6 +73,7 @@ import org.elasticsearch.tasks.TaskResultsService;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -92,21 +91,40 @@ public class ClusterModule extends AbstractModule {
     public static final Setting<String> SHARDS_ALLOCATOR_TYPE_SETTING =
         new Setting<>("cluster.routing.allocation.type", BALANCED_ALLOCATOR, Function.identity(), Property.NodeScope);
 
-    private final Settings settings;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final AllocationDeciders allocationDeciders;
+    private final AllocationService allocationService;
     // pkg private for tests
-    final Collection<AllocationDecider> allocationDeciders;
+    final Collection<AllocationDecider> deciderList;
     final ShardsAllocator shardsAllocator;
 
-    public ClusterModule(Settings settings, ClusterService clusterService, List<ClusterPlugin> clusterPlugins) {
-        this.settings = settings;
-        this.allocationDeciders = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
+    public ClusterModule(Settings settings, ClusterService clusterService, List<ClusterPlugin> clusterPlugins,
+                         ClusterInfoService clusterInfoService) {
+        this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
+        this.allocationDeciders = new AllocationDeciders(settings, deciderList);
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
-        indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
+        this.indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
+        this.allocationService = new AllocationService(settings, allocationDeciders, shardsAllocator, clusterInfoService);
     }
 
+    public static Map<String, Supplier<ClusterState.Custom>> getClusterStateCustomSuppliers(List<ClusterPlugin> clusterPlugins) {
+        final Map<String, Supplier<ClusterState.Custom>> customSupplier = new HashMap<>();
+        customSupplier.put(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress::new);
+        customSupplier.put(RestoreInProgress.TYPE, RestoreInProgress::new);
+        customSupplier.put(SnapshotsInProgress.TYPE, SnapshotsInProgress::new);
+        for (ClusterPlugin plugin : clusterPlugins) {
+            Map<String, Supplier<ClusterState.Custom>> initialCustomSupplier = plugin.getInitialClusterStateCustomSupplier();
+            for (String key : initialCustomSupplier.keySet()) {
+                if (customSupplier.containsKey(key)) {
+                    throw new IllegalStateException("custom supplier key [" + key + "] is registered more than once");
+                }
+            }
+            customSupplier.putAll(initialCustomSupplier);
+        }
+        return Collections.unmodifiableMap(customSupplier);
+    }
 
     public static List<Entry> getNamedWriteables() {
         List<Entry> entries = new ArrayList<>();
@@ -172,7 +190,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new NodeVersionAllocationDecider(settings));
         addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider(settings));
         addAllocationDecider(deciders, new FilterAllocationDecider(settings, clusterSettings));
-        addAllocationDecider(deciders, new SameShardAllocationDecider(settings));
+        addAllocationDecider(deciders, new SameShardAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new DiskThresholdDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new ThrottlingAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new ShardsLimitAllocationDecider(settings, clusterSettings));
@@ -213,10 +231,14 @@ public class ClusterModule extends AbstractModule {
             "ShardsAllocator factory for [" + allocatorName + "] returned null");
     }
 
+    public AllocationService getAllocationService() {
+        return allocationService;
+    }
+
     @Override
     protected void configure() {
         bind(GatewayAllocator.class).asEagerSingleton();
-        bind(AllocationService.class).asEagerSingleton();
+        bind(AllocationService.class).toInstance(allocationService);
         bind(ClusterService.class).toInstance(clusterService);
         bind(NodeConnectionsService.class).asEagerSingleton();
         bind(MetaDataCreateIndexService.class).asEagerSingleton();
@@ -233,7 +255,7 @@ public class ClusterModule extends AbstractModule {
         bind(NodeMappingRefreshAction.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
         bind(TaskResultsService.class).asEagerSingleton();
-        bind(AllocationDeciders.class).toInstance(new AllocationDeciders(settings, allocationDeciders));
+        bind(AllocationDeciders.class).toInstance(allocationDeciders);
         bind(ShardsAllocator.class).toInstance(shardsAllocator);
     }
 }

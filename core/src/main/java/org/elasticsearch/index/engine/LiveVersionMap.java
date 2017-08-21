@@ -55,7 +55,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
     }
 
     // All deletes also go here, and delete "tombstones" are retained after refresh:
-    private final Map<BytesRef,VersionValue> tombstones = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final Map<BytesRef,DeleteVersionValue> tombstones = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     private volatile Maps maps = new Maps();
 
@@ -164,7 +164,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         if (prev != null) {
             // Deduct RAM for the version we just replaced:
             long prevBytes = BASE_BYTES_PER_CHM_ENTRY;
-            if (prev.delete() == false) {
+            if (prev.isDelete() == false) {
                 prevBytes += prev.ramBytesUsed() + uidRAMBytesUsed;
             }
             ramBytesUsedCurrent.addAndGet(-prevBytes);
@@ -172,22 +172,22 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
         // Add RAM for the new version:
         long newBytes = BASE_BYTES_PER_CHM_ENTRY;
-        if (version.delete() == false) {
+        if (version.isDelete() == false) {
             newBytes += version.ramBytesUsed() + uidRAMBytesUsed;
         }
         ramBytesUsedCurrent.addAndGet(newBytes);
 
         final VersionValue prevTombstone;
-        if (version.delete()) {
+        if (version.isDelete()) {
             // Also enroll the delete into tombstones, and account for its RAM too:
-            prevTombstone = tombstones.put(uid, version);
+            prevTombstone = tombstones.put(uid, (DeleteVersionValue)version);
 
             // We initially account for BytesRef/VersionValue RAM for a delete against the tombstones, because this RAM will not be freed up
             // on refresh. Later, in removeTombstoneUnderLock, if we clear the tombstone entry but the delete remains in current, we shift
             // the accounting to current:
             ramBytesUsedTombstones.addAndGet(BASE_BYTES_PER_CHM_ENTRY + version.ramBytesUsed() + uidRAMBytesUsed);
 
-            if (prevTombstone == null && prev != null && prev.delete()) {
+            if (prevTombstone == null && prev != null && prev.isDelete()) {
                 // If prev was a delete that had already been removed from tombstones, then current was already accounting for the
                 // BytesRef/VersionValue RAM, so we now deduct that as well:
                 ramBytesUsedCurrent.addAndGet(-(prev.ramBytesUsed() + uidRAMBytesUsed));
@@ -211,12 +211,12 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
         final VersionValue prev = tombstones.remove(uid);
         if (prev != null) {
-            assert prev.delete();
+            assert prev.isDelete();
             long v = ramBytesUsedTombstones.addAndGet(-(BASE_BYTES_PER_CHM_ENTRY + prev.ramBytesUsed() + uidRAMBytesUsed));
             assert v >= 0: "bytes=" + v;
         }
         final VersionValue curVersion = maps.current.get(uid);
-        if (curVersion != null && curVersion.delete()) {
+        if (curVersion != null && curVersion.isDelete()) {
             // We now shift accounting of the BytesRef from tombstones to current, because a refresh would clear this RAM.  This should be
             // uncommon, because with the default refresh=1s and gc_deletes=60s, deletes should be cleared from current long before we drop
             // them from tombstones:
@@ -225,13 +225,18 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
     }
 
     /** Caller has a lock, so that this uid will not be concurrently added/deleted by another thread. */
-    VersionValue getTombstoneUnderLock(BytesRef uid) {
+    DeleteVersionValue getTombstoneUnderLock(BytesRef uid) {
         return tombstones.get(uid);
     }
 
     /** Iterates over all deleted versions, including new ones (not yet exposed via reader) and old ones (exposed via reader but not yet GC'd). */
-    Iterable<Map.Entry<BytesRef,VersionValue>> getAllTombstones() {
+    Iterable<Map.Entry<BytesRef, DeleteVersionValue>> getAllTombstones() {
         return tombstones.entrySet();
+    }
+
+    /** clears all tombstones ops */
+    void clearTombstones() {
+        tombstones.clear();
     }
 
     /** Called when this index is closed. */

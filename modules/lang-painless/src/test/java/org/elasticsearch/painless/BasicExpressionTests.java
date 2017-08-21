@@ -186,7 +186,7 @@ public class BasicExpressionTests extends ScriptTestCase {
         assertNull(         exec("def    a = null;  return a?.toString()"));
         assertEquals("foo", exec("def    a = 'foo'; return a?.toString()"));
         //   Call with primitive result
-        assertMustBeNullable(    "String a = null; return a?.length()");
+        assertMustBeNullable(    "String a = null;  return a?.length()");
         assertMustBeNullable(    "String a = 'foo'; return a?.length()");
         assertNull(         exec("def    a = null;  return a?.length()"));
         assertEquals(3,     exec("def    a = 'foo'; return a?.length()"));
@@ -265,7 +265,7 @@ public class BasicExpressionTests extends ScriptTestCase {
     }
 
     private void assertMustBeNullable(String script) {
-        Exception e = expectScriptThrows(IllegalArgumentException.class , () -> exec(script));
+        Exception e = expectScriptThrows(IllegalArgumentException.class, false, () -> exec(script));
         assertEquals("Result of null safe operator must be nullable", e.getMessage());
     }
 }

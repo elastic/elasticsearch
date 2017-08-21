@@ -19,19 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -63,9 +59,10 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> {
     private List<AliasActions> allAliasActions = new ArrayList<>();
 
-    //indices options that require every specified index to exist, expand wildcards only to open indices and
-    //don't allow that no indices are resolved from wildcard expressions
-    private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false);
+    // indices options that require every specified index to exist, expand wildcards only to open
+    // indices, don't allow that no indices are resolved from wildcard expressions and resolve the
+    // expressions only against indices
+    private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
 
     public IndicesAliasesRequest() {
 
@@ -92,10 +89,10 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
 
             public static Type fromValue(byte value) {
                 switch (value) {
-                case 0: return ADD;
-                case 1: return REMOVE;
-                case 2: return REMOVE_INDEX;
-                default: throw new IllegalArgumentException("No type for action [" + value + "]");
+                    case 0: return ADD;
+                    case 1: return REMOVE;
+                    case 2: return REMOVE_INDEX;
+                    default: throw new IllegalArgumentException("No type for action [" + value + "]");
                 }
             }
         }
@@ -106,18 +103,21 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         public static AliasActions add() {
             return new AliasActions(AliasActions.Type.ADD);
         }
+
         /**
          * Build a new {@link AliasAction} to remove aliases.
          */
         public static AliasActions remove() {
             return new AliasActions(AliasActions.Type.REMOVE);
         }
+
         /**
-         * Build a new {@link AliasAction} to remove aliases.
+         * Build a new {@link AliasAction} to remove an index.
          */
         public static AliasActions removeIndex() {
             return new AliasActions(AliasActions.Type.REMOVE_INDEX);
         }
+
         private static ObjectParser<AliasActions, Void> parser(String name, Supplier<AliasActions> supplier) {
             ObjectParser<AliasActions, Void> parser = new ObjectParser<>(name, supplier);
             parser.declareString((action, index) -> {
@@ -402,24 +402,6 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return INDICES_OPTIONS;
         }
 
-        public String[] concreteAliases(MetaData metaData, String concreteIndex) {
-            if (expandAliasesWildcards()) {
-                //for DELETE we expand the aliases
-                String[] indexAsArray = {concreteIndex};
-                ImmutableOpenMap<String, List<AliasMetaData>> aliasMetaData = metaData.findAliases(aliases, indexAsArray);
-                List<String> finalAliases = new ArrayList<>();
-                for (ObjectCursor<List<AliasMetaData>> curAliases : aliasMetaData.values()) {
-                    for (AliasMetaData aliasMeta: curAliases.value) {
-                        finalAliases.add(aliasMeta.alias());
-                    }
-                }
-                return finalAliases.toArray(new String[finalAliases.size()]);
-            } else {
-                //for add we just return the current aliases
-                return aliases;
-            }
-        }
-
         @Override
         public String toString() {
             return "AliasActions["
@@ -485,14 +467,12 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         allAliasActions = in.readList(AliasActions::new);
-        readTimeout(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeList(allAliasActions);
-        writeTimeout(out);
     }
 
     public IndicesOptions indicesOptions() {

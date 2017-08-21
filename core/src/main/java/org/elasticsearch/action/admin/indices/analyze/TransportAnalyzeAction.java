@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.settings.Settings;
@@ -48,7 +49,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.CustomAnalyzerProvider;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
@@ -58,6 +61,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -176,18 +180,45 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                     throw new IllegalArgumentException("failed to find analyzer [" + request.analyzer() + "]");
                 }
             }
-
         } else if (request.tokenizer() != null) {
             final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
-            TokenizerFactory tokenizerFactory = parseTokenizerFactory(request, indexAnalyzers, analysisRegistry, environment);
+            Tuple<String, TokenizerFactory> tokenizerFactory = parseTokenizerFactory(request, indexAnalyzers,
+                        analysisRegistry, environment);
 
-            TokenFilterFactory[] tokenFilterFactories = new TokenFilterFactory[0];
-            tokenFilterFactories = getTokenFilterFactories(request, indexSettings, analysisRegistry, environment, tokenFilterFactories);
+            List<CharFilterFactory> charFilterFactoryList =
+                parseCharFilterFactories(request, indexSettings, analysisRegistry, environment, false);
 
-            CharFilterFactory[] charFilterFactories = new CharFilterFactory[0];
-            charFilterFactories = getCharFilterFactories(request, indexSettings, analysisRegistry, environment, charFilterFactories);
+            List<TokenFilterFactory> tokenFilterFactoryList = parseTokenFilterFactories(request, indexSettings, analysisRegistry,
+                environment, tokenizerFactory, charFilterFactoryList, false);
 
-            analyzer = new CustomAnalyzer(tokenizerFactory, charFilterFactories, tokenFilterFactories);
+            analyzer = new CustomAnalyzer(tokenizerFactory.v1(), tokenizerFactory.v2(),
+                charFilterFactoryList.toArray(new CharFilterFactory[charFilterFactoryList.size()]),
+                tokenFilterFactoryList.toArray(new TokenFilterFactory[tokenFilterFactoryList.size()]));
+            closeAnalyzer = true;
+        } else if (request.normalizer() != null) {
+            // Get normalizer from indexAnalyzers
+            analyzer = indexAnalyzers.getNormalizer(request.normalizer());
+            if (analyzer == null) {
+                throw new IllegalArgumentException("failed to find normalizer under [" + request.normalizer() + "]");
+            }
+        } else if (((request.tokenFilters() != null && request.tokenFilters().size() > 0)
+                || (request.charFilters() != null && request.charFilters().size() > 0))) {
+            final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
+            // custom normalizer = if normalizer == null but filter or char_filter is not null and tokenizer/analyzer is null
+            // get charfilter and filter from request
+            List<CharFilterFactory> charFilterFactoryList =
+                parseCharFilterFactories(request, indexSettings, analysisRegistry, environment, true);
+
+            final String keywordTokenizerName = "keyword";
+            TokenizerFactory keywordTokenizerFactory = getTokenizerFactory(analysisRegistry, environment, keywordTokenizerName);
+
+            List<TokenFilterFactory> tokenFilterFactoryList =
+                parseTokenFilterFactories(request, indexSettings, analysisRegistry, environment, new Tuple<>(keywordTokenizerName, keywordTokenizerFactory), charFilterFactoryList, true);
+
+            analyzer = new CustomAnalyzer("keyword_for_normalizer",
+                keywordTokenizerFactory,
+                charFilterFactoryList.toArray(new CharFilterFactory[charFilterFactoryList.size()]),
+                tokenFilterFactoryList.toArray(new TokenFilterFactory[tokenFilterFactoryList.size()]));
             closeAnalyzer = true;
         } else if (analyzer == null) {
             if (indexAnalyzers == null) {
@@ -325,7 +356,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                         tokenFilterFactories[tokenFilterIndex].name(), tokenFiltersTokenListCreator[tokenFilterIndex].getArrayTokens());
                 }
             }
-            detailResponse = new DetailAnalyzeResponse(charFilteredLists, new DetailAnalyzeResponse.AnalyzeTokenList(tokenizerFactory.name(), tokenizerTokenListCreator.getArrayTokens()), tokenFilterLists);
+            detailResponse = new DetailAnalyzeResponse(charFilteredLists, new DetailAnalyzeResponse.AnalyzeTokenList(
+                    customAnalyzer.getTokenizerName(), tokenizerTokenListCreator.getArrayTokens()), tokenFilterLists);
         } else {
             String name;
             if (analyzer instanceof NamedAnalyzer) {
@@ -459,12 +491,13 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         return extendedAttributes;
     }
 
-    private static CharFilterFactory[] getCharFilterFactories(AnalyzeRequest request, IndexSettings indexSettings, AnalysisRegistry analysisRegistry,
-                                                              Environment environment, CharFilterFactory[] charFilterFactories) throws IOException {
+    private static List<CharFilterFactory> parseCharFilterFactories(AnalyzeRequest request, IndexSettings indexSettings, AnalysisRegistry analysisRegistry,
+                                                              Environment environment, boolean normalizer) throws IOException {
+        List<CharFilterFactory> charFilterFactoryList = new ArrayList<>();
         if (request.charFilters() != null && request.charFilters().size() > 0) {
-            charFilterFactories = new CharFilterFactory[request.charFilters().size()];
-            for (int i = 0; i < request.charFilters().size(); i++) {
-                final AnalyzeRequest.NameOrDefinition charFilter = request.charFilters().get(i);
+            List<AnalyzeRequest.NameOrDefinition> charFilters = request.charFilters();
+            for (AnalyzeRequest.NameOrDefinition charFilter : charFilters) {
+                CharFilterFactory charFilterFactory;
                 // parse anonymous settings
                 if (charFilter.definition != null) {
                     Settings settings = getAnonymousSettings(charFilter.definition);
@@ -478,7 +511,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                         throw new IllegalArgumentException("failed to find global char filter under [" + charFilterTypeName + "]");
                     }
                     // Need to set anonymous "name" of char_filter
-                    charFilterFactories[i] = charFilterFactoryFactory.get(getNaIndexSettings(settings), environment, "_anonymous_charfilter_[" + i + "]", settings);
+                    charFilterFactory = charFilterFactoryFactory.get(getNaIndexSettings(settings), environment, "_anonymous_charfilter", settings);
                 } else {
                     AnalysisModule.AnalysisProvider<CharFilterFactory> charFilterFactoryFactory;
                     if (indexSettings == null) {
@@ -486,31 +519,41 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                         if (charFilterFactoryFactory == null) {
                             throw new IllegalArgumentException("failed to find global char filter under [" + charFilter.name + "]");
                         }
-                        charFilterFactories[i] = charFilterFactoryFactory.get(environment, charFilter.name);
+                        charFilterFactory = charFilterFactoryFactory.get(environment, charFilter.name);
                     } else {
                         charFilterFactoryFactory = analysisRegistry.getCharFilterProvider(charFilter.name, indexSettings);
                         if (charFilterFactoryFactory == null) {
                             throw new IllegalArgumentException("failed to find char filter under [" + charFilter.name + "]");
                         }
-                        charFilterFactories[i] = charFilterFactoryFactory.get(indexSettings, environment, charFilter.name,
+                        charFilterFactory = charFilterFactoryFactory.get(indexSettings, environment, charFilter.name,
                             AnalysisRegistry.getSettingsFromIndexSettings(indexSettings,
                                 AnalysisRegistry.INDEX_ANALYSIS_CHAR_FILTER + "." + charFilter.name));
                     }
                 }
-                if (charFilterFactories[i] == null) {
+                if (charFilterFactory == null) {
                     throw new IllegalArgumentException("failed to find char filter under [" + charFilter.name + "]");
                 }
+                if (normalizer) {
+                    if (charFilterFactory instanceof MultiTermAwareComponent == false) {
+                        throw new IllegalArgumentException("Custom normalizer may not use char filter ["
+                            + charFilterFactory.name() + "]");
+                    }
+                    charFilterFactory = (CharFilterFactory) ((MultiTermAwareComponent) charFilterFactory).getMultiTermComponent();
+                }
+                charFilterFactoryList.add(charFilterFactory);
             }
         }
-        return charFilterFactories;
+        return charFilterFactoryList;
     }
 
-    private static TokenFilterFactory[] getTokenFilterFactories(AnalyzeRequest request, IndexSettings indexSettings, AnalysisRegistry analysisRegistry,
-                                                                Environment environment, TokenFilterFactory[] tokenFilterFactories) throws IOException {
+    private static List<TokenFilterFactory> parseTokenFilterFactories(AnalyzeRequest request, IndexSettings indexSettings, AnalysisRegistry analysisRegistry,
+                                                                Environment environment, Tuple<String, TokenizerFactory> tokenizerFactory,
+                                                                List<CharFilterFactory> charFilterFactoryList, boolean normalizer) throws IOException {
+        List<TokenFilterFactory> tokenFilterFactoryList = new ArrayList<>();
         if (request.tokenFilters() != null && request.tokenFilters().size() > 0) {
-            tokenFilterFactories = new TokenFilterFactory[request.tokenFilters().size()];
-            for (int i = 0; i < request.tokenFilters().size(); i++) {
-                final AnalyzeRequest.NameOrDefinition tokenFilter = request.tokenFilters().get(i);
+            List<AnalyzeRequest.NameOrDefinition> tokenFilters = request.tokenFilters();
+            for (AnalyzeRequest.NameOrDefinition tokenFilter : tokenFilters) {
+                TokenFilterFactory tokenFilterFactory;
                 // parse anonymous settings
                 if (tokenFilter.definition != null) {
                     Settings settings = getAnonymousSettings(tokenFilter.definition);
@@ -524,7 +567,11 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                         throw new IllegalArgumentException("failed to find global token filter under [" + filterTypeName + "]");
                     }
                     // Need to set anonymous "name" of tokenfilter
-                    tokenFilterFactories[i] = tokenFilterFactoryFactory.get(getNaIndexSettings(settings), environment, "_anonymous_tokenfilter_[" + i + "]", settings);
+                    tokenFilterFactory = tokenFilterFactoryFactory.get(getNaIndexSettings(settings), environment, "_anonymous_tokenfilter", settings);
+                    tokenFilterFactory = CustomAnalyzerProvider.checkAndApplySynonymFilter(tokenFilterFactory, tokenizerFactory.v1(), tokenizerFactory.v2(), tokenFilterFactoryList,
+                        charFilterFactoryList, environment);
+
+
                 } else {
                     AnalysisModule.AnalysisProvider<TokenFilterFactory> tokenFilterFactoryFactory;
                     if (indexSettings == null) {
@@ -532,27 +579,38 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                         if (tokenFilterFactoryFactory == null) {
                             throw new IllegalArgumentException("failed to find global token filter under [" + tokenFilter.name + "]");
                         }
-                        tokenFilterFactories[i] = tokenFilterFactoryFactory.get(environment, tokenFilter.name);
+                        tokenFilterFactory = tokenFilterFactoryFactory.get(environment, tokenFilter.name);
                     } else {
                         tokenFilterFactoryFactory = analysisRegistry.getTokenFilterProvider(tokenFilter.name, indexSettings);
-                       if (tokenFilterFactoryFactory == null) {
+                        if (tokenFilterFactoryFactory == null) {
                             throw new IllegalArgumentException("failed to find token filter under [" + tokenFilter.name + "]");
                         }
-                        tokenFilterFactories[i] = tokenFilterFactoryFactory.get(indexSettings, environment, tokenFilter.name,
-                            AnalysisRegistry.getSettingsFromIndexSettings(indexSettings,
-                                AnalysisRegistry.INDEX_ANALYSIS_FILTER + "." + tokenFilter.name));
+                        Settings settings = AnalysisRegistry.getSettingsFromIndexSettings(indexSettings,
+                            AnalysisRegistry.INDEX_ANALYSIS_FILTER + "." + tokenFilter.name);
+                        tokenFilterFactory = tokenFilterFactoryFactory.get(indexSettings, environment, tokenFilter.name, settings);
+                        tokenFilterFactory = CustomAnalyzerProvider.checkAndApplySynonymFilter(tokenFilterFactory, tokenizerFactory.v1(), tokenizerFactory.v2(), tokenFilterFactoryList,
+                            charFilterFactoryList, environment);
                     }
                 }
-                if (tokenFilterFactories[i] == null) {
+                if (tokenFilterFactory == null) {
                     throw new IllegalArgumentException("failed to find or create token filter under [" + tokenFilter.name + "]");
                 }
+                if (normalizer) {
+                    if (tokenFilterFactory instanceof MultiTermAwareComponent == false) {
+                        throw new IllegalArgumentException("Custom normalizer may not use filter ["
+                            + tokenFilterFactory.name() + "]");
+                    }
+                    tokenFilterFactory = (TokenFilterFactory) ((MultiTermAwareComponent) tokenFilterFactory).getMultiTermComponent();
+                }
+                tokenFilterFactoryList.add(tokenFilterFactory);
             }
         }
-        return tokenFilterFactories;
+        return tokenFilterFactoryList;
     }
 
-    private static TokenizerFactory parseTokenizerFactory(AnalyzeRequest request, IndexAnalyzers indexAnalzyers,
+    private static Tuple<String, TokenizerFactory> parseTokenizerFactory(AnalyzeRequest request, IndexAnalyzers indexAnalzyers,
                                                           AnalysisRegistry analysisRegistry, Environment environment) throws IOException {
+        String name;
         TokenizerFactory tokenizerFactory;
         final AnalyzeRequest.NameOrDefinition tokenizer = request.tokenizer();
         // parse anonymous settings
@@ -568,25 +626,35 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 throw new IllegalArgumentException("failed to find global tokenizer under [" + tokenizerTypeName + "]");
             }
             // Need to set anonymous "name" of tokenizer
+            name = "_anonymous_tokenizer";
             tokenizerFactory = tokenizerFactoryFactory.get(getNaIndexSettings(settings), environment, "_anonymous_tokenizer", settings);
         } else {
             AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory;
             if (indexAnalzyers == null) {
-                tokenizerFactoryFactory = analysisRegistry.getTokenizerProvider(tokenizer.name);
-                if (tokenizerFactoryFactory == null) {
-                    throw new IllegalArgumentException("failed to find global tokenizer under [" + tokenizer.name + "]");
-                }
-                tokenizerFactory = tokenizerFactoryFactory.get(environment, tokenizer.name);
+                tokenizerFactory = getTokenizerFactory(analysisRegistry, environment, tokenizer.name);
+                name = tokenizer.name;
             } else {
                 tokenizerFactoryFactory = analysisRegistry.getTokenizerProvider(tokenizer.name, indexAnalzyers.getIndexSettings());
                 if (tokenizerFactoryFactory == null) {
                     throw new IllegalArgumentException("failed to find tokenizer under [" + tokenizer.name + "]");
                 }
+                name = tokenizer.name;
                 tokenizerFactory = tokenizerFactoryFactory.get(indexAnalzyers.getIndexSettings(), environment, tokenizer.name,
                     AnalysisRegistry.getSettingsFromIndexSettings(indexAnalzyers.getIndexSettings(),
                         AnalysisRegistry.INDEX_ANALYSIS_TOKENIZER + "." + tokenizer.name));
             }
         }
+        return new Tuple<>(name, tokenizerFactory);
+    }
+
+    private static TokenizerFactory getTokenizerFactory(AnalysisRegistry analysisRegistry, Environment environment, String name) throws IOException {
+        AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory;
+        TokenizerFactory tokenizerFactory;
+        tokenizerFactoryFactory = analysisRegistry.getTokenizerProvider(name);
+        if (tokenizerFactoryFactory == null) {
+            throw new IllegalArgumentException("failed to find global tokenizer under [" + name + "]");
+        }
+        tokenizerFactory = tokenizerFactoryFactory.get(environment, name);
         return tokenizerFactory;
     }
 

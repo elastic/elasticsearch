@@ -130,7 +130,7 @@ PUT music/song/1?refresh
 // TEST[continued]
 
 You can use the following shorthand form. Note that you can not specify
-a weight with suggestion(s).
+a weight with suggestion(s) in the shorthand form.
 
 [source,js]
 --------------------------------------------------
@@ -175,6 +175,7 @@ returns this response:
   "_shards" : {
     "total" : 5,
     "successful" : 5,
+    "skipped" : 0,
     "failed" : 0
   },
   "hits": ...
@@ -243,6 +244,7 @@ Which should look like:
     "_shards" : {
         "total" : 5,
         "successful" : 5,
+        "skipped" : 0,
         "failed" : 0
     },
     "hits": {

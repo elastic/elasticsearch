@@ -52,7 +52,7 @@ public abstract class CancellableTask extends Task {
     }
 
     /**
-     * Returns true if this task should can potentially have children that needs to be cancelled when the parent is cancelled.
+     * Returns true if this task can potentially have children that need to be cancelled when it parent is cancelled.
      */
     public abstract boolean shouldCancelChildrenOnCancellation();
 

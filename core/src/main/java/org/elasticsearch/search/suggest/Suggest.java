@@ -19,6 +19,8 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,13 +29,14 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -47,8 +50,8 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -58,9 +61,9 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * Top level suggest result, containing the result for each suggestion.
  */
-public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Streamable, ToXContent {
+public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Streamable, ToXContentFragment {
 
-    static final String NAME = "suggest";
+    public static final String NAME = "suggest";
 
     public static final Comparator<Option> COMPARATOR = (first, second) -> {
         int cmp = Float.compare(second.getScore(), first.getScore());
@@ -177,7 +180,16 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
         List<Suggestion<? extends Entry<? extends Option>>> suggestions = new ArrayList<>();
         while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            suggestions.add(Suggestion.fromXContent(parser));
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+            String currentField = parser.currentName();
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+            Suggestion<? extends Entry<? extends Option>> suggestion = Suggestion.fromXContent(parser);
+            if (suggestion != null) {
+                suggestions.add(suggestion);
+            } else {
+                throw new ParsingException(parser.getTokenLocation(),
+                        String.format(Locale.ROOT, "Could not parse suggestion keyed as [%s]", currentField));
+            }
         }
         return new Suggest(suggestions);
     }
@@ -222,7 +234,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     /**
      * The suggestion responses corresponding with the suggestions in the request.
      */
-    public static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, Streamable, ToXContent {
+    public static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, Streamable, ToXContentFragment {
 
         private static final String NAME = "suggestion";
 
@@ -373,7 +385,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (params.paramAsBoolean(RestSearchAction.TYPED_KEYS_PARAM, false)) {
                 // Concatenates the type and the name of the suggestion (ex: completion#foo)
-                builder.startArray(String.join(InternalAggregation.TYPED_KEYS_DELIMITER, getType(), getName()));
+                builder.startArray(String.join(Aggregation.TYPED_KEYS_DELIMITER, getType(), getName()));
             } else {
                 builder.startArray(getName());
             }
@@ -384,50 +396,21 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             return builder;
         }
 
+        @SuppressWarnings("unchecked")
         public static Suggestion<? extends Entry<? extends Option>> fromXContent(XContentParser parser) throws IOException {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
-            String typeAndName = parser.currentName();
-            // we need to extract the type prefix from the name and throw error if it is not present
-            int delimiterPos = typeAndName.indexOf(InternalAggregation.TYPED_KEYS_DELIMITER);
-            String type = null;
-            String name = null;
-            if (delimiterPos > 0) {
-                type = typeAndName.substring(0, delimiterPos);
-                name = typeAndName.substring(delimiterPos + 1);
-            } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "Cannot parse suggestion response without type information. Set [" + RestSearchAction.TYPED_KEYS_PARAM
-                                + "] parameter on the request to ensure the type information is added to the response output");
-            }
-            Suggestion suggestion = null;
-            Function<XContentParser, Entry> entryParser = null;
-            // the "size" parameter and the SortBy for TermSuggestion cannot be parsed from the response, use default values
-            // TODO investigate if we can use NamedXContentRegistry instead of this switch
-            switch (type) {
-                case Suggestion.NAME:
-                    suggestion = new Suggestion(name, -1);
-                    entryParser = Suggestion.Entry::fromXContent;
-                    break;
-                case PhraseSuggestion.NAME:
-                    suggestion = new PhraseSuggestion(name, -1);
-                    entryParser = PhraseSuggestion.Entry::fromXContent;
-                    break;
-                case TermSuggestion.NAME:
-                    suggestion = new TermSuggestion(name, -1, SortBy.SCORE);
-                    entryParser = TermSuggestion.Entry::fromXContent;
-                    break;
-                case CompletionSuggestion.NAME:
-                    suggestion = new CompletionSuggestion(name, -1);
-                    entryParser = CompletionSuggestion.Entry::fromXContent;
-                    break;
-                default:
-                    throw new ParsingException(parser.getTokenLocation(), "Unknown suggestion type [{}]", type);
-            }
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
+            SetOnce<Suggestion> suggestion = new SetOnce<>();
+            XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Suggestion.class, suggestion::set);
+            return suggestion.get();
+        }
+
+        protected static <E extends Suggestion.Entry<?>> void parseEntries(XContentParser parser, Suggestion<E> suggestion,
+                                                                           CheckedFunction<XContentParser, E, IOException> entryParser)
+                throws IOException {
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
             while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 suggestion.addTerm(entryParser.apply(parser));
             }
-            return suggestion;
         }
 
         /**
@@ -584,6 +567,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 }
             }
 
+            @SuppressWarnings("unchecked")
             protected O newOption(){
                 return (O) new Option();
             }

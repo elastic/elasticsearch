@@ -46,9 +46,9 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
         IndexService index = createIndex("test");
         client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
         DocumentMapper mapper = index.mapperService().documentMapper("type");
-        QueryShardContext context = index.newQueryShardContext(0, null, () -> 0L);
+        QueryShardContext context = index.newQueryShardContext(0, null, () -> 0L, null);
 
-        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field1", "value1")
                 .field("field2", 1)
@@ -56,7 +56,8 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
                 .field("field4", "2010-01-01")
                 .startArray("field5").value(1).value(2).value(3).endArray()
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
         assertNotNull(doc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("type")
             .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
@@ -69,25 +70,25 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field1").fieldType().termQuery("value1", context), 10);
-        assertThat(topDocs.totalHits, equalTo(2));
+        assertThat(topDocs.totalHits, equalTo(2L));
 
         topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field2").fieldType().termQuery("1", context), 10);
-        assertThat(topDocs.totalHits, equalTo(2));
+        assertThat(topDocs.totalHits, equalTo(2L));
 
         topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field3").fieldType().termQuery("1.1", context), 10);
-        assertThat(topDocs.totalHits, equalTo(2));
+        assertThat(topDocs.totalHits, equalTo(2L));
 
         topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field4").fieldType().termQuery("2010-01-01", context), 10);
-        assertThat(topDocs.totalHits, equalTo(2));
+        assertThat(topDocs.totalHits, equalTo(2L));
 
         topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field5").fieldType().termQuery("1", context), 10);
-        assertThat(topDocs.totalHits, equalTo(2));
+        assertThat(topDocs.totalHits, equalTo(2L));
 
         topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field5").fieldType().termQuery("2", context), 10);
-        assertThat(topDocs.totalHits, equalTo(2));
+        assertThat(topDocs.totalHits, equalTo(2L));
 
         topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field5").fieldType().termQuery("3", context), 10);
-        assertThat(topDocs.totalHits, equalTo(2));
+        assertThat(topDocs.totalHits, equalTo(2L));
         writer.close();
         reader.close();
         dir.close();

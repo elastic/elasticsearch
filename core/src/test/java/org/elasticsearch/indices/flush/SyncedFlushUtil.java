@@ -42,7 +42,7 @@ public class SyncedFlushUtil {
      */
     public static ShardsSyncedFlushResult attemptSyncedFlush(InternalTestCluster cluster, ShardId shardId) {
         SyncedFlushService service = cluster.getInstance(SyncedFlushService.class);
-        LatchedListener<ShardsSyncedFlushResult> listener = new LatchedListener();
+        LatchedListener<ShardsSyncedFlushResult> listener = new LatchedListener<>();
         service.attemptSyncedFlush(shardId, listener);
         try {
             listener.latch.await();

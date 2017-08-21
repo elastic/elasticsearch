@@ -148,7 +148,6 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         super.readFrom(in);
         transientSettings = readSettingsFromStream(in);
         persistentSettings = readSettingsFromStream(in);
-        readTimeout(in);
     }
 
     @Override
@@ -156,6 +155,5 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         super.writeTo(out);
         writeSettingsToStream(transientSettings, out);
         writeSettingsToStream(persistentSettings, out);
-        writeTimeout(out);
     }
 }

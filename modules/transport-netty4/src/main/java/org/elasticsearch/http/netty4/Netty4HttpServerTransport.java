@@ -550,7 +550,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
                 ch.pipeline().addLast("cors", new Netty4CorsHandler(transport.getCorsConfig()));
             }
             if (transport.pipelining) {
-                ch.pipeline().addLast("pipelining", new HttpPipeliningHandler(transport.pipeliningMaxEvents));
+                ch.pipeline().addLast("pipelining", new HttpPipeliningHandler(transport.logger, transport.pipeliningMaxEvents));
             }
             ch.pipeline().addLast("handler", requestHandler);
         }

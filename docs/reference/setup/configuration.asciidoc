@@ -25,24 +25,24 @@ on whether or not the installation is from an archive distribution (`tar.gz` or
 
 For the archive distributions, the config directory location defaults to
 `$ES_HOME/config`. The location of the config directory can be changed via the
-`CONF_DIR` environment variable as follows:
+`ES_PATH_CONF` environment variable as follows:
 
 [source,sh]
 -------------------------------
-CONF_DIR=/path/to/my/config ./bin/elasticsearch
+ES_PATH_CONF=/path/to/my/config ./bin/elasticsearch
 -------------------------------
 
-Alternatively, you can `export` the `CONF_DIR` environment variable via the
+Alternatively, you can `export` the `ES_PATH_CONF` environment variable via the
 command line or via your shell profile.
 
 For the package distributions, the config directory location defaults to
 `/etc/elasticsearch`. The location of the config directory can also be changed
-via the `CONF_DIR` environment variable, but note that setting this in your
+via the `ES_PATH_CONF` environment variable, but note that setting this in your
 shell is not sufficient. Instead, this variabled is sourced from
 `/etc/default/elasticsearch` (for the Debian package) and
 `/etc/sysconfig/elasticsearch` (for the RPM package). You will need to edit the
-`CONF_DIR=/etc/elasticsearch` entry in one of these files accordingly to change
-the config directory location.
+`ES_PATH_CONF=/etc/elasticsearch` entry in one of these files accordingly to
+change the config directory location.
 
 
 [float]

@@ -487,7 +487,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         cause = in.readString();
         index = in.readString();
         settings = readSettingsFromStream(in);
-        readTimeout(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             final String type = in.readString();
@@ -518,7 +517,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         out.writeString(cause);
         out.writeString(index);
         writeSettingsToStream(settings, out);
-        writeTimeout(out);
         out.writeVInt(mappings.size());
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
             out.writeString(entry.getKey());

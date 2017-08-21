@@ -27,6 +27,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class NumbersTests extends ESTestCase {
 
+    public void testToLong() {
+        assertEquals(3L, Numbers.toLong("3", false));
+        assertEquals(3L, Numbers.toLong("3.1", true));
+        assertEquals(9223372036854775807L, Numbers.toLong("9223372036854775807.00", false));
+        assertEquals(-9223372036854775808L, Numbers.toLong("-9223372036854775808.00", false));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> Numbers.toLong("9223372036854775808", false));
+        assertEquals("Value [9223372036854775808] is out of range for a long", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class,
+            () -> Numbers.toLong("-9223372036854775809", false));
+        assertEquals("Value [-9223372036854775809] is out of range for a long", e.getMessage());
+    }
+
     public void testToLongExact() {
         assertEquals(3L, Numbers.toLongExact(Long.valueOf(3L)));
         assertEquals(3L, Numbers.toLongExact(Integer.valueOf(3)));

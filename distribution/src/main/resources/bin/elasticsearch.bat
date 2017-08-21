@@ -1,6 +1,7 @@
 @echo off
 
 setlocal enabledelayedexpansion
+setlocal enableextensions
 
 SET params='%*'
 
@@ -40,7 +41,7 @@ IF ERRORLEVEL 1 (
 	EXIT /B %ERRORLEVEL%
 )
 
-set "ES_JVM_OPTIONS=%CONF_DIR%\jvm.options"
+set "ES_JVM_OPTIONS=%ES_PATH_CONF%\jvm.options"
 
 @setlocal
 rem extract the options from the JVM options file %ES_JVM_OPTIONS%
@@ -48,6 +49,7 @@ rem such options are the lines beginning with '-', thus "findstr /b"
 for /F "usebackq delims=" %%a in (`findstr /b \- "%ES_JVM_OPTIONS%"`) do set JVM_OPTIONS=!JVM_OPTIONS! %%a
 @endlocal & set ES_JAVA_OPTS=%JVM_OPTIONS% %ES_JAVA_OPTS%
 
-%JAVA% %ES_JAVA_OPTS% -Delasticsearch -Des.path.home="%ES_HOME%" -Des.path.conf="%CONF_DIR%" -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
+%JAVA% %ES_JAVA_OPTS% -Delasticsearch -Des.path.home="%ES_HOME%" -Des.path.conf="%ES_PATH_CONF%" -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
 
+endlocal
 endlocal

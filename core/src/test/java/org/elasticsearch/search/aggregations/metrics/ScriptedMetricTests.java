@@ -44,7 +44,7 @@ public class ScriptedMetricTests extends BaseAggregationTestCase<ScriptedMetricA
             factory.reduceScript(randomScript("reduceScript"));
         }
         if (randomBoolean()) {
-            Map<String, Object> params = new HashMap<String, Object>();
+            Map<String, Object> params = new HashMap<>();
             params.put("foo", "bar");
             factory.params(params);
         }

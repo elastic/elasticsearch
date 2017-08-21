@@ -29,7 +29,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -59,7 +58,7 @@ public class MultiMatchQuery extends MatchQuery {
     private Query parseAndApply(Type type, String fieldName, Object value, String minimumShouldMatch, Float boostValue) throws IOException {
         Query query = parse(type, fieldName, value);
         query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
-        if (query != null && boostValue != null && boostValue != AbstractQueryBuilder.DEFAULT_BOOST) {
+        if (query != null && boostValue != null && boostValue != AbstractQueryBuilder.DEFAULT_BOOST && query instanceof MatchNoDocsQuery == false) {
             query = new BoostQuery(query, boostValue);
         }
         return query;
@@ -268,7 +267,7 @@ public class MultiMatchQuery extends MatchQuery {
                     blendedBoost[i] = boost;
                     i++;
                 } else {
-                    if (boost != 1f) {
+                    if (boost != 1f && query instanceof MatchNoDocsQuery == false) {
                         query = new BoostQuery(query, boost);
                     }
                     queries.add(query);

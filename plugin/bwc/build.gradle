@@ -120,25 +120,27 @@ subprojects {
     task fetchElasticsearchLatest(type: LoggedExec) {
       dependsOn addElasticsearchUpstream
       workingDir = esCheckoutDir
-      commandLine = ['git', 'fetch', 'upstream']
+      commandLine = ['git', 'fetch', '--all']
     }
 
     task fetchXPackLatest(type: LoggedExec) {
       dependsOn addXPackUpstream
       workingDir = xpackCheckoutDir
-      commandLine = ['git', 'fetch', 'upstream']
+      commandLine = ['git', 'fetch', '--all']
     }
 
     task checkoutElasticsearchBwcBranch(type: LoggedExec) {
       dependsOn fetchElasticsearchLatest
+      def String refspec = System.getProperty("tests.bwc.refspec", "upstream/${bwcBranch}")
       workingDir = esCheckoutDir
-      commandLine = ['git', 'checkout', "upstream/${bwcBranch}"]
+      commandLine = ['git', 'checkout', refspec]
     }
 
     task checkoutXPackBwcBranch(type: LoggedExec) {
       dependsOn fetchXPackLatest
+      def String refspec = System.getProperty("tests.bwc.refspec", "upstream/${bwcBranch}")
       workingDir = xpackCheckoutDir
-      commandLine = ['git', 'checkout', "upstream/${bwcBranch}"]
+      commandLine = ['git', 'checkout', refspec]
     }
 
     File bwcZip = file("${xpackCheckoutDir}/plugin/build/distributions/x-pack-${bwcVersion}.zip")

@@ -33,7 +33,7 @@ class RandomizedTestingPlugin implements Plugin<Project> {
         ]
         RandomizedTestingTask newTestTask = tasks.create(properties)
         newTestTask.classpath = oldTestTask.classpath
-        newTestTask.testClassesDir = oldTestTask.testClassesDir
+        newTestTask.testClassesDir = oldTestTask.project.sourceSets.test.output.classesDir
 
         // hack so check task depends on custom test
         Task checkTask = tasks.findByPath('check')

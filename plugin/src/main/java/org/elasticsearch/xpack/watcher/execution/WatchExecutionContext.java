@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
@@ -25,13 +26,13 @@ import java.util.concurrent.ConcurrentMap;
 public abstract class WatchExecutionContext {
 
     private final Wid id;
-    private final Watch watch;
     private final DateTime executionTime;
     private final TriggerEvent triggerEvent;
     private final TimeValue defaultThrottlePeriod;
 
     private ExecutionPhase phase = ExecutionPhase.AWAITS_EXECUTION;
     private long startTimestamp;
+    private Watch watch;
 
     private Payload payload;
     private Map<String, Object> vars = new HashMap<>();
@@ -42,9 +43,8 @@ public abstract class WatchExecutionContext {
     private ConcurrentMap<String, ActionWrapper.Result> actionsResults = ConcurrentCollections.newConcurrentMap();
     private String nodeId;
 
-    public WatchExecutionContext(Watch watch, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
-        this.id = new Wid(watch.id(), executionTime);
-        this.watch = watch;
+    public WatchExecutionContext(String watchId, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
+        this.id = new Wid(watchId, executionTime);
         this.executionTime = executionTime;
         this.triggerEvent = triggerEvent;
         this.defaultThrottlePeriod = defaultThrottlePeriod;
@@ -72,12 +72,18 @@ public abstract class WatchExecutionContext {
      */
     public abstract boolean recordExecution();
 
-    public Wid id() {
-        return id;
-    }
-
     public Watch watch() {
         return watch;
+    }
+
+    public void ensureWatchExists(CheckedSupplier<Watch, Exception> supplier) throws Exception {
+        if (watch == null) {
+            watch = supplier.get();
+        }
+    }
+
+    public Wid id() {
+        return id;
     }
 
     public DateTime executionTime() {
@@ -156,7 +162,7 @@ public abstract class WatchExecutionContext {
     public void onConditionResult(Condition.Result conditionResult) {
         assert !phase.sealed();
         this.conditionResult = conditionResult;
-        watch.status().onCheck(conditionResult.met(), executionTime);
+        watch().status().onCheck(conditionResult.met(), executionTime);
     }
 
     public Condition.Result conditionResult() {
@@ -188,7 +194,7 @@ public abstract class WatchExecutionContext {
     public void onActionResult(ActionWrapper.Result result) {
         assert !phase.sealed();
         actionsResults.put(result.id(), result);
-        watch.status().onActionResult(result.id(), executionTime, result.action());
+        watch().status().onActionResult(result.id(), executionTime, result.action());
     }
 
     public Map<String, ActionWrapper.Result> actionsResults() {

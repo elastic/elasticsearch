@@ -29,35 +29,22 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.Watcher;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
-import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.input.search.ExecutableSearchInput;
 import org.elasticsearch.xpack.watcher.input.search.SearchInput;
 import org.elasticsearch.xpack.watcher.input.search.SearchInputFactory;
-import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
-import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
-import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Payload;
-import org.elasticsearch.xpack.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.watch.WatchStatus;
-import org.joda.time.DateTime;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -70,7 +57,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Mockito.mock;
 
 public class SearchInputTests extends ESTestCase {
@@ -104,7 +90,7 @@ public class SearchInputTests extends ESTestCase {
         WatcherSearchTemplateRequest request = WatcherTestUtils.templateRequest(searchSourceBuilder);
         ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null), logger,
                 client, watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
-        WatchExecutionContext ctx = createExecutionContext();
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
         SearchInput.Result result = searchInput.execute(ctx, new Payload.Simple());
 
         assertThat(result.status(), is(Input.Result.Status.SUCCESS));
@@ -112,23 +98,6 @@ public class SearchInputTests extends ESTestCase {
         assertThat(searchRequest.searchType(), is(request.getSearchType()));
         assertThat(searchRequest.indicesOptions(), is(request.getIndicesOptions()));
         assertThat(searchRequest.indices(), is(arrayContainingInAnyOrder(request.getIndices())));
-
-    }
-
-    private TriggeredExecutionContext createExecutionContext() {
-        return new TriggeredExecutionContext(
-                new Watch("test-watch",
-                        new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
-                        new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
-                        AlwaysCondition.INSTANCE,
-                        null,
-                        null,
-                        new ArrayList<>(),
-                        null,
-                        new WatchStatus(new DateTime(0, UTC), emptyMap())),
-                new DateTime(0, UTC),
-                new ScheduleTriggerEvent("test-watch", new DateTime(0, UTC), new DateTime(0, UTC)),
-                timeValueSeconds(5));
     }
 
     public void testDifferentSearchType() throws Exception {
@@ -145,7 +114,7 @@ public class SearchInputTests extends ESTestCase {
 
         ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null), logger,
                 client, watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
-        WatchExecutionContext ctx = createExecutionContext();
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
         SearchInput.Result result = searchInput.execute(ctx, new Payload.Simple());
 
         assertThat(result.status(), is(Input.Result.Status.SUCCESS));
@@ -194,7 +163,7 @@ public class SearchInputTests extends ESTestCase {
             assertThat(input.getRequest().getSearchSource(), is(BytesArray.EMPTY));
 
             ExecutableSearchInput executableSearchInput = factory.createExecutable(input);
-            WatchExecutionContext ctx = createExecutionContext();
+            WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
             SearchInput.Result result = executableSearchInput.execute(ctx, Payload.Simple.EMPTY);
             assertThat(result.status(), is(Input.Result.Status.SUCCESS));
             // no body in the search request

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.actions.email;
 
 import io.netty.handler.codec.http.HttpHeaders;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -94,12 +93,7 @@ public class EmailActionTests extends ESTestCase {
 
     public void testExecute() throws Exception {
         final String account = "account1";
-        EmailService service = new AbstractWatcherIntegrationTestCase.NoopEmailService() {
-            @Override
-            public EmailService.EmailSent send(Email email, Authentication auth, Profile profile, String accountName) {
-                return new EmailService.EmailSent(account, email);
-            }
-        };
+        EmailService service = new AbstractWatcherIntegrationTestCase.NoopEmailService();
         TextTemplateEngine engine = mock(TextTemplateEngine.class);
         HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
 
@@ -138,7 +132,7 @@ public class EmailActionTests extends ESTestCase {
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
 
-        Wid wid = new Wid(randomAlphaOfLength(5), now);
+        Wid wid = new Wid("watch1", now);
         WatchExecutionContext ctx = mockExecutionContextBuilder("watch1")
                 .wid(wid)
                 .payload(payload)

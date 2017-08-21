@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.watcher.actions.email.ExecutableEmailAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.ExecutableWebhookAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.Wid;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
@@ -54,7 +55,9 @@ import org.elasticsearch.xpack.watcher.transform.search.ExecutableSearchTransfor
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransform;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.CronSchedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
@@ -70,6 +73,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.util.LuceneTestCase.createTempDir;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -153,13 +157,23 @@ public final class WatcherTestUtils {
                 .buildMock();
     }
 
-
-    public static Watch createTestWatch(String watchName, HttpClient httpClient, EmailService emailService,
-                                        WatcherSearchTemplateService searchTemplateService, Logger logger) throws AddressException {
-        Client client = ESIntegTestCase.client();
-        return createTestWatch(watchName, client, httpClient, emailService, searchTemplateService, logger);
+    public static WatchExecutionContext createWatchExecutionContext(Logger logger) throws Exception {
+        Watch watch = new Watch("test-watch",
+                new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
+                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
+                AlwaysCondition.INSTANCE,
+                null,
+                null,
+                new ArrayList<>(),
+                null,
+                new WatchStatus(new DateTime(0, UTC), emptyMap()));
+        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(),
+                new DateTime(0, UTC),
+                new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),
+                TimeValue.timeValueSeconds(5));
+        context.ensureWatchExists(() -> watch);
+        return context;
     }
-
 
     public static Watch createTestWatch(String watchName, Client client, HttpClient httpClient, EmailService emailService,
                                         WatcherSearchTemplateService searchTemplateService, Logger logger) throws AddressException {

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -68,12 +69,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -146,7 +147,8 @@ public class ExecutionServiceTests extends ESTestCase {
 
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
-        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
+        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
+        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
 
         Condition.Result conditionResult = AlwaysCondition.RESULT_INSTANCE;
         Condition condition = mock(Condition.class);
@@ -239,7 +241,8 @@ public class ExecutionServiceTests extends ESTestCase {
 
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
-        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
+        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
+        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
 
         input = mock(ExecutableInput.class);
         Input.Result inputResult = mock(Input.Result.class);
@@ -307,7 +310,8 @@ public class ExecutionServiceTests extends ESTestCase {
 
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
-        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
+        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
+        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
 
         Condition condition = mock(Condition.class);
         Condition.Result conditionResult = mock(Condition.Result.class);
@@ -371,7 +375,8 @@ public class ExecutionServiceTests extends ESTestCase {
 
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
-        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
+        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
+        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
 
         Condition.Result conditionResult = AlwaysCondition.RESULT_INSTANCE;
         Condition condition = mock(Condition.class);
@@ -431,10 +436,11 @@ public class ExecutionServiceTests extends ESTestCase {
         GetResponse getResponse = mock(GetResponse.class);
         when(getResponse.isExists()).thenReturn(true);
         mockGetWatchResponse(client, "_id", getResponse);
+        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
 
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
-        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
+        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
 
         Condition.Result conditionResult = AlwaysCondition.RESULT_INSTANCE;
         Condition condition = mock(Condition.class);
@@ -511,7 +517,8 @@ public class ExecutionServiceTests extends ESTestCase {
         DateTime now = now(UTC);
         Watch watch = mock(Watch.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
-        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
+        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
+        context.ensureWatchExists(() -> watch);
 
         Condition.Result conditionResult = AlwaysCondition.RESULT_INSTANCE;
         Condition condition = mock(Condition.class);
@@ -586,7 +593,8 @@ public class ExecutionServiceTests extends ESTestCase {
         DateTime now = now(UTC);
         Watch watch = mock(Watch.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
-        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
+        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
+        context.ensureWatchExists(() -> watch);
 
         Condition.Result conditionResult = AlwaysCondition.RESULT_INSTANCE;
         Condition condition = mock(Condition.class);
@@ -637,7 +645,8 @@ public class ExecutionServiceTests extends ESTestCase {
         DateTime now = now(UTC);
         Watch watch = mock(Watch.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
-        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
+        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
+        context.ensureWatchExists(() -> watch);
 
         Condition.Result conditionResult = AlwaysCondition.RESULT_INSTANCE;
         Condition condition = mock(Condition.class);
@@ -699,7 +708,8 @@ public class ExecutionServiceTests extends ESTestCase {
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn(getTestName());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
-        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
+        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
+        context.ensureWatchExists(() -> watch);
 
         Condition.Result conditionResult = AlwaysCondition.RESULT_INSTANCE;
         Condition condition = mock(Condition.class);
@@ -726,7 +736,7 @@ public class ExecutionServiceTests extends ESTestCase {
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
-        when(watch.actions()).thenReturn(Arrays.asList(actionWrapper));
+        when(watch.actions()).thenReturn(Collections.singletonList(actionWrapper));
         when(watch.status()).thenReturn(watchStatus);
 
         WatchRecord watchRecord = executionService.executeInner(context);
@@ -753,7 +763,8 @@ public class ExecutionServiceTests extends ESTestCase {
         DateTime now = DateTime.now(UTC);
         Watch watch = mock(Watch.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
-        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
+        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
+        context.ensureWatchExists(() -> watch);
 
         Condition.Result conditionResult = NeverCondition.RESULT_INSTANCE;
         Condition condition = mock(Condition.class);
@@ -774,7 +785,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
         when(watch.transform()).thenReturn(watchTransform);
-        when(watch.actions()).thenReturn(Arrays.asList(actionWrapper));
+        when(watch.actions()).thenReturn(Collections.singletonList(actionWrapper));
         when(watch.status()).thenReturn(watchStatus);
 
         WatchRecord watchRecord = executionService.executeInner(context);
@@ -847,7 +858,7 @@ public class ExecutionServiceTests extends ESTestCase {
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(AlwaysCondition.INSTANCE);
-        when(watch.actions()).thenReturn(Arrays.asList(actionWrapper));
+        when(watch.actions()).thenReturn(Collections.singletonList(actionWrapper));
         when(watch.status()).thenReturn(watchStatus);
 
         executionService.execute(context);
@@ -859,6 +870,8 @@ public class ExecutionServiceTests extends ESTestCase {
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_id");
         when(ctx.watch()).thenReturn(watch);
+        Wid wid = new Wid(watch.id(), DateTime.now(UTC));
+        when(ctx.id()).thenReturn(wid);
 
         executionService.getCurrentExecutions().put("_id", new ExecutionService.WatchExecution(ctx, Thread.currentThread()));
 
@@ -870,44 +883,51 @@ public class ExecutionServiceTests extends ESTestCase {
     public void testExecuteWatchNotFound() throws Exception {
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_id");
-        WatchExecutionContext ctx = mock(WatchExecutionContext.class);
-        when(ctx.knownWatch()).thenReturn(true);
-        when(watch.status()).thenReturn(new WatchStatus(now(), emptyMap()));
-        when(ctx.watch()).thenReturn(watch);
+        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(),
+                new DateTime(0, UTC),
+                new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),
+                TimeValue.timeValueSeconds(5));
 
-        GetResponse getResponse = mock(GetResponse.class);
-        when(getResponse.isExists()).thenReturn(false);
-        boolean exceptionThrown = false;
-        if (randomBoolean()) {
-            mockGetWatchResponse(client, "_id", getResponse);
-        } else {
-            // this emulates any failure while getting the watch, while index not found is an accepted issue
-            if (randomBoolean()) {
-                exceptionThrown = true;
-                ElasticsearchException e = new ElasticsearchException("something went wrong, i.e. index not found");
-                mockGetWatchException(client, "_id", e);
-                WatchExecutionResult result = new WatchExecutionResult(ctx, randomInt(10));
-                WatchRecord wr = new WatchRecord.ExceptionWatchRecord(ctx, result, e);
-                when(ctx.abortFailedExecution(eq(e))).thenReturn(wr);
-            } else {
-                mockGetWatchException(client, "_id", new IndexNotFoundException(".watch"));
-            }
-        }
+        GetResponse notFoundResponse = mock(GetResponse.class);
+        when(notFoundResponse.isExists()).thenReturn(false);
+        mockGetWatchResponse(client, "_id", notFoundResponse);
 
-        WatchRecord.MessageWatchRecord record = mock(WatchRecord.MessageWatchRecord.class);
-        when(record.state()).thenReturn(ExecutionState.NOT_EXECUTED_WATCH_MISSING);
-        when(ctx.abortBeforeExecution(eq(ExecutionState.NOT_EXECUTED_WATCH_MISSING), any())).thenReturn(record);
-        when(ctx.executionPhase()).thenReturn(ExecutionPhase.AWAITS_EXECUTION);
-
-        WatchRecord watchRecord = executionService.execute(ctx);
-        if (exceptionThrown) {
-            assertThat(watchRecord.state(), is(ExecutionState.FAILED));
-        } else {
-            assertThat(watchRecord.state(), is(ExecutionState.NOT_EXECUTED_WATCH_MISSING));
-        }
+        WatchRecord watchRecord = executionService.execute(context);
+        assertThat(watchRecord, not(nullValue()));
+        assertThat(watchRecord.state(), is(ExecutionState.NOT_EXECUTED_WATCH_MISSING));
     }
 
-    public void testWatchInactive() {
+    public void testExecuteWatchIndexNotFoundException() {
+        Watch watch = mock(Watch.class);
+        when(watch.id()).thenReturn("_id");
+        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(),
+                new DateTime(0, UTC),
+                new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),
+                TimeValue.timeValueSeconds(5));
+
+        mockGetWatchException(client, "_id", new IndexNotFoundException(".watch"));
+        WatchRecord watchRecord = executionService.execute(context);
+        assertThat(watchRecord, not(nullValue()));
+        assertThat(watchRecord.state(), is(ExecutionState.NOT_EXECUTED_WATCH_MISSING));
+    }
+
+    public void testExecuteWatchParseWatchException() {
+        Watch watch = mock(Watch.class);
+        when(watch.id()).thenReturn("_id");
+        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(),
+                new DateTime(0, UTC),
+                new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),
+                TimeValue.timeValueSeconds(5));
+
+        IOException e = new IOException("something went wrong, i.e. index not found");
+        mockGetWatchException(client, "_id", e);
+
+        WatchRecord watchRecord = executionService.execute(context);
+        assertThat(watchRecord, not(nullValue()));
+        assertThat(watchRecord.state(), is(ExecutionState.FAILED));
+    }
+
+    public void testWatchInactive() throws Exception {
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_id");
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
@@ -916,6 +936,13 @@ public class ExecutionServiceTests extends ESTestCase {
         when(status.state()).thenReturn(new WatchStatus.State(false, now()));
         when(watch.status()).thenReturn(status);
         when(ctx.watch()).thenReturn(watch);
+        Wid wid = new Wid(watch.id(), DateTime.now(UTC));
+        when(ctx.id()).thenReturn(wid);
+
+        GetResponse getResponse = mock(GetResponse.class);
+        when(getResponse.isExists()).thenReturn(true);
+        mockGetWatchResponse(client, "_id", getResponse);
+        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
 
         WatchRecord.MessageWatchRecord record = mock(WatchRecord.MessageWatchRecord.class);
         when(record.state()).thenReturn(ExecutionState.EXECUTION_NOT_NEEDED);

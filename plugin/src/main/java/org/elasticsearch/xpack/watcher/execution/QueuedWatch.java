@@ -27,7 +27,7 @@ public class QueuedWatch implements Streamable, ToXContentObject {
     }
 
     public QueuedWatch(WatchExecutionContext ctx) {
-        this.watchId = ctx.watch().id();
+        this.watchId = ctx.id().watchId();
         this.watchRecordId = ctx.id().value();
         this.triggeredTime = ctx.triggerEvent().triggeredTime();
         this.executionTime = ctx.executionTime();

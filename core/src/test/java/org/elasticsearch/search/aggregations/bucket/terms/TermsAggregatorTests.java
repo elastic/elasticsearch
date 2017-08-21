@@ -102,13 +102,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
         assertTrue(globalAgg.remapGlobalOrds());
 
-        aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.STRING)
-            .field("string")
-            .executionHint("global_ordinals_hash");
-        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
-        globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
-        assertTrue(globalAgg.remapGlobalOrds());
         indexReader.close();
         directory.close();
     }

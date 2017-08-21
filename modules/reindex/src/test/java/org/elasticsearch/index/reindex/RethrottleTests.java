@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.both;
@@ -46,7 +47,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * too but this is the only place that tests running against multiple nodes so it is the only integration tests that checks for
  * serialization.
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/26192")
 public class RethrottleTests extends ReindexTestCase {
 
     public void testReindex() throws Exception {
@@ -116,9 +116,7 @@ public class RethrottleTests extends ReindexTestCase {
 
         // Now rethrottle it so it'll finish
         float newRequestsPerSecond = randomBoolean() ? Float.POSITIVE_INFINITY : between(1, 1000) * 100000; // No throttle or "very fast"
-        ListTasksResponse rethrottleResponse = rethrottle().setTaskId(taskToRethrottle).setRequestsPerSecond(newRequestsPerSecond).get();
-        rethrottleResponse.rethrowFailures("Rethrottle");
-        assertThat(rethrottleResponse.getTasks(), hasSize(1));
+        ListTasksResponse rethrottleResponse = rethrottleTask(taskToRethrottle, newRequestsPerSecond);
         BulkByScrollTask.Status status = (BulkByScrollTask.Status) rethrottleResponse.getTasks().get(0).getStatus();
 
         // Now check the resulting requests per second.
@@ -172,6 +170,33 @@ public class RethrottleTests extends ReindexTestCase {
         BulkByScrollResponse response = responseListener.get();
         assertThat("Entire request completed in a single batch. This may invalidate the test as throttling is done between batches.",
                 response.getBatches(), greaterThanOrEqualTo(numSlices));
+    }
+
+    private ListTasksResponse rethrottleTask(TaskId taskToRethrottle, float newRequestsPerSecond) throws Exception {
+        // the task isn't ready to be rethrottled until it has figured out how many slices it will use. if we rethrottle when the task is
+        // in this state, the request will fail. so we try a few times
+        AtomicReference<ListTasksResponse> response = new AtomicReference<>();
+
+        assertBusy(() -> {
+            try {
+                ListTasksResponse rethrottleResponse = rethrottle()
+                    .setTaskId(taskToRethrottle)
+                    .setRequestsPerSecond(newRequestsPerSecond)
+                    .get();
+                rethrottleResponse.rethrowFailures("Rethrottle");
+                assertThat(rethrottleResponse.getTasks(), hasSize(1));
+                response.set(rethrottleResponse);
+            } catch (ElasticsearchException e) {
+                // if it's the error we're expecting, rethrow as AssertionError so awaitBusy doesn't exit early
+                if (e.getCause() instanceof IllegalArgumentException) {
+                    throw new AssertionError("Rethrottle request for task [" + taskToRethrottle.getId() + "] failed", e);
+                } else {
+                    throw e;
+                }
+            }
+        });
+
+        return response.get();
     }
 
     private TaskGroup findTaskToRethrottle(String actionName, int sliceCount) {

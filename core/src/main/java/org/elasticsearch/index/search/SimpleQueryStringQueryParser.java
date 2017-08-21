@@ -72,7 +72,6 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         this.settings = settings;
         this.context = context;
         this.queryBuilder = new MultiMatchQuery(context);
-        this.queryBuilder.setAutoGenerateSynonymsPhraseQuery(settings.autoGenerateSynonymsPhraseQuery());
         this.queryBuilder.setLenient(settings.lenient());
         if (analyzer != null) {
             this.queryBuilder.setAnalyzer(analyzer);

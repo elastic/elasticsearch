@@ -118,7 +118,7 @@ For information about building the X-Pack Reference, see the README in the x-pac
 
 To build a release notes page for the pull requests in this repository:
 
-* Use the dev-tools/xes-release-notes.pl script.
+* Use the dev-tools/xes-release-notes.pl script to pull PRs from the x-pack-elasticsearch repo.  Alternatively, use the dev-tools/xescpp_release_notes.pl script to pull PRs from both the x-pack-elasticsearch and machine-learning-cpp repos.
 * Specify the version label for which you want the release notes.
 * Redirect the output to a new local file.
 

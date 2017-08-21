@@ -32,10 +32,6 @@ import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.SocketSelector;
 import org.elasticsearch.transport.nio.WriteOperation;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
-import org.elasticsearch.transport.nio.http.ESChannelPromise;
-import org.elasticsearch.transport.nio.http.ESEmbeddedChannel;
-import org.elasticsearch.transport.nio.http.HttpWriteContext;
-import org.elasticsearch.transport.nio.http.HttpWriteOperation;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -54,19 +50,19 @@ import static org.mockito.Mockito.when;
 @SuppressWarnings("unchecked")
 public class HttpWriteContextTests extends ESTestCase {
 
-    private ESEmbeddedChannel adaptor;
+    private NettyChannelAdaptor adaptor;
     private NioSocketChannel channel;
     private SocketSelector selector;
-    private ESChannelPromise listener;
+    private NettyActionListener listener;
 
     private HttpWriteContext writeContext;
 
     @Before
     public void initMocks() {
-        adaptor = mock(ESEmbeddedChannel.class);
+        adaptor = mock(NettyChannelAdaptor.class);
         channel = mock(NioSocketChannel.class);
         selector = mock(SocketSelector.class);
-        listener = mock(ESChannelPromise.class);
+        listener = mock(NettyActionListener.class);
 
         writeContext = new HttpWriteContext(channel, adaptor);
 
@@ -142,7 +138,7 @@ public class HttpWriteContextTests extends ESTestCase {
     }
 
     public void testMultiFlush() throws IOException {
-        ESChannelPromise listener2 = mock(ESChannelPromise.class);
+        NettyActionListener listener2 = mock(NettyActionListener.class);
         when(adaptor.popMessage()).thenReturn(new Tuple<>(new BytesArray("message1"), listener),
             new Tuple<>(new BytesArray("message2"), listener2), null);
 
@@ -225,7 +221,7 @@ public class HttpWriteContextTests extends ESTestCase {
     }
 
     public void testAdaptorMessagesAndPartialMessagesAreClosed() throws IOException {
-        ESChannelPromise listener2 = mock(ESChannelPromise.class);
+        NettyActionListener listener2 = mock(NettyActionListener.class);
         when(adaptor.popMessage()).thenReturn(new Tuple<>(new BytesArray("message1"), listener),
             new Tuple<>(new BytesArray("message2"), listener2), null);
         when(channel.write(any())).thenAnswer(invocationOnMock -> {

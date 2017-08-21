@@ -36,10 +36,10 @@ import java.nio.channels.ClosedChannelException;
 public class HttpWriteContext implements WriteContext {
 
     private final NioSocketChannel channel;
-    private final ESEmbeddedChannel adaptor;
+    private final NettyChannelAdaptor adaptor;
     private ByteWriteOperation partiallyFlushed;
 
-    public HttpWriteContext(NioSocketChannel channel, ESEmbeddedChannel adaptor) {
+    public HttpWriteContext(NioSocketChannel channel, NettyChannelAdaptor adaptor) {
         this.channel = channel;
         this.adaptor = adaptor;
     }
@@ -53,13 +53,16 @@ public class HttpWriteContext implements WriteContext {
 
         WriteOperation writeOperation = new HttpWriteOperation(channel, message, listener);
         SocketSelector selector = channel.getSelector();
-        if (selector.isOnCurrentThread() == false) {
+
+        // If we are on the selector thread, we can queue the message directly in the channel buffer.
+        // Otherwise we must call queueWrite which will dispatch to the selector thread.
+        if (selector.isOnCurrentThread()) {
+            // TODO: Eval if we will allow writes from sendMessage
+            selector.queueWriteInChannelBuffer(writeOperation);
+        } else {
             selector.queueWrite(writeOperation);
-            return;
         }
 
-        // TODO: Eval if we will allow writes from sendMessage
-        selector.queueWriteInChannelBuffer(writeOperation);
     }
 
     @Override
@@ -67,7 +70,7 @@ public class HttpWriteContext implements WriteContext {
         assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to queue writes";
 
         HttpWriteOperation httpWriteOperation = (HttpWriteOperation) writeOperation;
-        ESChannelPromise listener = (ESChannelPromise) httpWriteOperation.getListener();
+        NettyActionListener listener = (NettyActionListener) httpWriteOperation.getListener();
         adaptor.write(httpWriteOperation.getHttpResponse(), listener);
     }
 
@@ -87,11 +90,11 @@ public class HttpWriteContext implements WriteContext {
         boolean previousMessageFullyFlushed = true;
         while (previousMessageFullyFlushed && (message = adaptor.popMessage()) != null) {
             ChannelPromise promise = message.v2();
-            ESChannelPromise listener;
-            if (promise instanceof ESChannelPromise) {
-                listener = (ESChannelPromise) promise;
+            NettyActionListener listener;
+            if (promise instanceof NettyActionListener) {
+                listener = (NettyActionListener) promise;
             } else {
-                listener = new ESChannelPromise(promise);
+                listener = new NettyActionListener(promise);
             }
             ByteWriteOperation writeOperation = new ByteWriteOperation(channel, message.v1(), listener);
 

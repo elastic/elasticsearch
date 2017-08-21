@@ -62,14 +62,8 @@ public class NioHttpRequestHandler {
             request = (FullHttpRequest) msg;
         }
 
-        final FullHttpRequest copy =
-            new DefaultFullHttpRequest(
-                request.protocolVersion(),
-                request.method(),
-                request.uri(),
-                Unpooled.copiedBuffer(request.content()),
-                request.headers(),
-                request.trailingHeaders());
+        final FullHttpRequest copy = new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(),
+            Unpooled.copiedBuffer(request.content()), request.headers(), request.trailingHeaders());
         final NioHttpRequest httpRequest = new NioHttpRequest(xContentRegistry, copy, channel);
         final NioHttpChannel httpChannel = new NioHttpChannel(httpRequest, channel, nettyChannel, pipelinedRequest, detailedErrorsEnabled,
             threadContext, corsConfig, resetCookies);

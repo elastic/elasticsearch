@@ -127,7 +127,7 @@ final class NioHttpChannel extends AbstractRestChannel {
 
             addCookies(resp);
 
-            final ESChannelPromise promise = new ESChannelPromise(nettyChannel.newPromise());
+            final NettyActionListener promise = new NettyActionListener(nettyChannel.newPromise());
 
             if (releaseContent) {
                 promise.addListener(f -> ((Releasable) content).close());

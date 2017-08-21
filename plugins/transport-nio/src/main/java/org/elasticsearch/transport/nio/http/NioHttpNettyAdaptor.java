@@ -80,8 +80,8 @@ public class NioHttpNettyAdaptor {
         this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
     }
 
-    protected ESEmbeddedChannel getAdaptor(NioSocketChannel channel) {
-        ESEmbeddedChannel ch = new ESEmbeddedChannel();
+    protected NettyChannelAdaptor getAdaptor(NioSocketChannel channel) {
+        NettyChannelAdaptor ch = new NettyChannelAdaptor();
         // TODO: Implement Netty allocator that allocates our byte references
         ch.config().setAllocator(UnpooledByteBufAllocator.DEFAULT);
 
@@ -91,7 +91,7 @@ public class NioHttpNettyAdaptor {
         ch.pipeline().addLast("close_adaptor", new ChannelOutboundHandlerAdapter() {
             @Override
             public void close(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
-                channel.closeAsync().addListener(new ESChannelPromise(promise));
+                channel.closeAsync().addListener(new NettyActionListener(promise));
                 // Should we forward the close() call with a different promise? This is the last item in
                 // the outbound pipeline. So it should not be necessary I think.
             }

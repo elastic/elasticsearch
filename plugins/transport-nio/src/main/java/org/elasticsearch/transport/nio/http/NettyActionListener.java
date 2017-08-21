@@ -31,11 +31,16 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-public class ESChannelPromise implements ActionListener<NioChannel>, ChannelPromise {
+/**
+ * This is an {@link ActionListener} that interfaces with netty code. It wraps a netty promise and will
+ * complete that promise when onResponse or onFailure is called. It delegates the normal promise methods
+ * to the underlying promise.
+ */
+public class NettyActionListener implements ActionListener<NioChannel>, ChannelPromise {
 
     private final ChannelPromise promise;
 
-    public ESChannelPromise(ChannelPromise promise) {
+    public NettyActionListener(ChannelPromise promise) {
         this.promise = promise;
     }
 

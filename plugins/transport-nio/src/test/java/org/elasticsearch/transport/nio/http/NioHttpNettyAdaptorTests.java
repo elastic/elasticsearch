@@ -49,8 +49,6 @@ import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.transport.nio.channel.CloseFuture;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
-import org.elasticsearch.transport.nio.http.ESEmbeddedChannel;
-import org.elasticsearch.transport.nio.http.NioHttpNettyAdaptor;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -84,7 +82,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testCloseAdaptorSchedulesRealChannelForClose() {
         NioSocketChannel channel = mock(NioSocketChannel.class);
-        ESEmbeddedChannel channelAdaptor = adaptor.getAdaptor(channel);
+        NettyChannelAdaptor channelAdaptor = adaptor.getAdaptor(channel);
         ArgumentCaptor<ActionListener> captor = ArgumentCaptor.forClass(ActionListener.class);
         CloseFuture closeFuture = mock(CloseFuture.class);
         when(channel.closeAsync()).thenReturn(closeFuture);
@@ -109,7 +107,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
     }
 
     public void testSuccessfulDecodeHttpRequest() {
-        ESEmbeddedChannel channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
+        NettyChannelAdaptor channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
 
         String uri = "localhost:9090/" + randomAlphaOfLength(8);
         HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uri);
@@ -131,7 +129,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
     }
 
     public void testDecodeHttpRequestError() {
-        ESEmbeddedChannel channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
+        NettyChannelAdaptor channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
 
         String uri = "localhost:9090/" + randomAlphaOfLength(8);
         HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uri);
@@ -150,7 +148,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
     }
 
     public void testDecodeHttpRequestContentLengthToLongGeneratesOutboundMessage() {
-        ESEmbeddedChannel channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
+        NettyChannelAdaptor channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
 
         String uri = "localhost:9090/" + randomAlphaOfLength(8);
         HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, uri, false);
@@ -172,7 +170,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
     }
 
     public void testEncodeHttpResponse() {
-        ESEmbeddedChannel channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
+        NettyChannelAdaptor channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
 
         prepareAdaptorForResponse(channelAdaptor);
 
@@ -188,7 +186,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
     }
 
     public void testEncodedMessageIsReleasedWhenPromiseCompleted() {
-        ESEmbeddedChannel channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
+        NettyChannelAdaptor channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
 
         prepareAdaptorForResponse(channelAdaptor);
 
@@ -216,7 +214,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
 
     public void testResponsesAreClearedOnClose() {
         adaptor = new NioHttpNettyAdaptor(logger, Settings.EMPTY, exceptionHandler, Netty4CorsConfigBuilder.forAnyOrigin().build(), 1024);
-        ESEmbeddedChannel channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
+        NettyChannelAdaptor channelAdaptor = adaptor.getAdaptor(nioSocketChannel);
 
         prepareAdaptorForResponse(channelAdaptor);
         HttpPipelinedRequest pipelinedRequest2 = prepareAdaptorForResponse(channelAdaptor);
@@ -237,7 +235,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
         assertTrue(writePromise.cause() instanceof ClosedChannelException);
     }
 
-    private HttpPipelinedRequest prepareAdaptorForResponse(ESEmbeddedChannel adaptor) {
+    private HttpPipelinedRequest prepareAdaptorForResponse(NettyChannelAdaptor adaptor) {
         HttpMethod method = HttpMethod.GET;
         HttpVersion version = HttpVersion.HTTP_1_1;
         String uri = "http://localhost:9090/" + randomAlphaOfLength(8);

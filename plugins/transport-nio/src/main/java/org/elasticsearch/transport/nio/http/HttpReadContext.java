@@ -36,11 +36,11 @@ import java.util.Queue;
 public class HttpReadContext implements ReadContext {
 
     private final NioSocketChannel channel;
-    private final ESEmbeddedChannel nettyPipelineAdaptor;
+    private final NettyChannelAdaptor nettyPipelineAdaptor;
     private final LinkedList<NetworkBytesReference> references = new LinkedList<>();
     private final NioHttpRequestHandler requestHandler;
 
-    public HttpReadContext(NioSocketChannel channel, ESEmbeddedChannel adaptor, NioHttpRequestHandler requestHandler) {
+    public HttpReadContext(NioSocketChannel channel, NettyChannelAdaptor adaptor, NioHttpRequestHandler requestHandler) {
         this.channel = channel;
         this.requestHandler = requestHandler;
         this.nettyPipelineAdaptor = adaptor;

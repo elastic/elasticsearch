@@ -31,11 +31,17 @@ import org.elasticsearch.transport.netty4.Netty4Utils;
 import java.util.LinkedList;
 import java.util.Queue;
 
-class ESEmbeddedChannel extends EmbeddedChannel {
 
+/**
+ * This class adapts a netty channel for our usage. In particular, it captures writes at the end of the
+ * pipeline and places them in a queue that can be accessed by our code.
+ */
+class NettyChannelAdaptor extends EmbeddedChannel {
+
+    // TODO: Explore if this can be made more efficient by generating less garbage
     private LinkedList<Tuple<BytesReference, ChannelPromise>> messages = new LinkedList<>();
 
-    ESEmbeddedChannel() {
+    NettyChannelAdaptor() {
         pipeline().addFirst("promise_captor", new ChannelOutboundHandlerAdapter() {
 
             @Override

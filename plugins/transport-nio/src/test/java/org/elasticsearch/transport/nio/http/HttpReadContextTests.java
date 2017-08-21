@@ -26,9 +26,6 @@ import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
-import org.elasticsearch.transport.nio.http.ESEmbeddedChannel;
-import org.elasticsearch.transport.nio.http.HttpReadContext;
-import org.elasticsearch.transport.nio.http.NioHttpRequestHandler;
 import org.elasticsearch.transport.nio.utils.TestSelectionKey;
 import org.junit.Before;
 
@@ -51,7 +48,7 @@ public class HttpReadContextTests extends ESTestCase {
 
     private NioHttpRequestHandler handler;
     private NioSocketChannel channel;
-    private ESEmbeddedChannel adaptor;
+    private NettyChannelAdaptor adaptor;
     private int messageLength;
 
     private HttpReadContext readContext;
@@ -60,7 +57,7 @@ public class HttpReadContextTests extends ESTestCase {
     public void init() throws IOException {
         handler = mock(NioHttpRequestHandler.class);
         channel = mock(NioSocketChannel.class);
-        adaptor = mock(ESEmbeddedChannel.class);
+        adaptor = mock(NettyChannelAdaptor.class);
         messageLength = randomInt(96) + 10;
 
 

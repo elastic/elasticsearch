@@ -154,7 +154,7 @@ public class NioHttpTransport extends AbstractLifecycleComponent implements Http
             NioHttpRequestHandler handler = new NioHttpRequestHandler(this, xContentRegistry, detailedErrorsEnabled,
                 threadPool.getThreadContext(), pipelining, corsConfig, resetCookies);
             contextSetter = (c) -> {
-                ESEmbeddedChannel adaptor = nettyAdaptor.getAdaptor(c);
+                NettyChannelAdaptor adaptor = nettyAdaptor.getAdaptor(c);
                 c.setContexts(new HttpReadContext(c, adaptor, handler), new HttpWriteContext(c, adaptor));
             };
 

@@ -138,7 +138,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
             }
         });
 
-        // TODO remove me again
+        // helping debugging output
         executeAgainstMasterNode(client -> {
             Map<String, String> filterPathParams = MapBuilder.newMapBuilder(params)
                     .put("filter_path", "*.template,*.index_patterns").immutableMap();
@@ -146,14 +146,13 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
             logger.info("existing watcher templates response [{}]", EntityUtils.toString(r.getEntity(), StandardCharsets.UTF_8));
         });
 
-        // TODO remove me again
         // set logging to debug
-        executeAgainstMasterNode(client -> {
-            StringEntity entity = new StringEntity("{ \"transient\" : { \"logger.org.elasticsearch.xpack.watcher\" : \"TRACE\" } }",
-                    ContentType.APPLICATION_JSON);
-            Response response = client.performRequest("PUT", "_cluster/settings", params, entity);
-            logger.info("cluster update settings response [{}]", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
-        });
+//        executeAgainstMasterNode(client -> {
+//            StringEntity entity = new StringEntity("{ \"transient\" : { \"logger.org.elasticsearch.xpack.watcher\" : \"TRACE\" } }",
+//                    ContentType.APPLICATION_JSON);
+//            Response response = client.performRequest("PUT", "_cluster/settings", params, entity);
+//            logger.info("cluster update settings response [{}]", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+//        });
     }
 
     @Override

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.threadpool;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -54,6 +55,25 @@ public class ThreadPoolTests extends ESTestCase {
             long delta = Math.abs(gotTime - currentTime);
             assertTrue("thread pool cached absolute time " + gotTime + " is too far from real current time " + currentTime,
                 delta < 10000); // the delta can be large, we just care it is the same order of magnitude
+        } finally {
+            threadPool.shutdown();
+            threadPool.close();
+        }
+    }
+
+    public void testThreadPoolName() throws Exception {
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> new ThreadPool("test", Settings.builder().put("node.name", "test").build()));
+        assertEquals("settings must not contain [node.name] when thread pool name is provided separately", iae.getMessage());
+
+        ThreadPool threadPool;
+        if (randomBoolean()) {
+            threadPool = new ThreadPool("test");
+        } else {
+            threadPool = new ThreadPool("test", Settings.builder().put("field", "value").build());
+        }
+        try {
+            assertEquals("test", threadPool.nodeName());
         } finally {
             threadPool.shutdown();
             threadPool.close();

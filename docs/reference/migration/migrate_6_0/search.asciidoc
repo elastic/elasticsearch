@@ -141,3 +141,8 @@ The deprecated `fielddata_fields` have now been removed. `docvalue_fields` shoul
 
 The source inside a hit of inner hits keeps its full path with respect to the entire source.
 In prior versions the source field names were relative to the inner hit.
+
+==== Scroll
+
+The `from` parameter can no longer be used in the search request body when initiating a scroll.
+The parameter was already ignored in these situations, now in addition an error is thrown.

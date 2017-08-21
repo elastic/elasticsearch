@@ -470,7 +470,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                 ChunkingConfig newChunkingConfig = ChunkingConfig.newManual(new TimeValue(randomNonNegativeLong()));
                 builder.setChunkingConfig(newChunkingConfig);
             } else {
-                builder.setChunkingConfig(null);
+                builder.setChunkingConfig(ChunkingConfig.newAuto());
             }
             break;
         default:

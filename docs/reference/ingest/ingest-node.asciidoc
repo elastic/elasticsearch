@@ -752,7 +752,7 @@ Accepts a single value or an array of values.
 --------------------------------------------------
 {
   "append": {
-    "field": "field1"
+    "field": "field1",
     "value": ["item2", "item3", "item4"]
   }
 }

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
+import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.transform.TransformBuilders;
 import org.elasticsearch.xpack.watcher.transform.search.ExecutableSearchTransform;
@@ -234,7 +235,7 @@ public class SearchTransformTests extends ESIntegTestCase {
     }
 
     public void testDifferentSearchType() throws Exception {
-        WatchExecutionContext ctx = createContext();
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
         SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery()
               .must(matchQuery("event_type", "a")));
         final SearchType searchType = getRandomSupportedSearchType();
@@ -248,23 +249,6 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(result.executedRequest().getSearchType(), is(searchType));
         assertThat(result.executedRequest().getIndices(), arrayContainingInAnyOrder(request.getIndices()));
         assertThat(result.executedRequest().getIndicesOptions(), equalTo(request.getIndicesOptions()));
-    }
-
-    private WatchExecutionContext createContext() {
-
-        return new TriggeredExecutionContext(
-                new Watch("test-watch",
-                        new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
-                        new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
-                        AlwaysCondition.INSTANCE,
-                        null,
-                        null,
-                        new ArrayList<>(),
-                        null,
-                        new WatchStatus( new DateTime(40000, UTC), emptyMap())),
-                new DateTime(60000, UTC),
-                new ScheduleTriggerEvent("test-watch", new DateTime(60000, UTC), new DateTime(60000, UTC)),
-                timeValueSeconds(5));
     }
 
     private SearchTransform.Result executeSearchTransform(WatcherSearchTemplateRequest request, WatchExecutionContext ctx)

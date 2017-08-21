@@ -321,8 +321,12 @@ For more information, see
   (long or string) The approximate maximum amount of memory resources that are
   required for analytical processing. Once this limit is approached, data pruning
   becomes more aggressive. Upon exceeding this limit, new entities are not
-  modeled. The default value is `4096mb`. If you specify a number instead of a
-  string, the units are assumed to be MiB. Specifying a string is recommended
+  modeled. The default value for jobs created in version 6.1 and later is `1024mb`.
+  This value will need to be increased for jobs that are expected to analyze high
+  cardinality fields, but the default is set to a relatively small size to ensure
+  that high resource usage is a conscious decision. The default value for jobs
+  created in versions earlier than 6.1 is `4096mb`. If you specify a number instead
+  of a string, the units are assumed to be MiB. Specifying a string is recommended
   for clarity. If you specify a byte size unit of `b` or `kb` and the number
   does not equate to a discrete number of megabytes, it is rounded down to the
   closest MiB. The minimum valid value is 1 MiB. If you specify a value less

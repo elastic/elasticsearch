@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.restart;
 
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.entity.StringEntity;
-import org.elasticsearch.client.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
+import org.elasticsearch.client.http.util.EntityUtils;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -193,25 +193,43 @@ public class FullClusterRestartIT extends ESRestTestCase {
             logger.info(response);
 
             @SuppressWarnings("unchecked") Map<String, Object> indices = (Map<String, Object>) response.get("indices");
-            if (indices.containsKey(".watches")) {
-                logger.info("upgrade procedure is required for watcher");
+            if (indices.containsKey(".watches") || indices.containsKey(".triggered_watches")) {
+                logger.info("checking if upgrade procedure is required for watcher");
                 assertThat(indices.entrySet().size(), greaterThanOrEqualTo(1));
                 assertThat(indices.get(".watches"), notNullValue());
                 @SuppressWarnings("unchecked") Map<String, Object> index = (Map<String, Object>) indices.get(".watches");
                 assertThat(index.get("action_required"), equalTo("upgrade"));
+                String watchIndexUpgradeRequired = index.get("action_required").toString();
+
+                assertThat(indices.entrySet().size(), greaterThanOrEqualTo(1));
+                assertThat(indices.get(".triggered_watches"), notNullValue());
+                @SuppressWarnings("unchecked") Map<String, Object> triggeredWatchIndex =
+                        (Map<String, Object>) indices.get(".triggered_watches");
+                assertThat(triggeredWatchIndex.get("action_required"), equalTo("upgrade"));
+                String triggeredWatchIndexUpgradeRequired = index.get("action_required").toString();
 
                 logger.info("starting upgrade procedure on the new cluster");
 
                 Map<String, String> params = Collections.singletonMap("error_trace", "true");
-                Map<String, Object> upgradeResponse = toMap(client().performRequest("POST", "_xpack/migration/upgrade/.watches", params));
-                assertThat(upgradeResponse.get("timed_out"), equalTo(Boolean.FALSE));
-                // we posted 3 watches, but monitoring can post a few more
-                assertThat((int) upgradeResponse.get("total"), greaterThanOrEqualTo(3));
+                if ("upgrade".equals(watchIndexUpgradeRequired)) {
+                    Map<String, Object> upgradeResponse =
+                            toMap(client().performRequest("POST", "_xpack/migration/upgrade/.watches", params));
+                    assertThat(upgradeResponse.get("timed_out"), equalTo(Boolean.FALSE));
+                    // we posted 3 watches, but monitoring can post a few more
+                    assertThat((int) upgradeResponse.get("total"), greaterThanOrEqualTo(3));
+                }
+                if ("upgrade".equals(triggeredWatchIndexUpgradeRequired)) {
+                    Map<String, Object> upgradeResponse =
+                            toMap(client().performRequest("POST", "_xpack/migration/upgrade/.triggered_watches", params));
+                    assertThat(upgradeResponse.get("timed_out"), equalTo(Boolean.FALSE));
+                }
 
                 logger.info("checking that upgrade procedure on the new cluster is no longer required");
                 Map<String, Object> responseAfter = toMap(client().performRequest("GET", "/_xpack/migration/assistance"));
+                logger.info("checking upgrade procedure required after upgrade: [{}]", responseAfter);
                 @SuppressWarnings("unchecked") Map<String, Object> indicesAfter = (Map<String, Object>) responseAfter.get("indices");
-                assertNull(indicesAfter.get(".watches"));
+                assertThat(indicesAfter, not(hasKey(".watches")));
+                assertThat(indicesAfter, not(hasKey(".triggered_watches")));
             } else {
                 logger.info("upgrade procedure is not required for watcher");
             }

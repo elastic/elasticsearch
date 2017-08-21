@@ -57,3 +57,10 @@ making other numeric formats like `epoch_seconds` unusable for numeric input val
 Now we interpret these parameters according to the `format` of the target field. 
 If the `format` in the mappings is not compatible with the numeric input value, a compatible 
 `format` (e.g. `epoch_millis`, `epoch_second`) must be specified in the `date_range` aggregation, otherwise an error is thrown.
+
+
+==== `global_ordinals_hash` and `global_ordinals_low_cardinality` are deprecated in the `terms` aggregation
+
+The execution hints `global_ordinals_hash` and `global_ordinals_low_cardinality` are deprecated and should be replaced
+by `global_ordinals` which now internally choose whether it should remap global ordinals to dense ordinals or directly use the
+segment ordinals.

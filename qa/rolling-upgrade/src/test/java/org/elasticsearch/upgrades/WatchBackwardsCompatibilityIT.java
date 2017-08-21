@@ -187,15 +187,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         ensureWatcherStopped();
 
         executeAgainstRandomNode(client -> assertOK(client.performRequest("POST", "/_xpack/watcher/_start")));
-        executeAgainstMasterNode(client -> assertBusy(() -> {
-            Response response = client.performRequest("GET", "_xpack/watcher/stats");
-            String responseBody = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
-            // TODO once the serialization fix is in here, we can check for concrete fields if the run against a 5.x or a 6.x node
-            // using a checkedbiconsumer, that provides info against which node the request runs
-            assertThat(responseBody, not(containsString("\"watcher_state\":\"starting\"")));
-            assertThat(responseBody, not(containsString("\"watcher_state\":\"stopping\"")));
-            assertThat(responseBody, not(containsString("\"watcher_state\":\"stopped\"")));
-        }));
+        ensureWatcherStarted();
     }
 
     public void testWatchCrudApis() throws Exception {
@@ -260,6 +252,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
                         ensureWatcherStopped();
                         assertOK(client.performRequest("POST", "/_xpack/watcher/_start"));
                         logger.info("started watcher manually after running upgrade");
+                        ensureWatcherStarted();
                     }
                 }
             }
@@ -308,6 +301,16 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
             assertThat(responseBody, not(containsString("\"watcher_state\":\"starting\"")));
             assertThat(responseBody, not(containsString("\"watcher_state\":\"started\"")));
             assertThat(responseBody, not(containsString("\"watcher_state\":\"stopping\"")));
+        }));
+    }
+
+    private void ensureWatcherStarted() throws Exception {
+        executeAgainstMasterNode(client -> assertBusy(() -> {
+            Response response = client.performRequest("GET", "_xpack/watcher/stats");
+            String responseBody = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
+            assertThat(responseBody, not(containsString("\"watcher_state\":\"starting\"")));
+            assertThat(responseBody, not(containsString("\"watcher_state\":\"stopping\"")));
+            assertThat(responseBody, not(containsString("\"watcher_state\":\"stopped\"")));
         }));
     }
 

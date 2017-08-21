@@ -5,18 +5,27 @@
  */
 package org.elasticsearch.xpack.security.support;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
+
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static java.nio.file.StandardOpenOption.WRITE;
 
 public class SecurityFiles {
 
@@ -24,49 +33,48 @@ public class SecurityFiles {
     }
 
     /**
-     * This writer opens a temporary file instead of the specified path and
-     * tries to move the create tempfile to specified path on close. If possible
-     * this move is tried to be atomic, but it will fall back to just replace the
-     * existing file if the atomic move fails.
-     * <p>
-     * If the destination path exists, it is overwritten
+     * Atomically writes to the specified file a line per entry in the specified map using the specified transform to convert each entry to
+     * a line. The writing is done atomically in the following sense: first the lines are written to a temporary file and if the writing
+     * succeeds then the temporary file is moved to the specified path, replacing the file if it exists. If a failure occurs, any existing
+     * file is preserved, and the temporary file is cleaned up.
      *
-     * @param path The path of the destination file
+     * @param <K>       the key type of the map entries
+     * @param <V>       the value type of the map entries
+     * @param path      the path
+     * @param map       the map whose entries to transform into lines
+     * @param transform the transform to convert each map entry to a line
      */
-    public static final Writer openAtomicMoveWriter(final Path path) throws IOException {
-        final Path tempFile = Files.createTempFile(path.getParent(), path.getFileName().toString(), "tmp");
-        final Writer writer = Files.newBufferedWriter(tempFile, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption
-                .TRUNCATE_EXISTING, StandardOpenOption.WRITE);
-        return new Writer() {
-            @Override
-            public void write(char[] cbuf, int off, int len) throws IOException {
-                writer.write(cbuf, off, len);
-            }
-
-            @Override
-            public void flush() throws IOException {
-                writer.flush();
-            }
-
-            @Override
-            public void close() throws IOException {
-                writer.close();
-                // get original permissions
-                if (Files.exists(path)) {
-                    boolean supportsPosixAttributes =
-                            Environment.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
-                    if (supportsPosixAttributes) {
-                        setPosixAttributesOnTempFile(path, tempFile);
-                    }
-                }
-
-                try {
-                    Files.move(tempFile, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-                } catch (AtomicMoveNotSupportedException e) {
-                    Files.move(tempFile, path, StandardCopyOption.REPLACE_EXISTING);
+    public static <K, V> void writeFileAtomically(final Path path, final Map<K, V> map, final Function<Map.Entry<K, V>, String> transform) {
+        Path tempFile = null;
+        try {
+            tempFile = Files.createTempFile(path.getParent(), path.getFileName().toString(), "tmp");
+            try (Writer writer = Files.newBufferedWriter(tempFile, StandardCharsets.UTF_8, CREATE, TRUNCATE_EXISTING, WRITE)) {
+                for (final Map.Entry<K, V> entry : map.entrySet()) {
+                    final StringBuilder sb = new StringBuilder();
+                    final String line = sb.append(transform.apply(entry)).append(System.lineSeparator()).toString();
+                    writer.write(line);
                 }
             }
-        };
+            // get original permissions
+            if (Files.exists(path)) {
+                boolean supportsPosixAttributes =
+                        Environment.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
+                if (supportsPosixAttributes) {
+                    setPosixAttributesOnTempFile(path, tempFile);
+                }
+            }
+
+            try {
+                Files.move(tempFile, path, REPLACE_EXISTING, ATOMIC_MOVE);
+            } catch (final AtomicMoveNotSupportedException e) {
+                Files.move(tempFile, path, REPLACE_EXISTING);
+            }
+        } catch (final IOException e) {
+            throw new UncheckedIOException(String.format(Locale.ROOT, "could not write file [%s]", path.toAbsolutePath()), e);
+        } finally {
+            // we are ignoring exceptions here, so we do not need handle whether or not tempFile was initialized nor if the file exists
+            IOUtils.deleteFilesIgnoringExceptions(tempFile);
+        }
     }
 
     static void setPosixAttributesOnTempFile(Path path, Path tempFile) throws IOException {

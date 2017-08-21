@@ -54,7 +54,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     private final String executionHint;
     private final SubAggCollectionMode collectMode;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
-    private boolean showTermDocCountError;
+    private final boolean showTermDocCountError;
 
     TermsAggregatorFactory(String name,
                                   ValuesSourceConfig<ValuesSource> config,
@@ -238,12 +238,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                 return new StringTermsAggregator(name, factories, valuesSource, order, format, bucketCountThresholds, filter,
                         context, parent, subAggCollectMode, showTermDocCountError, pipelineAggregators, metaData);
             }
-
-            @Override
-            boolean needsGlobalOrdinals() {
-                return false;
-            }
-
         },
         GLOBAL_ORDINALS(new ParseField("global_ordinals")) {
 
@@ -299,27 +293,23 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                         format, bucketCountThresholds, filter, context, parent, remapGlobalOrds, subAggCollectMode, showTermDocCountError,
                         pipelineAggregators, metaData);
             }
-
-            @Override
-            boolean needsGlobalOrdinals() {
-                return true;
-            }
-
         };
 
         public static ExecutionMode fromString(String value, final DeprecationLogger deprecationLogger) {
-            if (value.equals("global_ordinals")) {
-                return GLOBAL_ORDINALS;
-            } else if (value.equals("global_ordinals_hash")) {
-                deprecationLogger.deprecated("[global_ordinals_hash] is deprecated. Please use [global_ordinals] instead.");
-                return GLOBAL_ORDINALS;
-            } else if ("global_ordinals_low_cardinality".equals(value)) {
-                deprecationLogger.deprecated("[global_ordinals_low_cardinality] is deprecated. Please use [global_ordinals] instead.");
-                return GLOBAL_ORDINALS;
-            } if (value.equals("map")) {
-                return MAP;
+            switch (value) {
+                case "global_ordinals":
+                    return GLOBAL_ORDINALS;
+                case "global_ordinals_hash":
+                    deprecationLogger.deprecated("[global_ordinals_hash] is deprecated. Please use [global_ordinals] instead.");
+                    return GLOBAL_ORDINALS;
+                case "global_ordinals_low_cardinality":
+                    deprecationLogger.deprecated("[global_ordinals_low_cardinality] is deprecated. Please use [global_ordinals] instead.");
+                    return GLOBAL_ORDINALS;
+                case "map":
+                    return MAP;
+                default:
+                    throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [map, global_ordinals]");
             }
-            throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [map, global_ordinals]");
         }
 
         private final ParseField parseField;
@@ -341,8 +331,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                                    boolean showTermDocCountError,
                                    List<PipelineAggregator> pipelineAggregators,
                                    Map<String, Object> metaData) throws IOException;
-
-        abstract boolean needsGlobalOrdinals();
 
         @Override
         public String toString() {

@@ -103,7 +103,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         this.bucketOrds = remapGlobalOrds ? new LongHash(1, context.bigArrays()) : null;
     }
 
-
     boolean remapGlobalOrds() {
         return bucketOrds != null;
     }

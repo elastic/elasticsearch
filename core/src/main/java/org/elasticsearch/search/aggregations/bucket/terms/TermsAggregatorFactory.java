@@ -299,12 +299,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
             switch (value) {
                 case "global_ordinals":
                     return GLOBAL_ORDINALS;
-                case "global_ordinals_hash":
-                    deprecationLogger.deprecated("[global_ordinals_hash] is deprecated. Please use [global_ordinals] instead.");
-                    return GLOBAL_ORDINALS;
-                case "global_ordinals_low_cardinality":
-                    deprecationLogger.deprecated("[global_ordinals_low_cardinality] is deprecated. Please use [global_ordinals] instead.");
-                    return GLOBAL_ORDINALS;
                 case "map":
                     return MAP;
                 default:

@@ -20,11 +20,13 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -197,6 +199,61 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (value != null) {
             builder.field(field.getPreferredName(), value);
         }
+    }
+
+    String getJobId() {
+        return jobId;
+    }
+
+    TimeValue getQueryDelay() {
+        return queryDelay;
+    }
+
+    TimeValue getFrequency() {
+        return frequency;
+    }
+
+    List<String> getIndices() {
+        return indices;
+    }
+
+    List<String> getTypes() {
+        return types;
+    }
+
+    Integer getScrollSize() {
+        return scrollSize;
+    }
+
+    QueryBuilder getQuery() {
+        return query;
+    }
+
+    AggregatorFactories.Builder getAggregations() {
+        return aggregations;
+    }
+
+    /**
+     * Returns the histogram's interval as epoch millis.
+     */
+    long getHistogramIntervalMillis() {
+        return ExtractorUtils.getHistogramIntervalMillis(aggregations);
+    }
+
+    /**
+     * @return {@code true} when there are non-empty aggregations, {@code false}
+     *         otherwise
+     */
+    boolean hasAggregations() {
+        return aggregations != null && aggregations.count() > 0;
+    }
+
+    List<SearchSourceBuilder.ScriptField> getScriptFields() {
+        return scriptFields == null ? Collections.emptyList() : scriptFields;
+    }
+
+    ChunkingConfig getChunkingConfig() {
+        return chunkingConfig;
     }
 
     /**

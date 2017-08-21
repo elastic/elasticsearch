@@ -102,6 +102,10 @@ public class ChunkingConfig implements ToXContentObject, Writeable {
         return mode != Mode.OFF;
     }
 
+    Mode getMode() {
+        return mode;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

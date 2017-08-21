@@ -9,6 +9,8 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
+import java.io.IOException;
+
 public class PageParamsTests extends AbstractSerializingTestCase<PageParams> {
 
     @Override
@@ -52,5 +54,32 @@ public class PageParamsTests extends AbstractSerializingTestCase<PageParams> {
     public void testValidate_GivenFromAndSizeSumIsMoreThan10000() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new PageParams(0, 10001));
         assertEquals("The sum of parameters [from] and [size] cannot be higher than 10000.", e.getMessage());
+    }
+
+    @Override
+    protected PageParams mutateInstance(PageParams instance) throws IOException {
+        int from = instance.getFrom();
+        int size = instance.getSize();
+        switch (between(0, 1)) {
+        case 0:
+            from += between(1, 20);
+            // If we have gone above the limit for max and size then we need to
+            // change size too
+            if ((from + size) > PageParams.MAX_FROM_SIZE_SUM) {
+                size = PageParams.MAX_FROM_SIZE_SUM - from;
+            }
+            break;
+        case 1:
+            size += between(1, 20);
+            // If we have gone above the limit for max and size then we need to
+            // change from too
+            if ((from + size) > PageParams.MAX_FROM_SIZE_SUM) {
+                from = PageParams.MAX_FROM_SIZE_SUM - size;
+            }
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new PageParams(from, size);
     }
 }

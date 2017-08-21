@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -15,9 +16,11 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -26,8 +29,10 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.joda.time.DateTimeZone;
 
@@ -395,6 +400,82 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         builder.setIndices(Collections.singletonList("myIndex"));
         builder.setTypes(Collections.singletonList("myType"));
         builder.setAggregations(new AggregatorFactories.Builder().addAggregator(dateHistogram));
+        return builder.build();
+    }
+
+    @Override
+    protected DatafeedConfig mutateInstance(DatafeedConfig instance) throws IOException {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
+        switch (between(0, 10)) {
+        case 0:
+            builder.setId(instance.getId() + randomValidDatafeedId());
+            break;
+        case 1:
+            builder.setJobId(instance.getJobId() + randomAlphaOfLength(5));
+            break;
+        case 2:
+            builder.setQueryDelay(new TimeValue(instance.getQueryDelay().millis() + between(100, 100000)));
+            break;
+        case 3:
+            if (instance.getFrequency() == null) {
+                builder.setFrequency(new TimeValue(between(1, 10) * 1000));
+            } else {
+                builder.setFrequency(new TimeValue(instance.getFrequency().millis() + between(1, 10) * 1000));
+            }
+            break;
+        case 4:
+            List<String> indices = new ArrayList<>(instance.getIndices());
+            indices.add(randomAlphaOfLengthBetween(1, 20));
+            builder.setIndices(indices);
+            break;
+        case 5:
+            List<String> types = new ArrayList<>(instance.getTypes());
+            types.add(randomAlphaOfLengthBetween(1, 20));
+            builder.setTypes(types);
+            break;
+        case 6:
+            BoolQueryBuilder query = new BoolQueryBuilder();
+            if (instance.getQuery() != null) {
+                query.must(instance.getQuery());
+            }
+            query.filter(new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+            builder.setQuery(query);
+            break;
+        case 7:
+            if (instance.hasAggregations()) {
+                builder.setAggregations(null);
+            } else {
+                AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
+                String timeField = randomAlphaOfLength(10);
+                aggBuilder
+                        .addAggregator(new DateHistogramAggregationBuilder(timeField).field(timeField).interval(between(10000, 3600000))
+                                .subAggregation(new MaxAggregationBuilder(timeField).field(timeField)));
+                builder.setAggregations(aggBuilder);
+                if (instance.getScriptFields().isEmpty() == false) {
+                    builder.setScriptFields(Collections.emptyList());
+                }
+            }
+            break;
+        case 8:
+            ArrayList<ScriptField> scriptFields = new ArrayList<>(instance.getScriptFields());
+            scriptFields.add(new ScriptField(randomAlphaOfLengthBetween(1, 10), new Script("foo"), true));
+            builder.setScriptFields(scriptFields);
+            builder.setAggregations(null);
+            break;
+        case 9:
+            builder.setScrollSize(instance.getScrollSize() + between(1, 100));
+            break;
+        case 10:
+            if (instance.getChunkingConfig() == null || instance.getChunkingConfig().getMode() == Mode.AUTO) {
+                ChunkingConfig newChunkingConfig = ChunkingConfig.newManual(new TimeValue(randomNonNegativeLong()));
+                builder.setChunkingConfig(newChunkingConfig);
+            } else {
+                builder.setChunkingConfig(null);
+            }
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
         return builder.build();
     }
 }

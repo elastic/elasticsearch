@@ -12,6 +12,8 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 
+import java.io.IOException;
+
 public class ConditionTests extends AbstractSerializingTestCase<Condition> {
 
     public void testSetValues() {
@@ -82,5 +84,29 @@ public class ConditionTests extends AbstractSerializingTestCase<Condition> {
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class,
                 () -> new Condition(Operator.MATCH, null));
         assertEquals(Messages.getMessage(Messages.JOB_CONFIG_CONDITION_INVALID_VALUE_NULL, "[*"), e.getMessage());
+    }
+
+    @Override
+    protected Condition mutateInstance(Condition instance) throws IOException {
+        Operator op = instance.getOperator();
+        String value = instance.getValue();
+        switch (between(0, 1)) {
+        case 0:
+            Operator newOp = op;
+            while (newOp == op) {
+                newOp = randomFrom(Operator.values());
+            }
+            if (op == Operator.MATCH && newOp != Operator.MATCH) {
+                value = Double.toString(randomDouble());
+            }
+            op = newOp;
+            break;
+        case 1:
+            value = Double.toString(randomDouble());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new Condition(op, value);
     }
 }

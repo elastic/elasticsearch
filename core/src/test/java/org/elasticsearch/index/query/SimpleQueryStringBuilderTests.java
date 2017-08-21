@@ -260,7 +260,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             }
         } else if (queryBuilder.fields().size() == 1) {
             Map.Entry<String, Float> field = queryBuilder.fields().entrySet().iterator().next();
-            assertTermOrBoostQuery(query, field.getKey(), queryBuilder.value(), field.getValue());
+            if (query instanceof MatchNoDocsQuery == false) {
+                assertTermOrBoostQuery(query, field.getKey(), queryBuilder.value(), field.getValue());
+            }
         } else if (queryBuilder.fields().size() == 0) {
             assertThat(query, either(instanceOf(DisjunctionMaxQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
             if (query instanceof DisjunctionMaxQuery) {

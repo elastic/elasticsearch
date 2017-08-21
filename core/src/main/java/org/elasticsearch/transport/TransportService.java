@@ -561,21 +561,6 @@ public class TransportService extends AbstractLifecycleComponent {
 
     }
 
-    /**
-     * Return a map of nodeId to pending number of requests for the given action name prefix
-     */
-    public Map<String, Long> getPendingRequests(final String actionNamePrefix) {
-        Map<String, Long> nodeCounts = new HashMap<>();
-        for (Map.Entry<Long, RequestHolder> entry : clientHandlers.entrySet()) {
-            RequestHolder reqHolder = entry.getValue();
-            if (reqHolder.action().startsWith(actionNamePrefix)) {
-                String nodeId = reqHolder.connection().getNode().getId();
-                nodeCounts.put(nodeId, nodeCounts.getOrDefault(nodeId, 0L) + 1);
-            }
-        }
-        return nodeCounts;
-    }
-
     private <T extends TransportResponse> void sendRequestInternal(final Transport.Connection connection, final String action,
                                                                    final TransportRequest request,
                                                                    final TransportRequestOptions options,

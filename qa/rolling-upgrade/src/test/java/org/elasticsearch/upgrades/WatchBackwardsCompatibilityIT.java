@@ -236,22 +236,14 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
                         logger.info("stopped watcher manually before starting upgrade");
                     }
 
-                    if (randomBoolean() &&
-                            "upgrade".equals(watchIndexUpgradeRequired) && "upgrade".equals(triggeredWatchIndexUpgradeRequired)) {
-                        Response upgradeResponse =
-                                client.performRequest("POST", "_xpack/migration/upgrade/.watches,.triggered_watches", params);
-                        logger.info("Upgrade .watches/.triggered_watches response is: [{}]",
-                                EntityUtils.toString(upgradeResponse.getEntity()));
-                    } else {
-                        if ("upgrade".equals(watchIndexUpgradeRequired)) {
-                            Response upgradeResponse = client.performRequest("POST", "_xpack/migration/upgrade/.watches", params);
-                            logger.info("Upgrade .watches response is: [{}]", EntityUtils.toString(upgradeResponse.getEntity()));
-                        }
+                    if ("upgrade".equals(watchIndexUpgradeRequired)) {
+                        Response upgradeResponse = client.performRequest("POST", "_xpack/migration/upgrade/.watches", params);
+                        logger.info("Upgrade .watches response is: [{}]", EntityUtils.toString(upgradeResponse.getEntity()));
+                    }
 
-                        if ("upgrade".equals(triggeredWatchIndexUpgradeRequired)) {
-                            Response upgradeResponse = client.performRequest("POST", "_xpack/migration/upgrade/.triggered_watches", params);
-                            logger.info("Upgrade .triggered_watches response is: [{}]", EntityUtils.toString(upgradeResponse.getEntity()));
-                        }
+                    if ("upgrade".equals(triggeredWatchIndexUpgradeRequired)) {
+                        Response upgradeResponse = client.performRequest("POST", "_xpack/migration/upgrade/.triggered_watches", params);
+                        logger.info("Upgrade .triggered_watches response is: [{}]", EntityUtils.toString(upgradeResponse.getEntity()));
                     }
 
                     // show templates after upgrade

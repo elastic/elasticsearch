@@ -18,9 +18,9 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 public class IndexUpgradeCheckTests extends ESTestCase {
 
-    public void testWatcherIndexUpgradeCheck() throws Exception {
-        IndexUpgradeCheck check = Upgrade.getWatcherUpgradeCheckFactory(Settings.EMPTY).apply(null, null);
-        assertThat(check.getName(), equalTo("watcher"));
+    public void testWatchesIndexUpgradeCheck() throws Exception {
+        IndexUpgradeCheck check = Upgrade.getWatchesIndexUpgradeCheckFactory(Settings.EMPTY).apply(null, null);
+        assertThat(check.getName(), equalTo("watches"));
 
         IndexMetaData goodKibanaIndex = newTestIndexMeta(".kibana", Settings.EMPTY);
         assertThat(check.actionRequired(goodKibanaIndex), equalTo(UpgradeActionRequired.NOT_APPLICABLE));
@@ -32,6 +32,24 @@ public class IndexUpgradeCheckTests extends ESTestCase {
         assertThat(check.actionRequired(watcherIndexWithAlias), equalTo(UpgradeActionRequired.UPGRADE));
 
         IndexMetaData watcherIndexWithAliasUpgraded = newTestIndexMeta("my_watches", ".watches",
+                Settings.builder().put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), "6").put().build());
+        assertThat(check.actionRequired(watcherIndexWithAliasUpgraded), equalTo(UpgradeActionRequired.UP_TO_DATE));
+    }
+
+    public void testTriggeredWatchesIndexUpgradeCheck() throws Exception {
+        IndexUpgradeCheck check = Upgrade.getTriggeredWatchesIndexUpgradeCheckFactory(Settings.EMPTY).apply(null, null);
+        assertThat(check.getName(), equalTo("triggered-watches"));
+
+        IndexMetaData goodKibanaIndex = newTestIndexMeta(".kibana", Settings.EMPTY);
+        assertThat(check.actionRequired(goodKibanaIndex), equalTo(UpgradeActionRequired.NOT_APPLICABLE));
+
+        IndexMetaData watcherIndex = newTestIndexMeta(".triggered_watches", Settings.EMPTY);
+        assertThat(check.actionRequired(watcherIndex), equalTo(UpgradeActionRequired.UPGRADE));
+
+        IndexMetaData watcherIndexWithAlias = newTestIndexMeta("my_triggered_watches", ".triggered_watches", Settings.EMPTY);
+        assertThat(check.actionRequired(watcherIndexWithAlias), equalTo(UpgradeActionRequired.UPGRADE));
+
+        IndexMetaData watcherIndexWithAliasUpgraded = newTestIndexMeta("my_triggered_watches", ".triggered_watches",
                 Settings.builder().put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), "6").put().build());
         assertThat(check.actionRequired(watcherIndexWithAliasUpgraded), equalTo(UpgradeActionRequired.UP_TO_DATE));
     }

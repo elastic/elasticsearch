@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
@@ -27,12 +28,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.transport.nio.http.NioHttpTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.nio.http.NioHttpTransport;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -70,6 +71,11 @@ public class NioPlugin extends Plugin implements NetworkPlugin {
                                                           NetworkService networkService) {
         return Collections.singletonMap(NIO_TRANSPORT_NAME, () -> new NioTransport(settings, threadPool, networkService, bigArrays,
             namedWriteableRegistry, circuitBreakerService));
+    }
+
+    @Override
+    public List<BootstrapCheck> getBootstrapChecks() {
+        return Collections.singletonList(new NioNotEnabledBootstrapCheck());
     }
 
     @Override

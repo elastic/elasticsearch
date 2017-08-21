@@ -34,7 +34,9 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.joda.time.DateTimeZone;
 
@@ -295,7 +297,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      */
     @Deprecated
     public QueryStringQueryBuilder useAllFields(Boolean useAllFields) {
-        if (useAllFields) {
+        if (useAllFields != null && useAllFields) {
             this.defaultField = "*";
         }
         return this;
@@ -910,20 +912,19 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 queryParser = new QueryStringQueryParser(context, defaultField, isLenient);
             }
         } else if (fieldsAndWeights.size() > 0) {
-            final Map<String, Float> resolvedFields = QueryStringQueryParser.resolveMappingFields(context, fieldsAndWeights);
+            final Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);
             queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
         } else {
-            // Expand to all fields if:
-            // - The index default search field is "*"
-            // - The index default search field is "_all" and _all is disabled
-            // TODO the index default search field should be "*" for new indices.
-            if (Regex.isMatchAllPattern(context.defaultField()) ||
-                    (context.getMapperService().allEnabled() == false && "_all".equals(context.defaultField()))) {
-                // Automatically determine the fields from the index mapping.
-                // Automatically set leniency to "true" if unset so mismatched fields don't cause exceptions;
+            String defaultField = context.defaultField();
+            if (context.getMapperService().allEnabled() == false &&
+                    AllFieldMapper.NAME.equals(defaultField)) {
+                // For indices created before 6.0 with _all disabled
+                defaultField = "*";
+            }
+            if (Regex.isMatchAllPattern(defaultField)) {
                 queryParser = new QueryStringQueryParser(context, lenient == null ? true : lenient);
             } else {
-                queryParser = new QueryStringQueryParser(context, context.defaultField(), isLenient);
+                queryParser = new QueryStringQueryParser(context, defaultField, isLenient);
             }
         }
 

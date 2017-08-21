@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Definition.Sort;
 
 import java.util.Objects;
 import java.util.Set;
@@ -87,16 +86,16 @@ public final class ENumeric extends AExpression {
             }
         } else {
             try {
-                Sort sort = expected == null ? Sort.INT : expected.sort;
+                Class<?> sort = expected == null ? int.class : expected.clazz;
                 int integer = Integer.parseInt(value, radix);
 
-                if (sort == Sort.BYTE && integer >= Byte.MIN_VALUE && integer <= Byte.MAX_VALUE) {
+                if (sort == byte.class && integer >= Byte.MIN_VALUE && integer <= Byte.MAX_VALUE) {
                     constant = (byte)integer;
                     actual = Definition.BYTE_TYPE;
-                } else if (sort == Sort.CHAR && integer >= Character.MIN_VALUE && integer <= Character.MAX_VALUE) {
+                } else if (sort == char.class && integer >= Character.MIN_VALUE && integer <= Character.MAX_VALUE) {
                     constant = (char)integer;
                     actual = Definition.CHAR_TYPE;
-                } else if (sort == Sort.SHORT && integer >= Short.MIN_VALUE && integer <= Short.MAX_VALUE) {
+                } else if (sort == short.class && integer >= Short.MIN_VALUE && integer <= Short.MAX_VALUE) {
                     constant = (short)integer;
                     actual = Definition.SHORT_TYPE;
                 } else {

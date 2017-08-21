@@ -28,7 +28,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -234,6 +236,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                 .bytes(),
                 XContentType.JSON));
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+
         assertThat(e.getCause().getMessage(), containsString("For input string: \"a\""));
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -345,6 +348,26 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     public void testOutOfRangeValues() throws IOException {
         final List<OutOfRangeSpec<Object>> inputs = Arrays.asList(
+            OutOfRangeSpec.of(NumberType.BYTE, "128", "is out of range for a byte"),
+            OutOfRangeSpec.of(NumberType.SHORT, "32768", "is out of range for a short"),
+            OutOfRangeSpec.of(NumberType.INTEGER, "2147483648", "is out of range for an integer"),
+            OutOfRangeSpec.of(NumberType.LONG, "9223372036854775808", "out of range for a long"),
+
+            OutOfRangeSpec.of(NumberType.BYTE, "-129", "is out of range for a byte"),
+            OutOfRangeSpec.of(NumberType.SHORT, "-32769", "is out of range for a short"),
+            OutOfRangeSpec.of(NumberType.INTEGER, "-2147483649", "is out of range for an integer"),
+            OutOfRangeSpec.of(NumberType.LONG, "-9223372036854775809", "out of range for a long"),
+
+            OutOfRangeSpec.of(NumberType.BYTE, 128, "is out of range for a byte"),
+            OutOfRangeSpec.of(NumberType.SHORT, 32768, "out of range of Java short"),
+            OutOfRangeSpec.of(NumberType.INTEGER, 2147483648L, " out of range of int"),
+            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("9223372036854775808"), "out of range of long"),
+
+            OutOfRangeSpec.of(NumberType.BYTE, -129, "is out of range for a byte"),
+            OutOfRangeSpec.of(NumberType.SHORT, -32769, "out of range of Java short"),
+            OutOfRangeSpec.of(NumberType.INTEGER, -2147483649L, " out of range of int"),
+            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("-9223372036854775809"), "out of range of long"),
+
             OutOfRangeSpec.of(NumberType.HALF_FLOAT, "65520", "[half_float] supports only finite values"),
             OutOfRangeSpec.of(NumberType.FLOAT, "3.4028235E39", "[float] supports only finite values"),
             OutOfRangeSpec.of(NumberType.DOUBLE, "1.7976931348623157E309", "[double] supports only finite values"),
@@ -398,6 +421,13 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     private BytesReference createIndexRequest(Object value) throws IOException {
-        return XContentFactory.jsonBuilder().startObject().field("field", value).endObject().bytes();
+        if (value instanceof BigInteger) {
+            return XContentFactory.jsonBuilder()
+                .startObject()
+                    .rawField("field", new ByteArrayInputStream(value.toString().getBytes("UTF-8")), XContentType.JSON)
+                .endObject().bytes();
+        } else {
+            return XContentFactory.jsonBuilder().startObject().field("field", value).endObject().bytes();
+        }
     }
 }

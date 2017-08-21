@@ -58,7 +58,7 @@ assemble.dependsOn apiJavadocJar
 task generatePainlessApi(type: JavaExec) {
   main = 'org.elasticsearch.painless.PainlessDocGenerator'
   classpath = sourceSets.test.runtimeClasspath
-  args file('../../docs/reference/painless-api-reference')
+  args file('../../docs/painless/painless-api-reference')
 }
 
 /**********************************************

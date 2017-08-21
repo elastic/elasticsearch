@@ -450,3 +450,15 @@ fi
 @test "[$GROUP] test umask" {
     install_jvm_example $(readlink -m jvm-example-*.zip) 0077
 }
+
+@test "[$GROUP] hostname" {
+    local temp=`mktemp -d`
+    cp "$ESCONFIG"/elasticsearch.yml "$temp"
+    echo 'node.name: ${HOSTNAME}' >> "$ESCONFIG"/elasticsearch.yml
+    start_elasticsearch_service
+    wait_for_elasticsearch_status
+    [ "$(curl -XGET localhost:9200/_cat/nodes?h=name)" == "$HOSTNAME" ]
+    stop_elasticsearch_service
+    cp "$temp"/elasticsearch.yml "$ESCONFIG"/elasticsearch.yml
+    rm -rf "$temp"
+}

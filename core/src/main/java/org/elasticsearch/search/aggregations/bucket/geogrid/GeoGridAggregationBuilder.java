@@ -77,7 +77,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
                         throw e2;
                     } catch (IllegalArgumentException e3) {
                         // this happens when distance too small, so precision > 12. We'd like to see the original string
-                        throw new IllegalArgumentException("precision too high [" + precision + "]");
+                        throw new IllegalArgumentException("precision too high [" + precision + "]", e3);
                     }
                 }
             }

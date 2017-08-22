@@ -21,6 +21,9 @@ buildscript {
   dependencies {
     classpath group: 'com.bettercloud', name: 'vault-java-driver', version:"1.1.0"
     classpath 'com.amazonaws:aws-java-sdk-s3:1.10.33'
+    if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+      classpath 'com.sun.xml.bind:jaxb-impl:2.2.3-1' // pulled in as external dependency to work on java 9
+    }
   }
 }
 
@@ -40,17 +43,17 @@ void checkJavaVersion() {
   final String javaVendor = System.getProperty('java.vendor')
   def matcher = javaVersion =~ /1\.8\.0(?:_(\d+))?/
   boolean matches = matcher.matches()
-  assert matches
-
-  final int update
-  if (matcher.group(1) == null) {
-    update = 0
-  } else {
-    update = matcher.group(1).toInteger()
-  }
-  if (update < 101) {
-    throw new GradleException("JDK ${javaVendor} ${javaVersion} does not have necessary root certificates " +
-            "(https://bugs.openjdk.java.net/browse/JDK-8154757), update your JDK to at least JDK 8u101+")
+  if (matches) {
+    final int update
+    if (matcher.group(1) == null) {
+      update = 0
+    } else {
+      update = matcher.group(1).toInteger()
+    }
+    if (update < 101) {
+      throw new GradleException("JDK ${javaVendor} ${javaVersion} does not have necessary root certificates " +
+              "(https://bugs.openjdk.java.net/browse/JDK-8154757), update your JDK to at least JDK 8u101+")
+    }
   }
 }
 

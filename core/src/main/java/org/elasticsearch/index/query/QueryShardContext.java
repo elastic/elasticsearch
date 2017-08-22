@@ -60,6 +60,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -144,7 +145,7 @@ public class QueryShardContext extends QueryRewriteContext {
         return similarityService != null ? similarityService.similarity(mapperService) : null;
     }
 
-    public String defaultField() {
+    public List<String> defaultField() {
         return indexSettings.getDefaultField();
     }
 

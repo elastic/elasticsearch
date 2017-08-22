@@ -47,10 +47,12 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -63,6 +65,7 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -988,5 +991,30 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .field("unmapped_field")
             .toQuery(createShardContext());
         assertEquals(new MatchNoDocsQuery(""), query);
+    }
+
+    public void testDefaultField() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext context = createShardContext();
+        context.getIndexSettings().updateIndexMetaData(
+            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putArray("index.query.default_field",
+                STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
+        );
+        Query query = new QueryStringQueryBuilder("hello")
+            .toQuery(context);
+        Query expected = new DisjunctionMaxQuery(
+            Arrays.asList(
+                new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+                new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
+            ), 0.0f
+        );
+        assertEquals(expected, query);
+    }
+
+    private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
+        Settings build = Settings.builder().put(oldIndexSettings)
+            .put(indexSettings)
+            .build();
+        return IndexMetaData.builder(name).settings(build).build();
     }
 }

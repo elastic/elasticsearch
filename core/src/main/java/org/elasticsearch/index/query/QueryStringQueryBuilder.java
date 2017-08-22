@@ -42,6 +42,7 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -738,31 +739,18 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         Fuzziness fuzziness = QueryStringQueryBuilder.DEFAULT_FUZZINESS;
         String fuzzyRewrite = null;
         String rewrite = null;
-        Map<String, Float> fieldsAndWeights = new HashMap<>();
+        Map<String, Float> fieldsAndWeights = null;
         boolean autoGenerateSynonymsPhraseQuery = true;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (FIELDS_FIELD.match(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        String fField = null;
-                        float fBoost = AbstractQueryBuilder.DEFAULT_BOOST;
-                        char[] text = parser.textCharacters();
-                        int end = parser.textOffset() + parser.textLength();
-                        for (int i = parser.textOffset(); i < end; i++) {
-                            if (text[i] == '^') {
-                                int relativeLocation = i - parser.textOffset();
-                                fField = new String(text, parser.textOffset(), relativeLocation);
-                                fBoost = Float.parseFloat(new String(text, i + 1, parser.textLength() - relativeLocation - 1));
-                                break;
-                            }
-                        }
-                        if (fField == null) {
-                            fField = parser.text();
-                        }
-                        fieldsAndWeights.put(fField, fBoost);
+                    List<String> fields = new ArrayList<>();
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        fields.add(parser.text());
                     }
+                    fieldsAndWeights = QueryParserHelper.parseFieldsAndWeights(fields);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME +
                             "] query does not support [" + currentFieldName + "]");
@@ -851,7 +839,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         }
 
         QueryStringQueryBuilder queryStringQuery = new QueryStringQueryBuilder(queryString);
-        queryStringQuery.fields(fieldsAndWeights);
+        if (fieldsAndWeights != null) {
+            queryStringQuery.fields(fieldsAndWeights);
+        }
         queryStringQuery.defaultField(defaultField);
         queryStringQuery.defaultOperator(defaultOperator);
         queryStringQuery.analyzer(analyzer);
@@ -943,16 +933,19 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             final Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);
             queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
         } else {
-            String defaultField = context.defaultField();
+            List<String> defaultFields = context.defaultField();
             if (context.getMapperService().allEnabled() == false &&
-                    AllFieldMapper.NAME.equals(defaultField)) {
+                    defaultFields.size() == 1 && AllFieldMapper.NAME.equals(defaultFields.get(0))) {
                 // For indices created before 6.0 with _all disabled
-                defaultField = "*";
+                defaultFields = Collections.singletonList("*");
             }
-            if (Regex.isMatchAllPattern(defaultField)) {
+            boolean isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
+            if (isAllField) {
                 queryParser = new QueryStringQueryParser(context, lenient == null ? true : lenient);
             } else {
-                queryParser = new QueryStringQueryParser(context, defaultField, isLenient);
+                final Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(context,
+                    QueryParserHelper.parseFieldsAndWeights(defaultFields));
+                queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
             }
         }
 

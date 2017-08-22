@@ -610,12 +610,13 @@ public class QueryStringQueryParser extends XQueryParser {
 
     @Override
     protected Query getWildcardQuery(String field, String termStr) throws ParseException {
-        if (termStr.equals("*") && field != null) {
+        if (termStr.equals("*") && (field != null || AllFieldMapper.NAME.equals(this.field))) {
             /**
              * We rewrite _all:* to a match all query.
              * TODO: We can remove this special case when _all is completely removed.
              */
-            if (Regex.isMatchAllPattern(field) || AllFieldMapper.NAME.equals(field)) {
+            if (AllFieldMapper.NAME.equals(this.field) ||
+                    Regex.isMatchAllPattern(field) || AllFieldMapper.NAME.equals(field)) {
                 return newMatchAllDocsQuery();
             }
             String actualField = field;

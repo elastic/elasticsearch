@@ -39,11 +39,14 @@ import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -264,7 +267,8 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 assertTermOrBoostQuery(query, field.getKey(), queryBuilder.value(), field.getValue());
             }
         } else if (queryBuilder.fields().size() == 0) {
-            assertThat(query, either(instanceOf(DisjunctionMaxQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
+            assertThat(query, either(instanceOf(DisjunctionMaxQuery.class))
+                .or(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(TermQuery.class)));
             if (query instanceof DisjunctionMaxQuery) {
                 for (Query disjunct : (DisjunctionMaxQuery) query) {
                     assertThat(disjunct, either(instanceOf(TermQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
@@ -538,5 +542,30 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             Collections.singletonMap(STRING_FIELD_NAME, 1.0f), -1, settings, createShardContext());
         assertEquals(new TermQuery(new Term(STRING_FIELD_NAME, "bar")), parser.parse("bar"));
         assertEquals(new TermQuery(new Term(STRING_FIELD_NAME, "bar")), parser.parse("\"bar\""));
+    }
+
+    public void testDefaultField() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext context = createShardContext();
+        context.getIndexSettings().updateIndexMetaData(
+            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putArray("index.query.default_field",
+                STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
+        );
+        Query query = new SimpleQueryStringBuilder("hello")
+            .toQuery(context);
+        Query expected = new DisjunctionMaxQuery(
+            Arrays.asList(
+                new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+                new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
+            ), 1.0f
+        );
+        assertEquals(expected, query);
+    }
+
+    private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
+        Settings build = Settings.builder().put(oldIndexSettings)
+            .put(indexSettings)
+            .build();
+        return IndexMetaData.builder(name).settings(build).build();
     }
 }

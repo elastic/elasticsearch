@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -478,5 +479,20 @@ public class IndexSettingsTests extends ESTestCase {
                 // all is well
             }
         }
+    }
+
+    public void testQueryDefaultField() {
+        IndexSettings index = newIndexSettings(
+            newIndexMeta("index", Settings.EMPTY), Settings.EMPTY
+        );
+        assertThat(index.getDefaultField(), equalTo(Collections.singletonList("*")));
+        index = newIndexSettings(
+            newIndexMeta("index", Settings.EMPTY), Settings.builder().put("index.query.default_field", "body").build()
+        );
+        assertThat(index.getDefaultField(), equalTo(Collections.singletonList("body")));
+        index.updateIndexMetaData(
+            newIndexMeta("index", Settings.builder().putArray("index.query.default_field", "body", "title").build())
+        );
+        assertThat(index.getDefaultField(), equalTo(Arrays.asList("body", "title")));
     }
 }

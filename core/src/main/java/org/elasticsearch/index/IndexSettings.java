@@ -36,6 +36,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.node.Node;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -50,9 +52,9 @@ import java.util.function.Function;
  */
 public final class IndexSettings {
     public static final String DEFAULT_FIELD_SETTING_KEY = "index.query.default_field";
-    public static final Setting<String> DEFAULT_FIELD_SETTING;
+    public static final Setting<List<String>> DEFAULT_FIELD_SETTING;
     static {
-        Function<Settings, String> defValue = settings -> {
+        Function<Settings, List<String>> defValue = settings -> {
             final String defaultField;
             if (settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) != null &&
                     Version.indexCreated(settings).before(Version.V_6_0_0_alpha1)) {
@@ -60,9 +62,9 @@ public final class IndexSettings {
             } else {
                 defaultField = "*";
             }
-            return defaultField;
+            return Collections.singletonList(defaultField);
         };
-        DEFAULT_FIELD_SETTING = new Setting<>(DEFAULT_FIELD_SETTING_KEY, defValue, Function.identity(), Property.IndexScope, Property.Dynamic);
+        DEFAULT_FIELD_SETTING = Setting.listSetting(DEFAULT_FIELD_SETTING_KEY, defValue, Function.identity(), Property.IndexScope, Property.Dynamic);
     }
     public static final Setting<Boolean> QUERY_STRING_LENIENT_SETTING =
         Setting.boolSetting("index.query_string.lenient", false, Property.IndexScope);
@@ -205,7 +207,7 @@ public final class IndexSettings {
     // volatile fields are updated via #updateIndexMetaData(IndexMetaData) under lock
     private volatile Settings settings;
     private volatile IndexMetaData indexMetaData;
-    private final String defaultField;
+    private volatile List<String> defaultFields;
     private final boolean queryStringLenient;
     private final boolean queryStringAnalyzeWildcard;
     private final boolean queryStringAllowLeadingWildcard;
@@ -241,10 +243,14 @@ public final class IndexSettings {
     private final boolean singleType;
 
     /**
-     * Returns the default search field for this index.
+     * Returns the default search fields for this index.
      */
-    public String getDefaultField() {
-        return defaultField;
+    public List<String> getDefaultField() {
+        return defaultFields;
+    }
+
+    private void setDefaultField(List<String> defaultFields) {
+        this.defaultFields = defaultFields;
     }
 
     /**
@@ -304,12 +310,12 @@ public final class IndexSettings {
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
 
-        this.defaultField = DEFAULT_FIELD_SETTING.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
         this.queryStringAllowLeadingWildcard = QUERY_STRING_ALLOW_LEADING_WILDCARD.get(nodeSettings);
         this.defaultAllowUnmappedFields = scopedSettings.get(ALLOW_UNMAPPED);
         this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
+        defaultFields = scopedSettings.get(DEFAULT_FIELD_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
@@ -361,6 +367,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
+        scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultField);
     }
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {

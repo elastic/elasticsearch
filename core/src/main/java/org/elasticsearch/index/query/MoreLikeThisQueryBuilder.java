@@ -1033,7 +1033,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         boolean useDefaultField = (fields == null);
         List<String> moreLikeFields = new ArrayList<>();
         if (useDefaultField) {
-            moreLikeFields = Collections.singletonList(context.defaultField());
+            moreLikeFields = context.defaultField();
         } else {
             for (String field : fields) {
                 MappedFieldType fieldType = context.fieldMapper(field);

@@ -37,8 +37,10 @@ import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser.Settings;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -402,18 +404,18 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (fieldsAndWeights.isEmpty() == false) {
             resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);
         } else {
-            String defaultField = context.defaultField();
+            List<String> defaultFields = context.defaultField();
             if (context.getMapperService().allEnabled() == false &&
-                    AllFieldMapper.NAME.equals(defaultField)) {
+                    defaultFields.size() == 1 && AllFieldMapper.NAME.equals(defaultFields.get(0))) {
                 // For indices created before 6.0 with _all disabled
-                defaultField = "*";
+                defaultFields = Collections.singletonList("*");
             }
-            boolean isAllField = Regex.isMatchAllPattern(defaultField);
+            boolean isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
             if (isAllField) {
                 newSettings.lenient(lenientSet ? settings.lenient() : true);
             }
-            resolvedFieldsAndWeights = QueryParserHelper.resolveMappingField(context, defaultField, 1.0f,
-                false, !isAllField);
+            resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context,
+                QueryParserHelper.parseFieldsAndWeights(defaultFields));
         }
 
         final SimpleQueryStringQueryParser sqp;
@@ -474,7 +476,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         String minimumShouldMatch = null;
-        Map<String, Float> fieldsAndWeights = new HashMap<>();
+        Map<String, Float> fieldsAndWeights = null;
         Operator defaultOperator = null;
         String analyzerName = null;
         int flags = SimpleQueryStringFlag.ALL.value();
@@ -489,24 +491,11 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (FIELDS_FIELD.match(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        String fField = null;
-                        float fBoost = 1;
-                        char[] text = parser.textCharacters();
-                        int end = parser.textOffset() + parser.textLength();
-                        for (int i = parser.textOffset(); i < end; i++) {
-                            if (text[i] == '^') {
-                                int relativeLocation = i - parser.textOffset();
-                                fField = new String(text, parser.textOffset(), relativeLocation);
-                                fBoost = Float.parseFloat(new String(text, i + 1, parser.textLength() - relativeLocation - 1));
-                                break;
-                            }
-                        }
-                        if (fField == null) {
-                            fField = parser.text();
-                        }
-                        fieldsAndWeights.put(fField, fBoost);
+                    List<String> fields = new ArrayList<>();
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        fields.add(parser.text());
                     }
+                    fieldsAndWeights = QueryParserHelper.parseFieldsAndWeights(fields);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
                             "] query does not support [" + currentFieldName + "]");
@@ -565,7 +554,10 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         }
 
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder(queryBody);
-        qb.boost(boost).fields(fieldsAndWeights).analyzer(analyzerName).queryName(queryName).minimumShouldMatch(minimumShouldMatch);
+        if (fieldsAndWeights != null) {
+            qb.fields(fieldsAndWeights);
+        }
+        qb.boost(boost).analyzer(analyzerName).queryName(queryName).minimumShouldMatch(minimumShouldMatch);
         qb.flags(flags).defaultOperator(defaultOperator);
         if (lenient != null) {
             qb.lenient(lenient);

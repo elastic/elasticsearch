@@ -48,7 +48,7 @@ public class FilePermissionUtils {
             // see also https://github.com/elastic/elasticsearch/issues/21534
             Path realPath = path.toRealPath();
             if (path.toString().equals(realPath.toString()) == false) {
-                policy.add(new FilePermission(realPath.toString() + realPath.getFileSystem().getSeparator() + "-", permissions));
+                policy.add(new FilePermission(realPath.toString(), permissions));
             }
         }
     }

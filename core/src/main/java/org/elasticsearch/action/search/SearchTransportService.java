@@ -510,6 +510,7 @@ public class SearchTransportService extends AbstractComponent {
         public void handleResponse(Response response) {
             super.handleResponse(response);
             // Decrement the number of connections or remove it entirely if there are no more connections
+            // We need to remove the entry here so we don't leak when nodes go away forever
             clientConnections.computeIfPresent(nodeId, (id, conns) -> conns.longValue() == 1 ? null : conns - 1);
         }
 
@@ -517,6 +518,7 @@ public class SearchTransportService extends AbstractComponent {
         public void handleException(TransportException e) {
             super.handleException(e);
             // Decrement the number of connections or remove it entirely if there are no more connections
+            // We need to remove the entry here so we don't leak when nodes go away forever
             clientConnections.computeIfPresent(nodeId, (id, conns) -> conns.longValue() == 1 ? null : conns - 1);
         }
     }

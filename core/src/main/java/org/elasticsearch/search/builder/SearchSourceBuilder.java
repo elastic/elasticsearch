@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.builder;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -72,7 +73,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
  *
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
-public final class SearchSourceBuilder extends ToXContentToBytes implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
+public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
     private static final DeprecationLogger DEPRECATION_LOGGER =
         new DeprecationLogger(Loggers.getLogger(SearchSourceBuilder.class));
 
@@ -1485,5 +1486,24 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 && Objects.equals(extBuilders, other.extBuilders)
                 && Objects.equals(collapse, other.collapse)
                 && Objects.equals(trackTotalHits, other.trackTotalHits);
+    }
+
+    @Override
+    public String toString() {
+        return toString(EMPTY_PARAMS);
+    }
+
+    public String toString(Params params) {
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            if (params.paramAsBoolean("pretty", true)) {
+                builder.prettyPrint();
+            }
+            toXContent(builder, params);
+            return builder.string();
+        } catch (Exception e) {
+            // So we have a stack trace logged somewhere
+            return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
+        }
     }
 }

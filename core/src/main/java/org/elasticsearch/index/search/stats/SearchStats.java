@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.search.stats;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,7 +32,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class SearchStats extends ToXContentToBytes implements Streamable {
+public class SearchStats implements Streamable, ToXContentFragment {
 
     public static class Stats implements Streamable, ToXContentFragment {
 

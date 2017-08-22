@@ -19,15 +19,15 @@
 package org.elasticsearch.index.translog;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class TranslogStats extends ToXContentToBytes implements Streamable {
+public class TranslogStats implements Streamable, ToXContentFragment {
 
     private long translogSizeInBytes;
     private int numberOfOperations;

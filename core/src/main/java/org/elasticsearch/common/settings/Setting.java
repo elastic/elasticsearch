@@ -21,7 +21,6 @@ package org.elasticsearch.common.settings;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -78,7 +78,7 @@ import java.util.stream.Stream;
  * }
  * </pre>
  */
-public class Setting<T> extends ToXContentToBytes {
+public class Setting<T> implements ToXContentObject {
 
     public enum Property {
         /**

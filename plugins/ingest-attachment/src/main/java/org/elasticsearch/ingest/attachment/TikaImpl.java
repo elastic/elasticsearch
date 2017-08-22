@@ -27,17 +27,19 @@ import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.Parser;
 import org.apache.tika.parser.ParserDecorator;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.bootstrap.FilePermissionUtils;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 
 import java.io.ByteArrayInputStream;
-import java.io.FilePermission;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.reflect.ReflectPermission;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessControlContext;
 import java.security.AccessController;
@@ -119,27 +121,32 @@ final class TikaImpl {
 
     // compute some minimal permissions for parsers. they only get r/w access to the java temp directory,
     // the ability to load some resources from JARs, and read sysprops
+    @SuppressForbidden(reason = "adds access to tmp directory")
     static PermissionCollection getRestrictedPermissions() {
         Permissions perms = new Permissions();
         // property/env access needed for parsing
         perms.add(new PropertyPermission("*", "read"));
         perms.add(new RuntimePermission("getenv.TIKA_CONFIG"));
 
-        // add permissions for resource access:
-        // classpath
-        addReadPermissions(perms, JarHell.parseClassPath());
-        // plugin jars
-        if (TikaImpl.class.getClassLoader() instanceof URLClassLoader) {
-            URL[] urls = ((URLClassLoader)TikaImpl.class.getClassLoader()).getURLs();
-            Set<URL> set = new LinkedHashSet<>(Arrays.asList(urls));
-            if (set.size() != urls.length) {
-                throw new AssertionError("duplicate jars: " + Arrays.toString(urls));
+        try {
+            // add permissions for resource access:
+            // classpath
+            addReadPermissions(perms, JarHell.parseClassPath());
+            // plugin jars
+            if (TikaImpl.class.getClassLoader() instanceof URLClassLoader) {
+                URL[] urls = ((URLClassLoader)TikaImpl.class.getClassLoader()).getURLs();
+                Set<URL> set = new LinkedHashSet<>(Arrays.asList(urls));
+                if (set.size() != urls.length) {
+                    throw new AssertionError("duplicate jars: " + Arrays.toString(urls));
+                }
+                addReadPermissions(perms, set);
             }
-            addReadPermissions(perms, set);
+            // jvm's java.io.tmpdir (needs read/write)
+            FilePermissionUtils.addDirectoryPath(perms, "java.io.tmpdir",
+                PathUtils.get(System.getProperty("java.io.tmpdir")), "read,readlink,write,delete");
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        // jvm's java.io.tmpdir (needs read/write)
-        perms.add(new FilePermission(System.getProperty("java.io.tmpdir") + System.getProperty("file.separator") + "-",
-                                     "read,readlink,write,delete"));
         // current hacks needed for POI/PDFbox issues:
         perms.add(new SecurityPermission("putProviderProperty.BC"));
         perms.add(new SecurityPermission("insertProvider"));
@@ -152,14 +159,15 @@ final class TikaImpl {
 
     // add resources to (what is typically) a jar, but might not be (e.g. in tests/IDE)
     @SuppressForbidden(reason = "adds access to jar resources")
-    static void addReadPermissions(Permissions perms, Set<URL> resources) {
+    static void addReadPermissions(Permissions perms, Set<URL> resources) throws IOException {
         try {
             for (URL url : resources) {
                 Path path = PathUtils.get(url.toURI());
-                // resource itself
-                perms.add(new FilePermission(path.toString(), "read,readlink"));
-                // classes underneath
-                perms.add(new FilePermission(path.toString() + System.getProperty("file.separator") + "-", "read,readlink"));
+                if (Files.isDirectory(path)) {
+                    FilePermissionUtils.addDirectoryPath(perms, "class.path", path, "read,readlink");
+                } else {
+                    FilePermissionUtils.addSingleFilePath(perms, path, "read,readlink");
+                }
             }
         } catch (URISyntaxException bogus) {
             throw new RuntimeException(bogus);

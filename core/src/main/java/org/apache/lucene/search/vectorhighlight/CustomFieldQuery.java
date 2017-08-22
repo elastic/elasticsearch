@@ -30,6 +30,7 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -89,6 +90,11 @@ public class CustomFieldQuery extends FieldQuery {
             SynonymQuery synQuery = (SynonymQuery) sourceQuery;
             for (Term term : synQuery.getTerms()) {
                 flatten(new TermQuery(term), reader, flatQueries, boost);
+            }
+        } else if (sourceQuery instanceof ESToParentBlockJoinQuery) {
+            Query childQuery = ((ESToParentBlockJoinQuery) sourceQuery).getChildQuery();
+            if (childQuery != null) {
+                flatten(childQuery, reader, flatQueries, boost);
             }
         } else {
             super.flatten(sourceQuery, reader, flatQueries, boost);

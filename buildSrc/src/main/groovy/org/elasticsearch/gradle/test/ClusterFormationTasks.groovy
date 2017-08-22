@@ -326,7 +326,7 @@ class ClusterFormationTasks {
             if (unicastTransportUri != null) {
                 esConfig['discovery.zen.ping.unicast.hosts'] = "\"${unicastTransportUri}\""
             }
-            File configFile = new File(node.confDir, 'elasticsearch.yml')
+            File configFile = new File(node.pathConf, 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")
             configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')
         }
@@ -351,8 +351,9 @@ class ClusterFormationTasks {
             String key = entry.getKey()
             String name = taskName(parent, node, 'addToKeystore#' + key)
             Task t = configureExecTask(name, project, parentTask, node, esKeystoreUtil, 'add', key, '-x')
+            String settingsValue = entry.getValue() // eval this early otherwise it will not use the right value
             t.doFirst {
-                standardInput = new ByteArrayInputStream(entry.getValue().getBytes(StandardCharsets.UTF_8))
+                standardInput = new ByteArrayInputStream(settingsValue.getBytes(StandardCharsets.UTF_8))
             }
             parentTask = t
         }

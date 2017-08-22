@@ -273,6 +273,9 @@ public class AllFieldMapper extends MetadataFieldMapper {
         if (includeDefaults || enabledState != Defaults.ENABLED) {
             builder.field("enabled", enabledState.enabled);
         }
+        if (enabled() == false) {
+            return;
+        }
         if (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType().stored());
         }

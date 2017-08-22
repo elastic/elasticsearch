@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
@@ -36,6 +37,8 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -146,6 +149,24 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockRepository.Plugin.class, TestCustomMetaDataPlugin.class);
+    }
+
+    public void testClusterStateHasCustoms() throws Exception {
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().all().get();
+        assertNotNull(clusterStateResponse.getState().custom(SnapshotsInProgress.TYPE));
+        assertNotNull(clusterStateResponse.getState().custom(RestoreInProgress.TYPE));
+        assertNotNull(clusterStateResponse.getState().custom(SnapshotDeletionsInProgress.TYPE));
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        if (randomBoolean()) {
+            internalCluster().fullRestart();
+        } else {
+            internalCluster().rollingRestart();
+        }
+
+        clusterStateResponse = client().admin().cluster().prepareState().all().get();
+        assertNotNull(clusterStateResponse.getState().custom(SnapshotsInProgress.TYPE));
+        assertNotNull(clusterStateResponse.getState().custom(RestoreInProgress.TYPE));
+        assertNotNull(clusterStateResponse.getState().custom(SnapshotDeletionsInProgress.TYPE));
     }
 
     public void testRestorePersistentSettings() throws Exception {

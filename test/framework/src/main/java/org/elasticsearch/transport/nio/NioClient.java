@@ -136,10 +136,6 @@ public class NioClient {
         for (final NioSocketChannel socketChannel : connections) {
             try {
                 socketChannel.closeAsync().awaitClose();
-            } catch (InterruptedException inner) {
-                logger.trace("exception while closing channel", e);
-                e.addSuppressed(inner);
-                Thread.currentThread().interrupt();
             } catch (Exception inner) {
                 logger.trace("exception while closing channel", e);
                 e.addSuppressed(inner);

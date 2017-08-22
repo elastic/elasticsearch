@@ -26,7 +26,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -34,6 +35,8 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -43,32 +46,143 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 
 /**
  * Task storing information about a currently running BulkByScroll request.
+ *
+ * When the request is not sliced, this task is the only task created, and starts an action to perform search requests.
+ *
+ * When the request is sliced, this task can either represent a coordinating task (using
+ * {@link BulkByScrollTask#setWorkerCount(int)}) or a worker task that performs search queries (using
+ * {@link BulkByScrollTask#setWorker(float, Integer)}).
+ *
+ * We don't always know if this task will be a leader or worker task when it's created, because if slices is set to "auto" it may
+ * be either depending on the number of shards in the source indices. We figure that out when the request is handled and set it on this
+ * class with {@link #setWorkerCount(int)} or {@link #setWorker(float, Integer)}.
  */
-public abstract class BulkByScrollTask extends CancellableTask {
+public class BulkByScrollTask extends CancellableTask {
+
+    private volatile LeaderBulkByScrollTaskState leaderState;
+    private volatile WorkerBulkByScrollTaskState workerState;
+
     public BulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId) {
         super(id, type, action, description, parentTaskId);
     }
 
-    /**
-     * The number of sub-slices that are still running. {@link WorkingBulkByScrollTask} will always have 0 and
-     * {@link ParentBulkByScrollTask} will return the number of waiting tasks. Used to decide how to perform rethrottling.
-     */
-    public abstract int runningSliceSubTasks();
+    @Override
+    public BulkByScrollTask.Status getStatus() {
+        if (isLeader()) {
+            return leaderState.getStatus();
+        }
+
+        if (isWorker()) {
+            return workerState.getStatus();
+        }
+
+        return emptyStatus();
+    }
 
     /**
-     * Apply the {@code newRequestsPerSecond}.
+     * Build the status for this task given a snapshot of the information of running slices. This is only supported if the task is
+     * set as a leader for slice subtasks
      */
-    public abstract void rethrottle(float newRequestsPerSecond);
+    public TaskInfo taskInfoGivenSubtaskInfo(String localNodeId, List<TaskInfo> sliceInfo) {
+        if (isLeader() == false) {
+            throw new IllegalStateException("This task is not set to be a leader of other slice subtasks");
+        }
 
-    /*
-     * Overridden to force children to return compatible status.
-     */
-    public abstract BulkByScrollTask.Status getStatus();
+        List<BulkByScrollTask.StatusOrException> sliceStatuses = Arrays.asList(
+            new BulkByScrollTask.StatusOrException[leaderState.getSlices()]);
+        for (TaskInfo t : sliceInfo) {
+            BulkByScrollTask.Status status = (BulkByScrollTask.Status) t.getStatus();
+            sliceStatuses.set(status.getSliceId(), new BulkByScrollTask.StatusOrException(status));
+        }
+        Status status = leaderState.getStatus(sliceStatuses);
+        return taskInfo(localNodeId, getDescription(), status);
+    }
+
+    private BulkByScrollTask.Status emptyStatus() {
+        return new Status(Collections.emptyList(), getReasonCancelled());
+    }
 
     /**
-     * Build the status for this task given a snapshot of the information of running slices.
+     * Returns true if this task is a leader for other slice subtasks
      */
-    public abstract TaskInfo getInfoGivenSliceInfo(String localNodeId, List<TaskInfo> sliceInfo);
+    public boolean isLeader() {
+        return leaderState != null;
+    }
+
+    /**
+     * Sets this task to be a leader task for {@code slices} sliced subtasks
+     */
+    public void setWorkerCount(int slices) {
+        if (isLeader()) {
+            throw new IllegalStateException("This task is already a leader for other slice subtasks");
+        }
+        if (isWorker()) {
+            throw new IllegalStateException("This task is already a worker");
+        }
+
+        leaderState = new LeaderBulkByScrollTaskState(this, slices);
+    }
+
+    /**
+     * Returns the object that tracks the state of sliced subtasks. Throws IllegalStateException if this task is not set to be
+     * a leader task.
+     */
+    public LeaderBulkByScrollTaskState getLeaderState() {
+        if (!isLeader()) {
+            throw new IllegalStateException("This task is not set to be a leader for other slice subtasks");
+        }
+        return leaderState;
+    }
+
+    /**
+     * Returns true if this task is a worker task that performs search requests. False otherwise
+     */
+    public boolean isWorker() {
+        return workerState != null;
+    }
+
+    /**
+     * Sets this task to be a worker task that performs search requests
+     * @param requestsPerSecond How many search requests per second this task should make
+     * @param sliceId If this is is a sliced task, which slice number this task corresponds to. Null if not sliced.
+     */
+    public void setWorker(float requestsPerSecond, @Nullable Integer sliceId) {
+        if (isWorker()) {
+            throw new IllegalStateException("This task is already a worker");
+        }
+        if (isLeader()) {
+            throw new IllegalStateException("This task is already a leader for other slice subtasks");
+        }
+
+        workerState = new WorkerBulkByScrollTaskState(this, sliceId, requestsPerSecond);
+        if (isCancelled()) {
+            workerState.handleCancel();
+        }
+    }
+
+    /**
+     * Returns the object that manages sending search requests. Throws IllegalStateException if this task is not set to be a
+     * worker task.
+     */
+    public WorkerBulkByScrollTaskState getWorkerState() {
+        if (!isWorker()) {
+            throw new IllegalStateException("This task is not set to be a worker");
+        }
+        return workerState;
+    }
+
+    @Override
+    public void onCancelled() {
+        /*
+         * If this task is a leader, we don't need to do anything extra because the cancel action cancels child tasks for us
+         * If it's is a worker, we know how to cancel it here
+         * If we don't know whether it's a leader or worker yet, we do nothing here. If the task is later set to be a worker, we cancel the
+         * worker at that time.
+         */
+        if (isWorker()) {
+            workerState.handleCancel();
+        }
+    }
 
     @Override
     public boolean shouldCancelChildrenOnCancellation() {
@@ -438,7 +552,7 @@ public abstract class BulkByScrollTask extends CancellableTask {
      * The status of a slice of the request. Successful requests store the {@link StatusOrException#status} while failing requests store a
      * {@link StatusOrException#exception}.
      */
-    public static class StatusOrException implements Writeable, ToXContent {
+    public static class StatusOrException implements Writeable, ToXContentObject {
         private final Status status;
         private final Exception exception;
 

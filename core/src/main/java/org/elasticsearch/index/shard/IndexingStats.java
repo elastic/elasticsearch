@@ -34,7 +34,7 @@ import java.util.Map;
 
 public class IndexingStats implements Streamable, ToXContentFragment {
 
-    public static class Stats implements Streamable, ToXContent {
+    public static class Stats implements Streamable, ToXContentFragment {
 
         private long indexCount;
         private long indexTimeInMillis;

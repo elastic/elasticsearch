@@ -49,7 +49,7 @@ GET /_cat/nodeattrs?v&h=name,pid,attr,value
 
 Might look like:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 name    pid   attr     value
 EK_AsJb 19566 testattr test

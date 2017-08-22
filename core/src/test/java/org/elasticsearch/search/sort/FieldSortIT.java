@@ -20,7 +20,6 @@
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -114,7 +113,6 @@ public class FieldSortIT extends ESIntegTestCase {
         return Arrays.asList(InternalSettingsPlugin.class, CustomScriptPlugin.class);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/9421")
     public void testIssue8226() {
         int numIndices = between(5, 10);
         final boolean useMapping = randomBoolean();

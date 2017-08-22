@@ -510,14 +510,14 @@ public class SearchTransportService extends AbstractComponent {
         public void handleResponse(Response response) {
             super.handleResponse(response);
             // Decrement the number of connections or remove it entirely if there are no more connections
-            clientConnections.computeIfPresent(nodeId, (id, conns) -> conns == 1 ? null : conns - 1);
+            clientConnections.computeIfPresent(nodeId, (id, conns) -> conns.longValue() == 1 ? null : conns - 1);
         }
 
         @Override
         public void handleException(TransportException e) {
             super.handleException(e);
             // Decrement the number of connections or remove it entirely if there are no more connections
-            clientConnections.computeIfPresent(nodeId, (id, conns) -> conns == 1 ? null : conns - 1);
+            clientConnections.computeIfPresent(nodeId, (id, conns) -> conns.longValue() == 1 ? null : conns - 1);
         }
     }
 }

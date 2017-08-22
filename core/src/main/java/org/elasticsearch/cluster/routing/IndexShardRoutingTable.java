@@ -352,12 +352,14 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         ResponseCollectorService.ComputedNodeStats minStats = null;
         // calculate the "winning" node and its stats (for adjusting other nodes later)
         for (Map.Entry<String, Optional<ResponseCollectorService.ComputedNodeStats>> entry : nodeStats.entrySet()) {
-            if (entry.getValue().isPresent()) {
-                ResponseCollectorService.ComputedNodeStats stats = entry.getValue().get();
-                double rank = stats.rank(nodeSearchCounts.getOrDefault(entry.getKey(), 1L));
+            final String nodeId = entry.getKey();
+            final Optional<ResponseCollectorService.ComputedNodeStats> maybeNodeStats = entry.getValue();
+            if (maybeNodeStats.isPresent()) {
+                ResponseCollectorService.ComputedNodeStats stats = maybeNodeStats.get();
+                double rank = stats.rank(nodeSearchCounts.getOrDefault(nodeId, 1L));
                 if (minStats == null || rank < minStats.rank(nodeSearchCounts.getOrDefault(minStats.nodeId, 1L))) {
                     minStats = stats;
-                    minNode = entry.getKey();
+                    minNode = nodeId;
                 }
             }
         }

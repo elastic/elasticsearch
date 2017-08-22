@@ -18,7 +18,10 @@ doesn't need to be in the same minor version as the Elasticsearch nodes it
 communicates with, as it is forward compatible meaning that it supports
 communicating with later versions of Elasticsearch than the one it was developed for.
 
-The 6.0 client is able to communicate with any 6.x Elasticsearch node, while the 6.1
+The 5.6 client can communicate with any 5.6.x Elasticsearch node. Previous 5.x minor
+versions like 5.5.x, 5.4.x etc. are not (fully) supported.
+
+The 6.0 client is able to communicate with any 6.x Elasticsearch node while the 6.1
 client is for sure able to communicate with 6.1, 6.2 and any later 6.x version, but
 there may be incompatibility issues when communicating with a previous Elasticsearch
 node version, for instance between 6.1 and 6.0, in case the 6.1 client supports new

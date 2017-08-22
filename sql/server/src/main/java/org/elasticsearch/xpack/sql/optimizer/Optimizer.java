@@ -106,7 +106,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new CombineAggsToMatrixStats(),
                 new CombineAggsToExtendedStats(),
                 new CombineAggsToStats(),
-                new PromoteStatsToExtendedStats(), new CombineAggsToPercentiles(), new CombineAggsToPercentileRanks()
+                new PromoteStatsToExtendedStats(), 
+                new CombineAggsToPercentiles(), 
+                new CombineAggsToPercentileRanks()
                 );
 
         Batch cleanup = new Batch("Operator Optimization",

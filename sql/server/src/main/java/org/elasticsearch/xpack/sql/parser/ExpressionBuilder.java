@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.GreaterThan;
 import org.elasticsearch.xpack.sql.expression.predicate.GreaterThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.In;
-import org.elasticsearch.xpack.sql.expression.predicate.IsNull;
+import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.Not;
@@ -174,39 +174,41 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitPredicated(PredicatedContext ctx) {
         Expression exp = expression(ctx.valueExpression());
-        
-        if (ctx.predicate() != null) {
-            PredicateContext pCtx = ctx.predicate();
-            Location loc = source(pCtx);
 
-            Expression e = null;
-            switch (pCtx.kind.getType()) {
-                case SqlBaseParser.BETWEEN:
-                    e = new Range(loc, exp, expression(pCtx.lower), true, expression(pCtx.upper), true);
-                    break;
-                case SqlBaseParser.IN:
-                    if (pCtx.query() != null) {
-                        throw new ParsingException(loc, "IN query not supported yet");
-                    }
-                    e = new In(loc, exp, expressions(pCtx.expression()));
-                    break;
-                case SqlBaseParser.LIKE:
-                    e = new Like(loc, exp, expression(pCtx.pattern));
-                    break;
-                case SqlBaseParser.RLIKE:
-                    e = new RLike(loc, exp, expression(pCtx.pattern));
-                    break;
-                case SqlBaseParser.NULL:;
-                    e = new IsNull(loc, exp);
-                    break;
-                default:
-                    throw new ParsingException(loc, "Unknown predicate %s", pCtx.kind.getText());
-            }
-            
-            exp = pCtx.NOT() != null ? new Not(loc, e) : e;
+        // no predicate, quick exit
+        if (ctx.predicate() == null) {
+            return exp;
         }
         
-        return exp;
+        PredicateContext pCtx = ctx.predicate();
+        Location loc = source(pCtx);
+
+        Expression e = null;
+        switch (pCtx.kind.getType()) {
+            case SqlBaseParser.BETWEEN:
+                e = new Range(loc, exp, expression(pCtx.lower), true, expression(pCtx.upper), true);
+                break;
+            case SqlBaseParser.IN:
+                if (pCtx.query() != null) {
+                    throw new ParsingException(loc, "IN query not supported yet");
+                }
+                e = new In(loc, exp, expressions(pCtx.expression()));
+                break;
+            case SqlBaseParser.LIKE:
+                e = new Like(loc, exp, expression(pCtx.pattern));
+                break;
+            case SqlBaseParser.RLIKE:
+                e = new RLike(loc, exp, expression(pCtx.pattern));
+                break;
+            case SqlBaseParser.NULL:;
+                // shortcut to avoid double negation later on (since there's no IsNull (missing in ES is a negated exists))
+                e = new IsNotNull(loc, exp);
+                return pCtx.NOT() != null ? e : new Not(loc, e);
+            default:
+                throw new ParsingException(loc, "Unknown predicate %s", pCtx.kind.getText());
+        }
+
+        return pCtx.NOT() != null ? new Not(loc, e) : e;
     }
 
     //

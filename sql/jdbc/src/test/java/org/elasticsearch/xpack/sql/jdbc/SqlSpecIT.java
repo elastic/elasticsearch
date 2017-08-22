@@ -31,9 +31,6 @@ public class SqlSpecIT extends SpecBaseIntegrationTestCase {
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
 
-        // example for enabling logging
-        //JdbcTestUtils.sqlLogging();
-
         Parser parser = specParser();
         return CollectionUtils.combine(
                 readScriptSpec("/select.sql-spec", parser),
@@ -68,7 +65,7 @@ public class SqlSpecIT extends SpecBaseIntegrationTestCase {
     }
 
     @Before
-    public void testDateTime() {
+    public void checkDateTime() {
         assumeFalse("Date time tests have time zone problems", "datetime".equals(groupName));
     }
 

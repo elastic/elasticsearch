@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.NestedFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
+import org.elasticsearch.xpack.sql.expression.UnaryExpression;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.BinaryComparison;
 import org.elasticsearch.xpack.sql.expression.predicate.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.GreaterThan;
 import org.elasticsearch.xpack.sql.expression.predicate.GreaterThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.Not;
@@ -69,6 +71,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.PercentilesAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.StatsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.SumAgg;
 import org.elasticsearch.xpack.sql.querydsl.query.AndQuery;
+import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
@@ -110,6 +113,7 @@ abstract class QueryTranslator {
             new Ranges(),
             new BinaryLogic(),
             new Nots(),
+            new Nulls(),
             new Likes(), 
             new StringQueries(),
             new Matches(),
@@ -501,7 +505,19 @@ abstract class QueryTranslator {
             return new QueryTranslation(not(translation.query), translation.aggFilter);
         }
     }
-    
+
+    static class Nulls extends ExppressionTranslator<UnaryExpression> {
+
+        @Override
+        protected QueryTranslation asQuery(UnaryExpression ue, boolean onAggs) {
+            // TODO: handle onAggs - missing bucket aggregation
+            if (ue instanceof IsNotNull) {
+                return new QueryTranslation(new ExistsQuery(ue.location(), nameOf(ue.child())));
+            }
+            return null;
+        }
+    }
+
     // assume the Optimizer properly orders the predicates to ease the translation
     static class BinaryComparisons extends ExppressionTranslator<BinaryComparison> {
     

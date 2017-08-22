@@ -18,3 +18,12 @@ whereFieldWithLikeMatch
 SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND last_name LIKE 'K%';
 whereFieldOnMatchWithAndAndOr
 SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND (gender = 'M' AND NOT FALSE OR last_name LIKE 'K%') ORDER BY emp_no;
+
+// TODO: ADD BETWEEN, NOT BETWEEN, BETWEEN HAVING, NOT LIKE, RLIKE/NOTLIKE, <>, <=>, !=
+
+whereIsNotNullAndComparison
+SELECT last_name l FROM "test_emp" WHERE emp_no IS NOT NULL AND emp_no < 10005 ORDER BY emp_no;
+whereIsNull
+SELECT last_name l FROM "test_emp" WHERE emp_no IS NULL;
+whereIsNotNullAndIsNull
+SELECT last_name l FROM "test_emp" WHERE emp_no IS NOT NULL AND gender IS NULL;

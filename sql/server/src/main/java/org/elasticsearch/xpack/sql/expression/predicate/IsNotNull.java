@@ -26,4 +26,9 @@ public class IsNotNull extends UnaryExpression {
     public DataType dataType() {
         return DataTypes.BOOLEAN;
     }
+
+    @Override
+    public String toString() {
+        return child().toString() + " IS NOT NULL";
+    }
 }

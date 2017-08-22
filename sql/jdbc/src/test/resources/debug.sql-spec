@@ -3,4 +3,4 @@
 //
 
 debug
-SELECT YEAR(birth_date) AS d, CAST(SUM(emp_no) AS INT) s FROM "test_emp.emp" GROUP BY YEAR(birth_date) ORDER BY YEAR(birth_date) LIMIT 5;
+SELECT * FROM test_emp WHERE emp_no IS NULL ORDER BY emp_no LIMIT 5 ;

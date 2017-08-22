@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import java.util.Objects;
-
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
+
+import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 

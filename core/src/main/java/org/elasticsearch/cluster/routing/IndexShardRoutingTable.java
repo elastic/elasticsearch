@@ -309,8 +309,10 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                                                  final Map<String, Long> nodeSearchCounts) {
         final Map<String, Double> nodeRanks = new HashMap<>(nodeStats.size());
         for (Map.Entry<String, Optional<ResponseCollectorService.ComputedNodeStats>> entry : nodeStats.entrySet()) {
-            entry.getValue().ifPresent(stats -> {
-                nodeRanks.put(entry.getKey(), stats.rank(nodeSearchCounts.getOrDefault(entry.getKey(), 1L)));
+            Optional<ResponseCollectorService.ComputedNodeStats> maybeStats = entry.getValue();
+            maybeStats.ifPresent(stats -> {
+                final String nodeId = entry.getKey();
+                nodeRanks.put(nodeId, stats.rank(nodeSearchCounts.getOrDefault(nodeId, 1L)));
             });
         }
         return nodeRanks;

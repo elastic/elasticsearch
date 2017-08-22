@@ -23,7 +23,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Whitelist contains data structures designed to be used to generate a white-list of Java classes,
@@ -55,30 +54,34 @@ public final class Whitelist {
      */
     public static final class Struct {
 
+        /** Information about where this struct was white-listed from.  Can be used for error messages. */
+        public final String origin;
+
         /** The Painless name of this struct which will also be the name of a type in a Painless script.  */
         public final String painlessTypeName;
 
-        /** The Java class this struct represents. */
-        public final Class<?> javaClass;
+        /** The Java class name this struct represents. */
+        public final String javaClassName;
 
-        /** The {@link Set} of white-listed ({@link Constructor}s) available to this struct. */
-        public final Set<Constructor> whitelistConstructors;
+        /** The {@link List} of white-listed ({@link Constructor}s) available to this struct. */
+        public final List<Constructor> whitelistConstructors;
 
-        /** The {@link Set} of white-listed ({@link Method}s) available to this struct. */
-        public final Set<Method> whitelistMethods;
+        /** The {@link List} of white-listed ({@link Method}s) available to this struct. */
+        public final List<Method> whitelistMethods;
 
-        /** The {@link Set} of white-listed ({@link Field}s) available to this struct. */
-        public final Set<Field> whitelistFields;
+        /** The {@link List} of white-listed ({@link Field}s) available to this struct. */
+        public final List<Field> whitelistFields;
 
         /** Standard constructor. All values must be not {@code null}. */
-        public Struct(String painlessTypeName, Class<?> javaClass,
-                      Set<Constructor> whitelistConstructors, Set<Method> whitelistMethods, Set<Field> whitelistFields) {
+        public Struct(String origin, String painlessTypeName, String javaClassName,
+                      List<Constructor> whitelistConstructors, List<Method> whitelistMethods, List<Field> whitelistFields) {
+            this.origin = Objects.requireNonNull(origin);
             this.painlessTypeName = Objects.requireNonNull(painlessTypeName);
-            this.javaClass = Objects.requireNonNull(javaClass);
+            this.javaClassName = Objects.requireNonNull(javaClassName);
 
-            this.whitelistConstructors = Collections.unmodifiableSet(Objects.requireNonNull(whitelistConstructors));
-            this.whitelistMethods = Collections.unmodifiableSet(Objects.requireNonNull(whitelistMethods));
-            this.whitelistFields = Collections.unmodifiableSet(Objects.requireNonNull(whitelistFields));
+            this.whitelistConstructors = Collections.unmodifiableList(Objects.requireNonNull(whitelistConstructors));
+            this.whitelistMethods = Collections.unmodifiableList(Objects.requireNonNull(whitelistMethods));
+            this.whitelistFields = Collections.unmodifiableList(Objects.requireNonNull(whitelistFields));
         }
     }
 
@@ -90,20 +93,19 @@ public final class Whitelist {
      */
     public static final class Constructor {
 
-        /** The Java reflection {@link Constructor} available as a Painless struct constructor. */
-        public final java.lang.reflect.Constructor<?> javaConstructor;
+        /** Information about where this constructor was white-listed from.  Can be used for error messages. */
+        public final String origin;
 
         /**
-         * A {@link List} of {@link Boolean}s representing whether or not each of the constructor parameters,
-         * in their respective ordering, is a Painless dynamic type (def), with {@code true} meaning the parameter
-         * is a dynamic type and {@code false} meaning it's not.
+         * A {@link List} of {@link String}s that are the Painless type names for the parameters of the
+         * constructor which can be used to look up the Java constructor through reflection.
          */
-        public final List<Boolean> painlessDynamicParameters;
+        public final List<String> painlessParameterTypeNames;
 
         /** Standard constructor. All values must be not {@code null}. */
-        public Constructor(java.lang.reflect.Constructor<?> javaConstructor, List<Boolean> painlessDynamicParameters) {
-            this.javaConstructor = Objects.requireNonNull(javaConstructor);
-            this.painlessDynamicParameters = Collections.unmodifiableList(Objects.requireNonNull(painlessDynamicParameters));
+        public Constructor(String origin, List<String> painlessParameterTypeNames) {
+            this.origin = Objects.requireNonNull(origin);
+            this.painlessParameterTypeNames = Collections.unmodifiableList(Objects.requireNonNull(painlessParameterTypeNames));
         }
     }
 
@@ -121,35 +123,41 @@ public final class Whitelist {
      */
     public static class Method {
 
-        /** The Java reflection {@link Method} available as a Painless struct method. */
-        public final java.lang.reflect.Method javaMethod;
-
-        /** The Java {@link Class} owner for an augmented method.  If the method is not augmented this should be {@code null}. */
-        public final Class<?> javaAugmentedClass;
+        /** Information about where this method was white-listed from.  Can be used for error messages. */
+        public final String origin;
 
         /**
-         * Represents whether or not the return type is a Painless dynamic type (def), with {@code true} meaning the parameter
-         * is a dynamic type and {@code false} meaning it's not.
+         * The Java class name for the owner of an augmented method.  If the method is not augmented
+         * this should be {@code null}.
          */
-        public final boolean painlessDynamicReturn;
+        public final String javaAugmentedClassName;
+
+        /** The Java method name used to look up the Java method through reflection. */
+        public final String javaMethodName;
 
         /**
-         * A {@link List} of {@link Boolean}s representing whether or not each of the method parameters,
-         * in their respective ordering, is a Painless dynamic type (def), with {@code true} meaning the parameter
-         * is a dynamic type and {@code false} meaning it's not.
+         * The Painless type name for the return type of the method which can be used to look up the Java
+         * method through reflection.
          */
-        public final List<Boolean> painlessDynamicParameters;
+        public final String painlessReturnTypeName;
+
+        /**
+         * A {@link List} of {@link String}s that are the Painless type names for the parameters of the
+         * method which can be used to look up the Java method through reflection.
+         */
+        public final List<String> painlessParameterTypeNames;
 
         /**
          * Standard constructor. All values must be not {@code null} with the exception of jAugmentedClass;
          * jAugmentedClass will be {@code null} unless the method is augmented as described in the class documentation.
          */
-        public Method(java.lang.reflect.Method javaMethod, Class<?> javaAugmentedClass,
-                       boolean painlessDynamicReturn, List<Boolean> painlessDynamicParameters) {
-            this.javaMethod = Objects.requireNonNull(javaMethod);
-            this.javaAugmentedClass = javaAugmentedClass;
-            this.painlessDynamicReturn = painlessDynamicReturn;
-            this.painlessDynamicParameters = Collections.unmodifiableList(Objects.requireNonNull(painlessDynamicParameters));
+        public Method(String origin, String javaAugmentedClassName, String javaMethodName,
+                      String painlessReturnTypeName, List<String> painlessParameterTypeNames) {
+            this.origin = Objects.requireNonNull(origin);
+            this.javaAugmentedClassName = javaAugmentedClassName;
+            this.javaMethodName = javaMethodName;
+            this.painlessReturnTypeName = Objects.requireNonNull(painlessReturnTypeName);
+            this.painlessParameterTypeNames = Collections.unmodifiableList(Objects.requireNonNull(painlessParameterTypeNames));
         }
     }
 
@@ -160,29 +168,32 @@ public final class Whitelist {
      */
     public static class Field {
 
-        /** The Java reflection {@link Field} available as a Painless struct field. */
-        public final java.lang.reflect.Field javaField;
+        /** Information about where this method was white-listed from.  Can be used for error messages. */
+        public final String origin;
 
-        /**
-         * Represents whether or not the field type is a Painless dynamic type (def), with {@code true} meaning the parameter
-         * is a dynamic type and {@code false} meaning it's not.
-         */
-        public final boolean painlessDynamic;
+        /** The Java field name used to look up the Java field through reflection. */
+        public final String javaFieldName;
 
-        /** Standard constructor. All values must be not {@code null}. */
-        public  Field(java.lang.reflect.Field javaField, boolean painlessDynamic) {
-            this.javaField = Objects.requireNonNull(javaField);
-            this.painlessDynamic = painlessDynamic;
+        /** The Painless type name for the field which can be used to look up the Java field through reflection. */
+        public final String painlessFieldTypeName;
+
+        /** Standard constructor.  All values must be not {@code null}. */
+        public Field(String origin, String javaFieldName, String painlessFieldTypeName) {
+            this.origin = Objects.requireNonNull(origin);
+            this.javaFieldName = Objects.requireNonNull(javaFieldName);
+            this.painlessFieldTypeName = Objects.requireNonNull(painlessFieldTypeName);
         }
     }
 
-    /** The {@link Collection} of all the white-listed Painless structs. */
-    public final Collection<Struct> whitelistStructs;
+    /** The {@link ClassLoader} used to look up the white-listed Java classes, constructors, methods, and fields. */
+    public final ClassLoader javaClassLoader;
 
-    /** Standard constructor.
-     * @param whitelistStructs Cannot be {@code null}.
-     */
-    public Whitelist(Collection<Struct> whitelistStructs) {
-        this.whitelistStructs = Collections.unmodifiableCollection(Objects.requireNonNull(whitelistStructs));
+    /** The {@link List} of all the white-listed Painless structs. */
+    public final List<Struct> whitelistStructs;
+
+    /** Standard constructor.  All values must be not {@code null}. */
+    public Whitelist(ClassLoader javaClassLoader, List<Struct> whitelistStructs) {
+        this.javaClassLoader = Objects.requireNonNull(javaClassLoader);
+        this.whitelistStructs = Collections.unmodifiableList(Objects.requireNonNull(whitelistStructs));
     }
 }

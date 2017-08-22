@@ -46,8 +46,8 @@ public final class Definition {
 
     public static final String DYNAMIC_TYPE_NAME = "def";
 
-    private static final List<String> DEFINITION_FILES = Collections.unmodifiableList(
-        Arrays.asList("org.elasticsearch.txt",
+    private static final String[] DEFINITION_FILES = new String[] {
+            "org.elasticsearch.txt",
             "java.lang.txt",
             "java.math.txt",
             "java.text.txt",
@@ -60,15 +60,14 @@ public final class Definition {
             "java.util.function.txt",
             "java.util.regex.txt",
             "java.util.stream.txt",
-            "joda.time.txt"));
-
-    private static final Map<Class<?>, List<String>> WHITELIST_RESOURCES = Collections.singletonMap(Definition.class, DEFINITION_FILES);
+            "joda.time.txt"
+    };
 
     /**
      * Whitelist that is "built in" to Painless and required by all scripts.
      */
     public static final Definition BUILTINS =
-        new Definition(Whitelist.loadFromResourceFiles(WHITELIST_RESOURCES));
+        new Definition(WhitelistLoader.loadFromResourceFiles(Definition.class, DEFINITION_FILES));
 
     /** Some native types as constants: */
     public static final Type VOID_TYPE = BUILTINS.getType("void");

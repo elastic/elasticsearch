@@ -105,7 +105,9 @@ public class RestHighLevelClientTests extends ESTestCase {
     @Before
     public void initClient() {
         restClient = mock(RestClient.class);
-        restHighLevelClient = new RestHighLevelClient(restClient);
+        final RestClientBuilder restClientBuilder = mock(RestClientBuilder.class);
+        when(restClientBuilder.build()).thenReturn(restClient);
+        restHighLevelClient = new RestHighLevelClient(restClientBuilder);
     }
 
     public void testPingSuccessful() throws IOException {

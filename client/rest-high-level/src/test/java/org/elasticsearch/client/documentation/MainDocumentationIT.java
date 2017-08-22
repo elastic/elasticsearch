@@ -68,27 +68,16 @@ public class MainDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testInitializationFromHosts() throws IOException {
-        //tag::rest-high-level-client-init-hosts
-        RestHighLevelClient restHighLevelClient = new RestHighLevelClient(
-                new HttpHost("localhost", 9200, "http"),
-                new HttpHost("localhost", 9201, "http"));
-        //end::rest-high-level-client-init-hosts
+    public void testInitializationFromClientBuilder() throws IOException {
+        //tag::rest-high-level-client-init
+        RestHighLevelClient client = new RestHighLevelClient(
+                RestClient.builder(
+                        new HttpHost("localhost", 9200, "http"),
+                        new HttpHost("localhost", 9201, "http")));
+        //end::rest-high-level-client-init
 
         //tag::rest-high-level-client-close
-        restHighLevelClient.close();
+        client.close();
         //end::rest-high-level-client-close
-    }
-
-    public void testInitializationFromClient() throws IOException {
-        //tag::rest-high-level-client-init-client
-        RestClient lowLevelClient = RestClient.builder(new HttpHost("localhost", 9200))
-                .setRequestConfigCallback(
-                        requestConfigBuilder -> requestConfigBuilder.setConnectTimeout(5000).setSocketTimeout(60000))
-                .setMaxRetryTimeoutMillis(60000).build();
-        RestHighLevelClient restHighLevelClient = new RestHighLevelClient(lowLevelClient);
-        //end::rest-high-level-client-init-client
-
-        restHighLevelClient.close();
     }
 }

@@ -118,25 +118,16 @@ transitive dependencies:
 [[java-rest-high-usage-initialization]]
 === Initialization
 
-A `RestHighLevelClient` instance can be created by providing the host that it
-needs to communicate with as follows. In such case a new instance of the
-low-level Rest Client will be automatically created:
+A `RestHighLevelClient` instance needs a <<java-rest-low-usage-initialization,REST low-level client builder>>
+to be built as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MainDocumentationIT.java[rest-high-level-client-init-hosts]
+include-tagged::{doc-tests}/MainDocumentationIT.java[rest-high-level-client-init]
 --------------------------------------------------
 
-Another way to create a `RestHighLevelClient` instance is by  providing a
-<<java-rest-low-usage-initialization,REST low-level client>> instance. This is
-needed when the connections settings (e.g. timeouts, authentication) need to be
-configured, which can only be done by creating a custom low-level client instance
-and providing it at `RestHighLevelClient` initialization:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MainDocumentationIT.java[rest-high-level-client-init-client]
---------------------------------------------------
+The high-level client will internally create the low-level client used to
+perform requests based on the provided builder, and manage its lifecycle.
 
 The high-level client instance needs to be closed when no longer needed so that
 all the resources used by it get properly released, as well as the underlying

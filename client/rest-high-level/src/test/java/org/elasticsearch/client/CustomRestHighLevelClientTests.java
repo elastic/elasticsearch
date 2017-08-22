@@ -59,6 +59,7 @@ import static org.mockito.Matchers.anyVararg;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Test and demonstrates how {@link RestHighLevelClient} can be extended to support custom endpoints.
@@ -74,7 +75,9 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
     public void initClients() throws IOException {
         if (restHighLevelClient == null) {
             final RestClient restClient = mock(RestClient.class);
-            restHighLevelClient = new CustomRestClient(restClient);
+            final RestClientBuilder restClientBuilder = mock(RestClientBuilder.class);
+            when(restClientBuilder.build()).thenReturn(restClient);
+            restHighLevelClient = new CustomRestClient(restClientBuilder);
 
             doAnswer(mock -> mockPerformRequest((Header) mock.getArguments()[4]))
                     .when(restClient)
@@ -150,8 +153,8 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
      */
     static class CustomRestClient extends RestHighLevelClient {
 
-        private CustomRestClient(RestClient restClient) {
-            super(restClient);
+        private CustomRestClient(RestClientBuilder restClientBuilder) {
+            super(restClientBuilder);
         }
 
         MainResponse custom(MainRequest mainRequest, Header... headers) throws IOException {

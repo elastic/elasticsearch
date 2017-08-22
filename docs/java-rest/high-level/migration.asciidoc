@@ -54,52 +54,44 @@ Settings settings = Settings.builder()
         .put("cluster.name", "prod").build();
 
 TransportClient transportClient = new PreBuiltTransportClient(settings)
-        .addTransportAddress(new TransportAddress(InetAddress.getByName("host"), 9300));
+        .addTransportAddress(new TransportAddress(InetAddress.getByName("localhost"), 9300))
+        .addTransportAddress(new TransportAddress(InetAddress.getByName("localhost"), 9301));
 --------------------------------------------------
 
-The initialization of a `RestHighLevelClient` is different. It first requires the initialization
-of a <<java-rest-low-usage-initialization,low-level client>>:
+The initialization of a `RestHighLevelClient` is different. It requires to provide
+a <<java-rest-low-usage-initialization,low-level client builder>> as a constructor
+argument:
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-RestClient lowLevelRestClient = RestClient.builder(
-                new HttpHost("host", 9200, "http")).build();
+include-tagged::{doc-tests}/MainDocumentationIT.java[rest-high-level-client-init]
 --------------------------------------------------
 
 NOTE: The `RestClient` uses Elasticsearch's HTTP service which is
  bounded by default on `9200`. This port is different from the port
  used to connect to Elasticsearch with a `TransportClient`.
 
-Which is then passed to the constructor of the `RestHighLevelClient`:
+The `RestHighLevelClient` is thread-safe. It is typically instantiated by the
+application at startup time or when the first request is executed.
 
-[source,java]
---------------------------------------------------
-RestHighLevelClient client =
-    new RestHighLevelClient(lowLevelRestClient);
---------------------------------------------------
+Once the `RestHighLevelClient` is initialized, it can be used to execute any
+of the <<java-rest-high-supported-apis,supported APIs>>.
 
-Both `RestClient` and `RestHighLevelClient` are thread safe. They are
- typically instantiated by the application at startup time or when the
- first request is executed.
-
-Once the `RestHighLevelClient` is initialized, it can then be used to
-execute any of the <<java-rest-high-supported-apis,supported APIs>>.
-
-As with the `TransportClient`, the `RestClient` must be closed when it
+As with the `TransportClient`, the `RestHighLevelClient` must be closed when it
 is not needed anymore or when the application is stopped.
 
-So the code that closes the `TransportClient`:
+The code that closes the `TransportClient`:
 
 [source,java]
 --------------------------------------------------
 transportClient.close();
 --------------------------------------------------
 
-Must be replaced with:
+must be replaced with:
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-lowLevelRestClient.close();
+include-tagged::{doc-tests}/MainDocumentationIT.java[rest-high-level-client-close]
 --------------------------------------------------
 
 === Changing the application's code
@@ -309,7 +301,8 @@ include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-create-inded
 set its content type (here, JSON)
 <6> Execute the request using the low-level client. The execution is synchronous
 and blocks on the `performRequest()` method until the remote cluster returns
-a response.
+a response. The low-level client can be retrieved from an existing `RestHighLevelClient`
+instance through the `getLowLevelClient` getter method.
 <7> Handle the situation where the index has not been created
 
 
@@ -339,7 +332,7 @@ With the low-level client, the code can be changed to:
 include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-cluster-health]
 --------------------------------------------------
 <1> Call the cluster's health REST endpoint using the default paramaters
-and gets back a `Response` object
+and gets back a `Response` object.
 <2> Retrieve an `InputStream` object in order to read the response's content
 <3> Parse the response's content using Elasticsearch's helper class `XContentHelper`. This
  helper requires the content type of the response to be passed as an argument and returns

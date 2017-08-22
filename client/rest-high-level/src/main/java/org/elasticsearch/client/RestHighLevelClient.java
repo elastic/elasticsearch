@@ -43,7 +43,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.http.Header;
 import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.HttpHost;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ContextParser;
@@ -159,10 +158,13 @@ import static java.util.stream.Collectors.toList;
 
 /**
  * High level REST client that wraps an instance of the low level {@link RestClient} and allows to build requests and read responses.
- * The provided {@link RestClient} is externally built but it gets closed automatically when closing the {@link RestHighLevelClient}
- * instance that wraps it.
- * Can be sub-classed to expose additional client methods that make use of endpoints added to Elasticsearch through plugins, or to
- * add support for custom response sections, again added to Elasticsearch through plugins.
+ * The {@link RestClient} instance is internally built based on the provided {@link RestClientBuilder} and it gets closed automatically
+ * when closing the {@link RestHighLevelClient} instance that wraps it.
+ * In case an already existing instance of a low-level REST client needs to be provided, this class can be subclassed and the
+ * {@link #RestHighLevelClient(RestClient, List)} constructor can be used. Also, the {@link #close()} method can be overridden with an
+ * empty implementation if it is preferable to externally close the provided low-level REST client.
+ * This class can also be sub-classed to expose additional client methods that make use of endpoints added to Elasticsearch through
+ * plugins, or to add support for custom response sections, again added to Elasticsearch through plugins.
  */
 public class RestHighLevelClient implements Closeable {
 
@@ -170,30 +172,31 @@ public class RestHighLevelClient implements Closeable {
     private final NamedXContentRegistry registry;
 
     /**
-     * Creates a {@link RestHighLevelClient} given the hosts that the client will send requests to.
-     * Internally creates a new {@link RestClient} instance with default options, by passing in
-     * the provided hosts to the low-level client constructor.
+     * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
+     * {@link RestClient} to be used to perform requests.
      */
-    public RestHighLevelClient(HttpHost... httpHosts) {
-        this(RestClient.builder(httpHosts).build());
-    }
-
-    /**
-     * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests.
-     */
-    public RestHighLevelClient(RestClient restClient) {
-        this(restClient, Collections.emptyList());
+    public RestHighLevelClient(RestClientBuilder restClientBuilder) {
+        this(restClientBuilder.build(), Collections.emptyList());
     }
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests and
      * a list of entries that allow to parse custom response sections added to Elasticsearch through plugins.
+     * This constructor can be called by subclasses in case an externally created low-level REST client needs to be provided.
+     * Also subclasses can provide parsers for custom response sections added to Elasticsearch through plugins.
      */
     protected RestHighLevelClient(RestClient restClient, List<NamedXContentRegistry.Entry> namedXContentEntries) {
         this.client = Objects.requireNonNull(restClient);
         this.registry = new NamedXContentRegistry(
                 Stream.of(getDefaultNamedXContents().stream(), getProvidedNamedXContents().stream(), namedXContentEntries.stream())
                     .flatMap(Function.identity()).collect(toList()));
+    }
+
+    /**
+     * Returns the low-level client that the current high-level client instance is using to perform requests
+     */
+    public RestClient getLowLevelClient() {
+        return client;
     }
 
     @Override

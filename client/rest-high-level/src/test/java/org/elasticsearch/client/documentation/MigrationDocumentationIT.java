@@ -23,11 +23,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.http.HttpEntity;
 import org.elasticsearch.client.http.HttpStatus;
@@ -67,7 +65,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testCreateIndex() throws IOException {
-        RestClient restClient = client();
+        RestHighLevelClient client = highLevelClient();
         {
             //tag::migration-create-inded
             Settings indexSettings = Settings.builder() // <1>
@@ -93,7 +91,7 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
 
             HttpEntity entity = new NStringEntity(payload, ContentType.APPLICATION_JSON); // <5>
 
-            Response response = restClient.performRequest("PUT", "my-index", emptyMap(), entity); // <6>
+            Response response = client.getLowLevelClient().performRequest("PUT", "my-index", emptyMap(), entity); // <6>
             if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
                 // <7>
             }
@@ -103,10 +101,10 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testClusterHealth() throws IOException {
-        RestClient restClient = client();
+        RestHighLevelClient client = highLevelClient();
         {
             //tag::migration-cluster-health
-            Response response = restClient.performRequest("GET", "/_cluster/health"); // <1>
+            Response response = client.getLowLevelClient().performRequest("GET", "/_cluster/health"); // <1>
 
             ClusterHealthStatus healthStatus;
             try (InputStream is = response.getEntity().getContent()) { // <2>

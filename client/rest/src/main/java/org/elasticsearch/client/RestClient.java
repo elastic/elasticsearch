@@ -66,6 +66,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -99,6 +100,7 @@ public class RestClient implements Closeable {
     private volatile HostTuple<Set<HttpHost>> hostTuple;
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders,
                HttpHost[] hosts, String pathPrefix, FailureListener failureListener) {
@@ -493,8 +495,12 @@ public class RestClient implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
-        client.close();
+    public final void close() throws IOException {
+        if (closed.compareAndSet(false, true)) {
+            client.close();
+        } else {
+            throw new IllegalStateException("RestClient is already closed");
+        }
     }
 
     private static boolean isSuccessfulResponse(int statusCode) {
@@ -706,9 +712,9 @@ public class RestClient implements Closeable {
      * {@code HostTuple} enables the {@linkplain HttpHost}s and {@linkplain AuthCache} to be set together in a thread
      * safe, volatile way.
      */
-    private static class HostTuple<T> {
-        public final T hosts;
-        public final AuthCache authCache;
+    protected static class HostTuple<T> {
+        final T hosts;
+        final AuthCache authCache;
 
         HostTuple(final T hosts, final AuthCache authCache) {
             this.hosts = hosts;

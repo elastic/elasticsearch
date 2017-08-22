@@ -22,6 +22,7 @@ package org.elasticsearch.search.slice;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,7 +31,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -253,5 +256,14 @@ public class SliceBuilder implements Writeable, ToXContentObject {
             return new MatchNoDocsQuery("this shard is not part of the slice");
         }
         return new MatchAllDocsQuery();
+    }
+
+    @Override
+    public String toString() {
+        try {
+            return XContentHelper.toXContent(this, XContentType.JSON, true).utf8ToString();
+        } catch (IOException e) {
+            throw new ElasticsearchException(e);
+        }
     }
 }

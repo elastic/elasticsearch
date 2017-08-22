@@ -19,13 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.recovery;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
@@ -125,6 +127,15 @@ public class RecoveryResponse extends BroadcastResponse implements ToXContentFra
                 list.add(RecoveryState.readRecoveryState(in));
             }
             shardRecoveryStates.put(s, list);
+        }
+    }
+
+    @Override
+    public String toString() {
+        try {
+            return XContentHelper.toXContent(this, XContentType.JSON, true).utf8ToString();
+        } catch (IOException e) {
+            throw new ElasticsearchException(e);
         }
     }
 }

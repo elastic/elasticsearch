@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -423,6 +424,15 @@ public class Setting<T> implements ToXContentObject {
         builder.field("default", defaultValue.apply(Settings.EMPTY));
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        try {
+            return XContentHelper.toXContent(this, XContentType.JSON, true).utf8ToString();
+        } catch (IOException e) {
+            throw new ElasticsearchException(e);
+        }
     }
 
     /**

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -27,7 +28,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
@@ -543,5 +546,14 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
     public static InnerHitBuilder fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, new InnerHitBuilder(), null);
+    }
+
+    @Override
+    public String toString() {
+        try {
+            return XContentHelper.toXContent(this, XContentType.JSON, true).utf8ToString();
+        } catch (IOException e) {
+            throw new ElasticsearchException(e);
+        }
     }
 }

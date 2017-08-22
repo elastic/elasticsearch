@@ -18,13 +18,16 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -452,6 +455,15 @@ public class AggregatorFactories {
             }
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public String toString() {
+            try {
+                return XContentHelper.toXContent(this, XContentType.JSON, true).utf8ToString();
+            } catch (IOException e) {
+                throw new ElasticsearchException(e);
+            }
         }
 
         @Override

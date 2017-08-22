@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.rescore;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -26,7 +27,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -145,5 +148,14 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>>
         @SuppressWarnings("rawtypes")
         RescoreBuilder other = (RescoreBuilder) obj;
         return Objects.equals(windowSize, other.windowSize);
+    }
+
+    @Override
+    public String toString() {
+        try {
+            return XContentHelper.toXContent(this, XContentType.JSON, true).utf8ToString();
+        } catch (IOException e) {
+            throw new ElasticsearchException(e);
+        }
     }
 }

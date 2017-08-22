@@ -1494,8 +1494,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     public String toString(Params params) {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             if (params.paramAsBoolean("pretty", true)) {
                 builder.prettyPrint();
             }

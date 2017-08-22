@@ -20,7 +20,6 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -3292,6 +3291,82 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             assertThat(r1.getHits().getTotalHits(), equalTo(1L));
             assertHighlight(r1, 0, "field", 0, 1,
                 equalTo("<x>hello</x> world"));
+        }
+    }
+
+    public void testWithNestedQuery() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("text")
+                .field("type", "text")
+                .field("index_options", "offsets")
+                .field("term_vector", "with_positions_offsets")
+            .endObject()
+            .startObject("foo")
+                .field("type", "nested")
+                .startObject("properties")
+                    .startObject("text")
+                        .field("type", "text")
+                    .endObject()
+                .endObject()
+            .endObject()
+            .endObject().endObject().endObject().string();
+        prepareCreate("test").addMapping("type", mapping, XContentType.JSON).get();
+
+        client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject()
+            .startArray("foo")
+                .startObject().field("text", "brown").endObject()
+                .startObject().field("text", "cow").endObject()
+            .endArray()
+            .field("text", "brown")
+            .endObject()).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        for (String type : new String[] {"unified", "plain"}) {
+            SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(nestedQuery("foo", matchQuery("foo.text", "brown cow"), ScoreMode.None))
+                .highlighter(new HighlightBuilder()
+                    .field(new Field("foo.text").highlighterType(type)))
+                .get();
+            assertHitCount(searchResponse, 1);
+            HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
+            assertThat(field.getFragments().length, equalTo(2));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+            assertThat(field.getFragments()[1].string(), equalTo("<em>cow</em>"));
+
+            searchResponse = client().prepareSearch()
+                .setQuery(nestedQuery("foo", prefixQuery("foo.text", "bro"), ScoreMode.None))
+                .highlighter(new HighlightBuilder()
+                    .field(new Field("foo.text").highlighterType(type)))
+                .get();
+            assertHitCount(searchResponse, 1);
+            field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
+            assertThat(field.getFragments().length, equalTo(1));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+
+            searchResponse = client().prepareSearch()
+                .setQuery(nestedQuery("foo", prefixQuery("foo.text", "bro"), ScoreMode.None))
+                .highlighter(new HighlightBuilder()
+                    .field(new Field("foo.text").highlighterType("plain")))
+                .get();
+            assertHitCount(searchResponse, 1);
+            field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
+            assertThat(field.getFragments().length, equalTo(1));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+        }
+
+        // For unified and fvh highlighters we just check that the nested query is correctly extracted
+        // but we highlight the root text field since nested documents cannot be highlighted with postings nor term vectors
+        // directly.
+        for (String type : ALL_TYPES) {
+            SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(nestedQuery("foo", prefixQuery("foo.text", "bro"), ScoreMode.None))
+                .highlighter(new HighlightBuilder()
+                    .field(new Field("text").highlighterType(type).requireFieldMatch(false)))
+                .get();
+            assertHitCount(searchResponse, 1);
+            HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("text");
+            assertThat(field.getFragments().length, equalTo(1));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
         }
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -134,12 +135,12 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     public Item[] getResponses() {
         return this.items;
     }
-   
+
     /**
-     * How long the msearch took in milliseconds.
+     * How long the msearch took.
      */
-    public long getTookInMillis() {
-        return tookInMillis;
+    public TimeValue getTook() {
+        return new TimeValue(tookInMillis);
     }
 
     @Override
@@ -149,7 +150,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         for (int i = 0; i < items.length; i++) {
             items[i] = Item.readItem(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             tookInMillis = in.readVLong();
         }
     }
@@ -161,7 +162,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         for (Item item : items) {
             item.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             out.writeVLong(tookInMillis);
         }
     }

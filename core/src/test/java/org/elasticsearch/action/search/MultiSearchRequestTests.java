@@ -148,12 +148,11 @@ public class MultiSearchRequestTests extends ESTestCase {
     public void testResponseErrorToXContent() throws IOException {
         long tookInMillis = randomIntBetween(1, 1000);
         MultiSearchResponse response = new MultiSearchResponse(
-                tookInMillis,
-                new MultiSearchResponse.Item[]{
-                    new MultiSearchResponse.Item(null, new IllegalStateException("foobar")),
-                    new MultiSearchResponse.Item(null, new IllegalStateException("baaaaaazzzz"))
-        });
-        
+                new MultiSearchResponse.Item[] {
+                        new MultiSearchResponse.Item(null, new IllegalStateException("foobar")),
+                        new MultiSearchResponse.Item(null, new IllegalStateException("baaaaaazzzz"))
+                }, tookInMillis);
+
         assertEquals("{\"took\":" 
                         + tookInMillis
                         + ",\"responses\":["

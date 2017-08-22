@@ -100,7 +100,9 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                         mSearchResponses.add(new MultiSearchResponse.Item(response, null));
                     }
 
-                    listener.onResponse(new MultiSearchResponse(mSearchResponses.toArray(new MultiSearchResponse.Item[0])));
+                    listener.onResponse(
+                            new MultiSearchResponse(mSearchResponses.toArray(new MultiSearchResponse.Item[0]), randomIntBetween(1, 10000)));
+                }
             };
 
             SearchHits hits = new SearchHits(new SearchHit[]{new SearchHit(1, "ID", new Text("type"),
@@ -152,10 +154,10 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                     null, null, null, false, null, 1);
                 SearchResponse response = mockSearchPhaseContext.buildSearchResponse(internalSearchResponse, null);
                 listener.onResponse(new MultiSearchResponse(
-                    randomIntBetween(1, 10000), new MultiSearchResponse.Item[]{
-                    new MultiSearchResponse.Item(null, new RuntimeException("boom")),
-                    new MultiSearchResponse.Item(response, null)
-                }));
+                    new MultiSearchResponse.Item[]{
+                            new MultiSearchResponse.Item(null, new RuntimeException("boom")),
+                            new MultiSearchResponse.Item(response, null)
+                    }, randomIntBetween(1, 10000)));
             }
         };
 

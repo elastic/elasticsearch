@@ -128,6 +128,10 @@ public final class ResponseCollectorService extends AbstractComponent implements
             this.serviceTime = nodeStats.serviceTime;
         }
 
+        /**
+         * Rank this copy of the data, according to the adaptive replica selection formula from the C3 paper
+         * {@link https://www.usenix.org/system/files/conference/nsdi15/nsdi15-paper-suresh.pdf}
+         */
         private double innerRank(long outstandingRequests) {
             // this is a placeholder value, the concurrency compensation is
             // defined as the number of outstanding requests from the client

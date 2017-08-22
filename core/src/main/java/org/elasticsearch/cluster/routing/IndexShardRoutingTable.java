@@ -316,6 +316,17 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return nodeRanks;
     }
 
+    /**
+     * Adjust the for all other nodes' collected stats. In the original ranking paper there is no need to adjust other nodes' stats because
+     * Cassandra sends occasional requests to all copies of the data, so their stats will be updated during that broadcast phase. In
+     * Elasticsearch, however, we do not have that sort of broadcast-to-all behavior. In order to prevent a node that gets a high score and
+     * then never gets any more requests, we must ensure it eventually returns to a more normal score and can be a candidate for serving
+     * requests.
+     *
+     * This adjustment takes the "winning" node's statistics and adds the average of those statistics with each non-winning node. Let's say
+     * the winning node had a queue size of 10 and a non-winning node had a queue of 18. The average queue size is (10 + 18) / 2 = 14 so the
+     * non-winning node will have statistics added for a queue size of 14. This is repeated for the response time and service times as well.
+     */
     private static void adjustStats(final ResponseCollectorService collector,
                                     final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats,
                                     final String minNodeId,

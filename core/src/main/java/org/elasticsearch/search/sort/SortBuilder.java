@@ -23,15 +23,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -219,10 +217,6 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
 
     @Override
     public String toString() {
-        try {
-            return XContentHelper.toXContent(this, XContentType.JSON, true).utf8ToString();
-        } catch (IOException e) {
-            throw new ElasticsearchException(e);
-        }
+        return Strings.toString(this);
     }
 }

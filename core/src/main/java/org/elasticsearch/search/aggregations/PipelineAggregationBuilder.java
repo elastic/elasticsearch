@@ -18,11 +18,9 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
@@ -91,10 +89,6 @@ public abstract class PipelineAggregationBuilder implements NamedWriteable, Base
 
     @Override
     public String toString() {
-        try {
-            return XContentHelper.toXContent(this, XContentType.JSON, true).utf8ToString();
-        } catch (IOException e) {
-            throw new ElasticsearchException(e);
-        }
+        return Strings.toString(this);
     }
 }

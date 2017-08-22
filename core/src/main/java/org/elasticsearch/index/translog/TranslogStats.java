@@ -18,15 +18,13 @@
  */
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -101,11 +99,7 @@ public class TranslogStats implements Streamable, ToXContentFragment {
 
     @Override
     public String toString() {
-        try {
-            return XContentHelper.toXContent(this, XContentType.JSON, true).utf8ToString();
-        } catch (IOException e) {
-            throw new ElasticsearchException(e);
-        }
+        return Strings.toString(this);
     }
 
     @Override

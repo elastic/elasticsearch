@@ -25,8 +25,8 @@ import com.vividsolutions.jts.geom.GeometryFactory;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,9 +35,7 @@ import org.elasticsearch.common.unit.DistanceUnit.Distance;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
@@ -713,10 +711,6 @@ public abstract class ShapeBuilder implements NamedWriteable, ToXContentObject {
 
     @Override
     public String toString() {
-        try {
-            return XContentHelper.toXContent(this, XContentType.JSON, true).utf8ToString();
-        } catch (IOException e) {
-            throw new ElasticsearchException(e);
-        }
+        return Strings.toString(this);
     }
 }

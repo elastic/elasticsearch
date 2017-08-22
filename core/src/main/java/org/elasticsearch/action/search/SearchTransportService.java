@@ -201,9 +201,9 @@ public class SearchTransportService extends AbstractComponent {
     }
 
     /**
-     * Return a map of nodeId to pending number of requests for the given action name prefix
+     * Return a map of nodeId to pending number of search requests
      */
-    public Map<String, Long> getPendingRequests(final String actionNamePrefix) {
+    public Map<String, Long> getPendingSearchRequests() {
         return Collections.unmodifiableMap(clientConnections);
     }
 

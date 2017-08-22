@@ -493,7 +493,7 @@ public class RestClient implements Closeable {
     }
 
     @Override
-    public final void close() throws IOException {
+    public void close() throws IOException {
         client.close();
     }
 

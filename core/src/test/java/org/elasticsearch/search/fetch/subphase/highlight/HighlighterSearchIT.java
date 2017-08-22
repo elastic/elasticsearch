@@ -20,6 +20,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -3357,7 +3359,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         // For unified and fvh highlighters we just check that the nested query is correctly extracted
         // but we highlight the root text field since nested documents cannot be highlighted with postings nor term vectors
         // directly.
-        for (String type : ALL_TYPES) {
+        for (String type : new String[] { "unified", "fvh" }) {
             SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(nestedQuery("foo", prefixQuery("foo.text", "bro"), ScoreMode.None))
                 .highlighter(new HighlightBuilder()

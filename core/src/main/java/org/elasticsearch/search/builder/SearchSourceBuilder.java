@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.builder;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -34,8 +34,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -1494,15 +1495,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     public String toString(Params params) {
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            if (params.paramAsBoolean("pretty", true)) {
-                builder.prettyPrint();
-            }
-            toXContent(builder, params);
-            return builder.string();
-        } catch (Exception e) {
-            // So we have a stack trace logged somewhere
-            return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
+        try {
+            return XContentHelper.toXContent(this, XContentType.JSON, params, true).utf8ToString();
+        } catch (IOException e) {
+            throw new ElasticsearchException(e);
         }
     }
 }

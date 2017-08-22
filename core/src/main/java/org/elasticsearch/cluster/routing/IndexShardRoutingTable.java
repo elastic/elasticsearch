@@ -405,16 +405,9 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             Double shard1rank = nodeRanks.get(s1.currentNodeId());
             Double shard2rank = nodeRanks.get(s2.currentNodeId());
             if (shard1rank != null && shard2rank != null) {
-                if (shard1rank < shard2rank) {
-                    return -1;
-                } else if (shard2rank < shard1rank) {
-                    return 1;
-                } else {
-                    // Yahtzee!
-                    return 0;
-                }
+                return shard1rank.compareTo(shard2rank);
             } else {
-                // One or both of the nodes don't have stats
+                // One or both of the nodes don't have stats, treat them as equal
                 return 0;
             }
         }

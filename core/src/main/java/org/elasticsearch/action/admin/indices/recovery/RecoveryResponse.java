@@ -130,6 +130,6 @@ public class RecoveryResponse extends BroadcastResponse implements ToXContentFra
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(this, true, true);
     }
 }

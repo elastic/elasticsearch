@@ -150,6 +150,6 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>>
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(this, true, true);
     }
 }

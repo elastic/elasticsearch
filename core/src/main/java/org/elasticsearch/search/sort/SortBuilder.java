@@ -217,6 +217,6 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(this, true, true);
     }
 }

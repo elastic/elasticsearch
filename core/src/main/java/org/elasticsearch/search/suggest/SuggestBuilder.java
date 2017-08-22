@@ -204,6 +204,6 @@ public class SuggestBuilder implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(this, true, true);
     }
 }

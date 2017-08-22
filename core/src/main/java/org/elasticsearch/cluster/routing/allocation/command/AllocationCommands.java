@@ -200,6 +200,6 @@ public class AllocationCommands implements ToXContentFragment {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(this, true, true);
     }
 }

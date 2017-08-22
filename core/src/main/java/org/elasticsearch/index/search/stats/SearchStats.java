@@ -319,7 +319,7 @@ public class SearchStats implements Streamable, ToXContentFragment {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(this, true, true);
     }
 
     static final class Fields {

@@ -714,6 +714,6 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(this, true, true);
     }
 }

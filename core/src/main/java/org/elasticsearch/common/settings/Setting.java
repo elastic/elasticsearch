@@ -427,7 +427,7 @@ public class Setting<T> implements ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(this, true, true);
     }
 
     /**

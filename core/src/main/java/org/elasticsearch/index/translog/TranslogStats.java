@@ -99,7 +99,7 @@ public class TranslogStats implements Streamable, ToXContentFragment {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(this, true, true);
     }
 
     @Override

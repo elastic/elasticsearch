@@ -457,7 +457,7 @@ public class AggregatorFactories {
 
         @Override
         public String toString() {
-            return Strings.toString(this);
+            return Strings.toString(this, true, true);
         }
 
         @Override

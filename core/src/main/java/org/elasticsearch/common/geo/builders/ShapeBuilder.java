@@ -711,6 +711,6 @@ public abstract class ShapeBuilder implements NamedWriteable, ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(this, true, true);
     }
 }

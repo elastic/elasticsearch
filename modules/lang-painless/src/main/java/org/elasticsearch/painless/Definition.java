@@ -21,10 +21,6 @@ package org.elasticsearch.painless;
 
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.painless.Whitelist.WConstructor;
-import org.elasticsearch.painless.Whitelist.WField;
-import org.elasticsearch.painless.Whitelist.WMethod;
-import org.elasticsearch.painless.Whitelist.WStruct;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -47,6 +43,8 @@ import java.util.Spliterator;
  * methods and wfields during at both compile-time and runtime.
  */
 public final class Definition {
+
+    public static final String DYNAMIC_TYPE_NAME = "def";
 
     private static final List<String> DEFINITION_FILES = Collections.unmodifiableList(
         Arrays.asList("org.elasticsearch.txt",

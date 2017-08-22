@@ -22,11 +22,6 @@
 # what methods and fields they have, etc.
 #
 
-
-#### Dynamic types
-
-dynamic def
-
 #### Primitive types
 
 class void -> void {

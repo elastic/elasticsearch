@@ -66,7 +66,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -100,7 +99,6 @@ public class RestClient implements Closeable {
     private volatile HostTuple<Set<HttpHost>> hostTuple;
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders,
                HttpHost[] hosts, String pathPrefix, FailureListener failureListener) {
@@ -496,11 +494,7 @@ public class RestClient implements Closeable {
 
     @Override
     public final void close() throws IOException {
-        if (closed.compareAndSet(false, true)) {
-            client.close();
-        } else {
-            throw new IllegalStateException("RestClient is already closed");
-        }
+        client.close();
     }
 
     private static boolean isSuccessfulResponse(int statusCode) {

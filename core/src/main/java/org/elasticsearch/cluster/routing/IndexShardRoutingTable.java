@@ -333,12 +333,14 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                                     final ResponseCollectorService.ComputedNodeStats minStats) {
         if (minNodeId != null) {
             for (Map.Entry<String, Optional<ResponseCollectorService.ComputedNodeStats>> entry : nodeStats.entrySet()) {
-                if (entry.getKey().equals(minNodeId) == false && entry.getValue().isPresent()) {
-                    final ResponseCollectorService.ComputedNodeStats stats = entry.getValue().get();
+                final String nodeId = entry.getKey();
+                final Optional<ResponseCollectorService.ComputedNodeStats> maybeStats = entry.getValue();
+                if (nodeId.equals(minNodeId) == false && maybeStats.isPresent()) {
+                    final ResponseCollectorService.ComputedNodeStats stats = maybeStats.get();
                     final int updatedQueue = (minStats.queueSize + stats.queueSize) / 2;
                     final long updatedResponse = (long) (minStats.responseTime + stats.responseTime) / 2;
                     final long updatedService = (long) (minStats.serviceTime + stats.serviceTime) / 2;
-                    collector.addNodeStatistics(stats.nodeId, updatedQueue, updatedResponse, updatedService);
+                    collector.addNodeStatistics(nodeId, updatedQueue, updatedResponse, updatedService);
                 }
             }
         }

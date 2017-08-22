@@ -59,7 +59,6 @@ import org.elasticsearch.index.mapper.UidFieldMapper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -1033,7 +1032,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         boolean useDefaultField = (fields == null);
         List<String> moreLikeFields = new ArrayList<>();
         if (useDefaultField) {
-            moreLikeFields = context.defaultField();
+            moreLikeFields = context.defaultFields();
         } else {
             for (String field : fields) {
                 MappedFieldType fieldType = context.fieldMapper(field);

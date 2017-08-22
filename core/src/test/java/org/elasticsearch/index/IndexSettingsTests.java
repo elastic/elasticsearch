@@ -485,14 +485,14 @@ public class IndexSettingsTests extends ESTestCase {
         IndexSettings index = newIndexSettings(
             newIndexMeta("index", Settings.EMPTY), Settings.EMPTY
         );
-        assertThat(index.getDefaultField(), equalTo(Collections.singletonList("*")));
+        assertThat(index.getDefaultFields(), equalTo(Collections.singletonList("*")));
         index = newIndexSettings(
             newIndexMeta("index", Settings.EMPTY), Settings.builder().put("index.query.default_field", "body").build()
         );
-        assertThat(index.getDefaultField(), equalTo(Collections.singletonList("body")));
+        assertThat(index.getDefaultFields(), equalTo(Collections.singletonList("body")));
         index.updateIndexMetaData(
             newIndexMeta("index", Settings.builder().putArray("index.query.default_field", "body", "title").build())
         );
-        assertThat(index.getDefaultField(), equalTo(Arrays.asList("body", "title")));
+        assertThat(index.getDefaultFields(), equalTo(Arrays.asList("body", "title")));
     }
 }

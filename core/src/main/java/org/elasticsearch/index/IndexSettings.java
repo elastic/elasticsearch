@@ -23,7 +23,6 @@ import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -32,7 +31,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.AllFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.node.Node;
 
@@ -245,11 +243,11 @@ public final class IndexSettings {
     /**
      * Returns the default search fields for this index.
      */
-    public List<String> getDefaultField() {
+    public List<String> getDefaultFields() {
         return defaultFields;
     }
 
-    private void setDefaultField(List<String> defaultFields) {
+    private void setDefaultFields(List<String> defaultFields) {
         this.defaultFields = defaultFields;
     }
 
@@ -367,7 +365,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
-        scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultField);
+        scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
     }
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {

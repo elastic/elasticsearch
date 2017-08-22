@@ -43,7 +43,6 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -933,7 +932,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             final Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);
             queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
         } else {
-            List<String> defaultFields = context.defaultField();
+            List<String> defaultFields = context.defaultFields();
             if (context.getMapperService().allEnabled() == false &&
                     defaultFields.size() == 1 && AllFieldMapper.NAME.equals(defaultFields.get(0))) {
                 // For indices created before 6.0 with _all disabled

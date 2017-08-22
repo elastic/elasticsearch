@@ -61,7 +61,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -156,7 +155,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                  * probably makes the field name mandatory in analyze query.
                  **/
                 if (indexService != null) {
-                    field = indexService.getIndexSettings().getDefaultField().get(0);
+                    field = indexService.getIndexSettings().getDefaultFields().get(0);
                 } else {
                     field = AllFieldMapper.NAME;
                 }

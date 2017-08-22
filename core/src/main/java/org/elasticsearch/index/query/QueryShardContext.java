@@ -40,14 +40,11 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -64,7 +61,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static java.util.Collections.unmodifiableMap;
@@ -145,8 +141,8 @@ public class QueryShardContext extends QueryRewriteContext {
         return similarityService != null ? similarityService.similarity(mapperService) : null;
     }
 
-    public List<String> defaultField() {
-        return indexSettings.getDefaultField();
+    public List<String> defaultFields() {
+        return indexSettings.getDefaultFields();
     }
 
     public boolean queryStringLenient() {

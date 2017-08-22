@@ -43,6 +43,7 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -610,18 +611,14 @@ public class QueryStringQueryParser extends XQueryParser {
 
     @Override
     protected Query getWildcardQuery(String field, String termStr) throws ParseException {
-        if (termStr.equals("*") && (field != null || AllFieldMapper.NAME.equals(this.field))) {
+        String actualField = field != null ? field : this.field;
+        if (termStr.equals("*") && actualField != null) {
             /**
              * We rewrite _all:* to a match all query.
              * TODO: We can remove this special case when _all is completely removed.
              */
-            if (AllFieldMapper.NAME.equals(this.field) ||
-                    Regex.isMatchAllPattern(field) || AllFieldMapper.NAME.equals(field)) {
+            if (Regex.isMatchAllPattern(actualField) || AllFieldMapper.NAME.equals(actualField)) {
                 return newMatchAllDocsQuery();
-            }
-            String actualField = field;
-            if (actualField == null) {
-                actualField = this.field;
             }
             // effectively, we check if a field exists or not
             return existsQuery(actualField);
@@ -630,6 +627,8 @@ public class QueryStringQueryParser extends XQueryParser {
         Map<String, Float> fields = extractMultiFields(field, false);
         if (fields.isEmpty()) {
             return newUnmappedFieldQuery(termStr);
+        } else if (fields.containsKey(AllFieldMapper.NAME)) {
+            return newMatchAllDocsQuery();
         }
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {

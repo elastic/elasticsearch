@@ -404,7 +404,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (fieldsAndWeights.isEmpty() == false) {
             resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);
         } else {
-            List<String> defaultFields = context.defaultField();
+            List<String> defaultFields = context.defaultFields();
             if (context.getMapperService().allEnabled() == false &&
                     defaultFields.size() == 1 && AllFieldMapper.NAME.equals(defaultFields.get(0))) {
                 // For indices created before 6.0 with _all disabled

@@ -38,6 +38,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * Allocates an unassigned empty primary shard to a specific node. Use with extreme care as this will result in data loss.
@@ -70,6 +71,11 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
     @Override
     public String name() {
         return NAME;
+    }
+
+    @Override
+    public Optional<String> getMessage() {
+        return Optional.of("allocated an empty primary for [" + index + "][" + shardId + "] on node [" + node + "] from user command");
     }
 
     public static AllocateEmptyPrimaryAllocationCommand fromXContent(XContentParser parser) throws IOException {
@@ -115,19 +121,22 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
         }
 
         if (shardRouting.recoverySource().getType() != RecoverySource.Type.EMPTY_STORE && acceptDataLoss == false) {
-            return explainOrThrowRejectedCommand(explain, allocation,
-                "allocating an empty primary for [" + index + "][" + shardId + "] can result in data loss. Please confirm by setting the accept_data_loss parameter to true");
+            String dataLossWarning = "allocating an empty primary for [" + index + "][" + shardId + "] can result in data loss. Please confirm " +
+                "by setting the accept_data_loss parameter to true";
+            return explainOrThrowRejectedCommand(explain, allocation, dataLossWarning);
         }
 
         UnassignedInfo unassignedInfoToUpdate = null;
         if (shardRouting.unassignedInfo().getReason() != UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY) {
-            unassignedInfoToUpdate = new UnassignedInfo(UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
-                "force empty allocation from previous reason " + shardRouting.unassignedInfo().getReason() + ", " + shardRouting.unassignedInfo().getMessage(),
+            String unassignedInfoMessage = "force empty allocation from previous reason " + shardRouting.unassignedInfo().getReason() +
+                ", " + shardRouting.unassignedInfo().getMessage();
+            unassignedInfoToUpdate = new UnassignedInfo(UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY, unassignedInfoMessage,
                 shardRouting.unassignedInfo().getFailure(), 0, System.nanoTime(), System.currentTimeMillis(), false,
                 shardRouting.unassignedInfo().getLastAllocationStatus());
         }
 
-        initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, unassignedInfoToUpdate, StoreRecoverySource.EMPTY_STORE_INSTANCE);
+        initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, unassignedInfoToUpdate,
+            StoreRecoverySource.EMPTY_STORE_INSTANCE);
 
         return new RerouteExplanation(this, allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders"));
     }

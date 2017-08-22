@@ -174,10 +174,10 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                  return discoveryNode.get();
                 };
             transportService = new TransportService(settings,
-                    new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService(),
+                new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService(),
                         new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
                         new NetworkService(Collections.emptyList())),
-                    threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddressDiscoveryNodeFunction, null) {
+                threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddressDiscoveryNodeFunction, null) {
                 @Override
                 protected TaskManager createTaskManager() {
                     if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {

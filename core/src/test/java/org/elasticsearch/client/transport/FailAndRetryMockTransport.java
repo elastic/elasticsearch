@@ -40,7 +40,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.transport.TransportServiceAdapter;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
@@ -60,7 +60,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
 
     private boolean connectMode = true;
 
-    private TransportServiceAdapter transportServiceAdapter;
+    private TransportService transportService;
 
     private final AtomicInteger connectTransportExceptions = new AtomicInteger();
     private final AtomicInteger failures = new AtomicInteger();
@@ -90,12 +90,12 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                 //we make sure that nodes get added to the connected ones when calling addTransportAddress, by returning proper nodes info
                 if (connectMode) {
                     if (TransportLivenessAction.NAME.equals(action)) {
-                        TransportResponseHandler transportResponseHandler = transportServiceAdapter.onResponseReceived(requestId);
+                        TransportResponseHandler transportResponseHandler = transportService.onResponseReceived(requestId);
                         transportResponseHandler.handleResponse(new LivenessResponse(ClusterName.CLUSTER_NAME_SETTING.
                             getDefault(Settings.EMPTY),
                             node));
                     } else if (ClusterStateAction.NAME.equals(action)) {
-                        TransportResponseHandler transportResponseHandler = transportServiceAdapter.onResponseReceived(requestId);
+                        TransportResponseHandler transportResponseHandler = transportService.onResponseReceived(requestId);
                         ClusterState clusterState = getMockClusterState(node);
                         transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState, 0L));
                     } else {
@@ -116,7 +116,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                         //throw whatever exception that is not a subclass of ConnectTransportException
                         throw new IllegalStateException();
                     } else {
-                        TransportResponseHandler transportResponseHandler = transportServiceAdapter.onResponseReceived(requestId);
+                        TransportResponseHandler transportResponseHandler = transportService.onResponseReceived(requestId);
                         if (random.nextBoolean()) {
                             successes.incrementAndGet();
                             transportResponseHandler.handleResponse(newResponse());
@@ -163,8 +163,8 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     }
 
     @Override
-    public void transportServiceAdapter(TransportServiceAdapter transportServiceAdapter) {
-        this.transportServiceAdapter = transportServiceAdapter;
+    public void setTransportService(TransportService transportServiceAdapter) {
+        this.transportService = transportServiceAdapter;
     }
 
     @Override

@@ -706,7 +706,7 @@ public class RestClient implements Closeable {
      * {@code HostTuple} enables the {@linkplain HttpHost}s and {@linkplain AuthCache} to be set together in a thread
      * safe, volatile way.
      */
-    protected static class HostTuple<T> {
+    private static class HostTuple<T> {
         final T hosts;
         final AuthCache authCache;
 

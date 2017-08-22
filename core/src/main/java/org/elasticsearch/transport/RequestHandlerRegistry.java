@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 
@@ -32,15 +34,14 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     private final boolean forceExecution;
     private final boolean canTripCircuitBreaker;
     private final String executor;
-    private final Supplier<Request> requestFactory;
     private final TaskManager taskManager;
+    private final Writeable.Reader<Request> requestReader;
 
-    public RequestHandlerRegistry(String action, Supplier<Request> requestFactory, TaskManager taskManager,
+    public RequestHandlerRegistry(String action, Writeable.Reader<Request> requestReader, TaskManager taskManager,
                                   TransportRequestHandler<Request> handler, String executor, boolean forceExecution,
                                   boolean canTripCircuitBreaker) {
         this.action = action;
-        this.requestFactory = requestFactory;
-        assert newRequest() != null;
+        this.requestReader = requestReader;
         this.handler = handler;
         this.forceExecution = forceExecution;
         this.canTripCircuitBreaker = canTripCircuitBreaker;
@@ -52,8 +53,8 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         return action;
     }
 
-    public Request newRequest() {
-            return requestFactory.get();
+    public Request newRequest(StreamInput in) throws IOException {
+        return requestReader.read(in);
     }
 
     public void processMessageReceived(Request request, TransportChannel channel) throws Exception {

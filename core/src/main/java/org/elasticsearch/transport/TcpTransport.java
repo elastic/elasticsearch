@@ -1486,6 +1486,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             // the circuit breaker tripped
             if (transportChannel == null) {
                 transportChannel = new TcpTransportChannel<>(this, channel, transportName, action, requestId, version, profileName, 0);
+            } else {
+                logger.warn(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "Sending error message back to client for action [{}] and requestId [{}]", action, requestId), e);
             }
             try {
                 transportChannel.sendResponse(e);

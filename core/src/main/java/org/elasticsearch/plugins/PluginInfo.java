@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -48,6 +49,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final String version;
     private final String classname;
     private final boolean hasNativeController;
+    private final boolean requiresKeystore;
 
     /**
      * Construct plugin info.
@@ -57,18 +59,16 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @param version             the version of Elasticsearch the plugin is built for
      * @param classname           the entry point to the plugin
      * @param hasNativeController whether or not the plugin has a native controller
+     * @param requiresKeystore    whether or not the plugin requires the elasticsearch keystore to be created
      */
-    public PluginInfo(
-            final String name,
-            final String description,
-            final String version,
-            final String classname,
-            final boolean hasNativeController) {
+    public PluginInfo(String name, String description, String version, String classname,
+                      boolean hasNativeController, boolean requiresKeystore) {
         this.name = name;
         this.description = description;
         this.version = version;
         this.classname = classname;
         this.hasNativeController = hasNativeController;
+        this.requiresKeystore = requiresKeystore;
     }
 
     /**
@@ -87,6 +87,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
         } else {
             hasNativeController = false;
         }
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta2)) {
+            requiresKeystore = in.readBoolean();
+        } else {
+            requiresKeystore = false;
+        }
     }
 
     @Override
@@ -97,6 +102,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
         out.writeString(classname);
         if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
             out.writeBoolean(hasNativeController);
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta2)) {
+            out.writeBoolean(requiresKeystore);
         }
     }
 
@@ -173,17 +181,26 @@ public class PluginInfo implements Writeable, ToXContentObject {
                     break;
                 default:
                     final String message = String.format(
-                            Locale.ROOT,
-                            "property [%s] must be [%s], [%s], or unspecified but was [%s]",
-                            "has_native_controller",
-                            "true",
-                            "false",
-                            hasNativeControllerValue);
+                        Locale.ROOT,
+                        "property [%s] must be [%s], [%s], or unspecified but was [%s]",
+                        "has_native_controller",
+                        "true",
+                        "false",
+                        hasNativeControllerValue);
                     throw new IllegalArgumentException(message);
             }
         }
 
-        return new PluginInfo(name, description, version, classname, hasNativeController);
+        final String requiresKeystoreValue = props.getProperty("requires.keystore", "false");
+        final boolean requiresKeystore;
+        try {
+            requiresKeystore = Booleans.parseBoolean(requiresKeystoreValue);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("property [requires.keystore] must be [true] or [false]," +
+                                               " but was [" + requiresKeystoreValue + "]", e);
+        }
+
+        return new PluginInfo(name, description, version, classname, hasNativeController, requiresKeystore);
     }
 
     /**
@@ -231,6 +248,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
         return hasNativeController;
     }
 
+    /**
+     * Whether or not the plugin requires the elasticsearch keystore to exist.
+     *
+     * @return {@code true} if the plugin requires a keystore, {@code false} otherwise
+     */
+    public boolean requiresKeystore() {
+        return requiresKeystore;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -240,6 +266,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("description", description);
             builder.field("classname", classname);
             builder.field("has_native_controller", hasNativeController);
+            builder.field("requires_keystore", requiresKeystore);
         }
         builder.endObject();
 
@@ -272,6 +299,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
                 .append("Description: ").append(description).append("\n")
                 .append("Version: ").append(version).append("\n")
                 .append("Native Controller: ").append(hasNativeController).append("\n")
+                .append("Requires Keystore: ").append(requiresKeystore).append("\n")
                 .append(" * Classname: ").append(classname);
         return information.toString();
     }

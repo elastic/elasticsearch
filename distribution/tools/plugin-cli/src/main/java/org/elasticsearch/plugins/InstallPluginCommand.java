@@ -34,6 +34,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.env.Environment;
 
 import java.io.BufferedReader;
@@ -571,6 +572,15 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                     return FileVisitResult.CONTINUE;
                 }
             });
+
+            if (info.requiresKeystore()) {
+                KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
+                if (keystore == null) {
+                    terminal.println("Elasticsearch keystore is required by plugin [" + info.getName() + "], creating...");
+                    keystore = KeyStoreWrapper.create(new char[0]);
+                    keystore.save(env.configFile());
+                }
+            }
 
             terminal.println("-> Installed " + info.getName());
 

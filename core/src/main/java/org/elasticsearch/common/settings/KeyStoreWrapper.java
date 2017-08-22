@@ -171,7 +171,8 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /** Add the bootstrap seed setting, which may be used as a unique, secure, random value by the node */
-    private static void addBootstrapSeed(KeyStoreWrapper wrapper) throws GeneralSecurityException {
+    public static void addBootstrapSeed(KeyStoreWrapper wrapper) throws GeneralSecurityException {
+        assert wrapper.getSettingNames().contains(SEED_SETTING.getKey()) == false;
         SecureRandom random = Randomness.createSecure();
         int passwordLength = 20; // Generate 20 character passwords
         char[] characters = new char[passwordLength];
@@ -227,6 +228,17 @@ public class KeyStoreWrapper implements SecureSettings {
         }
     }
 
+    /** Upgrades the format of the keystore, if necessary. */
+    public static void upgrade(KeyStoreWrapper wrapper, Path configDir, char[] password) throws Exception {
+        // ensure keystore.seed exists
+        if (wrapper.getSettingNames().contains(SEED_SETTING.getKey())) {
+            return;
+        }
+        wrapper.decrypt(password);
+        addBootstrapSeed(wrapper);
+        wrapper.save(configDir);
+    }
+
     @Override
     public boolean isLoaded() {
         return keystore.get() != null;
@@ -252,10 +264,8 @@ public class KeyStoreWrapper implements SecureSettings {
         } finally {
             Arrays.fill(keystoreBytes, (byte)0);
         }
-
         keystorePassword.set(new KeyStore.PasswordProtection(password));
         Arrays.fill(password, '\0');
-
 
         Enumeration<String> aliases = keystore.get().aliases();
         if (formatVersion == 1) {
@@ -279,6 +289,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /** Write the keystore to the given config directory. */
     public void save(Path configDir) throws Exception {
+        assert isLoaded();
         char[] password = this.keystorePassword.get().getPassword();
 
         SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
@@ -332,6 +343,7 @@ public class KeyStoreWrapper implements SecureSettings {
     // TODO: make settings accessible only to code that registered the setting
     @Override
     public SecureString getString(String setting) throws GeneralSecurityException {
+        assert isLoaded();
         KeyStore.Entry entry = keystore.get().getEntry(setting, keystorePassword.get());
         if (settingTypes.get(setting) != KeyType.STRING ||
             entry instanceof KeyStore.SecretKeyEntry == false) {
@@ -347,6 +359,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     @Override
     public InputStream getFile(String setting) throws GeneralSecurityException {
+        assert isLoaded();
         KeyStore.Entry entry = keystore.get().getEntry(setting, keystorePassword.get());
         if (settingTypes.get(setting) != KeyType.FILE ||
             entry instanceof KeyStore.SecretKeyEntry == false) {
@@ -377,6 +390,7 @@ public class KeyStoreWrapper implements SecureSettings {
      * @throws IllegalArgumentException if the value is not ASCII
      */
     void setString(String setting, char[] value) throws GeneralSecurityException {
+        assert isLoaded();
         if (ASCII_ENCODER.canEncode(CharBuffer.wrap(value)) == false) {
             throw new IllegalArgumentException("Value must be ascii");
         }
@@ -387,6 +401,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /** Set a file setting. */
     void setFile(String setting, byte[] bytes) throws GeneralSecurityException {
+        assert isLoaded();
         bytes = Base64.getEncoder().encode(bytes);
         char[] chars = new char[bytes.length];
         for (int i = 0; i < chars.length; ++i) {
@@ -399,6 +414,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /** Remove the given setting from the keystore. */
     void remove(String setting) throws KeyStoreException {
+        assert isLoaded();
         keystore.get().deleteEntry(setting);
         settingTypes.remove(setting);
     }

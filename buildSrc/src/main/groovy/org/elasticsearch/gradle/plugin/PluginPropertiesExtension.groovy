@@ -46,6 +46,10 @@ class PluginPropertiesExtension {
     @Input
     boolean hasClientJar = false
 
+    /** True if the plugin requires the elasticsearch keystore to exist, false otherwise. */
+    @Input
+    boolean requiresKeystore = false
+
     /** A license file that should be included in the built plugin zip. */
     @Input
     File licenseFile = null

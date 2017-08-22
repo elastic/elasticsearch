@@ -226,16 +226,13 @@ final class Bootstrap {
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
+        if (keystore == null) {
+            return null; // no keystore
+        }
 
         try {
-            if (keystore == null) {
-                // create it, we always want one! we use an empty passphrase, but a user can change this later if they want.
-                KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create(new char[0]);
-                keyStoreWrapper.save(initialEnv.configFile());
-                return keyStoreWrapper;
-            } else {
-                keystore.decrypt(new char[0] /* TODO: read password from stdin */);
-            }
+            KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), new char[0] /* TODO: read password from stdin */);
+            keystore.decrypt(new char[0] /* TODO: read password from stdin */);
         } catch (Exception e) {
             throw new BootstrapException(e);
         }

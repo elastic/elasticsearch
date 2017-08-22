@@ -38,6 +38,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -210,6 +211,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             return Collections.singletonList(new TermQuery(atq.getTerm()));
         } else if (query instanceof FunctionScoreQuery) {
             return Collections.singletonList(((FunctionScoreQuery) query).getSubQuery());
+        } else if (query instanceof ESToParentBlockJoinQuery) {
+            return Collections.singletonList(((ESToParentBlockJoinQuery) query).getChildQuery());
         } else {
             return null;
         }

@@ -20,8 +20,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 
 
-public interface SignificanceHeuristicBuilder extends ToXContent {
+public interface SignificanceHeuristicBuilder extends ToXContentFragment {
 }

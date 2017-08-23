@@ -26,7 +26,7 @@ import com.vividsolutions.jts.geom.GeometryFactory;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,7 +52,7 @@ import java.util.Locale;
 /**
  * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc
  */
-public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWriteable {
+public abstract class ShapeBuilder implements NamedWriteable, ToXContentObject {
 
     protected static final Logger LOGGER = ESLoggerFactory.getLogger(ShapeBuilder.class.getName());
 
@@ -707,5 +707,10 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
     @Override
     public String getWriteableName() {
         return type().shapeName();
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

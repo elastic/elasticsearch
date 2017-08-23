@@ -76,14 +76,8 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
     }
 
     private static class HighLevelClient extends RestHighLevelClient {
-
         private HighLevelClient(RestClient restClient) {
-            super(restClient, Collections.emptyList());
-        }
-
-        @Override
-        public void close() throws IOException {
-            //no-op: the low-level client gets closed externally
+            super(restClient, (client) -> {}, Collections.emptyList());
         }
     }
 }

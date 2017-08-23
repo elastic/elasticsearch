@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -54,6 +55,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.Locale;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -106,14 +108,23 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     @Override
     protected void masterOperation(final RolloverRequest rolloverRequest, final ClusterState state,
                                    final ActionListener<RolloverResponse> listener) {
-        final ActionListener<RolloverResponse.SingleAliasRolloverResponse> aggListener = new AggRolloverResponseActionListener(
-            rolloverRequest.getAliases().size(), listener);
+
         final MetaData metaData = state.metaData();
 
-        final List<SingleAliasRolloverRequest> requests = rolloverRequest.getAliases()
+        final Set<SingleAliasRolloverRequest> requests = rolloverRequest.getAliases()
             .stream()
-            .map(alias -> createTask(metaData, alias, rolloverRequest, state))
-            .collect(Collectors.toList());
+            .distinct()
+            .map(alias -> getMatchedAliases(metaData, alias))
+            .flatMap(Collection::stream)
+            .map(alias -> createTask(metaData, alias, rolloverRequest.getNewIndexName(), state))
+            .collect(Collectors.toSet());
+
+        // @todo look at indexNameExpressionResolver.WildcardExpressionResolver.resolve for wildcard validation
+        // @todo validate at least 1 alias exists
+        // @todo in not wildcard - validate that alias exists
+
+        final ActionListener<RolloverResponse.SingleAliasRolloverResponse> aggListener = new AggRolloverResponseActionListener(
+            requests.size(), listener);
 
         for (SingleAliasRolloverRequest req: requests) {
             client.admin().indices().prepareStats(req.sourceIndexName).clear().setDocs(true).execute(
@@ -121,6 +132,16 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     createIndexService, indexAliasesService, activeShardsObserver, req)
             );
         }
+    }
+
+    private Set<String> getMatchedAliases(MetaData metaData, String wildcard) {
+        return metaData.getAliasAndIndexLookup()
+            .entrySet()
+            .stream()
+            .filter(e -> e.getValue().isAlias())
+            .filter(e -> Regex.simpleMatch(wildcard, e.getKey()))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
     }
 
     private static class SingleAliasRolloverRequest {
@@ -141,11 +162,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
     }
 
-    private SingleAliasRolloverRequest createTask(MetaData metaData, String alias, RolloverRequest rolloverRequest, ClusterState state) {
+    private SingleAliasRolloverRequest createTask(MetaData metaData, String alias, String newIndexName, ClusterState state) {
         validate(metaData, alias);
         final IndexMetaData indexMetaData = getFirstIndexMetaData(metaData, alias);
         final String sourceIndexName = indexMetaData.getIndex().getName();
-        final String unresolvedName = getUnresolvedName(indexMetaData, rolloverRequest.getNewIndexName());
+        final String unresolvedName = getUnresolvedName(indexMetaData, newIndexName);
         final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
         MetaDataCreateIndexService.validateIndexName(rolloverIndexName, state);
         return new SingleAliasRolloverRequest(alias, metaData, sourceIndexName, unresolvedName, rolloverIndexName);

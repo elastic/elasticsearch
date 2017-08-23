@@ -146,6 +146,28 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         return names;
     }
 
+    public Set<String> aliases(ClusterState state, IndicesOptions options, List<String> indexExpressions) {
+        if (indexExpressions == null || indexExpressions.size() == 0) {
+            throw new IllegalArgumentException("Alias list should be non-empty");
+        }
+
+        final Context context = new Context(state, options);
+        final MetaData metaData = context.getState().metaData();
+
+        List<String> expressions = indexExpressions;
+        for (ExpressionResolver expressionResolver : expressionResolvers) {
+            expressions = expressionResolver.resolve(context, expressions);
+        }
+
+        return expressions
+            .stream()
+            .filter(alias -> {
+                final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(alias);
+                return aliasOrIndex != null && aliasOrIndex.isAlias();
+            })
+            .collect(Collectors.toSet());
+    }
+
     Index[] concreteIndices(Context context, String... indexExpressions) {
         if (indexExpressions == null || indexExpressions.length == 0) {
             indexExpressions = new String[]{MetaData.ALL};

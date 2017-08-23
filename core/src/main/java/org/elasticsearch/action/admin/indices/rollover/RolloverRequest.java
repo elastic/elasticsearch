@@ -36,6 +36,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -61,7 +63,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             new ParseField("aliases"), ObjectParser.ValueType.OBJECT);
     }
 
-    private Set<String> aliases = new HashSet<>();
+    private List<String> aliases = new ArrayList<>();
     private String newIndexName;
     private boolean dryRun;
     private Set<Condition> conditions = new HashSet<>(2);
@@ -184,7 +186,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return conditions;
     }
 
-    Set<String> getAliases() {
+    List<String> getAliases() {
         return aliases;
     }
 

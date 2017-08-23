@@ -14,7 +14,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 @TestLogging(JdbcTestUtils.SQL_TRACE)
-public class DebugCsvSpec extends CsvSpecIT {
+public abstract class DebugCsvSpec extends CsvSpecIT {
 
     @ParametersFactory(shuffle = false, argumentFormatting = SqlSpecIT.PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {

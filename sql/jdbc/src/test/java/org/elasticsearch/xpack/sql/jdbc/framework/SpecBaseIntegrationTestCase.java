@@ -83,8 +83,6 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     /**
      * Implementations should pay attention on using {@link #executeJdbcQuery(Connection, String)} (typically for ES connections)
      * and {@link #assertResults(ResultSet, ResultSet)} which takes into account logging/debugging results (through {@link #logEsResultSet()}.
-     * 
-     * @throws Throwable
      */
     protected abstract void doTest() throws Throwable;
 

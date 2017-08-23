@@ -154,7 +154,7 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /** Returns a path representing the ES keystore in the given config dir. */
-    static Path keystorePath(Path configDir) {
+    public static Path keystorePath(Path configDir) {
         return configDir.resolve(KEYSTORE_FILENAME);
     }
 

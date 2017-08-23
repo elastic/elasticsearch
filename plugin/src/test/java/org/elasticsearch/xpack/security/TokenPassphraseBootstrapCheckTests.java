@@ -20,7 +20,8 @@ public class TokenPassphraseBootstrapCheckTests extends ESTestCase {
         assertFalse(new TokenPassphraseBootstrapCheck(Settings.EMPTY).check());
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("foo", "bar"); // leniency in setSecureSettings... if its empty it's skipped
-        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        Settings settings = Settings.builder()
+            .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true).setSecureSettings(secureSettings).build();
         assertFalse(new TokenPassphraseBootstrapCheck(settings).check());
 
         secureSettings.setString(TokenService.TOKEN_PASSPHRASE.getKey(), randomAlphaOfLengthBetween(MINIMUM_PASSPHRASE_LENGTH, 30));
@@ -31,7 +32,8 @@ public class TokenPassphraseBootstrapCheckTests extends ESTestCase {
     }
 
     public void testTokenPassphraseCheckServiceDisabled() throws Exception {
-        Settings settings = Settings.builder().put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), false).build();
+        Settings settings = Settings.builder().put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), false)
+                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
         assertFalse(new TokenPassphraseBootstrapCheck(settings).check());
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("foo", "bar"); // leniency in setSecureSettings... if its empty it's skipped
@@ -40,11 +42,10 @@ public class TokenPassphraseBootstrapCheckTests extends ESTestCase {
 
         secureSettings.setString(TokenService.TOKEN_PASSPHRASE.getKey(), randomAlphaOfLengthBetween(1, 30));
         assertFalse(new TokenPassphraseBootstrapCheck(settings).check());
-
     }
 
     public void testTokenPassphraseCheckAfterSecureSettingsClosed() throws Exception {
-        Settings settings = Settings.builder().put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true).build();
+        Settings settings = Settings.builder().put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("foo", "bar"); // leniency in setSecureSettings... if its empty it's skipped
         settings = Settings.builder().put(settings).setSecureSettings(secureSettings).build();

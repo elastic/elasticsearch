@@ -6,10 +6,9 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.XPackSettings;
-
-import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
 
 /**
  * Bootstrap check to ensure that the user has enabled HTTPS when using the token service
@@ -24,12 +23,16 @@ final class TokenSSLBootstrapCheck implements BootstrapCheck {
 
     @Override
     public boolean check() {
-        return XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(settings) && HTTP_SSL_ENABLED.get(settings) == false;
+        if (NetworkModule.HTTP_ENABLED.get(settings)) {
+            return XPackSettings.HTTP_SSL_ENABLED.get(settings) == false && XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(settings);
+        }
+        return false;
     }
 
     @Override
     public String errorMessage() {
-        return "HTTPS is required in order to use the token service. Please enable HTTPS using the [" + HTTP_SSL_ENABLED.getKey() +
-                "] setting or disable the token service using the [" + XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey() + "] setting.";
+        return "HTTPS is required in order to use the token service. Please enable HTTPS using the [" +
+                XPackSettings.HTTP_SSL_ENABLED.getKey() + "] setting or disable the token service using the [" +
+                XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey() + "] setting.";
     }
 }

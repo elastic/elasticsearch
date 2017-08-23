@@ -122,6 +122,7 @@ subprojects {
       clusterName = 'rolling-upgrade'
       waitCondition = waitWithAuth
       setting 'xpack.security.transport.ssl.enabled', 'true'
+      setting 'xpack.security.authc.token.enabled', 'true'
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       setting 'xpack.ssl.keystore.password', 'testnode'
       dependsOn copyTestNodeKeystore
@@ -161,6 +162,7 @@ subprojects {
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
       setting 'node.attr.upgraded', 'first'
+      setting 'xpack.security.authc.token.enabled', 'true'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
       if (withSystemKey) {
@@ -190,6 +192,7 @@ subprojects {
       waitCondition = waitWithAuth
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
+      setting 'xpack.security.authc.token.enabled', 'true'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
       if (withSystemKey) {

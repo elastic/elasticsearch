@@ -46,6 +46,7 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -121,6 +122,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
                 .put("node.name", "authc_test")
+                .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
                 .build();
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.allowedRealmType()).thenReturn(XPackLicenseState.AllowedRealmType.ALL);

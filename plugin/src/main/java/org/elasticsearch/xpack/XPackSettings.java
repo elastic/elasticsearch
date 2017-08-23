@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack;
 
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.xpack.security.Security;
@@ -79,8 +80,13 @@ public class XPackSettings {
             true, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling the token service. Defaults to true */
-    public static final Setting<Boolean> TOKEN_SERVICE_ENABLED_SETTING = Setting.boolSetting("xpack.security.authc.token.enabled", true,
-            Setting.Property.NodeScope);
+    public static final Setting<Boolean> TOKEN_SERVICE_ENABLED_SETTING = Setting.boolSetting("xpack.security.authc.token.enabled", (s) -> {
+        if (NetworkModule.HTTP_ENABLED.get(s)) {
+            return XPackSettings.HTTP_SSL_ENABLED.getRaw(s);
+        } else {
+            return Boolean.TRUE.toString();
+        }
+    }, Setting.Property.NodeScope);
 
     /*
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them

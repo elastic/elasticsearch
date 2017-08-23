@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -50,7 +50,7 @@ import java.util.Set;
  * in the set of rated documents as part of a QAQuery.
  */
 @SuppressWarnings("unchecked")
-public class RatedRequest extends ToXContentToBytes implements Writeable {
+public class RatedRequest implements Writeable, ToXContentObject {
     private String id;
     private List<String> indices = new ArrayList<>();
     private List<String> types = new ArrayList<>();

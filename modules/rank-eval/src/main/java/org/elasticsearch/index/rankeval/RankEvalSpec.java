@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
@@ -47,7 +47,7 @@ import java.util.Objects;
  * search queries.
  */
 
-public class RankEvalSpec extends ToXContentToBytes implements Writeable {
+public class RankEvalSpec implements Writeable, ToXContentObject {
     /**
      * Collection of query specifications, that is e.g. search request templates
      * to use for query translation.

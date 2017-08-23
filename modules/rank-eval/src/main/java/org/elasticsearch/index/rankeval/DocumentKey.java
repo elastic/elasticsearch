@@ -19,17 +19,17 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class DocumentKey extends ToXContentToBytes implements Writeable {
+public class DocumentKey implements Writeable, ToXContentObject {
 
     private String docId;
     private String type;

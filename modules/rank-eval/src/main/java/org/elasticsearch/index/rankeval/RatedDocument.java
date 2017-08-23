@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -34,7 +34,7 @@ import java.util.Objects;
 /**
  * A document ID and its rating for the query QA use case.
  * */
-public class RatedDocument extends ToXContentToBytes implements Writeable {
+public class RatedDocument implements Writeable, ToXContentObject {
 
     public static final ParseField RATING_FIELD = new ParseField("rating");
     public static final ParseField DOC_ID_FIELD = new ParseField("_id");

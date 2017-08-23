@@ -34,6 +34,7 @@ import java.util.List;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * This test works against a {@link RestHighLevelClient} subclass that simulats how custom response sections returned by
@@ -46,7 +47,9 @@ public class RestHighLevelClientExtTests extends ESTestCase {
     @Before
     public void initClient() throws IOException {
         RestClient restClient = mock(RestClient.class);
-        restHighLevelClient = new RestHighLevelClientExt(restClient);
+        final RestClientBuilder restClientBuilder = mock(RestClientBuilder.class);
+        when(restClientBuilder.build()).thenReturn(restClient);
+        restHighLevelClient = new RestHighLevelClientExt(restClientBuilder);
     }
 
     public void testParseEntityCustomResponseSection() throws IOException {
@@ -68,8 +71,8 @@ public class RestHighLevelClientExtTests extends ESTestCase {
 
     private static class RestHighLevelClientExt extends RestHighLevelClient {
 
-        private RestHighLevelClientExt(RestClient restClient) {
-            super(restClient, RestClient::close, getNamedXContentsExt());
+        private RestHighLevelClientExt(RestClientBuilder restClientBuilder) {
+            super(restClientBuilder, getNamedXContentsExt());
         }
 
         private static List<NamedXContentRegistry.Entry> getNamedXContentsExt() {

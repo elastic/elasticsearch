@@ -561,6 +561,11 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             ), 1.0f
         );
         assertEquals(expected, query);
+        // Reset the default value
+        context.getIndexSettings().updateIndexMetaData(
+            newIndexMeta("index",
+                context.getIndexSettings().getSettings(), Settings.builder().putArray("index.query.default_field", "*").build())
+        );
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

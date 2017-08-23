@@ -16,6 +16,11 @@ bucket_key = Math.floor((value - offset) / interval) * interval + offset
 
 The `interval` must be a positive decimal, while the `offset` must be a decimal in `[0, interval[`.
 
++NOTE: The Histogram Aggregation operates on the `double` representation of
+ +the data. As a consequence, the result may be approximate when running on longs
+ +whose absolute value is greater than +2^53+.
+ +
+
 The following snippet "buckets" the products based on their `price` by interval of `50`:
 
 [source,js]

@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -192,7 +193,7 @@ public class WatcherUtilsTests extends ESTestCase {
             SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()).size(11);
             XContentBuilder searchSourceJsonBuilder = jsonBuilder();
             searchSourceBuilder.toXContent(searchSourceJsonBuilder, ToXContent.EMPTY_PARAMS);
-            source = searchSourceBuilder.buildAsBytes(XContentType.JSON);
+            source = XContentHelper.toXContent(searchSourceBuilder, XContentType.JSON, false);
             builder.rawField("body", source);
         }
         Script template = null;

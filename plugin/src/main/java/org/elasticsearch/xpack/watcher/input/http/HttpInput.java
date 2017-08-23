@@ -10,10 +10,10 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.common.http.HttpContentType;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
@@ -64,7 +64,7 @@ public class HttpInput implements Input {
             builder.field(Field.EXTRACT.getPreferredName(), extractKeys);
         }
         if (expectedResponseXContentType != null) {
-            builder.field(Field.RESPONSE_CONTENT_TYPE.getPreferredName(), expectedResponseXContentType, params);
+            builder.field(Field.RESPONSE_CONTENT_TYPE.getPreferredName(), expectedResponseXContentType.id());
         }
         builder.endObject();
         return builder;

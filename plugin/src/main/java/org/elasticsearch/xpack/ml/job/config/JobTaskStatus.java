@@ -90,7 +90,7 @@ public class JobTaskStatus implements Task.Status {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(STATE.getPreferredName(), state, params);
+        builder.field(STATE.getPreferredName(), state.value());
         builder.field(ALLOCATION_ID.getPreferredName(), allocationId);
         builder.endObject();
         return builder;

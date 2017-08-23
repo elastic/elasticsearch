@@ -9,8 +9,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpProxy;
@@ -60,7 +58,7 @@ public abstract class HipChatAccount  {
 
     public abstract SentMessages send(HipChatMessage message, @Nullable HttpProxy proxy);
 
-    public enum Profile implements ToXContent {
+    public enum Profile {
 
         V1() {
             @Override
@@ -86,11 +84,6 @@ public abstract class HipChatAccount  {
 
         abstract HipChatAccount createAccount(String name, Settings settings, HipChatServer defaultServer, HttpClient httpClient,
                                               Logger logger);
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.value(name().toLowerCase(Locale.ROOT));
-        }
 
         public String value() {
             return name().toLowerCase(Locale.ROOT);

@@ -140,8 +140,8 @@ public class HttpRequest implements ToXContentObject {
         builder.startObject();
         builder.field(Field.HOST.getPreferredName(), host);
         builder.field(Field.PORT.getPreferredName(), port);
-        builder.field(Field.SCHEME.getPreferredName(), scheme, params);
-        builder.field(Field.METHOD.getPreferredName(), method, params);
+        builder.field(Field.SCHEME.getPreferredName(), scheme.value());
+        builder.field(Field.METHOD.getPreferredName(), method.value());
         if (path != null) {
             builder.field(Field.PATH.getPreferredName(), path);
         }

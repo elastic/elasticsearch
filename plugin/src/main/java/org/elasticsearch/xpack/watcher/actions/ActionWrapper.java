@@ -296,7 +296,7 @@ public class ActionWrapper implements ToXContentObject {
             builder.startObject();
             builder.field(Field.ID.getPreferredName(), id);
             builder.field(Field.TYPE.getPreferredName(), action.type());
-            builder.field(Field.STATUS.getPreferredName(), action.status(), params);
+            builder.field(Field.STATUS.getPreferredName(), action.status().value());
             if (condition != null) {
                 builder.field(Watch.Field.CONDITION.getPreferredName(), condition, params);
             }

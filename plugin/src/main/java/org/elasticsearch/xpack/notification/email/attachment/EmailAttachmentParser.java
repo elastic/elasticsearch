@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.notification.email.attachment;
 
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.notification.email.Attachment;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
@@ -19,7 +19,7 @@ import java.io.IOException;
  */
 public interface EmailAttachmentParser<T extends EmailAttachmentParser.EmailAttachment> {
 
-    interface EmailAttachment extends ToXContent {
+    interface EmailAttachment extends ToXContentFragment {
         /**
          * @return A type to identify the email attachment, same as the parser identifier
          */

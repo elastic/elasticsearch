@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.notification.email;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -119,13 +118,13 @@ public class Email implements ToXContentObject {
         builder.startObject();
         builder.field(Field.ID.getPreferredName(), id);
         if (from != null) {
-            builder.field(Field.FROM.getPreferredName(), from, params);
+            builder.field(Field.FROM.getPreferredName(), from.toUnicodeString());
         }
         if (replyTo != null) {
             builder.field(Field.REPLY_TO.getPreferredName(), replyTo, params);
         }
         if (priority != null) {
-            builder.field(Field.PRIORITY.getPreferredName(), priority, params);
+            builder.field(Field.PRIORITY.getPreferredName(), priority.value());
         }
         builder.field(Field.SENT_DATE.getPreferredName(), sentDate);
         if (to != null) {
@@ -362,7 +361,7 @@ public class Email implements ToXContentObject {
 
     }
 
-    public enum Priority implements ToXContent {
+    public enum Priority {
 
         HIGHEST(1),
         HIGH(2),
@@ -382,10 +381,8 @@ public class Email implements ToXContentObject {
             message.setHeader(HEADER, String.valueOf(value));
         }
 
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.value(name().toLowerCase(Locale.ROOT));
+        public String value() {
+            return name().toLowerCase(Locale.ROOT);
         }
 
         public static Priority resolve(String name) {
@@ -420,7 +417,7 @@ public class Email implements ToXContentObject {
         }
     }
 
-    public static class Address extends javax.mail.internet.InternetAddress implements ToXContent {
+    public static class Address extends javax.mail.internet.InternetAddress {
 
         public static final ParseField ADDRESS_NAME_FIELD = new ParseField("name");
         public static final ParseField ADDRESS_EMAIL_FIELD = new ParseField("email");
@@ -431,11 +428,6 @@ public class Email implements ToXContentObject {
 
         public Address(String address, String personal) throws UnsupportedEncodingException {
             super(address, personal, StandardCharsets.UTF_8.name());
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.value(toUnicodeString());
         }
 
         public static Address parse(String field, XContentParser.Token token, XContentParser parser) throws IOException {
@@ -523,7 +515,7 @@ public class Email implements ToXContentObject {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startArray();
             for (Address address : addresses) {
-                address.toXContent(builder, params);
+                builder.value(address.toUnicodeString());
             }
             return builder.endArray();
         }

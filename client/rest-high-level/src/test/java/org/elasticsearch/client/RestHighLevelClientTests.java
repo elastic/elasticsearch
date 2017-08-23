@@ -91,6 +91,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isNotNull;
 import static org.mockito.Matchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -105,9 +106,16 @@ public class RestHighLevelClientTests extends ESTestCase {
     @Before
     public void initClient() {
         restClient = mock(RestClient.class);
-        final RestClientBuilder restClientBuilder = mock(RestClientBuilder.class);
-        when(restClientBuilder.build()).thenReturn(restClient);
-        restHighLevelClient = new RestHighLevelClient(restClientBuilder);
+        restHighLevelClient = new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
+    }
+
+    public void testCloseIsIdempotent() throws IOException {
+        restHighLevelClient.close();
+        verify(restClient, times(1)).close();
+        restHighLevelClient.close();
+        verify(restClient, times(2)).close();
+        restHighLevelClient.close();
+        verify(restClient, times(3)).close();
     }
 
     public void testPingSuccessful() throws IOException {

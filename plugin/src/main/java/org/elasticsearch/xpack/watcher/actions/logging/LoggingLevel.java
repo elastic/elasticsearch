@@ -7,13 +7,10 @@ package org.elasticsearch.xpack.watcher.actions.logging;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.SuppressLoggerChecks;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.Locale;
 
-public enum LoggingLevel implements ToXContent {
+public enum LoggingLevel {
 
     ERROR() {
         @Override
@@ -53,9 +50,7 @@ public enum LoggingLevel implements ToXContent {
 
     abstract void log(Logger logger, String text);
 
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.value(name().toLowerCase(Locale.ROOT));
+    public String value() {
+        return name().toLowerCase(Locale.ROOT);
     }
 }

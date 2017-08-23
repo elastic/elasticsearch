@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.persistent;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 
 /**
  * Parameters used to start persistent task
  */
-public interface PersistentTaskParams extends NamedWriteable, ToXContent {
+public interface PersistentTaskParams extends NamedWriteable, ToXContentObject {
 
 }

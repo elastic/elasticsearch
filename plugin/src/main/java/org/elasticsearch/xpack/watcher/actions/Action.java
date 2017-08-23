@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.actions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -22,7 +21,7 @@ public interface Action extends ToXContentObject {
 
     abstract class Result implements ToXContentFragment {
 
-        public enum Status implements ToXContent {
+        public enum Status {
             SUCCESS,
             FAILURE,
             PARTIAL_FAILURE,
@@ -31,9 +30,8 @@ public interface Action extends ToXContentObject {
             CONDITION_FAILED,
             SIMULATED;
 
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.value(name().toLowerCase(Locale.ROOT));
+            public String value() {
+                return name().toLowerCase(Locale.ROOT);
             }
         }
 

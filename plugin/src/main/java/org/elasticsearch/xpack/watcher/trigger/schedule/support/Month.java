@@ -6,14 +6,11 @@
 package org.elasticsearch.xpack.watcher.trigger.schedule.support;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Locale;
 
-public enum Month implements ToXContent {
+public enum Month {
 
     JANUARY("JAN"),
     FEBRUARY("FEB"),
@@ -32,11 +29,6 @@ public enum Month implements ToXContent {
 
     Month(String cronKey) {
         this.cronKey = cronKey;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.value(name().toLowerCase(Locale.ROOT));
     }
 
     public static String cronPart(EnumSet<Month> days) {

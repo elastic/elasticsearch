@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.transform;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.watch.Payload;
@@ -16,7 +15,7 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 import java.io.IOException;
 import java.util.Locale;
 
-public interface Transform extends ToXContent {
+public interface Transform extends ToXContentObject {
 
     ParseField TRANSFORM = new ParseField("transform");
 

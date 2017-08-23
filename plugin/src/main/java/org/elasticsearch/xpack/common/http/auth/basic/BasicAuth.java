@@ -64,7 +64,7 @@ public class BasicAuth implements HttpAuth {
         builder.startObject();
         builder.field(Field.USERNAME.getPreferredName(), username);
         if (!WatcherParams.hideSecrets(params)) {
-            builder.field(Field.PASSWORD.getPreferredName(), password, params);
+            builder.field(Field.PASSWORD.getPreferredName(), password.value());
         }
         return builder.endObject();
     }

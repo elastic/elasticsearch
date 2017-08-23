@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.common.http;
 
 import io.netty.handler.codec.http.HttpHeaders;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -162,10 +163,10 @@ public class HttpRequestTemplate implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.field(HttpRequest.Field.SCHEME.getPreferredName(), scheme, params);
+        builder.field(HttpRequest.Field.SCHEME.getPreferredName(), scheme.value());
         builder.field(HttpRequest.Field.HOST.getPreferredName(), host);
         builder.field(HttpRequest.Field.PORT.getPreferredName(), port);
-        builder.field(HttpRequest.Field.METHOD.getPreferredName(), method, params);
+        builder.field(HttpRequest.Field.METHOD.getPreferredName(), method.value());
         if (path != null) {
             builder.field(HttpRequest.Field.PATH.getPreferredName(), path, params);
         }

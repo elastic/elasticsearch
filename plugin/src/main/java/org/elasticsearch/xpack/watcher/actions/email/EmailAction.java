@@ -105,7 +105,7 @@ public class EmailAction implements Action {
         if (auth != null) {
             builder.field(Field.USER.getPreferredName(), auth.user());
             if (WatcherParams.hideSecrets(params) == false) {
-                builder.field(Field.PASSWORD.getPreferredName(), auth.password(), params);
+                builder.field(Field.PASSWORD.getPreferredName(), auth.password().value());
             }
         }
         if (profile != null) {

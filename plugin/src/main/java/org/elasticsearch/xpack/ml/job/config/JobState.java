@@ -9,8 +9,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -21,7 +19,7 @@ import java.util.Locale;
  * When a job is created it is initialised in to the state closed
  * i.e. it is not running.
  */
-public enum JobState implements ToXContent, Writeable {
+public enum JobState implements Writeable {
 
     CLOSING, CLOSED, OPENED, FAILED, OPENING;
 
@@ -43,15 +41,8 @@ public enum JobState implements ToXContent, Writeable {
         out.writeEnum(state);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.value(name().toLowerCase(Locale.ROOT));
-        return builder;
-    }
-
-    @Override
-    public boolean isFragment() {
-        return true;
+    public String value() {
+        return name().toLowerCase(Locale.ROOT);
     }
 
 

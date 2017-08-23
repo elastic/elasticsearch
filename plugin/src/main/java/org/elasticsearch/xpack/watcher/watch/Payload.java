@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.watch;
 
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -18,7 +17,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.watcher.support.WatcherUtils.responseToData;
 
-public interface Payload extends ToXContent {
+public interface Payload extends ToXContentObject {
 
     Simple EMPTY = new Simple(Collections.emptyMap());
 

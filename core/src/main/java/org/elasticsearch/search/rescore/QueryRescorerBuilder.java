@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
 
 import java.io.IOException;
@@ -41,18 +40,10 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
 public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
     public static final String NAME = "query";
 
-    public static final float DEFAULT_RESCORE_QUERYWEIGHT = 1.0f;
-    public static final float DEFAULT_QUERYWEIGHT = 1.0f;
-    public static final QueryRescoreMode DEFAULT_SCORE_MODE = QueryRescoreMode.Total;
-    private final QueryBuilder queryBuilder;
-    private float rescoreQueryWeight = DEFAULT_RESCORE_QUERYWEIGHT;
-    private float queryWeight = DEFAULT_QUERYWEIGHT;
-    private QueryRescoreMode scoreMode = DEFAULT_SCORE_MODE;
-
-    private static ParseField RESCORE_QUERY_FIELD = new ParseField("rescore_query");
-    private static ParseField QUERY_WEIGHT_FIELD = new ParseField("query_weight");
-    private static ParseField RESCORE_QUERY_WEIGHT_FIELD = new ParseField("rescore_query_weight");
-    private static ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
+    private static final ParseField RESCORE_QUERY_FIELD = new ParseField("rescore_query");
+    private static final ParseField QUERY_WEIGHT_FIELD = new ParseField("query_weight");
+    private static final ParseField RESCORE_QUERY_WEIGHT_FIELD = new ParseField("rescore_query_weight");
+    private static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
 
     private static final ObjectParser<InnerBuilder, Void> QUERY_RESCORE_PARSER = new ObjectParser<>(NAME, null);
 
@@ -68,6 +59,14 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
         QUERY_RESCORE_PARSER.declareFloat(InnerBuilder::setRescoreQueryWeight, RESCORE_QUERY_WEIGHT_FIELD);
         QUERY_RESCORE_PARSER.declareString((struct, value) ->  struct.setScoreMode(QueryRescoreMode.fromString(value)), SCORE_MODE_FIELD);
     }
+
+    public static final float DEFAULT_RESCORE_QUERYWEIGHT = 1.0f;
+    public static final float DEFAULT_QUERYWEIGHT = 1.0f;
+    public static final QueryRescoreMode DEFAULT_SCORE_MODE = QueryRescoreMode.Total;
+    private final QueryBuilder queryBuilder;
+    private float rescoreQueryWeight = DEFAULT_RESCORE_QUERYWEIGHT;
+    private float queryWeight = DEFAULT_QUERYWEIGHT;
+    private QueryRescoreMode scoreMode = DEFAULT_SCORE_MODE;
 
     /**
      * Creates a new {@link QueryRescorerBuilder} instance

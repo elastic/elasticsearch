@@ -17,7 +17,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -49,11 +48,12 @@ import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction;
 import org.elasticsearch.xpack.upgrade.rest.RestIndexUpgradeAction;
 import org.elasticsearch.xpack.upgrade.rest.RestIndexUpgradeInfoAction;
+import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.transport.actions.service.WatcherServiceRequest;
-import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsResponse;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -248,7 +248,7 @@ public class Upgrade implements ActionPlugin {
                                 "  ctx._source.status = ctx._source.remove(\"_status\");\n" +
                                 "}",
                                 new HashMap<>()),
-                        booleanActionListener -> preWatchesIndexUpgrade(internalClient, clusterService, booleanActionListener),
+                        booleanActionListener -> preWatchesIndexUpgrade(internalClient, booleanActionListener),
                         (shouldStartWatcher, listener) -> postWatchesIndexUpgrade(internalClient, shouldStartWatcher, listener)
                 );
     }
@@ -271,7 +271,7 @@ public class Upgrade implements ActionPlugin {
                         clusterService,
                         new String[]{"triggered-watch"},
                         new Script(ScriptType.INLINE, "painless", "ctx._type = \"doc\";\n", new HashMap<>()),
-                        booleanActionListener -> preTriggeredWatchesIndexUpgrade(internalClient, clusterService, booleanActionListener),
+                        booleanActionListener -> preTriggeredWatchesIndexUpgrade(internalClient, booleanActionListener),
                         (shouldStartWatcher, listener) -> postWatchesIndexUpgrade(internalClient, shouldStartWatcher, listener)
                 );
     }
@@ -280,10 +280,7 @@ public class Upgrade implements ActionPlugin {
         return name.equals(indexMetaData.getIndex().getName()) || indexMetaData.getAliases().containsKey(name);
     }
 
-    private static void preTriggeredWatchesIndexUpgrade(Client client, ClusterService clusterService, ActionListener<Boolean> listener) {
-        AliasOrIndex aliasOrIndex = clusterService.state().getMetaData().getAliasAndIndexLookup().get(Watch.INDEX);
-        boolean isWatchesIndexReady = aliasOrIndex == null || checkInternalIndexFormat(aliasOrIndex.getIndices().get(0));
-
+    static void preTriggeredWatchesIndexUpgrade(Client client, ActionListener<Boolean> listener) {
         new WatcherClient(client).prepareWatcherStats().execute(ActionListener.wrap(
                 stats -> {
                     if (stats.watcherMetaData().manuallyStopped()) {
@@ -292,7 +289,7 @@ public class Upgrade implements ActionPlugin {
                         new WatcherClient(client).prepareWatchService().stop().execute(ActionListener.wrap(
                                 watcherServiceResponse -> {
                                     if (watcherServiceResponse.isAcknowledged()) {
-                                        preTriggeredWatchesIndexUpgrade(client, listener, isWatchesIndexReady);
+                                        preTriggeredWatchesIndexUpgrade(client, listener, true);
                                     } else {
                                         listener.onFailure(new IllegalStateException("unable to stop watcher service"));
                                     }
@@ -304,7 +301,8 @@ public class Upgrade implements ActionPlugin {
                 listener::onFailure));
     }
 
-    static void preTriggeredWatchesIndexUpgrade(final Client client, final ActionListener<Boolean> listener, final boolean restart) {
+    private static void preTriggeredWatchesIndexUpgrade(final Client client, final ActionListener<Boolean> listener,
+                                                        final boolean restart) {
         final String legacyTriggeredWatchesTemplateName = "triggered_watches";
 
         ActionListener<DeleteIndexTemplateResponse> returnToCallerListener =
@@ -325,10 +323,7 @@ public class Upgrade implements ActionPlugin {
                 .setSource(triggeredWatchesTemplate, XContentType.JSON).execute(putTriggeredWatchesListener);
     }
 
-    private static void preWatchesIndexUpgrade(Client client, ClusterService clusterService, ActionListener<Boolean> listener) {
-        AliasOrIndex aliasOrIndex = clusterService.state().getMetaData().getAliasAndIndexLookup().get(TriggeredWatchStore.INDEX_NAME);
-        boolean isTriggeredWatchesIndexReady = aliasOrIndex == null || checkInternalIndexFormat(aliasOrIndex.getIndices().get(0));
-
+    static void preWatchesIndexUpgrade(Client client, ActionListener<Boolean> listener) {
         new WatcherClient(client).prepareWatcherStats().execute(ActionListener.wrap(
                     stats -> {
                         if (stats.watcherMetaData().manuallyStopped()) {
@@ -337,7 +332,7 @@ public class Upgrade implements ActionPlugin {
                             new WatcherClient(client).prepareWatchService().stop().execute(ActionListener.wrap(
                                     watcherServiceResponse -> {
                                         if (watcherServiceResponse.isAcknowledged()) {
-                                            preWatchesIndexUpgrade(client, listener, isTriggeredWatchesIndexReady);
+                                            preWatchesIndexUpgrade(client, listener, true);
                                         } else {
                                             listener.onFailure(new IllegalStateException("unable to stop watcher service"));
                                         }
@@ -349,7 +344,7 @@ public class Upgrade implements ActionPlugin {
                     listener::onFailure));
     }
 
-    static void preWatchesIndexUpgrade(final Client client, final ActionListener<Boolean> listener, final boolean restart) {
+    private static void preWatchesIndexUpgrade(final Client client, final ActionListener<Boolean> listener, final boolean restart) {
         final String legacyWatchesTemplateName = "watches";
         ActionListener<DeleteIndexTemplateResponse> returnToCallerListener =
                 deleteIndexTemplateListener(legacyWatchesTemplateName, listener, () -> listener.onResponse(restart));
@@ -375,16 +370,47 @@ public class Upgrade implements ActionPlugin {
         client.admin().indices().prepareDeleteTemplate("watch_history_*").execute(deleteWatchHistoryTemplatesListener);
     }
 
-    private static void postWatchesIndexUpgrade(Client client, Boolean shouldStartWatcher,
+    static void postWatchesIndexUpgrade(Client client, Boolean shouldStartWatcher,
                                                 ActionListener<TransportResponse.Empty> listener) {
         if (shouldStartWatcher) {
-            // Start the watcher service
-            new WatcherClient(client).watcherService(new WatcherServiceRequest().start(), ActionListener.wrap(
-                    r -> listener.onResponse(TransportResponse.Empty.INSTANCE), listener::onFailure
-            ));
+            WatcherClient watcherClient = new WatcherClient(client);
+            watcherClient.prepareWatcherStats().execute(waitingStatsListener(0, listener, watcherClient));
         } else {
             listener.onResponse(TransportResponse.Empty.INSTANCE);
         }
+    }
+
+    /*
+     * With 6.x the watcher stats are possibly delayed. This means, even if you start watcher it might take a moment,
+     * until all nodes have really started up watcher. In order to cater for this, we have to introduce a polling mechanism
+     * for the stats.
+     *
+     * The reason for this is, that we may shut down watcher, then do the upgrade things, like deleting and recreating an index
+     * and then watcher is still marked as STOPPING instead of being STOPPED, because the upgrade itself was too fast.
+     *
+     * To counter this, this action listener polls the stats with an increasing wait delay by 150ms up to 10 times.
+     */
+    private static ActionListener<WatcherStatsResponse> waitingStatsListener(int currentCount,
+                                                                             ActionListener<TransportResponse.Empty> listener,
+                                                                             WatcherClient watcherClient) {
+        return ActionListener.wrap(r -> {
+            boolean watcherStoppedOnAllNodes = r.getNodes().stream()
+                    .map(WatcherStatsResponse.Node::getWatcherState)
+                    .allMatch(s -> s == WatcherState.STOPPED);
+            if (watcherStoppedOnAllNodes == false) {
+                if (currentCount >= 10) {
+                    listener.onFailure(new ElasticsearchException("watcher did not stop properly, so cannot start up again"));
+                } else {
+                    Thread.sleep(currentCount * 150);
+                    watcherClient.prepareWatcherStats().execute(waitingStatsListener(currentCount + 1, listener, watcherClient));
+                }
+            } else {
+                watcherClient.watcherService(new WatcherServiceRequest().start(), ActionListener.wrap(
+                        serviceResponse -> listener.onResponse(TransportResponse.Empty.INSTANCE), listener::onFailure
+                ));
+            }
+
+        }, listener::onFailure);
     }
 
     private static ActionListener<PutIndexTemplateResponse> putIndexTemplateListener(String name, ActionListener<Boolean> listener,

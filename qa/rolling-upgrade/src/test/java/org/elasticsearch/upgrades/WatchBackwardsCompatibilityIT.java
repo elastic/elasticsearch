@@ -253,12 +253,8 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
                         ensureWatcherStopped();
                         assertOK(client.performRequest("POST", "/_xpack/watcher/_start"));
                         logger.info("started watcher manually after running upgrade");
-                        ensureWatcherStarted();
-                    } else {
-                        // TODO temporary fix until underlying cause is found, starting automatically after upgrade does not seem to work
-                        assertOK(client.performRequest("POST", "/_xpack/watcher/_start"));
-                        ensureWatcherStarted();
                     }
+                    ensureWatcherStarted();
                 }
             }
         }

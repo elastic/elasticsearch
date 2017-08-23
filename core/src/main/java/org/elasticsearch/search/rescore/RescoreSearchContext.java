@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.rescore;
 
-
-
 public class RescoreSearchContext {
 
     private int windowSize;
@@ -35,7 +33,7 @@ public class RescoreSearchContext {
         this.windowSize = windowSize;
         this.rescorer = rescorer;
     }
-    
+
     public Rescorer rescorer() {
         return rescorer;
     }

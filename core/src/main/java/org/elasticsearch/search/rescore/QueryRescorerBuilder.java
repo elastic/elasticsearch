@@ -39,7 +39,6 @@ import java.util.Objects;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
-
     public static final String NAME = "query";
 
     public static final float DEFAULT_RESCORE_QUERYWEIGHT = 1.0f;

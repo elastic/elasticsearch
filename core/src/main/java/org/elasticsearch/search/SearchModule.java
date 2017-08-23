@@ -20,6 +20,7 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
@@ -245,6 +246,7 @@ import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -281,7 +283,7 @@ public class SearchModule {
         highlighters = setupHighlighters(settings, plugins);
         registerScoreFunctions(plugins);
         registerQueryParsers(plugins);
-        registerRescorers();
+        registerRescorers(plugins);
         registerSorts();
         registerValueFormats();
         registerSignificanceHeuristics(plugins);
@@ -526,8 +528,18 @@ public class SearchModule {
         }
     }
 
-    private void registerRescorers() {
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RescoreBuilder.class, QueryRescorerBuilder.NAME, QueryRescorerBuilder::new));
+    private void registerRescorers(List<SearchPlugin> plugins) {
+        registerRescorer(new SearchExtensionSpec<>(
+                QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, QueryRescorerBuilder::fromXContent));
+        registerFromPlugin(plugins, SearchPlugin::getRescores, this::registerRescorer);
+    }
+
+    private void registerRescorer(
+            SearchExtensionSpec<RescoreBuilder<?>, CheckedFunction<XContentParser, RescoreBuilder<?>, IOException>> spec) {
+        if (false == transportClient) {
+            namedXContents.add(new NamedXContentRegistry.Entry(RescoreBuilder.class, spec.getName(), (p, c) -> spec.getParser().apply(p)));
+        }
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RescoreBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
     }
 
     private void registerSorts() {

@@ -48,6 +48,8 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggre
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
+import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 
@@ -124,6 +126,12 @@ public interface SearchPlugin {
      * The new {@link PipelineAggregator}s added by this plugin.
      */
     default List<PipelineAggregationSpec> getPipelineAggregations() {
+        return emptyList();
+    }
+    /**
+     * The next {@link Rescorer}s added by this plugin.
+     */
+    default List<SearchExtensionSpec<RescoreBuilder<?>, CheckedFunction<XContentParser, RescoreBuilder<?>, IOException>>> getRescores() {
         return emptyList();
     }
     /**

@@ -184,7 +184,7 @@ public class RestHighLevelClient implements Closeable {
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests and
      * a list of entries that allow to parse custom response sections added to Elasticsearch through plugins.
      * This constructor can be called by subclasses in case an externally created low-level REST client needs to be provided.
-     * The consumer argument allows to control what needs to be done when the {@link #close()} method is called.a
+     * The consumer argument allows to control what needs to be done when the {@link #close()} method is called.
      * Also subclasses can provide parsers for custom response sections added to Elasticsearch through plugins.
      */
     protected RestHighLevelClient(RestClient restClient, CheckedConsumer<RestClient, IOException> doClose,

@@ -147,7 +147,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         specifications.add(amsterdamRequest);
 
         SearchSourceBuilder brokenQuery = new SearchSourceBuilder();
-        RangeQueryBuilder brokenRangeQuery = new RangeQueryBuilder("text").timeZone("CET");
+        RangeQueryBuilder brokenRangeQuery = new RangeQueryBuilder("text").timeZone("CET").from("Basel").to("Zehlendorf");
         brokenQuery.query(brokenRangeQuery);
         RatedRequest brokenRequest = new RatedRequest("broken_query", createRelevant("1"),
                 brokenQuery);

@@ -215,7 +215,7 @@ public class RatedRequestsTests extends ESTestCase {
             break;
         case 1:
             if (testRequest != null) {
-                int size = randomValueOtherThan(testRequest.size(), () -> randomInt());
+                int size = randomValueOtherThan(testRequest.size(), () -> randomInt(Integer.MAX_VALUE));
                 testRequest = new SearchSourceBuilder();
                 testRequest.size(size);
                 testRequest.query(new MatchAllQueryBuilder());

@@ -164,7 +164,8 @@ logger.transport.level = trace
 --------------------------------------------------
 
 This is most appropriate when you need fine-grained control over the logger (for
-example, you want to send the logger to another file, or manage the logger differently; this is a rare use-case).
+example, you want to send the logger to another file, or manage the logger
+differently; this is a rare use-case).
 --
 
 [float]

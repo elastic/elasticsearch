@@ -19,13 +19,14 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
@@ -47,7 +48,7 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentParser.Token.END_OBJECT;
 
-public final class InnerHitBuilder extends ToXContentToBytes implements Writeable {
+public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped");
@@ -543,5 +544,10 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
 
     public static InnerHitBuilder fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, new InnerHitBuilder(), null);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

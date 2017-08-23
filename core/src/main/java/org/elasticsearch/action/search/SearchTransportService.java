@@ -511,6 +511,7 @@ public class SearchTransportService extends AbstractComponent {
             super.handleResponse(response);
             // Decrement the number of connections or remove it entirely if there are no more connections
             // We need to remove the entry here so we don't leak when nodes go away forever
+            assert assertNodePresent();
             clientConnections.computeIfPresent(nodeId, (id, conns) -> conns.longValue() == 1 ? null : conns - 1);
         }
 
@@ -519,7 +520,19 @@ public class SearchTransportService extends AbstractComponent {
             super.handleException(e);
             // Decrement the number of connections or remove it entirely if there are no more connections
             // We need to remove the entry here so we don't leak when nodes go away forever
+            assert assertNodePresent();
             clientConnections.computeIfPresent(nodeId, (id, conns) -> conns.longValue() == 1 ? null : conns - 1);
+        }
+
+        private boolean assertNodePresent() {
+            clientConnections.compute(nodeId, (id, conns) -> {
+                assert conns != null : "number of connections for " + id + " is null, but should be an integer";
+                assert conns >= 1 : "number of connections for " + id + " should be >= 1 but was " + conns;
+                return conns;
+            });
+            // Always return true, there is additional asserting here, the boolean is just so this
+            // can be skipped when assertions are not enabled
+            return true;
         }
     }
 }

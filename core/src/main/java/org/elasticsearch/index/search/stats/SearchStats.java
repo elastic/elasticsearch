@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.search.stats;
 
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -33,7 +33,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class SearchStats implements Streamable, ToXContentFragment {
+public class SearchStats extends ToXContentToBytes implements Streamable {
 
     public static class Stats implements Streamable, ToXContentFragment {
 
@@ -315,11 +315,6 @@ public class SearchStats implements Streamable, ToXContentFragment {
         }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this, true, true);
     }
 
     static final class Fields {

@@ -19,13 +19,13 @@
 
 package org.elasticsearch.search.aggregations.pipeline.movavg.models;
 
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContent;
 
 /**
  * Represents the common interface that all moving average models share. Moving
  * average models are used by the MovAvg aggregation
  */
-public interface MovAvgModelBuilder extends ToXContentFragment {
+public interface MovAvgModelBuilder extends ToXContent {
 
     MovAvgModel build();
 }

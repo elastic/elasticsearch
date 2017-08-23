@@ -18,9 +18,8 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
@@ -32,7 +31,8 @@ import java.util.Map;
  * A factory that knows how to create an {@link PipelineAggregator} of a
  * specific type.
  */
-public abstract class PipelineAggregationBuilder implements NamedWriteable, BaseAggregationBuilder, ToXContentFragment {
+public abstract class PipelineAggregationBuilder extends ToXContentToBytes
+        implements NamedWriteable, BaseAggregationBuilder {
 
     protected final String name;
     protected final String[] bucketsPaths;
@@ -85,10 +85,5 @@ public abstract class PipelineAggregationBuilder implements NamedWriteable, Base
     @Override
     public PipelineAggregationBuilder subAggregations(Builder subFactories) {
         throw new IllegalArgumentException("Aggregation [" + name + "] cannot define sub-aggregations");
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this, true, true);
     }
 }

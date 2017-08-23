@@ -23,16 +23,16 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
@@ -49,7 +49,8 @@ import java.util.Optional;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
-public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWriteable, ToXContentObject, Rewriteable<SortBuilder<?>> {
+public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentToBytes implements NamedWriteable,
+    Rewriteable<SortBuilder<?>>{
 
     protected SortOrder order = SortOrder.ASC;
 
@@ -213,10 +214,5 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
     @FunctionalInterface
     private interface Parser<T extends SortBuilder<?>> {
         T fromXContent(XContentParser parser, String elementName) throws IOException;
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this, true, true);
     }
 }

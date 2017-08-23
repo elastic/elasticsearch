@@ -20,12 +20,11 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -39,7 +38,7 @@ import java.util.Objects;
  * A simple {@link AllocationCommand} composite managing several
  * {@link AllocationCommand} implementations
  */
-public class AllocationCommands implements ToXContentFragment {
+public class AllocationCommands extends ToXContentToBytes {
     private final List<AllocationCommand> commands = new ArrayList<>();
 
     /**
@@ -196,10 +195,5 @@ public class AllocationCommands implements ToXContentFragment {
     public int hashCode() {
         // Override equals and hashCode for testing
         return Objects.hashCode(commands);
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this, true, true);
     }
 }

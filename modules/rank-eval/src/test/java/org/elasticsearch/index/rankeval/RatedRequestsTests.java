@@ -268,8 +268,8 @@ public class RatedRequestsTests extends ESTestCase {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                 () -> new RatedRequest("id", ratedDocs, new SearchSourceBuilder()));
         assertEquals(
-                "Found duplicate rated document key [{ \"_index\" : \"index1\", "
-                + "\"_type\" : \"type1\", \"_id\" : \"id1\"}]",
+                "Found duplicate rated document key [{\"_index\":\"index1\","
+                + "\"_type\":\"type1\",\"_id\":\"id1\"}]",
                 ex.getMessage());
         // templated path, no summary fields
         Map<String, Object> params = new HashMap<>();
@@ -277,8 +277,8 @@ public class RatedRequestsTests extends ESTestCase {
         ex = expectThrows(IllegalArgumentException.class,
                 () -> new RatedRequest("id", ratedDocs, params, "templateId"));
         assertEquals(
-                "Found duplicate rated document key [{ \"_index\" : \"index1\", "
-                + "\"_type\" : \"type1\", \"_id\" : \"id1\"}]",
+                "Found duplicate rated document key [{\"_index\":\"index1\","
+                + "\"_type\":\"type1\",\"_id\":\"id1\"}]",
                 ex.getMessage());
     }
 

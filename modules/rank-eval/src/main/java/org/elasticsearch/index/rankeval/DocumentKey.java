@@ -116,4 +116,9 @@ public class DocumentKey implements Writeable, ToXContentObject {
         builder.endObject();
         return builder;
     }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
 }

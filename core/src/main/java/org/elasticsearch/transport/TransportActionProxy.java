@@ -22,6 +22,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -97,11 +98,11 @@ public final class TransportActionProxy {
 
     static class ProxyRequest<T extends TransportRequest> extends TransportRequest {
         T wrapped;
-        Supplier<T> supplier;
+        Writeable.Reader<T> reader;
         DiscoveryNode targetNode;
 
-        ProxyRequest(Supplier<T> supplier) {
-            this.supplier = supplier;
+        ProxyRequest(Writeable.Reader<T> reader) {
+            this.reader = reader;
         }
 
         ProxyRequest(T wrapped, DiscoveryNode targetNode) {
@@ -113,8 +114,7 @@ public final class TransportActionProxy {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             targetNode = new DiscoveryNode(in);
-            wrapped = supplier.get();
-            wrapped.readFrom(in);
+            wrapped = reader.read(in);
         }
 
         @Override

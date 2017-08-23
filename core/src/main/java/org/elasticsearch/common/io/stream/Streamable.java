@@ -20,6 +20,7 @@
 package org.elasticsearch.common.io.stream;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 /**
  * Implementers can be written to a {@linkplain StreamOutput} and read from a {@linkplain StreamInput}. This allows them to be "thrown
@@ -43,4 +44,12 @@ public interface Streamable {
      * Write this object's fields to a {@linkplain StreamOutput}.
      */
     void writeTo(StreamOutput out) throws IOException;
+
+    static <T extends Streamable> Writeable.Reader<T> newWriteableReader(Supplier<T> supplier) {
+        return (StreamInput in) -> {
+            T request = supplier.get();
+            request.readFrom(in);
+            return request;
+        };
+    }
 }

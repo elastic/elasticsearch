@@ -1475,9 +1475,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 }
                 transportChannel = new TcpTransportChannel<>(this, channel, transportName, action, requestId, version, profileName,
                     messageLengthBytes);
-                final TransportRequest request = reg.newRequest();
+                final TransportRequest request = reg.newRequest(stream);
                 request.remoteAddress(new TransportAddress(remoteAddress));
-                request.readFrom(stream);
                 // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
                 validateRequest(stream, requestId, action);
                 threadPool.executor(reg.getExecutor()).execute(new RequestHandler(reg, request, transportChannel));

@@ -59,8 +59,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
  */
 public class BulkByScrollTask extends CancellableTask {
 
-    private LeaderBulkByScrollTaskState leaderState;
-    private WorkerBulkByScrollTaskState workerState;
+    private volatile LeaderBulkByScrollTaskState leaderState;
+    private volatile WorkerBulkByScrollTaskState workerState;
 
     public BulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId) {
         super(id, type, action, description, parentTaskId);
@@ -155,6 +155,9 @@ public class BulkByScrollTask extends CancellableTask {
         }
 
         workerState = new WorkerBulkByScrollTaskState(this, sliceId, requestsPerSecond);
+        if (isCancelled()) {
+            workerState.handleCancel();
+        }
     }
 
     /**
@@ -170,12 +173,14 @@ public class BulkByScrollTask extends CancellableTask {
 
     @Override
     public void onCancelled() {
-        if (isLeader()) {
-            // The task cancellation task automatically finds children and cancels them, nothing extra to do
-        } else if (isWorker()) {
+        /*
+         * If this task is a leader, we don't need to do anything extra because the cancel action cancels child tasks for us
+         * If it's is a worker, we know how to cancel it here
+         * If we don't know whether it's a leader or worker yet, we do nothing here. If the task is later set to be a worker, we cancel the
+         * worker at that time.
+         */
+        if (isWorker()) {
             workerState.handleCancel();
-        } else {
-            throw new IllegalStateException("This task has not had its sliced state initialized and doesn't know how to cancel itself");
         }
     }
 

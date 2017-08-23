@@ -231,8 +231,8 @@ final class Bootstrap {
         }
 
         try {
-            KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), new char[0] /* TODO: read password from stdin */);
             keystore.decrypt(new char[0] /* TODO: read password from stdin */);
+            KeyStoreWrapper.upgrade(keystore, initialEnv.configFile());
         } catch (Exception e) {
             throw new BootstrapException(e);
         }

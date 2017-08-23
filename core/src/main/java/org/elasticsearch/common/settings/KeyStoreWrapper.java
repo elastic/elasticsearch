@@ -229,12 +229,11 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /** Upgrades the format of the keystore, if necessary. */
-    public static void upgrade(KeyStoreWrapper wrapper, Path configDir, char[] password) throws Exception {
+    public static void upgrade(KeyStoreWrapper wrapper, Path configDir) throws Exception {
         // ensure keystore.seed exists
         if (wrapper.getSettingNames().contains(SEED_SETTING.getKey())) {
             return;
         }
-        wrapper.decrypt(password);
         addBootstrapSeed(wrapper);
         wrapper.save(configDir);
     }

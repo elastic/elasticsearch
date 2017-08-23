@@ -5,15 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
@@ -30,11 +24,20 @@ import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
-
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 public class QueryContainer {
@@ -108,7 +111,7 @@ public class QueryContainer {
     public Map<Attribute, ColumnProcessor> processors() {
         return processors;
     }
-    
+
     public Map<String, GroupingAgg> pseudoFunctions() {
         return pseudoFunctions;
     }
@@ -171,7 +174,7 @@ public class QueryContainer {
         sort.add(sortable);
         return new QueryContainer(query, aggs, refs, aliases, processors, pseudoFunctions, sort, limit);
     }
-    
+
     private String aliasName(Attribute attr) {
         return aliases.getOrDefault(attr, attr).name();
     }
@@ -201,7 +204,7 @@ public class QueryContainer {
 
         String parent = attr.parentPath();
         String name = aliasName(attr);
-        
+
         Query q = query;
         Map<String, Boolean> field = singletonMap(name, Boolean.valueOf(shouldUseDocValue(attr)));
         if (q == null) {
@@ -225,9 +228,9 @@ public class QueryContainer {
                 q = new AndQuery(attr.location(), q, nested);
             }
         }
-        
+
         NestedFieldRef nestedFieldRef = new NestedFieldRef(attr.parentPath(), attr.name(), shouldUseDocValue(attr));
-        
+
         nestedRefs.add(wrapProcessorIfNeeded(attr, nestedFieldRef));
 
         return new QueryContainer(q, aggs, combine(refs, nestedRefs), aliases, processors, pseudoFunctions, sort, limit);
@@ -236,7 +239,7 @@ public class QueryContainer {
     private QueryContainer addRef(Reference ref) {
         return with(combine(refs, ref));
     }
-    
+
     //
     // agg methods
     //
@@ -289,17 +292,17 @@ public class QueryContainer {
     public int hashCode() {
         return Objects.hash(query, aggs, refs, aliases);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         QueryContainer other = (QueryContainer) obj;
         return Objects.equals(query, other.query)
                 && Objects.equals(aggs, other.aggs)
@@ -311,6 +314,12 @@ public class QueryContainer {
 
     @Override
     public String toString() {
-        return SourceGenerator.sourceBuilder(this).toString();
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.humanReadable(true).prettyPrint();
+            SourceGenerator.sourceBuilder(this).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            return builder.string();
+        } catch (IOException e) {
+            throw new RuntimeException("error rendering", e);
+        }
     }
 }

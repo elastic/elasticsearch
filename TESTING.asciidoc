@@ -548,3 +548,17 @@ included as part of the build by checking the projects of the build.
 ---------------------------------------------------------------------------
 gradle projects
 ---------------------------------------------------------------------------
+
+== Environment misc
+
+There is a known issue with macOS localhost resolve strategy that can cause
+some integration tests to fail. This is because integration tests have timings
+for cluster formation, discovery, etc. that can be exceeded if name resolution
+takes a long time.
+To fix this, make sure you have your computer name (as returned by `hostname`)
+inside `/etc/hosts`, e.g.:
+....
+127.0.0.1       localhost ElasticMBP.local
+255.255.255.255 broadcasthost
+::1             localhost ElasticMBP.local`
+....

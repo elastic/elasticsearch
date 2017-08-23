@@ -53,7 +53,6 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-            Netty4HttpServerTransport.SETTING_HTTP_NETTY_MAX_CUMULATION_BUFFER_CAPACITY,
             Netty4HttpServerTransport.SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
             Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT,
             Netty4HttpServerTransport.SETTING_HTTP_TCP_NO_DELAY,
@@ -65,8 +64,6 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
             Netty4HttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MIN,
             Netty4HttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MAX,
             Netty4Transport.WORKER_COUNT,
-            Netty4Transport.NETTY_MAX_CUMULATION_BUFFER_CAPACITY,
-            Netty4Transport.NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
             Netty4Transport.NETTY_RECEIVE_PREDICTOR_SIZE,
             Netty4Transport.NETTY_RECEIVE_PREDICTOR_MIN,
             Netty4Transport.NETTY_RECEIVE_PREDICTOR_MAX,

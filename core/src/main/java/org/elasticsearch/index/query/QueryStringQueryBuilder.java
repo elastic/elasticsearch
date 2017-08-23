@@ -34,7 +34,9 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.joda.time.DateTimeZone;
 
@@ -102,6 +104,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private static final ParseField ALL_FIELDS_FIELD = new ParseField("all_fields")
             .withAllDeprecated("Set [default_field] to `*` instead");
     private static final ParseField TYPE_FIELD = new ParseField("type");
+    private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
 
     private final String queryString;
 
@@ -156,6 +159,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     /** To limit effort spent determinizing regexp queries. */
     private int maxDeterminizedStates = DEFAULT_MAX_DETERMINED_STATES;
+
+    private boolean autoGenerateSynonymsPhraseQuery = true;
 
     public QueryStringQueryBuilder(String queryString) {
         if (queryString == null) {
@@ -219,6 +224,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 }
             }
         }
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            autoGenerateSynonymsPhraseQuery = in.readBoolean();
+        }
     }
 
     @Override
@@ -271,6 +279,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 out.writeOptionalBoolean(useAllFields);
             }
         }
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeBoolean(autoGenerateSynonymsPhraseQuery);
+        }
     }
 
     public String queryString() {
@@ -295,7 +306,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      */
     @Deprecated
     public QueryStringQueryBuilder useAllFields(Boolean useAllFields) {
-        if (useAllFields) {
+        if (useAllFields != null && useAllFields) {
             this.defaultField = "*";
         }
         return this;
@@ -625,6 +636,19 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         return false;
     }
 
+    public QueryStringQueryBuilder autoGenerateSynonymsPhraseQuery(boolean value) {
+        this.autoGenerateSynonymsPhraseQuery = value;
+        return this;
+    }
+
+    /**
+     * Whether phrase queries should be automatically generated for multi terms synonyms.
+     * Defaults to <tt>true</tt>.
+     */
+    public boolean autoGenerateSynonymsPhraseQuery() {
+        return autoGenerateSynonymsPhraseQuery;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -682,6 +706,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             builder.field(TIME_ZONE_FIELD.getPreferredName(), this.timeZone.getID());
         }
         builder.field(ESCAPE_FIELD.getPreferredName(), this.escape);
+        builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -714,6 +739,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         String fuzzyRewrite = null;
         String rewrite = null;
         Map<String, Float> fieldsAndWeights = new HashMap<>();
+        boolean autoGenerateSynonymsPhraseQuery = true;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -799,6 +825,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                     }
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
+                } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName)) {
+                    autoGenerateSynonymsPhraseQuery = parser.booleanValue();
                 } else if (AUTO_GENERATE_PHRASE_QUERIES_FIELD.match(currentFieldName)) {
                     // ignore, deprecated setting
                 } else if (LOWERCASE_EXPANDED_TERMS_FIELD.match(currentFieldName)) {
@@ -849,6 +877,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryStringQuery.timeZone(timeZone);
         queryStringQuery.boost(boost);
         queryStringQuery.queryName(queryName);
+        queryStringQuery.autoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
         return queryStringQuery;
     }
 
@@ -882,7 +911,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 timeZone == null ? other.timeZone == null : other.timeZone != null &&
                 Objects.equals(timeZone.getID(), other.timeZone.getID()) &&
                 Objects.equals(escape, other.escape) &&
-                Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates);
+                Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&
+                Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery);
     }
 
     @Override
@@ -891,7 +921,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 quoteFieldSuffix, allowLeadingWildcard, analyzeWildcard,
                 enablePositionIncrements, fuzziness, fuzzyPrefixLength,
                 fuzzyMaxExpansions, fuzzyRewrite, phraseSlop, type, tieBreaker, rewrite, minimumShouldMatch, lenient,
-                timeZone == null ? 0 : timeZone.getID(), escape, maxDeterminizedStates);
+                timeZone == null ? 0 : timeZone.getID(), escape, maxDeterminizedStates, autoGenerateSynonymsPhraseQuery);
     }
 
     @Override
@@ -910,20 +940,19 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 queryParser = new QueryStringQueryParser(context, defaultField, isLenient);
             }
         } else if (fieldsAndWeights.size() > 0) {
-            final Map<String, Float> resolvedFields = QueryStringQueryParser.resolveMappingFields(context, fieldsAndWeights);
+            final Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);
             queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
         } else {
-            // Expand to all fields if:
-            // - The index default search field is "*"
-            // - The index default search field is "_all" and _all is disabled
-            // TODO the index default search field should be "*" for new indices.
-            if (Regex.isMatchAllPattern(context.defaultField()) ||
-                    (context.getMapperService().allEnabled() == false && "_all".equals(context.defaultField()))) {
-                // Automatically determine the fields from the index mapping.
-                // Automatically set leniency to "true" if unset so mismatched fields don't cause exceptions;
+            String defaultField = context.defaultField();
+            if (context.getMapperService().allEnabled() == false &&
+                    AllFieldMapper.NAME.equals(defaultField)) {
+                // For indices created before 6.0 with _all disabled
+                defaultField = "*";
+            }
+            if (Regex.isMatchAllPattern(defaultField)) {
                 queryParser = new QueryStringQueryParser(context, lenient == null ? true : lenient);
             } else {
-                queryParser = new QueryStringQueryParser(context, context.defaultField(), isLenient);
+                queryParser = new QueryStringQueryParser(context, defaultField, isLenient);
             }
         }
 
@@ -963,6 +992,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryParser.setMultiTermRewriteMethod(QueryParsers.parseRewriteMethod(this.rewrite));
         queryParser.setTimeZone(timeZone);
         queryParser.setMaxDeterminizedStates(maxDeterminizedStates);
+        queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
 
         Query query;
         try {

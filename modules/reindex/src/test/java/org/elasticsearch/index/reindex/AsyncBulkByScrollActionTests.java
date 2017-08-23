@@ -124,7 +124,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private PlainActionFuture<BulkByScrollResponse> listener;
     private String scrollId;
     private TaskManager taskManager;
-    private WorkingBulkByScrollTask testTask;
+    private BulkByScrollTask testTask;
+    private WorkerBulkByScrollTaskState worker;
     private Map<String, String> expectedHeaders = new HashMap<>();
     private DiscoveryNode localNode;
     private TaskId taskId;
@@ -141,7 +142,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         listener = new PlainActionFuture<>();
         scrollId = null;
         taskManager = new TaskManager(Settings.EMPTY);
-        testTask = (WorkingBulkByScrollTask) taskManager.register("don'tcare", "hereeither", testRequest);
+        testTask = (BulkByScrollTask) taskManager.register("don'tcare", "hereeither", testRequest);
+        testTask.setWorker(testRequest.getRequestsPerSecond(), null);
+        worker = testTask.getWorkerState();
 
         localNode = new DiscoveryNode("thenode", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         taskId = new TaskId(localNode.getId(), testTask.getId());
@@ -309,7 +312,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      * Mimicks a ThreadPool rejecting execution of the task.
      */
     public void testThreadPoolRejectionsAbortRequest() throws Exception {
-        testTask.rethrottle(1);
+        worker.rethrottle(1);
         setupClient(new TestThreadPool(getTestName()) {
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
@@ -439,7 +442,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         firstSearchRequest.scroll(timeValueSeconds(10));
 
         // Set throttle to 1 request per second to make the math simpler
-        testTask.rethrottle(1f);
+        worker.rethrottle(1f);
         // Make the last batch look nearly instant but have 100 documents
         TimeValue lastBatchStartTime = timeValueNanos(System.nanoTime());
         TimeValue now = timeValueNanos(lastBatchStartTime.nanos() + 1);
@@ -459,7 +462,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             assertEquals(99, capturedDelay.get().seconds());
         } else {
             // Let's rethrottle between the starting the scroll and getting the response
-            testTask.rethrottle(10f);
+            worker.rethrottle(10f);
             client.lastScroll.get().listener.onResponse(searchResponse);
             // The delay uses the new throttle
             assertEquals(9, capturedDelay.get().seconds());
@@ -624,7 +627,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         long total = randomIntBetween(0, Integer.MAX_VALUE);
         ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), total, emptyList(), null);
         // Use a long delay here so the test will time out if the cancellation doesn't reschedule the throttled task
-        testTask.rethrottle(1);
+        worker.rethrottle(1);
         simulateScrollResponse(action, timeValueNanos(System.nanoTime()), 1000, response);
 
         // Now that we've got our cancel we'll just verify that it all came through all right
@@ -694,7 +697,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
 
         @Override
-        public DummyAbstractBulkByScrollRequest forSlice(TaskId slicingTask, SearchRequest slice) {
+        public DummyAbstractBulkByScrollRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
             throw new UnsupportedOperationException();
         }
 

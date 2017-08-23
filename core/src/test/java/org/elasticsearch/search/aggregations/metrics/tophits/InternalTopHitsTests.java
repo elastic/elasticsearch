@@ -247,4 +247,44 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             return comparator.reversed();
         }
     }
+
+    @Override
+    protected InternalTopHits mutateInstance(InternalTopHits instance) {
+        String name = instance.getName();
+        int from = instance.getFrom();
+        int size = instance.getSize();
+        TopDocs topDocs = instance.getTopDocs();
+        SearchHits searchHits = instance.getHits();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 5)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            from += between(1, 100);
+            break;
+        case 2:
+            size += between(1, 100);
+            break;
+        case 3:
+            topDocs = new TopDocs(topDocs.totalHits + between(1, 100), topDocs.scoreDocs, topDocs.getMaxScore() + randomFloat());
+            break;
+        case 4:
+            searchHits = new SearchHits(searchHits.getHits(), searchHits.totalHits + between(1, 100),
+                    searchHits.getMaxScore() + randomFloat());
+            break;
+        case 5:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalTopHits(name, from, size, topDocs, searchHits, pipelineAggregators, metaData);
+    }
 }

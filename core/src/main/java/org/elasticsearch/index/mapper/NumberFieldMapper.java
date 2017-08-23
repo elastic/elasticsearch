@@ -36,6 +36,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -43,6 +44,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -162,12 +164,25 @@ public class NumberFieldMapper extends FieldMapper {
         HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
             @Override
             Float parse(Object value, boolean coerce) {
-                return (Float) FLOAT.parse(value, false);
+                final float result;
+
+                if (value instanceof Number) {
+                    result = ((Number) value).floatValue();
+                } else {
+                    if (value instanceof BytesRef) {
+                        value = ((BytesRef) value).utf8ToString();
+                    }
+                    result = Float.parseFloat(value.toString());
+                }
+                validateParsed(result);
+                return result;
             }
 
             @Override
             Float parse(XContentParser parser, boolean coerce) throws IOException {
-                return parser.floatValue(coerce);
+                float parsed = parser.floatValue(coerce);
+                validateParsed(parsed);
+                return parsed;
             }
 
             @Override
@@ -231,22 +246,35 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return fields;
             }
+
+            private void validateParsed(float value) {
+                if (!Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value)))) {
+                    throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + value + "]");
+                }
+            }
         },
         FLOAT("float", NumericType.FLOAT) {
             @Override
             Float parse(Object value, boolean coerce) {
+                final float result;
+
                 if (value instanceof Number) {
-                    return ((Number) value).floatValue();
+                    result = ((Number) value).floatValue();
+                } else {
+                    if (value instanceof BytesRef) {
+                        value = ((BytesRef) value).utf8ToString();
+                    }
+                    result = Float.parseFloat(value.toString());
                 }
-                if (value instanceof BytesRef) {
-                    value = ((BytesRef) value).utf8ToString();
-                }
-                return Float.parseFloat(value.toString());
+                validateParsed(result);
+                return result;
             }
 
             @Override
             Float parse(XContentParser parser, boolean coerce) throws IOException {
-                return parser.floatValue(coerce);
+                float parsed = parser.floatValue(coerce);
+                validateParsed(parsed);
+                return parsed;
             }
 
             @Override
@@ -308,16 +336,26 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return fields;
             }
+
+            private void validateParsed(float value) {
+                if (!Float.isFinite(value)) {
+                    throw new IllegalArgumentException("[float] supports only finite values, but got [" + value + "]");
+                }
+            }
         },
         DOUBLE("double", NumericType.DOUBLE) {
             @Override
             Double parse(Object value, boolean coerce) {
-                return objectToDouble(value);
+                double parsed = objectToDouble(value);
+                validateParsed(parsed);
+                return parsed;
             }
 
             @Override
             Double parse(XContentParser parser, boolean coerce) throws IOException {
-                return parser.doubleValue(coerce);
+                double parsed = parser.doubleValue(coerce);
+                validateParsed(parsed);
+                return parsed;
             }
 
             @Override
@@ -378,6 +416,12 @@ public class NumberFieldMapper extends FieldMapper {
                     fields.add(new StoredField(name, value.doubleValue()));
                 }
                 return fields;
+            }
+
+            private void validateParsed(double value) {
+                if (!Double.isFinite(value)) {
+                    throw new IllegalArgumentException("[double] supports only finite values, but got [" + value + "]");
+                }
             }
         },
         BYTE("byte", NumericType.BYTE) {
@@ -602,8 +646,13 @@ public class NumberFieldMapper extends FieldMapper {
         LONG("long", NumericType.LONG) {
             @Override
             Long parse(Object value, boolean coerce) {
-                double doubleValue = objectToDouble(value);
+                if (value instanceof Long) {
+                    return (Long)value;
+                }
 
+                double doubleValue = objectToDouble(value);
+                // this check does not guarantee that value is inside MIN_VALUE/MAX_VALUE because values up to 9223372036854776832 will
+                // be equal to Long.MAX_VALUE after conversion to double. More checks ahead.
                 if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
                     throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
                 }
@@ -611,18 +660,9 @@ public class NumberFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                 }
 
-                if (value instanceof Number) {
-                    return ((Number) value).longValue();
-                }
-
                 // longs need special handling so we don't lose precision while parsing
                 String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
-
-                try {
-                    return Long.parseLong(stringValue);
-                } catch (NumberFormatException e) {
-                    return (long) Double.parseDouble(stringValue);
-                }
+                return Numbers.toLong(stringValue, coerce);
             }
 
             @Override
@@ -794,7 +834,6 @@ public class NumberFieldMapper extends FieldMapper {
 
             return doubleValue;
         }
-
     }
 
     public static final class NumberFieldType extends MappedFieldType {
@@ -855,7 +894,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder().numericType(type.numericType());
         }

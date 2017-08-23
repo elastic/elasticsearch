@@ -128,7 +128,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
         refresh();
         SearchResponse searchResponse = client().prepareSearch("index").setSize(numDocs * 2).addStoredField("_id").get();
 
-        Set<String> uniqueIds = new HashSet();
+        Set<String> uniqueIds = new HashSet<>();
         long dupCounter = 0;
         boolean found_duplicate_already = false;
         for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {

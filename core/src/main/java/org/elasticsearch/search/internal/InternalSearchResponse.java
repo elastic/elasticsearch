@@ -23,7 +23,7 @@ import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
@@ -34,7 +34,7 @@ import java.io.IOException;
 /**
  * {@link SearchResponseSections} subclass that can be serialized over the wire.
  */
-public class InternalSearchResponse extends SearchResponseSections implements Writeable, ToXContent {
+public class InternalSearchResponse extends SearchResponseSections implements Writeable, ToXContentFragment {
 
     public static InternalSearchResponse empty() {
         return new InternalSearchResponse(SearchHits.empty(), null, null, null, false, null, 1);

@@ -30,7 +30,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -44,7 +44,7 @@ import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDec
  * or if it is not unassigned, then which nodes it could possibly be relocated to.
  * It is an immutable class.
  */
-public final class ClusterAllocationExplanation implements ToXContent, Writeable {
+public final class ClusterAllocationExplanation implements ToXContentObject, Writeable {
 
     private final ShardRouting shardRouting;
     private final DiscoveryNode currentNode;

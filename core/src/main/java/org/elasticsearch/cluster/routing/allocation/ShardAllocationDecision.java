@@ -22,7 +22,8 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -40,7 +41,7 @@ import java.io.IOException;
  * then both {@link #getAllocateDecision()} and {@link #getMoveDecision()} will return
  * objects whose {@code isDecisionTaken()} method returns {@code false}.
  */
-public final class ShardAllocationDecision implements ToXContent, Writeable {
+public final class ShardAllocationDecision implements ToXContentFragment, Writeable {
     public static final ShardAllocationDecision NOT_TAKEN =
         new ShardAllocationDecision(AllocateUnassignedDecision.NOT_TAKEN, MoveDecision.NOT_TAKEN);
 

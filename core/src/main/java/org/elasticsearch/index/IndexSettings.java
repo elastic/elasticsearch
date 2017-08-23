@@ -23,6 +23,7 @@ import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -48,9 +49,21 @@ import java.util.function.Function;
  * be called for each settings update.
  */
 public final class IndexSettings {
-
-    public static final Setting<String> DEFAULT_FIELD_SETTING =
-        new Setting<>("index.query.default_field", AllFieldMapper.NAME, Function.identity(), Property.IndexScope);
+    public static final String DEFAULT_FIELD_SETTING_KEY = "index.query.default_field";
+    public static final Setting<String> DEFAULT_FIELD_SETTING;
+    static {
+        Function<Settings, String> defValue = settings -> {
+            final String defaultField;
+            if (settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) != null &&
+                    Version.indexCreated(settings).before(Version.V_6_0_0_alpha1)) {
+                defaultField = AllFieldMapper.NAME;
+            } else {
+                defaultField = "*";
+            }
+            return defaultField;
+        };
+        DEFAULT_FIELD_SETTING = new Setting<>(DEFAULT_FIELD_SETTING_KEY, defValue, Function.identity(), Property.IndexScope, Property.Dynamic);
+    }
     public static final Setting<Boolean> QUERY_STRING_LENIENT_SETTING =
         Setting.boolSetting("index.query_string.lenient", false, Property.IndexScope);
     public static final Setting<Boolean> QUERY_STRING_ANALYZE_WILDCARD =

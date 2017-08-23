@@ -19,7 +19,7 @@ GET /_search
 // CONSOLE
 
 Note, `message` is the name of a field, you can substitute the name of
-any field (including `_all`) instead.
+any field instead.
 
 [[query-dsl-match-query-boolean]]
 ==== match
@@ -142,6 +142,41 @@ GET /_search
 IMPORTANT: The `cutoff_frequency` option operates on a per-shard-level. This means
 that when trying it out on test indexes with low document numbers you
 should follow the advice in {defguide}/relevance-is-broken.html[Relevance is broken].
+
+[[query-dsl-match-query-synonyms]]
+===== Synonyms
+
+The `match` query supports multi-terms synonym expansion with the <<analysis-synonym-graph-tokenfilter,
+synonym_graph>> token filter. When this filter is used, the parser creates a phrase query for each multi-terms synonyms.
+For example, the following synonym: `"ny, new york" would produce:`
+
+`(ny OR ("new york"))`
+
+It is also possible to match multi terms synonyms with conjunctions instead:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+   "query": {
+       "match" : {
+           "message": {
+               "query" : "ny city",
+               "auto_generate_synonyms_phrase_query" : false
+           }
+       }
+   }
+}
+--------------------------------------------------
+// CONSOLE
+
+The example above creates a boolean query:
+
+`(ny OR (new AND york)) city)`
+
+that matches documents with the term `ny` or the conjunction `new AND york`.
+By default the parameter `auto_generate_synonyms_phrase_query` is set to `true`.
+
 
 .Comparison to query_string / field
 **************************************************

@@ -19,15 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.analyze;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
-import java.util.Base64;
 
 
 public class AnalyzeRequestTests extends ESTestCase {
@@ -90,22 +87,6 @@ public class AnalyzeRequestTests extends ESTestCase {
                 assertEquals(request.charFilters().get(0).name, serialized.charFilters().get(0).name);
                 assertEquals(request.normalizer(), serialized.normalizer());
             }
-        }
-    }
-
-    public void testSerializationBwc() throws IOException {
-        // AnalyzeRequest serializedRequest = new AnalyzeRequest("foo");
-        // serializedRequest.text("text");
-        // serializedRequest.normalizer("normalizer");
-        // Using Version.V_6_0_0_beta1
-        final byte[] data = Base64.getDecoder().decode("AAABA2ZvbwEEdGV4dAAAAAAAAAABCm5vcm1hbGl6ZXI=");
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.V_5_4_0);
-        try (StreamInput in = StreamInput.wrap(data)) {
-            in.setVersion(version);
-            AnalyzeRequest request = new AnalyzeRequest();
-            request.readFrom(in);
-            assertEquals("foo", request.index());
-            assertNull("normalizer support after 6.0.0", request.normalizer());
         }
     }
 }

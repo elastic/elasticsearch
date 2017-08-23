@@ -23,12 +23,8 @@ import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.index.analysis.ArabicStemTokenFilterFactory;
-import org.elasticsearch.index.analysis.BrazilianStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.ClassicTokenizerFactory;
-import org.elasticsearch.index.analysis.CzechStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
-import org.elasticsearch.index.analysis.GermanStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
 import org.elasticsearch.index.analysis.KeywordTokenizerFactory;
 import org.elasticsearch.index.analysis.LetterTokenizerFactory;
@@ -114,16 +110,16 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         // exposed in ES
         .put("apostrophe",                MovedToAnalysisCommon.class)
         .put("arabicnormalization",       MovedToAnalysisCommon.class)
-        .put("arabicstem",                ArabicStemTokenFilterFactory.class)
+        .put("arabicstem",                MovedToAnalysisCommon.class)
         .put("asciifolding",              MovedToAnalysisCommon.class)
-        .put("brazilianstem",             BrazilianStemTokenFilterFactory.class)
+        .put("brazilianstem",             MovedToAnalysisCommon.class)
         .put("bulgarianstem",             MovedToAnalysisCommon.class)
         .put("cjkbigram",                 MovedToAnalysisCommon.class)
         .put("cjkwidth",                  MovedToAnalysisCommon.class)
         .put("classic",                   MovedToAnalysisCommon.class)
         .put("commongrams",               MovedToAnalysisCommon.class)
         .put("commongramsquery",          MovedToAnalysisCommon.class)
-        .put("czechstem",                 CzechStemTokenFilterFactory.class)
+        .put("czechstem",                 MovedToAnalysisCommon.class)
         .put("decimaldigit",              MovedToAnalysisCommon.class)
         .put("delimitedpayload",          MovedToAnalysisCommon.class)
         .put("dictionarycompoundword",    MovedToAnalysisCommon.class)
@@ -136,7 +132,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("frenchminimalstem",         MovedToAnalysisCommon.class)
         .put("galicianminimalstem",       MovedToAnalysisCommon.class)
         .put("galicianstem",              MovedToAnalysisCommon.class)
-        .put("germanstem",                GermanStemTokenFilterFactory.class)
+        .put("germanstem",                MovedToAnalysisCommon.class)
         .put("germanlightstem",           MovedToAnalysisCommon.class)
         .put("germanminimalstem",         MovedToAnalysisCommon.class)
         .put("germannormalization",       MovedToAnalysisCommon.class)

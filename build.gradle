@@ -64,10 +64,10 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
 
 /* Introspect all versions of ES that may be tested agains for backwards
  * compatibility. It is *super* important that this logic is the same as the
- * logic in VersionUtils.java, modulo alphas, betas, and rcs which are ignored
- * in gradle because they don't have any backwards compatibility guarantees
- * but are not ignored in VersionUtils.java because the tests expect them not
- * to be. */
+ * logic in VersionUtils.java, throwing out alphas because they don't have any
+ * backwards compatibility guarantees and only keeping the latest beta or rc
+ * in a branch if there are only betas and rcs in the branch so we have
+ * *something* to test against. */
 Version currentVersion = Version.fromString(VersionProperties.elasticsearch.minus('-SNAPSHOT'))
 int prevMajor = currentVersion.major - 1
 File versionFile = file('core/src/main/java/org/elasticsearch/Version.java')
@@ -84,11 +84,20 @@ for (String line : versionLines) {
     int major = Integer.parseInt(match.group(1))
     int minor = Integer.parseInt(match.group(2))
     int bugfix = Integer.parseInt(match.group(3))
-    Version foundVersion = new Version(major, minor, bugfix, false)
+    String suffix = (match.group(4) ?: '').replace('_', '-')
+    Version foundVersion = new Version(major, minor, bugfix, suffix, false)
     if (currentVersion != foundVersion
-        && (major == prevMajor || major == currentVersion.major)
-        && (versions.isEmpty() || versions.last() != foundVersion)) {
-      versions.add(foundVersion)
+        && (major == prevMajor || major == currentVersion.major)) {
+      if (versions.isEmpty() || versions.last() != foundVersion) {
+        versions.add(foundVersion)
+      } else {
+        // Replace the earlier betas with later ones
+        Version last = versions.set(versions.size() - 1, foundVersion)
+        if (last.suffix == '') {
+          throw new InvalidUserDataException("Found two equal versions but"
+              + " the first one [$last] wasn't a beta.")
+        }
+      }
       if (major == prevMajor && minor > lastPrevMinor) {
         prevMinorIndex = versions.size() - 1
         lastPrevMinor = minor
@@ -106,10 +115,10 @@ if (currentVersion.bugfix == 0) {
   // unreleased version of closest branch. So for those cases, the version includes -SNAPSHOT,
   // and the bwc distribution will checkout and build that version.
   Version last = versions[-1]
-  versions[-1] = new Version(last.major, last.minor, last.bugfix, true)
+  versions[-1] = new Version(last.major, last.minor, last.bugfix, last.suffix, true)
   if (last.bugfix == 0) {
     versions[-2] = new Version(
-        versions[-2].major, versions[-2].minor, versions[-2].bugfix, true)
+        versions[-2].major, versions[-2].minor, versions[-2].bugfix, versions[-2].suffix, true)
   }
 }
 

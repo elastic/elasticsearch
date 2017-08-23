@@ -38,11 +38,11 @@ install_plugin() {
 
     assert_file_exist "$path"
 
-    if [ ! -z "$CONF_DIR" ] ; then
+    if [ ! -z "$ES_PATH_CONF" ] ; then
         if is_dpkg; then
-            echo "CONF_DIR=$CONF_DIR" >> /etc/default/elasticsearch;
+            echo "ES_PATH_CONF=$ES_PATH_CONF" >> /etc/default/elasticsearch;
         elif is_rpm; then
-            echo "CONF_DIR=$CONF_DIR" >> /etc/sysconfig/elasticsearch;
+            echo "ES_PATH_CONF=$ES_PATH_CONF" >> /etc/sysconfig/elasticsearch;
         fi
     fi
 

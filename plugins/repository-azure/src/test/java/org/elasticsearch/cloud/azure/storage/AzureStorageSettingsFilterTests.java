@@ -34,6 +34,9 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.contains;
 
+/**
+ * TODO as we moved credentials to secure settings, we don't need anymore to keep this test in 7.x
+ */
 public class AzureStorageSettingsFilterTests extends ESTestCase {
     static final Settings settings = Settings.builder()
             .put("cloud.azure.storage.azure1.account", "myaccount1")
@@ -46,7 +49,7 @@ public class AzureStorageSettingsFilterTests extends ESTestCase {
             .build();
 
     public void testSettingsFiltering() throws IOException {
-        AzureRepositoryPlugin p = new AzureRepositoryPlugin();
+        AzureRepositoryPlugin p = new AzureRepositoryPlugin(settings);
         SettingsModule module = new SettingsModule(Settings.EMPTY, p.getSettings(), p.getSettingsFilter());
         SettingsFilter settingsFilter = ModuleTestCase.bindAndGetInstance(module, SettingsFilter.class);
 

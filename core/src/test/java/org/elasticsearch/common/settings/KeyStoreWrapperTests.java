@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -66,5 +67,10 @@ public class KeyStoreWrapperTests extends ESTestCase {
             }
             assertEquals(-1, stream.read()); // nothing left
         }
+    }
+
+    public void testKeystoreSeed() throws Exception {
+        KeyStoreWrapper keystore = KeyStoreWrapper.create(new char[0]);
+        assertTrue(keystore.getSettingNames().contains(KeyStoreWrapper.SEED_SETTING.getKey()));
     }
 }

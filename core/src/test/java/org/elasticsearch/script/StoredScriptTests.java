@@ -30,6 +30,8 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -221,5 +223,28 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);
         }
+    }
+
+    @Override
+    protected StoredScriptSource mutateInstance(StoredScriptSource instance) throws IOException {
+        String source = instance.getSource();
+        String lang = instance.getLang();
+        Map<String, String> options = instance.getOptions();
+
+        switch (between(0, 2)) {
+        case 0:
+            source = randomAlphaOfLength(randomIntBetween(4, 16383));
+            break;
+        case 1:
+            lang = randomAlphaOfLengthBetween(1, 20);
+            break;
+        case 2:
+            options = new HashMap<>(options);
+            options.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new StoredScriptSource(lang, source, options);
     }
 }

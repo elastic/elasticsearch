@@ -119,6 +119,10 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         if (randomBoolean()) {
             matchQuery.cutoffFrequency((float) 10 / randomIntBetween(1, 100));
         }
+
+        if (randomBoolean()) {
+            matchQuery.autoGenerateSynonymsPhraseQuery(randomBoolean());
+        }
         return matchQuery;
     }
 
@@ -274,6 +278,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 "      \"fuzzy_transpositions\" : true,\n" +
                 "      \"lenient\" : false,\n" +
                 "      \"zero_terms_query\" : \"ALL\",\n" +
+                "      \"auto_generate_synonyms_phrase_query\" : true,\n" +
                 "      \"boost\" : 1.0\n" +
                 "    }\n" +
                 "  }\n" +
@@ -302,6 +307,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 "      \"fuzzy_transpositions\" : true,\n" +
                 "      \"lenient\" : false,\n" +
                 "      \"zero_terms_query\" : \"NONE\",\n" +
+                "      \"auto_generate_synonyms_phrase_query\" : true,\n" +
                 "      \"boost\" : 1.0\n" +
                 "    }\n" +
                 "  }\n" +
@@ -333,6 +339,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 "      \"fuzzy_transpositions\" : true,\n" +
                 "      \"lenient\" : false,\n" +
                 "      \"zero_terms_query\" : \"NONE\",\n" +
+                "      \"auto_generate_synonyms_phrase_query\" : true,\n" +
                 "      \"boost\" : 1.0\n" +
                 "    }\n" +
                 "  }\n" +

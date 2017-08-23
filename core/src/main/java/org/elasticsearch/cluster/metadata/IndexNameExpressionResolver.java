@@ -146,25 +146,29 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         return names;
     }
 
-    public Set<String> aliases(ClusterState state, IndicesOptions options, List<String> indexExpressions) {
-        if (indexExpressions == null || indexExpressions.size() == 0) {
-            throw new IllegalArgumentException("Alias list should be non-empty");
-        }
-
-        final Context context = new Context(state, options);
-        final MetaData metaData = context.getState().metaData();
-
-        List<String> expressions = indexExpressions;
-        for (ExpressionResolver expressionResolver : expressionResolvers) {
-            expressions = expressionResolver.resolve(context, expressions);
-        }
-
-        return expressions
+    // @todo look at indexNameExpressionResolver.WildcardExpressionResolver.resolve for wildcard validation
+    // @todo unit tests
+    /**
+     * Translates the provided alias expressions into actual aliases, properly deduplicated
+     * @param metaData cluster metadata
+     * @param aliasExpressions expressions that can be resolved to alias names
+     */
+    public Set<String> resolveAliases(MetaData metaData, List<String> aliasExpressions) {
+        return aliasExpressions
             .stream()
-            .filter(alias -> {
-                final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(alias);
-                return aliasOrIndex != null && aliasOrIndex.isAlias();
-            })
+            .distinct()
+            .map(alias -> getMatchedAliases(metaData, alias))
+            .flatMap(Collection::stream)
+            .collect(Collectors.toSet());
+    }
+
+    private Set<String> getMatchedAliases(MetaData metaData, String wildcard) {
+        return metaData.getAliasAndIndexLookup()
+            .entrySet()
+            .stream()
+            .filter(e -> e.getValue().isAlias())
+            .filter(e -> Regex.simpleMatch(wildcard, e.getKey()))
+            .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
     }
 

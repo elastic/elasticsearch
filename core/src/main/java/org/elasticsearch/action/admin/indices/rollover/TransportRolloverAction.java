@@ -42,7 +42,6 @@ import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -55,7 +54,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.Locale;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -108,20 +106,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     @Override
     protected void masterOperation(final RolloverRequest rolloverRequest, final ClusterState state,
                                    final ActionListener<RolloverResponse> listener) {
+        final Set<SingleAliasRolloverRequest> requests = createSingleAliasRequests(state, rolloverRequest);
 
-        final MetaData metaData = state.metaData();
-
-        final Set<SingleAliasRolloverRequest> requests = rolloverRequest.getAliases()
-            .stream()
-            .distinct()
-            .map(alias -> getMatchedAliases(metaData, alias))
-            .flatMap(Collection::stream)
-            .map(alias -> createTask(metaData, alias, rolloverRequest.getNewIndexName(), state))
-            .collect(Collectors.toSet());
-
-        // @todo look at indexNameExpressionResolver.WildcardExpressionResolver.resolve for wildcard validation
-        // @todo validate at least 1 alias exists
-        // @todo in not wildcard - validate that alias exists
+        if (requests.size() == 0) {
+            throw new IllegalArgumentException("No aliases for [" + String.join(",", rolloverRequest.getAliases()) + "] found");
+        }
 
         final ActionListener<RolloverResponse.SingleAliasRolloverResponse> aggListener = new AggRolloverResponseActionListener(
             requests.size(), listener);
@@ -134,13 +123,12 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
     }
 
-    private Set<String> getMatchedAliases(MetaData metaData, String wildcard) {
-        return metaData.getAliasAndIndexLookup()
-            .entrySet()
+    private Set<SingleAliasRolloverRequest> createSingleAliasRequests(final ClusterState state, final RolloverRequest rolloverRequest) {
+        final MetaData metaData = state.metaData();
+        return indexNameExpressionResolver
+            .resolveAliases(metaData, rolloverRequest.getAliases())
             .stream()
-            .filter(e -> e.getValue().isAlias())
-            .filter(e -> Regex.simpleMatch(wildcard, e.getKey()))
-            .map(Map.Entry::getKey)
+            .map(alias -> createTask(metaData, alias, rolloverRequest.getNewIndexName(), state))
             .collect(Collectors.toSet());
     }
 

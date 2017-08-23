@@ -20,7 +20,6 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
@@ -87,6 +86,7 @@ import org.elasticsearch.plugins.SearchPlugin.AggregationSpec;
 import org.elasticsearch.plugins.SearchPlugin.FetchPhaseConstructionContext;
 import org.elasticsearch.plugins.SearchPlugin.PipelineAggregationSpec;
 import org.elasticsearch.plugins.SearchPlugin.QuerySpec;
+import org.elasticsearch.plugins.SearchPlugin.RescorerSpec;
 import org.elasticsearch.plugins.SearchPlugin.ScoreFunctionSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtensionSpec;
@@ -231,7 +231,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -246,7 +246,6 @@ import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -529,17 +528,15 @@ public class SearchModule {
     }
 
     private void registerRescorers(List<SearchPlugin> plugins) {
-        registerRescorer(new SearchExtensionSpec<>(
-                QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, QueryRescorerBuilder::fromXContent));
-        registerFromPlugin(plugins, SearchPlugin::getRescores, this::registerRescorer);
+        registerRescorer(new RescorerSpec<>(QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, QueryRescorerBuilder::fromXContent));
+        registerFromPlugin(plugins, SearchPlugin::getRescorers, this::registerRescorer);
     }
 
-    private void registerRescorer(
-            SearchExtensionSpec<RescoreBuilder<?>, CheckedFunction<XContentParser, RescoreBuilder<?>, IOException>> spec) {
+    private void registerRescorer(RescorerSpec<?> spec) {
         if (false == transportClient) {
-            namedXContents.add(new NamedXContentRegistry.Entry(RescoreBuilder.class, spec.getName(), (p, c) -> spec.getParser().apply(p)));
+            namedXContents.add(new NamedXContentRegistry.Entry(RescorerBuilder.class, spec.getName(), (p, c) -> spec.getParser().apply(p)));
         }
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RescoreBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RescorerBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
     }
 
     private void registerSorts() {

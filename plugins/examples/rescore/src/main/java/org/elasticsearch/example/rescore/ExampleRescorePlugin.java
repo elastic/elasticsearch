@@ -17,35 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.search.rescore;
+package org.elasticsearch.example.rescore;
 
-public class RescoreSearchContext {
-    public static final int DEFAULT_WINDOW_SIZE = 10;
-    
-    private final String type;
-    private final Rescorer rescorer;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 
-    private int windowSize = DEFAULT_WINDOW_SIZE;
+import java.util.List;
 
-    public RescoreSearchContext(String type, Rescorer rescorer) {
-        this.type = type;
-        this.rescorer = rescorer;
+import static java.util.Collections.singletonList;
+
+public class ExampleRescorePlugin extends Plugin implements SearchPlugin {
+    @Override
+    public List<RescorerSpec<?>> getRescorers() {
+        return singletonList(
+                new RescorerSpec<>(ExampleRescoreBuilder.NAME, ExampleRescoreBuilder::new, ExampleRescoreBuilder::fromXContent));
     }
-
-    public Rescorer rescorer() {
-        return rescorer;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public void setWindowSize(int windowSize) {
-        this.windowSize = windowSize;
-    }
-
-    public int window() {
-        return windowSize;
-    }
-    
 }

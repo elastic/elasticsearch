@@ -48,7 +48,7 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggre
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
-import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
@@ -131,7 +131,7 @@ public interface SearchPlugin {
     /**
      * The next {@link Rescorer}s added by this plugin.
      */
-    default List<SearchExtensionSpec<RescoreBuilder<?>, CheckedFunction<XContentParser, RescoreBuilder<?>, IOException>>> getRescores() {
+    default List<RescorerSpec<?>> getRescorers() {
         return emptyList();
     }
     /**
@@ -364,6 +364,17 @@ public interface SearchPlugin {
         }
 
         public SearchExtSpec(String name, Writeable.Reader<? extends T> reader, CheckedFunction<XContentParser, T, IOException> parser) {
+            super(name, reader, parser);
+        }
+    }
+
+    class RescorerSpec<T extends RescorerBuilder<T>> extends SearchExtensionSpec<T, CheckedFunction<XContentParser, T, IOException>> {
+        public RescorerSpec(ParseField name, Writeable.Reader<? extends T> reader,
+                CheckedFunction<XContentParser, T, IOException> parser) {
+            super(name, reader, parser);
+        }
+
+        public RescorerSpec(String name, Writeable.Reader<? extends T> reader, CheckedFunction<XContentParser, T, IOException> parser) {
             super(name, reader, parser);
         }
     }

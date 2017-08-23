@@ -69,16 +69,4 @@ public interface Rescorer {
      * {@link SearchType#DFS_QUERY_THEN_FETCH}
      */
     void extractTerms(SearchContext context, RescoreSearchContext rescoreContext, Set<Term> termsSet);
-
-    /*
-     * TODO: At this point we only have one implementation which modifies the
-     * TopDocs given. Future implementations might return actual results that
-     * contain information about the rescore context. For example a pair wise
-     * reranker might return the feature vector for the top N window in order to
-     * merge results on the callers side. For now we don't have a return type at
-     * all since something like this requires a more general refactoring how
-     * documents are merged since in such a case we don't really have a score
-     * per document rather a "X is more relevant than Y" relation
-     */
-
 }

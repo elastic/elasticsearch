@@ -161,11 +161,8 @@ public final class QueryRescorer implements Rescorer {
     }
 
     public static class QueryRescoreContext extends RescoreSearchContext {
-
-        static final int DEFAULT_WINDOW_SIZE = 10;
-
         public QueryRescoreContext(QueryRescorer rescorer) {
-            super(NAME, DEFAULT_WINDOW_SIZE, rescorer);
+            super(NAME, rescorer);
             this.scoreMode = QueryRescoreMode.Total;
         }
 

@@ -31,31 +31,30 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
- * The abstract base builder for instances of {@link RescoreBuilder}.
+ * The abstract base builder for instances of {@link RescorerBuilder}.
  */
-public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>>
-        implements NamedWriteable, ToXContentObject, Rewriteable<RescoreBuilder<RB>> {
+public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
+        implements NamedWriteable, ToXContentObject, Rewriteable<RescorerBuilder<RB>> {
 
     protected Integer windowSize;
 
-    private static ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
+    private static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
 
     /**
      * Construct an empty RescoreBuilder.
      */
-    public RescoreBuilder() {
+    public RescorerBuilder() {
     }
 
     /**
      * Read from a stream.
      */
-    protected RescoreBuilder(StreamInput in) throws IOException {
+    protected RescorerBuilder(StreamInput in) throws IOException {
         windowSize = in.readOptionalVInt();
     }
 
@@ -77,9 +76,9 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>>
         return windowSize;
     }
 
-    public static RescoreBuilder<?> parseFromXContent(XContentParser parser) throws IOException {
+    public static RescorerBuilder<?> parseFromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
-        RescoreBuilder<?> rescorer = null;
+        RescorerBuilder<?> rescorer = null;
         Integer windowSize = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -92,7 +91,7 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>>
                     throw new ParsingException(parser.getTokenLocation(), "rescore doesn't support [" + fieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                rescorer = parser.namedObject(RescoreBuilder.class, fieldName, null);
+                rescorer = parser.namedObject(RescorerBuilder.class, fieldName, null);
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "] after [" + fieldName + "]");
             }
@@ -119,7 +118,7 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>>
 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 
-    public abstract QueryRescoreContext build(QueryShardContext context) throws IOException;
+    public abstract RescoreSearchContext build(QueryShardContext context) throws IOException;
 
     public static QueryRescorerBuilder queryRescorer(QueryBuilder queryBuilder) {
         return new QueryRescorerBuilder(queryBuilder);
@@ -139,7 +138,7 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>>
             return false;
         }
         @SuppressWarnings("rawtypes")
-        RescoreBuilder other = (RescoreBuilder) obj;
+        RescorerBuilder other = (RescorerBuilder) obj;
         return Objects.equals(windowSize, other.windowSize);
     }
 

@@ -50,7 +50,7 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -168,7 +168,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private SuggestBuilder suggestBuilder;
 
-    private List<RescoreBuilder> rescoreBuilders;
+    private List<RescorerBuilder> rescoreBuilders;
 
     private List<IndexBoost> indexBoosts = new ArrayList<>();
 
@@ -202,7 +202,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         postQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         if (in.readBoolean()) {
-            rescoreBuilders = in.readNamedWriteableList(RescoreBuilder.class);
+            rescoreBuilders = in.readNamedWriteableList(RescorerBuilder.class);
         }
         if (in.readBoolean()) {
             scriptFields = in.readList(ScriptField::new);
@@ -621,7 +621,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return suggestBuilder;
     }
 
-    public SearchSourceBuilder addRescorer(RescoreBuilder<?> rescoreBuilder) {
+    public SearchSourceBuilder addRescorer(RescorerBuilder<?> rescoreBuilder) {
             if (rescoreBuilders == null) {
                 rescoreBuilders = new ArrayList<>();
             }
@@ -653,7 +653,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Gets the bytes representing the rescore builders for this request.
      */
-    public List<RescoreBuilder> rescores() {
+    public List<RescorerBuilder> rescores() {
         return rescoreBuilders;
     }
 
@@ -891,7 +891,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         List<SortBuilder<?>> sorts = Rewriteable.rewrite(this.sorts, context);
 
-        List<RescoreBuilder> rescoreBuilders = Rewriteable.rewrite(this.rescoreBuilders, context);
+        List<RescorerBuilder> rescoreBuilders = Rewriteable.rewrite(this.rescoreBuilders, context);
         HighlightBuilder highlightBuilder = this.highlightBuilder;
         if (highlightBuilder != null) {
             highlightBuilder = this.highlightBuilder.rewrite(context);
@@ -919,7 +919,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     private SearchSourceBuilder shallowCopy(QueryBuilder queryBuilder, QueryBuilder postQueryBuilder,
                                             AggregatorFactories.Builder aggregations, SliceBuilder slice, List<SortBuilder<?>> sorts,
-                                            List<RescoreBuilder> rescoreBuilders, HighlightBuilder highlightBuilder) {
+                                            List<RescorerBuilder> rescoreBuilders, HighlightBuilder highlightBuilder) {
         SearchSourceBuilder rewrittenBuilder = new SearchSourceBuilder();
         rewrittenBuilder.aggregations = aggregations;
         rewrittenBuilder.explain = explain;
@@ -1034,7 +1034,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     sorts = new ArrayList<>(SortBuilder.fromXContent(parser));
                 } else if (RESCORE_FIELD.match(currentFieldName)) {
                     rescoreBuilders = new ArrayList<>();
-                    rescoreBuilders.add(RescoreBuilder.parseFromXContent(parser));
+                    rescoreBuilders.add(RescorerBuilder.parseFromXContent(parser));
                 } else if (EXT_FIELD.match(currentFieldName)) {
                     extBuilders = new ArrayList<>();
                     String extSectionName = null;
@@ -1081,7 +1081,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (RESCORE_FIELD.match(currentFieldName)) {
                     rescoreBuilders = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        rescoreBuilders.add(RescoreBuilder.parseFromXContent(parser));
+                        rescoreBuilders.add(RescorerBuilder.parseFromXContent(parser));
                     }
                 } else if (STATS_FIELD.match(currentFieldName)) {
                     stats = new ArrayList<>();
@@ -1222,7 +1222,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
         if (rescoreBuilders != null) {
             builder.startArray(RESCORE_FIELD.getPreferredName());
-            for (RescoreBuilder<?> rescoreBuilder : rescoreBuilders) {
+            for (RescorerBuilder<?> rescoreBuilder : rescoreBuilders) {
                 rescoreBuilder.toXContent(builder, params);
             }
             builder.endArray();

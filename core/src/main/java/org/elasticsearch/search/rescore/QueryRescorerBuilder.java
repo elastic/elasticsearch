@@ -37,7 +37,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
-public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
+public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> {
     public static final String NAME = "query";
 
     private static final ParseField RESCORE_QUERY_FIELD = new ParseField("rescore_query");
@@ -246,7 +246,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
     }
 
     @Override
-    public RescoreBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+    public RescorerBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         QueryBuilder rewrite = queryBuilder.rewrite(ctx);
         if (rewrite == queryBuilder) {
             return this;

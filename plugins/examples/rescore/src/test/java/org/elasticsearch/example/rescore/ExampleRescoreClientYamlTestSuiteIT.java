@@ -1,3 +1,4 @@
+package org.elasticsearch.example.rescore;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -17,35 +18,22 @@
  * under the License.
  */
 
-package org.elasticsearch.search.rescore;
 
-public class RescoreSearchContext {
-    public static final int DEFAULT_WINDOW_SIZE = 10;
-    
-    private final String type;
-    private final Rescorer rescorer;
 
-    private int windowSize = DEFAULT_WINDOW_SIZE;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-    public RescoreSearchContext(String type, Rescorer rescorer) {
-        this.type = type;
-        this.rescorer = rescorer;
+public class ExampleRescoreClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    public ExampleRescoreClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
     }
 
-    public Rescorer rescorer() {
-        return rescorer;
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return ESClientYamlSuiteTestCase.createParameters();
     }
-
-    public String getType() {
-        return type;
-    }
-
-    public void setWindowSize(int windowSize) {
-        this.windowSize = windowSize;
-    }
-
-    public int window() {
-        return windowSize;
-    }
-    
 }
+

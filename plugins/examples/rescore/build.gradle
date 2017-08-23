@@ -17,35 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.search.rescore;
+apply plugin: 'elasticsearch.esplugin'
 
-public class RescoreSearchContext {
-    public static final int DEFAULT_WINDOW_SIZE = 10;
-    
-    private final String type;
-    private final Rescorer rescorer;
-
-    private int windowSize = DEFAULT_WINDOW_SIZE;
-
-    public RescoreSearchContext(String type, Rescorer rescorer) {
-        this.type = type;
-        this.rescorer = rescorer;
-    }
-
-    public Rescorer rescorer() {
-        return rescorer;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public void setWindowSize(int windowSize) {
-        this.windowSize = windowSize;
-    }
-
-    public int window() {
-        return windowSize;
-    }
-    
+esplugin {
+  name 'example-rescore'
+  description 'An example plugin implementing rescore'
+  classname 'org.elasticsearch.example.rescore.ExampleRescorePlugin'
 }
+
+test.enabled = false

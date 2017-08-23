@@ -55,7 +55,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
 
-public class QueryRescoreBuilderTests extends ESTestCase {
+public class QueryRescorerBuilderTests extends ESTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;
@@ -82,8 +82,8 @@ public class QueryRescoreBuilderTests extends ESTestCase {
      */
     public void testSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            RescoreBuilder<?> original = randomRescoreBuilder();
-            RescoreBuilder<?> deserialized = copy(original);
+            RescorerBuilder<?> original = randomRescoreBuilder();
+            RescorerBuilder<?> deserialized = copy(original);
             assertEquals(deserialized, original);
             assertEquals(deserialized.hashCode(), original.hashCode());
             assertNotSame(deserialized, original);
@@ -95,13 +95,13 @@ public class QueryRescoreBuilderTests extends ESTestCase {
      */
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            checkEqualsAndHashCode(randomRescoreBuilder(), this::copy, QueryRescoreBuilderTests::mutate);
+            checkEqualsAndHashCode(randomRescoreBuilder(), this::copy, QueryRescorerBuilderTests::mutate);
         }
     }
 
-    private RescoreBuilder<?> copy(RescoreBuilder<?> original) throws IOException {
+    private RescorerBuilder<?> copy(RescorerBuilder<?> original) throws IOException {
         return copyWriteable(original, namedWriteableRegistry,
-                namedWriteableRegistry.getReader(RescoreBuilder.class, original.getWriteableName()));
+                namedWriteableRegistry.getReader(RescorerBuilder.class, original.getWriteableName()));
     }
 
     /**
@@ -109,7 +109,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
      */
     public void testFromXContent() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            RescoreBuilder<?> rescoreBuilder = randomRescoreBuilder();
+            RescorerBuilder<?> rescoreBuilder = randomRescoreBuilder();
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
                 builder.prettyPrint();
@@ -120,7 +120,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
 
             XContentParser parser = createParser(shuffled);
             parser.nextToken();
-            RescoreBuilder<?> secondRescoreBuilder = RescoreBuilder.parseFromXContent(parser);
+            RescorerBuilder<?> secondRescoreBuilder = RescorerBuilder.parseFromXContent(parser);
             assertNotSame(rescoreBuilder, secondRescoreBuilder);
             assertEquals(rescoreBuilder, secondRescoreBuilder);
             assertEquals(rescoreBuilder.hashCode(), secondRescoreBuilder.hashCode());
@@ -176,7 +176,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 "}\n";
         {
             XContentParser parser = createParser(rescoreElement);
-            Exception e = expectThrows(ParsingException.class, () -> RescoreBuilder.parseFromXContent(parser));
+            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
             assertThat(e.getMessage(), containsString("Unknown RescoreBuilder [bad_rescorer_name]"));
         }
 
@@ -185,7 +185,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 "}\n";
         {
             XContentParser parser = createParser(rescoreElement);
-            Exception e = expectThrows(ParsingException.class, () -> RescoreBuilder.parseFromXContent(parser));
+            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
             assertEquals("rescore doesn't support [bad_fieldName]", e.getMessage());
         }
 
@@ -195,14 +195,14 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 "}\n";
         {
             XContentParser parser = createParser(rescoreElement);
-            Exception e = expectThrows(ParsingException.class, () -> RescoreBuilder.parseFromXContent(parser));
+            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
             assertEquals("unexpected token [START_ARRAY] after [query]", e.getMessage());
         }
 
         rescoreElement = "{ }";
         {
             XContentParser parser = createParser(rescoreElement);
-            Exception e = expectThrows(ParsingException.class, () -> RescoreBuilder.parseFromXContent(parser));
+            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
             assertEquals("missing rescore type", e.getMessage());
         }
 
@@ -212,7 +212,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 "}\n";
         {
             XContentParser parser = createParser(rescoreElement);
-            Exception e = expectThrows(IllegalArgumentException.class, () -> RescoreBuilder.parseFromXContent(parser));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> RescorerBuilder.parseFromXContent(parser));
             assertEquals("[query] unknown field [bad_fieldname], parser not found", e.getMessage());
         }
 
@@ -222,7 +222,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 "}\n";
         {
             XContentParser parser = createParser(rescoreElement);
-            Exception e = expectThrows(ParsingException.class, () -> RescoreBuilder.parseFromXContent(parser));
+            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
             assertEquals("[query] failed to parse field [rescore_query]", e.getMessage());
         }
 
@@ -231,7 +231,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 "    \"query\" : { \"rescore_query\" : { \"match_all\" : { } } } \n"
                 + "}\n";
         XContentParser parser = createParser(rescoreElement);
-        RescoreBuilder.parseFromXContent(parser);
+        RescorerBuilder.parseFromXContent(parser);
     }
 
     /**
@@ -249,8 +249,8 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         return xContentRegistry;
     }
 
-    private static RescoreBuilder<?> mutate(RescoreBuilder<?> original) throws IOException {
-        RescoreBuilder<?> mutation = ESTestCase.copyWriteable(original, namedWriteableRegistry, QueryRescorerBuilder::new);
+    private static RescorerBuilder<?> mutate(RescorerBuilder<?> original) throws IOException {
+        RescorerBuilder<?> mutation = ESTestCase.copyWriteable(original, namedWriteableRegistry, QueryRescorerBuilder::new);
         if (randomBoolean()) {
             Integer windowSize = original.windowSize();
             if (windowSize != null) {

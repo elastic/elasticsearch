@@ -10,8 +10,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.common.text.TextTemplate;
+import org.elasticsearch.xpack.watcher.actions.Action;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -61,7 +61,7 @@ public class LoggingAction implements Action {
         if (category != null) {
             builder.field(Field.CATEGORY.getPreferredName(), category);
         }
-        builder.field(Field.LEVEL.getPreferredName(), level, params);
+        builder.field(Field.LEVEL.getPreferredName(), level.value());
         builder.field(Field.TEXT.getPreferredName(), text, params);
         return builder.endObject();
     }

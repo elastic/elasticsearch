@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.job.config;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -217,28 +216,6 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
             detector = createDetectorWithValidFieldNames();
             verifyPartitionFieldName(detector, character, valid);
         }
-    }
-
-    public void testEmptyFieldValuesAreNotSet() {
-        Detector.Builder builder = new Detector.Builder("avg", "");
-        expectThrows(ElasticsearchStatusException.class, builder::build);
-        builder.setFieldName("fname");
-        builder.build();
-
-        builder.setByFieldName("");
-        expectThrows(ElasticsearchStatusException.class, builder::build);
-        builder.setByFieldName("bname");
-        builder.build();
-
-        builder.setOverFieldName("");
-        expectThrows(ElasticsearchStatusException.class, builder::build);
-        builder.setOverFieldName("oname");
-        builder.build();
-
-        builder.setPartitionFieldName("");
-        expectThrows(ElasticsearchStatusException.class, builder::build);
-        builder.setPartitionFieldName("pname");
-        builder.build();
     }
 
     public void testVerifyFunctionForPreSummariedInput() {
@@ -559,7 +536,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
     }
 
     public void testVerify_GivenSameByAndPartition() {
-        Detector.Builder detector = new Detector.Builder("count", null);
+        Detector.Builder detector = new Detector.Builder("count", "");
         detector.setByFieldName("x");
         detector.setPartitionFieldName("x");
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
@@ -568,7 +545,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
     }
 
     public void testVerify_GivenSameByAndOver() {
-        Detector.Builder detector = new Detector.Builder("count", null);
+        Detector.Builder detector = new Detector.Builder("count", "");
         detector.setByFieldName("x");
         detector.setOverFieldName("x");
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
@@ -577,7 +554,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
     }
 
     public void testVerify_GivenSameOverAndPartition() {
-        Detector.Builder detector = new Detector.Builder("count", null);
+        Detector.Builder detector = new Detector.Builder("count", "");
         detector.setOverFieldName("x");
         detector.setPartitionFieldName("x");
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
@@ -586,7 +563,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
     }
 
     public void testVerify_GivenByIsCount() {
-        Detector.Builder detector = new Detector.Builder("count", null);
+        Detector.Builder detector = new Detector.Builder("count", "");
         detector.setByFieldName("count");
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
@@ -594,7 +571,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
     }
 
     public void testVerify_GivenOverIsCount() {
-        Detector.Builder detector = new Detector.Builder("count", null);
+        Detector.Builder detector = new Detector.Builder("count", "");
         detector.setOverFieldName("count");
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
@@ -602,7 +579,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
     }
 
     public void testVerify_GivenByIsBy() {
-        Detector.Builder detector = new Detector.Builder("count", null);
+        Detector.Builder detector = new Detector.Builder("count", "");
         detector.setByFieldName("by");
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
@@ -610,7 +587,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
     }
 
     public void testVerify_GivenOverIsBy() {
-        Detector.Builder detector = new Detector.Builder("count", null);
+        Detector.Builder detector = new Detector.Builder("count", "");
         detector.setOverFieldName("by");
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
@@ -618,7 +595,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
     }
 
     public void testVerify_GivenByIsOver() {
-        Detector.Builder detector = new Detector.Builder("count", null);
+        Detector.Builder detector = new Detector.Builder("count", "");
         detector.setByFieldName("over");
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
@@ -626,7 +603,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
     }
 
     public void testVerify_GivenOverIsOver() {
-        Detector.Builder detector = new Detector.Builder("count", null);
+        Detector.Builder detector = new Detector.Builder("count", "");
         detector.setOverFieldName("over");
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 

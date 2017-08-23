@@ -5,16 +5,13 @@
  */
 package org.elasticsearch.xpack.common.http;
 
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
-import java.io.IOException;
 import java.util.Locale;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 
-public enum HttpContentType implements ToXContent {
+public enum HttpContentType {
 
     JSON() {
         @Override
@@ -38,11 +35,6 @@ public enum HttpContentType implements ToXContent {
     };
 
     public abstract XContentType contentType();
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.value(id());
-    }
 
     @Override
     public String toString() {

@@ -29,8 +29,10 @@ import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.config.JobTests;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Date;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.addJobTask;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests.createDatafeedConfig;
@@ -394,5 +396,45 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
             builder.putJob(job, false);
         }
         return builder;
+    }
+
+    @Override
+    protected MlMetadata mutateInstance(MlMetadata instance) throws IOException {
+        Map<String, Job> jobs = instance.getJobs();
+        Map<String, DatafeedConfig> datafeeds = instance.getDatafeeds();
+        MlMetadata.Builder metadataBuilder = new MlMetadata.Builder();
+
+        for (Map.Entry<String, Job> entry : jobs.entrySet()) {
+            metadataBuilder.putJob(entry.getValue(), true);
+        }
+        for (Map.Entry<String, DatafeedConfig> entry : datafeeds.entrySet()) {
+            metadataBuilder.putDatafeed(entry.getValue());
+        }
+
+        switch (between(0, 1)) {
+        case 0:
+            metadataBuilder.putJob(JobTests.createRandomizedJob(), true);
+            break;
+        case 1:
+            // Because we check if the job for the datafeed exists and we don't
+            // allow two datafeeds to exist for a single job we have to add both
+            // a job and a datafeed here
+            Job randomJob = JobTests.createRandomizedJob();
+            AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(randomJob.getAnalysisConfig());
+            analysisConfig.setLatency(null);
+            DatafeedConfig datafeedConfig = DatafeedConfigTests.createRandomizedDatafeedConfig(randomJob.getId(),
+                    randomJob.getAnalysisConfig().getBucketSpan().millis());
+            if (datafeedConfig.hasAggregations()) {
+                analysisConfig.setSummaryCountFieldName("doc_count");
+            }
+            randomJob = new Job.Builder(randomJob).setAnalysisConfig(analysisConfig).build();
+            metadataBuilder.putJob(randomJob, false);
+            metadataBuilder.putDatafeed(datafeedConfig);
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return metadataBuilder.build();
     }
 }

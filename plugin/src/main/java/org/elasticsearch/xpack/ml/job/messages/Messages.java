@@ -112,7 +112,7 @@ public final class Messages {
     public static final String JOB_CONFIG_FUNCTION_REQUIRES_OVERFIELD = "over_field_name must be set when the ''{0}'' function is used";
     public static final String JOB_CONFIG_ID_ALREADY_TAKEN = "The job cannot be created with the Id ''{0}''. The Id is already used.";
     public static final String JOB_CONFIG_ID_TOO_LONG = "The job id cannot contain more than {0,number,integer} characters.";
-    public static final String JOB_CONFIG_INFLUENCER_FIELD_NAME_CANNOT_BE_EMPTY = "Influencers and field names cannot be empty strings";
+    public static final String JOB_CONFIG_INFLUENCER_CANNOT_BE_EMPTY = "Influencer names cannot be empty strings";
     public static final String JOB_CONFIG_INVALID_CREATE_SETTINGS =
             "The job is configured with fields [{0}] that are illegal to set at job creation";
     public static final String JOB_CONFIG_INVALID_FIELDNAME_CHARS =
@@ -124,8 +124,6 @@ public final class Messages {
     public static final String JOB_CONFIG_MISSING_DATA_DESCRIPTION = "A data_description must be set";
     public static final String JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE =
             "Multiple bucket_span ''{0}'' must be a multiple of the main bucket_span ''{1}''";
-    public static final String JOB_CONFIG_MULTIVARIATE_REQUIRES_BY_FIELD =
-            "The multivariate_by_fields setting requires a detector with a by field";
     public static final String JOB_CONFIG_NO_ANALYSIS_FIELD_NOT_COUNT =
             "Unless the function is 'count' one of field_name, by_field_name or over_field_name must be set";
     public static final String JOB_CONFIG_NO_DETECTORS = "No detectors configured";

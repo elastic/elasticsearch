@@ -244,7 +244,7 @@ public class ChainTransformTests extends ESTestCase {
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.startObject().endArray();
+                return builder.startObject().endObject();
             }
         }
 

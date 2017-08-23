@@ -9,6 +9,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -120,5 +121,42 @@ public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRul
     @Override
     protected DetectionRule doParseInstance(XContentParser parser) {
         return DetectionRule.CONFIG_PARSER.apply(parser, null).build();
+    }
+
+    @Override
+    protected DetectionRule mutateInstance(DetectionRule instance) throws IOException {
+        List<RuleCondition> ruleConditions = instance.getRuleConditions();
+        RuleAction ruleAction = instance.getRuleAction();
+        String targetFieldName = instance.getTargetFieldName();
+        String targetFieldValue = instance.getTargetFieldValue();
+        Connective connective = instance.getConditionsConnective();
+
+        switch (between(0, 3)) {
+        case 0:
+            ruleConditions = new ArrayList<>(ruleConditions);
+            ruleConditions.addAll(createRule(Double.toString(randomDouble())));
+            break;
+        case 1:
+            targetFieldName = randomAlphaOfLengthBetween(5, 10);
+            break;
+        case 2:
+            targetFieldValue = randomAlphaOfLengthBetween(5, 10);
+            if (targetFieldName == null) {
+                targetFieldName = randomAlphaOfLengthBetween(5, 10);
+            }
+            break;
+        case 3:
+            if (connective == Connective.AND) {
+                connective = Connective.OR;
+            } else {
+                connective = Connective.AND;
+            }
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new DetectionRule.Builder(ruleConditions).setRuleAction(ruleAction).setTargetFieldName(targetFieldName)
+                .setTargetFieldValue(targetFieldValue).setConditionsConnective(connective).build();
     }
 }

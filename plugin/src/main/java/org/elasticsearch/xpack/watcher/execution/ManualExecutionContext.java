@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
@@ -25,16 +26,18 @@ public class ManualExecutionContext extends WatchExecutionContext {
     private final Map<String, ActionExecutionMode> actionModes;
     private final boolean recordExecution;
     private final boolean knownWatch;
+    private final Watch watch;
 
     ManualExecutionContext(Watch watch, boolean knownWatch, DateTime executionTime, ManualTriggerEvent triggerEvent,
                            TimeValue defaultThrottlePeriod, Input.Result inputResult, Condition.Result conditionResult,
                            Map<String, ActionExecutionMode> actionModes, boolean recordExecution) {
 
-        super(watch, executionTime, triggerEvent, defaultThrottlePeriod);
+        super(watch.id(), executionTime, triggerEvent, defaultThrottlePeriod);
 
         this.actionModes = actionModes;
         this.recordExecution = recordExecution;
         this.knownWatch = knownWatch;
+        this.watch = watch;
 
         if (inputResult != null) {
             onInputResult(inputResult);
@@ -58,6 +61,12 @@ public class ManualExecutionContext extends WatchExecutionContext {
                 }
             }
         }
+    }
+
+    // a noop operation, as the watch is already loaded via ctor
+    @Override
+    public void ensureWatchExists(CheckedSupplier<Watch, Exception> supplier) throws Exception {
+        super.ensureWatchExists(() -> watch);
     }
 
     @Override
@@ -86,6 +95,11 @@ public class ManualExecutionContext extends WatchExecutionContext {
     @Override
     public final boolean recordExecution() {
         return recordExecution;
+    }
+
+    @Override
+    public Watch watch() {
+        return watch;
     }
 
     public static Builder builder(Watch watch, boolean knownWatch, ManualTriggerEvent event, TimeValue defaultThrottlePeriod) {

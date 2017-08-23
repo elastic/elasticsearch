@@ -18,10 +18,10 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.support.NoOpLogger;
+import org.elasticsearch.xpack.security.support.SecurityFiles;
 import org.elasticsearch.xpack.security.support.Validation;
 
 import java.io.IOException;
-import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,7 +36,7 @@ import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.xpack.security.support.SecurityFiles.openAtomicMoveWriter;
+import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 
 public class FileUserRolesStore {
 
@@ -193,18 +193,10 @@ public class FileUserRolesStore {
             }
         }
 
-        try (Writer writer = openAtomicMoveWriter(path)) {
-            for (Map.Entry<String, List<String>> entry : roleToUsers.entrySet()) {
-                final String message = String.format(
-                        Locale.ROOT,
-                        "%s:%s%s",
-                        entry.getKey(),
-                        Strings.collectionToCommaDelimitedString(entry.getValue()), System.lineSeparator());
-                writer.write(message);
-            }
-        } catch (IOException ioe) {
-            throw new ElasticsearchException("could not write file [" + path.toAbsolutePath() + "], please check file permissions", ioe);
-        }
+        SecurityFiles.writeFileAtomically(
+                path,
+                roleToUsers,
+                e -> String.format(Locale.ROOT, "%s:%s", e.getKey(), collectionToCommaDelimitedString(e.getValue())));
     }
 
     void notifyRefresh() {

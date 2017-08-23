@@ -779,19 +779,13 @@ public class Detector implements ToXContentObject, Writeable {
          * @param field The field name to be validated
          */
         public static void verifyFieldName(String field) throws ElasticsearchParseException {
-            if (field != null) {
-                if (field.isEmpty()) {
-                    throw ExceptionsHelper.badRequestException(
-                            Messages.getMessage(Messages.JOB_CONFIG_INFLUENCER_FIELD_NAME_CANNOT_BE_EMPTY));
-                }
-                if (containsInvalidChar(field)) {
-                    throw ExceptionsHelper.badRequestException(
-                            Messages.getMessage(Messages.JOB_CONFIG_INVALID_FIELDNAME_CHARS, field, Detector.PROHIBITED));
-                }
-                if (RecordWriter.CONTROL_FIELD_NAME.equals(field)) {
-                    throw ExceptionsHelper.badRequestException(
-                            Messages.getMessage(Messages.JOB_CONFIG_INVALID_FIELDNAME, field, RecordWriter.CONTROL_FIELD_NAME));
-                }
+            if (field != null && containsInvalidChar(field)) {
+                throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.JOB_CONFIG_INVALID_FIELDNAME_CHARS, field, Detector.PROHIBITED));
+            }
+            if (RecordWriter.CONTROL_FIELD_NAME.equals(field)) {
+                throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.JOB_CONFIG_INVALID_FIELDNAME, field, RecordWriter.CONTROL_FIELD_NAME));
             }
         }
 

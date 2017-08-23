@@ -5,12 +5,15 @@
  */
 package org.elasticsearch.xpack.watcher.client;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.throttler.Throttler;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
@@ -29,7 +32,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class WatchSourceBuilder extends ToXContentToBytes implements ToXContentObject {
+public class WatchSourceBuilder implements ToXContentObject {
 
     private Trigger trigger;
     private Input input = NoneInput.INSTANCE;
@@ -163,6 +166,19 @@ public class WatchSourceBuilder extends ToXContentToBytes implements ToXContentO
         }
 
         return builder.endObject();
+    }
+
+    /**
+     * Returns a {@link org.elasticsearch.common.bytes.BytesReference}
+     * containing the {@link ToXContent} output in binary format. Builds the
+     * request as the provided <code>contentType</code>
+     */
+    public final BytesReference buildAsBytes(XContentType contentType) {
+        try {
+            return XContentHelper.toXContent(this, contentType, false);
+        } catch (Exception e) {
+            throw new ElasticsearchException("Failed to build ToXContent", e);
+        }
     }
 
     static class TransformedAction implements ToXContentObject {

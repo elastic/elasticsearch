@@ -12,8 +12,21 @@ import org.joda.time.DateTime;
 
 public class TriggeredExecutionContext extends WatchExecutionContext {
 
-    public TriggeredExecutionContext(Watch watch, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
-        super(watch, executionTime, triggerEvent, defaultThrottlePeriod);
+    private final boolean overrideOnConflict;
+
+    public TriggeredExecutionContext(String watchId, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
+        this(watchId, executionTime, triggerEvent, defaultThrottlePeriod, false);
+    }
+
+    TriggeredExecutionContext(String watchId, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod,
+                              boolean overrideOnConflict) {
+        super(watchId, executionTime, triggerEvent, defaultThrottlePeriod);
+        this.overrideOnConflict = overrideOnConflict;
+    }
+
+    @Override
+    public boolean overrideRecordOnConflict() {
+        return overrideOnConflict;
     }
 
     @Override

@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.watcher.trigger.schedule.support;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 
-public interface Times extends ToXContent {
+public interface Times extends ToXContentObject {
 
     ParseField MONTH_FIELD = new ParseField("in", "month");
     ParseField DAY_FIELD = new ParseField("on", "day");

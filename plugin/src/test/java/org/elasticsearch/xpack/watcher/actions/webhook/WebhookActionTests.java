@@ -26,9 +26,6 @@ import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.notification.email.Attachment;
-import org.elasticsearch.xpack.notification.email.Authentication;
-import org.elasticsearch.xpack.notification.email.Email;
-import org.elasticsearch.xpack.notification.email.Profile;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.Action.Result.Status;
@@ -69,17 +66,15 @@ import static org.mockito.Mockito.when;
 
 public class WebhookActionTests extends ESTestCase {
 
-    static final String TEST_HOST = "test.com";
-    static final int TEST_PORT = 8089;
+    private static final String TEST_HOST = "test.com";
+    private static final int TEST_PORT = 8089;
+    private static final String TEST_BODY_STRING = "ERROR HAPPENED";
+    private static final String TEST_PATH_STRING = "/testPath";
 
     private TextTemplateEngine templateEngine;
     private HttpAuthRegistry authRegistry;
     private TextTemplate testBody;
     private TextTemplate testPath;
-
-    static final String TEST_BODY_STRING = "ERROR HAPPENED";
-    static final String TEST_PATH_STRING = "/testPath";
-
 
     @Before
     public void init() throws Exception {
@@ -235,9 +230,10 @@ public class WebhookActionTests extends ESTestCase {
 
             ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
             String watchId = "test_url_encode" + randomAlphaOfLength(10);
-            Watch watch = createWatch(watchId, "account1");
-            WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(UTC),
+            TriggeredExecutionContext ctx = new TriggeredExecutionContext(watchId, new DateTime(UTC),
                     new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
+            Watch watch = createWatch(watchId);
+            ctx.ensureWatchExists(() -> watch);
             executable.execute("_id", ctx, new Payload.Simple());
 
             assertThat(proxyServer.requests(), hasSize(1));
@@ -259,27 +255,22 @@ public class WebhookActionTests extends ESTestCase {
 
         ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, client, templateEngine);
 
-        Watch watch = createWatch(watchId, "account1");
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(UTC),
+        TriggeredExecutionContext ctx = new TriggeredExecutionContext(watchId, new DateTime(UTC),
                 new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
+        Watch watch = createWatch(watchId);
+        ctx.ensureWatchExists(() -> watch);
         Action.Result result = executable.execute("_id", ctx, new Payload.Simple());
         assertThat(result, Matchers.instanceOf(WebhookAction.Result.Success.class));
     }
 
-    private Watch createWatch(String watchId, final String account) throws AddressException, IOException {
+    private Watch createWatch(String watchId) throws AddressException, IOException {
         return WatcherTestUtils.createTestWatch(watchId,
                 mock(Client.class),
                 ExecuteScenario.Success.client(),
-                new AbstractWatcherIntegrationTestCase.NoopEmailService() {
-
-                    @Override
-                    public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) {
-                        return new EmailSent(account, email);
-                    }
-                },
+                new AbstractWatcherIntegrationTestCase.NoopEmailService(),
                 mock(WatcherSearchTemplateService.class),
                 logger);
-    };
+    }
 
     private enum ExecuteScenario {
         ErrorCode() {

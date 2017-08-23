@@ -9,7 +9,6 @@ import io.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,20 +29,11 @@ import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
-import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.InputBuilders;
-import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
-import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
-import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.watch.Payload;
-import org.elasticsearch.xpack.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.watch.WatchStatus;
-import org.joda.time.DateTime;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -55,7 +45,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -67,8 +56,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
-import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -131,7 +118,7 @@ public class HttpInputTests extends ESTestCase {
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
         when(templateEngine.render(eq(new TextTemplate("_body")), any(Map.class))).thenReturn("_body");
 
-        WatchExecutionContext ctx = createWatchExecutionContext();
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
         assertThat(result.type(), equalTo(HttpInput.TYPE));
         assertThat(result.payload().data(), hasEntry("key", "value"));
@@ -150,7 +137,7 @@ public class HttpInputTests extends ESTestCase {
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
         when(templateEngine.render(eq(new TextTemplate("_body")), any(Map.class))).thenReturn("_body");
 
-        WatchExecutionContext ctx = createWatchExecutionContext();
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
         assertThat(result.type(), equalTo(HttpInput.TYPE));
         assertThat(result.payload().data().get("_value").toString(), equalTo(notJson));
@@ -264,7 +251,7 @@ public class HttpInputTests extends ESTestCase {
 
         when(templateEngine.render(eq(new TextTemplate("_body")), any(Map.class))).thenReturn("_body");
 
-        WatchExecutionContext ctx = createWatchExecutionContext();
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
 
         assertThat(result.type(), equalTo(HttpInput.TYPE));
@@ -290,7 +277,8 @@ public class HttpInputTests extends ESTestCase {
         HttpResponse httpResponse = new HttpResponse(200, body, headers);
         when(httpClient.execute(any())).thenReturn(httpResponse);
 
-        HttpInput.Result result = input.execute(createWatchExecutionContext(), Payload.EMPTY);
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        HttpInput.Result result = input.execute(ctx, Payload.EMPTY);
         assertThat(result.payload().data(), hasEntry("_value", body));
         assertThat(result.payload().data(), not(hasKey("foo")));
     }
@@ -303,7 +291,7 @@ public class HttpInputTests extends ESTestCase {
         HttpInput httpInput = InputBuilders.httpInput(request.build()).build();
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
 
-        WatchExecutionContext ctx = createWatchExecutionContext();
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
         assertThat(result.statusCode, is(200));
         assertThat(result.payload().data(), hasKey("_status_code"));
@@ -320,7 +308,7 @@ public class HttpInputTests extends ESTestCase {
         HttpInput httpInput = InputBuilders.httpInput(request.build()).build();
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
 
-        WatchExecutionContext ctx = createWatchExecutionContext();
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
         assertThat(result.statusCode, is(200));
         assertThat(result.payload().data(), not(hasKey("_value")));
@@ -339,7 +327,7 @@ public class HttpInputTests extends ESTestCase {
         HttpInput httpInput = InputBuilders.httpInput(request.build()).build();
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
 
-        WatchExecutionContext ctx = createWatchExecutionContext();
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
 
         assertThat(result.getException(), is(notNullValue()));
@@ -357,21 +345,5 @@ public class HttpInputTests extends ESTestCase {
                 assertThat(type, is("i_o_exception"));
             }
         }
-    }
-
-    private WatchExecutionContext createWatchExecutionContext() {
-        Watch watch = new Watch("test-watch",
-                new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
-                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
-                AlwaysCondition.INSTANCE,
-                null,
-                null,
-                new ArrayList<>(),
-                null,
-                new WatchStatus(new DateTime(0, UTC), emptyMap()));
-        return new TriggeredExecutionContext(watch,
-                new DateTime(0, UTC),
-                new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),
-                TimeValue.timeValueSeconds(5));
     }
 }

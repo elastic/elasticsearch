@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -124,10 +123,10 @@ public class HipChatMessage implements ToXContentObject {
         }
         builder.field(Field.BODY.getPreferredName(), body);
         if (format != null) {
-            builder.field(Field.FORMAT.getPreferredName(), format, params);
+            builder.field(Field.FORMAT.getPreferredName(), format.value());
         }
         if (color != null) {
-            builder.field(Field.COLOR.getPreferredName(), color, params);
+            builder.field(Field.COLOR.getPreferredName(), color.value());
         }
         if (notify != null) {
             builder.field(Field.NOTIFY.getPreferredName(), notify);
@@ -224,7 +223,7 @@ public class HipChatMessage implements ToXContentObject {
             }
             builder.field(Field.BODY.getPreferredName(), body, params);
             if (format != null) {
-                builder.field(Field.FORMAT.getPreferredName(), format, params);
+                builder.field(Field.FORMAT.getPreferredName(), format.value());
             }
             if (color != null) {
                 builder.field(Field.COLOR.getPreferredName(), color, params);
@@ -390,18 +389,13 @@ public class HipChatMessage implements ToXContentObject {
     }
 
 
-    public enum Color implements ToXContent {
+    public enum Color {
         YELLOW, GREEN, RED, PURPLE, GRAY, RANDOM;
 
         private final TextTemplate template = new TextTemplate(name());
 
         public TextTemplate asTemplate() {
             return template;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.value(name().toLowerCase(Locale.ROOT));
         }
 
         public String value() {
@@ -433,7 +427,7 @@ public class HipChatMessage implements ToXContentObject {
         }
     }
 
-    public enum Format implements ToXContent {
+    public enum Format {
 
         TEXT,
         HTML;
@@ -442,11 +436,6 @@ public class HipChatMessage implements ToXContentObject {
 
         public TextTemplate asTemplate() {
             return template;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.value(name().toLowerCase(Locale.ROOT));
         }
 
         public String value() {

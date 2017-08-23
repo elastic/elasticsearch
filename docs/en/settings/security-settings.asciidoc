@@ -72,7 +72,9 @@ You can set the following token service settings in
 `elasticsearch.yml`.
 
 `xpack.security.authc.token.enabled`::
-Set to `false` to disable the built-in token service. Defaults to `true`.
+Set to `false` to disable the built-in token service. Defaults to `true` unless
+ `xpack.security.http.ssl.enabled` is `false` and `http.enabled` is `true`.
+ This prevents sniffing the token from a connection over plain http.
 
 `xpack.security.authc.token.passphrase`::
 A secure passphrase that must be the same on each node and greater than

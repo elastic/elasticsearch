@@ -5,13 +5,9 @@
  */
 package org.elasticsearch.xpack.common.http;
 
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-
-import java.io.IOException;
 import java.util.Locale;
 
-public enum HttpMethod implements ToXContent {
+public enum HttpMethod {
 
     HEAD("HEAD"),
     GET("GET"),
@@ -47,9 +43,7 @@ public enum HttpMethod implements ToXContent {
         }
     }
 
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.value(name().toLowerCase(Locale.ROOT));
+    public String value() {
+        return name().toLowerCase(Locale.ROOT);
     }
 }

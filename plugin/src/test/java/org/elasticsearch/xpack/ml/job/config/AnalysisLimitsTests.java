@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.ml.job.config;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -158,4 +156,36 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         new AnalysisLimits(1L, null);
         new AnalysisLimits(1L, 1L);
     }
+
+    protected AnalysisLimits mutateInstance(AnalysisLimits instance) throws IOException {
+        Long memoryModelLimit = instance.getModelMemoryLimit();
+        Long categorizationExamplesLimit = instance.getCategorizationExamplesLimit();
+        switch (between(0, 1)) {
+        case 0:
+            if (memoryModelLimit == null) {
+                memoryModelLimit = randomNonNegativeLong();
+            } else {
+                if (randomBoolean()) {
+                    memoryModelLimit = null;
+                } else {
+                    memoryModelLimit += between(1, 10000);
+                }
+            }
+            break;
+        case 1:
+            if (categorizationExamplesLimit == null) {
+                categorizationExamplesLimit = randomNonNegativeLong();
+            } else {
+                if (randomBoolean()) {
+                    categorizationExamplesLimit = null;
+                } else {
+                    categorizationExamplesLimit += between(1, 10000);
+                }
+            }
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new AnalysisLimits(memoryModelLimit, categorizationExamplesLimit);
+    };
 }

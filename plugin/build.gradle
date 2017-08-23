@@ -216,6 +216,7 @@ integTestCluster {
   setting 'xpack.monitoring.exporters._local.type', 'local'
   setting 'xpack.monitoring.exporters._local.enabled', 'false'
   setting 'xpack.monitoring.collection.interval', '-1'
+  setting 'xpack.security.authc.token.enabled', 'true'
   keystoreSetting 'bootstrap.password', 'x-pack-test-password'
   keystoreSetting 'xpack.security.authc.token.passphrase', 'x-pack-token-service-password'
   distribution = 'zip' // this is important since we use the reindex module in ML
@@ -302,10 +303,17 @@ thirdPartyAudit.excludes = [
     'com.sun.activation.registries.LineTokenizer',
     'com.sun.activation.registries.LogSupport',
     'com.sun.activation.registries.MailcapFile',
-    'com.sun.activation.registries.MailcapParseException',
     'com.sun.activation.registries.MailcapTokenizer',
     'com.sun.activation.registries.MimeTypeEntry',
     'com.sun.activation.registries.MimeTypeFile',
+    'javax.activation.MailcapCommandMap',
+    'javax.activation.MimetypesFileTypeMap',
+]
+
+// pulled in as external dependency to work on java 9
+if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
+  thirdPartyAudit.excludes += [
+    'com.sun.activation.registries.MailcapParseException',
     'javax.activation.ActivationDataFlavor',
     'javax.activation.CommandInfo',
     'javax.activation.CommandMap',
@@ -319,11 +327,9 @@ thirdPartyAudit.excludes = [
     'javax.activation.DataSourceDataContentHandler',
     'javax.activation.FileDataSource',
     'javax.activation.FileTypeMap',
-    'javax.activation.MailcapCommandMap',
     'javax.activation.MimeType',
     'javax.activation.MimeTypeParameterList',
     'javax.activation.MimeTypeParseException',
-    'javax.activation.MimetypesFileTypeMap',
     'javax.activation.ObjectDataContentHandler',
     'javax.activation.SecuritySupport$1',
     'javax.activation.SecuritySupport$2',
@@ -333,7 +339,8 @@ thirdPartyAudit.excludes = [
     'javax.activation.SecuritySupport',
     'javax.activation.URLDataSource',
     'javax.activation.UnsupportedDataTypeException'
-]
+  ]
+}
 
 run {
   setting 'xpack.ml.enabled', 'true'

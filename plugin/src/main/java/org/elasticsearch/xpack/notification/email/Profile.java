@@ -5,8 +5,9 @@
  */
 package org.elasticsearch.xpack.notification.email;
 
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 import javax.mail.Message;
 import javax.mail.MessagingException;
@@ -14,15 +15,12 @@ import javax.mail.Session;
 import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Locale;
 
 /**
  * A profile of an email client, can be seen as a strategy to emulate a real world email client
  * (different clients potentially support different mime message structures)
  */
-public enum Profile implements ToXContent {
+public enum Profile {
 
     STANDARD() {
 
@@ -170,11 +168,6 @@ public enum Profile implements ToXContent {
             default:
                 return defaultProfile;
         }
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.value(name().toLowerCase(Locale.ROOT));
     }
 
     static MimeMessage createCommon(Email email, Session session) throws MessagingException {

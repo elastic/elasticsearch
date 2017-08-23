@@ -195,7 +195,7 @@ public class HipChatMessageTests extends ESTestCase {
         HipChatMessage.Format format = null;
         if (randomBoolean()) {
             format = randomFrom(HipChatMessage.Format.values());
-            jsonBuilder.field("format", format, ToXContent.EMPTY_PARAMS);
+            jsonBuilder.field("format", format.value());
         }
         Boolean notify = null;
         if (randomBoolean()) {

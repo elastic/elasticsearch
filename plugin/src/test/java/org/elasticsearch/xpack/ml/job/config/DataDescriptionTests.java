@@ -272,4 +272,44 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
     protected DataDescription doParseInstance(XContentParser parser) {
         return DataDescription.CONFIG_PARSER.apply(parser, null).build();
     }
+
+    protected DataDescription mutateInstance(DataDescription instance) throws java.io.IOException {
+        DataFormat format = instance.getFormat();
+        String timeField = instance.getTimeField();
+        String timeFormat = instance.getTimeFormat();
+        Character delimiter = instance.getFieldDelimiter();
+        Character quoteChar = instance.getQuoteCharacter();
+        switch (between(0, 4)) {
+        case 0:
+            if (format == DataFormat.DELIMITED) {
+                format = DataFormat.XCONTENT;
+            } else {
+                format = DataFormat.DELIMITED;
+            }
+            break;
+        case 1:
+            timeField += randomAlphaOfLengthBetween(1, 10);
+            break;
+        case 2:
+            timeFormat = "yyyy-MM-dd-HH-mm-ss";
+            break;
+        case 3:
+            if (delimiter == null) {
+                delimiter = randomAlphaOfLength(1).charAt(0);
+            } else {
+                delimiter = null;
+            }
+            break;
+        case 4:
+            if (quoteChar == null) {
+                quoteChar = randomAlphaOfLength(1).charAt(0);
+            } else {
+                quoteChar = null;
+            }
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new DataDescription(format, timeField, timeFormat, delimiter, quoteChar);
+    };
 }

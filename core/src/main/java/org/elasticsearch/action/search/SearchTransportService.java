@@ -60,6 +60,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
@@ -201,10 +202,11 @@ public class SearchTransportService extends AbstractComponent {
     }
 
     /**
-     * Return a map of nodeId to pending number of search requests
+     * Return a map of nodeId to pending number of search requests.
+     * This is a snapshot of the current pending search and not a live map.
      */
     public Map<String, Long> getPendingSearchRequests() {
-        return Collections.unmodifiableMap(clientConnections);
+        return new HashMap<>(clientConnections);
     }
 
     static class ScrollFreeContextRequest extends TransportRequest {

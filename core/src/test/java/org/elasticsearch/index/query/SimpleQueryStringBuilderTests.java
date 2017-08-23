@@ -40,6 +40,7 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
@@ -268,7 +269,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             }
         } else if (queryBuilder.fields().size() == 0) {
             assertThat(query, either(instanceOf(DisjunctionMaxQuery.class))
-                .or(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(TermQuery.class)));
+                .or(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(TermQuery.class)).or(instanceOf(AllTermQuery.class)));
             if (query instanceof DisjunctionMaxQuery) {
                 for (Query disjunct : (DisjunctionMaxQuery) query) {
                     assertThat(disjunct, either(instanceOf(TermQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));

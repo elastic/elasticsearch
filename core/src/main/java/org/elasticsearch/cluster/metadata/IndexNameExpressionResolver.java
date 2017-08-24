@@ -146,20 +146,22 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         return names;
     }
 
-    // @todo look at indexNameExpressionResolver.WildcardExpressionResolver.resolve for wildcard validation
-    // @todo unit tests
     /**
      * Translates the provided alias expressions into actual aliases, properly deduplicated
      * @param metaData cluster metadata
      * @param aliasExpressions expressions that can be resolved to alias names
      */
     public Set<String> resolveAliases(MetaData metaData, List<String> aliasExpressions) {
-        return aliasExpressions
-            .stream()
-            .distinct()
-            .map(alias -> getMatchedAliases(metaData, alias))
-            .flatMap(Collection::stream)
-            .collect(Collectors.toSet());
+        final Set<String> uniqueExpressions = aliasExpressions.stream().distinct().collect(Collectors.toSet());
+        final Set<String> result = new HashSet<>();
+        for (String expression: uniqueExpressions) {
+            if (expression.startsWith("-")) {
+                result.removeAll(getMatchedAliases(metaData, expression.substring(1)));
+            } else {
+                result.addAll(getMatchedAliases(metaData, expression));
+            }
+        }
+        return result;
     }
 
     private Set<String> getMatchedAliases(MetaData metaData, String wildcard) {

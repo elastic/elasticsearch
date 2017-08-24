@@ -36,6 +36,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -49,6 +50,32 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexNameExpressionResolverTests extends ESTestCase {
     private final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
+
+    public void testResolveAliases() {
+        final MetaData md = MetaData.builder()
+            .put(indexBuilder("foo_idx").putAlias(AliasMetaData.builder("foo_alias")))
+            .put(indexBuilder("foobar_idx").putAlias(AliasMetaData.builder("foobar_alias")))
+            .put(indexBuilder("barfoo_idx").putAlias(AliasMetaData.builder("barfoo_alias")))
+            .build();
+
+        assertResolvedTo(md, Arrays.asList("foo*"), Arrays.asList("foo_alias", "foobar_alias"));
+        assertResolvedTo(md, Arrays.asList("foo*", "foo*"), Arrays.asList("foo_alias", "foobar_alias"));
+        assertResolvedTo(md, Arrays.asList("bar"), Arrays.asList()); // maybe exception?
+        assertResolvedTo(md, Arrays.asList("foo_alias", "barfoo_alias"), Arrays.asList("foo_alias", "barfoo_alias"));
+        assertResolvedTo(md, Arrays.asList("*"), Arrays.asList("foo_alias", "barfoo_alias", "foobar_alias"));
+        assertResolvedTo(md, Arrays.asList("*", "-foo*"), Arrays.asList("barfoo_alias"));
+        assertResolvedTo(md, Arrays.asList("-*"), Arrays.asList());
+        assertResolvedTo(md, Arrays.asList("*", "-foo*"), Arrays.asList("barfoo_alias"));
+    }
+
+    private void assertResolvedTo(MetaData md, List<String> expressions, List<String> expected) {
+        Set<String> result = indexNameExpressionResolver.resolveAliases(md, expressions);
+        assertEquals(
+            "Failed for expressions [" + String.join(",", expressions) + "]",
+            new HashSet<>(expected),
+            new HashSet<>(result)
+        );
+    }
 
     public void testIndexOptionsStrict() {
         MetaData.Builder mdBuilder = MetaData.builder()
@@ -641,7 +668,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         // when ignoreAliases option is set, concreteIndexNames resolves the provided expressions
         // only against the defined indices
         IndicesOptions ignoreAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
-        
+
         String[] indexNamesIndexWildcard = indexNameExpressionResolver.concreteIndexNames(state, ignoreAliasesOptions, "foo*");
 
         assertEquals(1, indexNamesIndexWildcard.length);

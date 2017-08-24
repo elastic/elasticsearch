@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.IndexSettings;
 
 import java.util.LinkedList;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * This class generates sequences numbers and keeps track of the so-called "local checkpoint" which is the highest number for which all
@@ -63,7 +64,7 @@ public class LocalCheckpointTracker {
     /**
      * The next available sequence number.
      */
-    private volatile long nextSeqNo;
+    private final AtomicLong nextSeqNo;
 
     /**
      * Initialize the local checkpoint service. The {@code maxSeqNo} should be set to the last sequence number assigned, or
@@ -86,7 +87,8 @@ public class LocalCheckpointTracker {
         }
         bitArraysSize = SETTINGS_BIT_ARRAYS_SIZE.get(indexSettings.getSettings());
         firstProcessedSeqNo = localCheckpoint == SequenceNumbersService.NO_OPS_PERFORMED ? 0 : localCheckpoint + 1;
-        nextSeqNo = maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED ? 0 : maxSeqNo + 1;
+        long initialNextSeqNo = maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED ? 0 : maxSeqNo + 1;
+        nextSeqNo = new AtomicLong(initialNextSeqNo);
         checkpoint = localCheckpoint;
     }
 
@@ -95,8 +97,8 @@ public class LocalCheckpointTracker {
      *
      * @return the next assigned sequence number
      */
-    synchronized long generateSeqNo() {
-        return nextSeqNo++;
+    long generateSeqNo() {
+        return nextSeqNo.getAndIncrement();
     }
 
     /**
@@ -104,20 +106,21 @@ public class LocalCheckpointTracker {
      *
      * @param seqNo the sequence number to mark as completed
      */
-    public synchronized void markSeqNoAsCompleted(final long seqNo) {
+    public void markSeqNoAsCompleted(final long seqNo) {
         // make sure we track highest seen sequence number
-        if (seqNo >= nextSeqNo) {
-            nextSeqNo = seqNo + 1;
-        }
+        nextSeqNo.updateAndGet((current) -> seqNo >= current ? seqNo + 1 : current);
         if (seqNo <= checkpoint) {
             // this is possible during recovery where we might replay an operation that was also replicated
             return;
         }
-        final FixedBitSet bitSet = getBitSetForSeqNo(seqNo);
-        final int offset = seqNoToBitSetOffset(seqNo);
-        bitSet.set(offset);
-        if (seqNo == checkpoint + 1) {
-            updateCheckpoint();
+        // there is no need to hold the lock for the whole method as the code above is already lock-free.
+        synchronized (this) {
+            final FixedBitSet bitSet = getBitSetForSeqNo(seqNo);
+            final int offset = seqNoToBitSetOffset(seqNo);
+            bitSet.set(offset);
+            if (seqNo == checkpoint + 1) {
+                updateCheckpoint();
+            }
         }
     }
 
@@ -149,7 +152,7 @@ public class LocalCheckpointTracker {
      * @return the maximum sequence number
      */
     long getMaxSeqNo() {
-        return nextSeqNo - 1;
+        return nextSeqNo.get() - 1;
     }
 
 

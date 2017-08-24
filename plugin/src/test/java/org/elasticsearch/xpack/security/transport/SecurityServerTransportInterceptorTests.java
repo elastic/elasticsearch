@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.Transport.Connection;
@@ -41,7 +40,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -169,7 +167,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
                 mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
                 securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
-                Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))));
+                Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING)))) {
+            @Override
+            void assertNoAuthentication(String action) {
+            }
+        };
 
         assertNull(securityContext.getUser());
         AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
@@ -183,7 +185,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         when(connection.getVersion()).thenReturn(Version.CURRENT);
         IllegalStateException e =
                 expectThrows(IllegalStateException.class, () -> sender.sendRequest(connection, "indices:foo", null, null, null));
-        assertEquals("there should always be a user when sending a message", e.getMessage());
+        assertEquals("there should always be a user when sending a message for action [indices:foo]", e.getMessage());
         assertNull(securityContext.getUser());
         verify(xPackLicenseState).isAuthAllowed();
         verify(securityContext, never()).executeAsUser(any(User.class), any(Consumer.class), any(Version.class));

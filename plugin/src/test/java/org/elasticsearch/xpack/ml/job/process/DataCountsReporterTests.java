@@ -37,6 +37,7 @@ public class DataCountsReporterTests extends ESTestCase {
     private Job job;
     private JobDataCountsPersister jobDataCountsPersister;
     private Settings settings;
+    private TimeValue bucketSpan = TimeValue.timeValueSeconds(300);
 
     @Before
     public void setUpMocks() {
@@ -46,7 +47,7 @@ public class DataCountsReporterTests extends ESTestCase {
                 .build();
 
         AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "field").build()));
-        acBuilder.setBucketSpan(TimeValue.timeValueSeconds(300));
+        acBuilder.setBucketSpan(bucketSpan);
         acBuilder.setLatency(TimeValue.ZERO);
         acBuilder.setDetectors(Arrays.asList(new Detector.Builder("metric", "field").build()));
 
@@ -119,26 +120,32 @@ public class DataCountsReporterTests extends ESTestCase {
         assertAllCountFieldsEqualZero(stats);
 
         // write some more data
-        dataCountsReporter.reportRecordWritten(5, 302000);
-        dataCountsReporter.reportRecordWritten(5, 302000);
+        // skip a bucket so there is a non-zero empty bucket count
+        long timeStamp = bucketSpan.millis() * 2 + 2000;
+        dataCountsReporter.reportRecordWritten(5, timeStamp);
+        dataCountsReporter.reportRecordWritten(5, timeStamp);
         assertEquals(2, dataCountsReporter.incrementalStats().getInputRecordCount());
         assertEquals(10, dataCountsReporter.incrementalStats().getInputFieldCount());
         assertEquals(2, dataCountsReporter.incrementalStats().getProcessedRecordCount());
         assertEquals(6, dataCountsReporter.incrementalStats().getProcessedFieldCount());
-        assertEquals(302000, dataCountsReporter.incrementalStats().getLatestRecordTimeStamp().getTime());
+        assertEquals(602000, dataCountsReporter.incrementalStats().getLatestRecordTimeStamp().getTime());
 
         // check total stats
         assertEquals(4, dataCountsReporter.runningTotalStats().getInputRecordCount());
         assertEquals(20, dataCountsReporter.runningTotalStats().getInputFieldCount());
         assertEquals(4, dataCountsReporter.runningTotalStats().getProcessedRecordCount());
         assertEquals(12, dataCountsReporter.runningTotalStats().getProcessedFieldCount());
-        assertEquals(302000, dataCountsReporter.runningTotalStats().getLatestRecordTimeStamp().getTime());
+        assertEquals(602000, dataCountsReporter.runningTotalStats().getLatestRecordTimeStamp().getTime());
 
         // send 'flush' signal
         dataCountsReporter.finishReporting(ActionListener.wrap(r -> {}, e -> {}));
-        assertEquals(2, dataCountsReporter.runningTotalStats().getBucketCount());
-        assertEquals(0, dataCountsReporter.runningTotalStats().getEmptyBucketCount());
+        assertEquals(3, dataCountsReporter.runningTotalStats().getBucketCount());
+        assertEquals(1, dataCountsReporter.runningTotalStats().getEmptyBucketCount());
         assertEquals(0, dataCountsReporter.runningTotalStats().getSparseBucketCount());
+
+        assertEquals(3, dataCountsReporter.incrementalStats().getBucketCount());
+        assertEquals(1, dataCountsReporter.incrementalStats().getEmptyBucketCount());
+        assertEquals(0, dataCountsReporter.incrementalStats().getSparseBucketCount());
     }
 
     public void testReportLatestTimeIncrementalStats() throws IOException {

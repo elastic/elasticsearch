@@ -165,8 +165,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
                     if (isIndexInternalFormatTriggeredWatchIndex && isIndexInternalFormatWatchIndex) {
                         executor.execute(() -> start(event.state(), false));
                     } else {
-                        logger.warn("Not starting watcher, run the Upgrade API first.");
-                        logger.debug("Upgrade required, matches interal index format: watches index [{}], triggered watches index [{}]",
+                        logger.warn("not starting watcher, upgrade API run required: .watches[{}], .triggered_watches[{}]",
                                 isIndexInternalFormatWatchIndex, isIndexInternalFormatTriggeredWatchIndex);
                     }
                 }

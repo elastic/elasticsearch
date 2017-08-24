@@ -324,7 +324,6 @@ public class DataCountsReporter extends AbstractComponent {
     public void startNewIncrementalCount() {
         incrementalRecordStats = new DataCounts(job.getId());
         retrieveDiagnosticsIntermediateResults();
-        diagnostics.resetCounts();
     }
 
     public DataCounts incrementalStats() {
@@ -338,14 +337,14 @@ public class DataCountsReporter extends AbstractComponent {
     }
 
     private void retrieveDiagnosticsIntermediateResults() {
-        totalRecordStats.incrementBucketCount(diagnostics.getEmptyBucketCount());
         totalRecordStats.incrementBucketCount(diagnostics.getBucketCount());
+        totalRecordStats.incrementEmptyBucketCount(diagnostics.getEmptyBucketCount());
         totalRecordStats.incrementSparseBucketCount(diagnostics.getSparseBucketCount());
         totalRecordStats.updateLatestEmptyBucketTimeStamp(diagnostics.getLatestEmptyBucketTime());
         totalRecordStats.updateLatestSparseBucketTimeStamp(diagnostics.getLatestSparseBucketTime());
 
-        incrementalRecordStats.incrementEmptyBucketCount(diagnostics.getEmptyBucketCount());
         incrementalRecordStats.incrementBucketCount(diagnostics.getBucketCount());
+        incrementalRecordStats.incrementEmptyBucketCount(diagnostics.getEmptyBucketCount());
         incrementalRecordStats.incrementSparseBucketCount(diagnostics.getSparseBucketCount());
         incrementalRecordStats.updateLatestEmptyBucketTimeStamp(diagnostics.getLatestEmptyBucketTime());
         incrementalRecordStats.updateLatestSparseBucketTimeStamp(diagnostics.getLatestSparseBucketTime());

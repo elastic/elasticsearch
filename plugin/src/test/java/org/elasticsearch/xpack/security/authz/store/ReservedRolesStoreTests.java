@@ -122,6 +122,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("machine_learning_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("watcher_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("watcher_admin"), is(true));
+        assertThat(ReservedRolesStore.isReserved("kibana_dashboard_only_user"), is(true));
     }
 
     public void testIngestAdminRole() {
@@ -353,6 +354,36 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(UpdateAction.NAME).test(index), is(false));
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(BulkAction.NAME).test(index), is(false));
+    }
+
+    public void testKibanaDashboardOnlyUserRole() {
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_dashboard_only_user");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role dashboardsOnlyUserRole = Role.builder(roleDescriptor, null).build();
+        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterHealthAction.NAME), is(false));
+        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterStateAction.NAME), is(false));
+        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterStatsAction.NAME), is(false));
+        assertThat(dashboardsOnlyUserRole.cluster().check(PutIndexTemplateAction.NAME), is(false));
+        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterRerouteAction.NAME), is(false));
+        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
+        assertThat(dashboardsOnlyUserRole.cluster().check(MonitoringBulkAction.NAME), is(false));
+
+        assertThat(dashboardsOnlyUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
+
+        final String index = ".kibana";
+        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(false));
+        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(false));
+
+        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
+        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
+        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(false));
+        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
+
+        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(index), is(true));
+        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
+        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
     }
 
     public void testSuperuserRole() {
@@ -618,7 +649,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(logstashAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
         assertThat(logstashAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".logstash"), is(true));
         assertThat(logstashAdminRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
-            is(false));
+                   is(false));
 
         final String index = ".logstash-" + randomIntBetween(0, 5);
 

@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.gradle.test
 
+import com.sun.jna.Native
+import com.sun.jna.WString
 import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
@@ -40,6 +42,7 @@ import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
 
 import java.nio.charset.StandardCharsets
+import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
 
@@ -206,7 +209,14 @@ class ClusterFormationTasks {
         for (Map.Entry<String, Object[]> command : node.config.setupCommands.entrySet()) {
             // the first argument is the actual script name, relative to home
             Object[] args = command.getValue().clone()
-            args[0] = new File(node.homeDir, args[0].toString())
+            final Object commandPath
+            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                String argsZero = args[0]
+                commandPath = "${-> Paths.get(NodeInfo.getShortPathName(node.homeDir.toString())).resolve(argsZero.toString()).toString()}"
+            } else {
+                commandPath = node.homeDir.toPath().resolve(args[0].toString()).toString()
+            }
+            args[0] = commandPath
             setup = configureExecTask(taskName(prefix, node, command.getKey()), project, setup, node, args)
         }
 
@@ -337,7 +347,7 @@ class ClusterFormationTasks {
         if (node.config.keystoreSettings.isEmpty()) {
             return setup
         } else {
-            File esKeystoreUtil = Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
+            final Object esKeystoreUtil = "${-> node.binPath().resolve('elasticsearch.keystore').toString()}"
             return configureExecTask(name, project, setup, node, esKeystoreUtil, 'create')
         }
     }
@@ -345,8 +355,8 @@ class ClusterFormationTasks {
     /** Adds tasks to add settings to the keystore */
     static Task configureAddKeystoreSettingTasks(String parent, Project project, Task setup, NodeInfo node) {
         Map kvs = node.config.keystoreSettings
-        File esKeystoreUtil = Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
         Task parentTask = setup
+        final Object esKeystoreUtil = "${-> node.binPath().resolve('elasticsearch.keystore').toString()}"
         for (Map.Entry<String, String> entry in kvs) {
             String key = entry.getKey()
             String name = taskName(parent, node, 'addToKeystore#' + key)
@@ -482,8 +492,9 @@ class ClusterFormationTasks {
             pluginZip = project.configurations.getByName("_plugin_${prefix}_${plugin.path}")
         }
         // delay reading the file location until execution time by wrapping in a closure within a GString
-        Object file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
-        Object[] args = [new File(node.homeDir, 'bin/elasticsearch-plugin'), 'install', file]
+        final Object file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
+        final Object esPluginUtil = "${-> node.binPath().resolve('elasticsearch-plugin').toString()}"
+        final Object[] args = [esPluginUtil, 'install', file]
         return configureExecTask(name, project, setup, node, args)
     }
 

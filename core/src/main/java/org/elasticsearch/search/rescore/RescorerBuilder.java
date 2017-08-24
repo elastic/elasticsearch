@@ -181,8 +181,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        @SuppressWarnings("rawtypes")
-        RescorerBuilder other = (RescorerBuilder) obj;
+        RescorerBuilder<?> other = (RescorerBuilder<?>) obj;
         return Objects.equals(windowSize, other.windowSize);
     }
 

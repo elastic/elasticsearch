@@ -32,20 +32,18 @@ import java.util.Set;
 /**
  * A query rescorer interface used to re-rank the Top-K results of a previously
  * executed search.
+ *
+ * Subclasses should borrow heavily from {@link QueryRescorer} because it is
+ * fairly well behaved and documents that tradeoffs that it is making. There
+ * is also an {@code ExampleRescorer} that is worth looking at. 
  */
 public interface Rescorer {
-
-    /**
-     * Returns the name of this rescorer
-     */
-    String name();
-
     /**
      * Modifies the result of the previously executed search ({@link TopDocs})
      * in place based on the given {@link RescoreContext}.
      *
      * @param topDocs        the result of the previously executed search
-     * @param context        the current {@link SearchContext}. This will never be <code>null</code>.
+     * @param searcher       the searcher used for this search. This will never be <code>null</code>.
      * @param rescoreContext the {@link RescoreContext}. This will never be <code>null</code>
      * @throws IOException if an {@link IOException} occurs during rescoring
      */
@@ -55,13 +53,13 @@ public interface Rescorer {
      * Executes an {@link Explanation} phase on the rescorer.
      *
      * @param topLevelDocId the global / top-level document ID to explain
-     * @param context the explanation for the results being fed to this rescorer
+     * @param searcher the searcher used for this search. This will never be <code>null</code>.
      * @param rescoreContext context for this rescorer
      * @param sourceExplanation explanation of the source of the documents being fed into this rescore
      * @return the explain for the given top level document ID.
      * @throws IOException if an {@link IOException} occurs
      */
-    Explanation explain(int topLevelDocId, SearchContext context, RescoreContext rescoreContext,
+    Explanation explain(int topLevelDocId, IndexSearcher searcher, RescoreContext rescoreContext,
                         Explanation sourceExplanation) throws IOException;
 
     /**

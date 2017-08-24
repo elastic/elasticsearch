@@ -1,4 +1,3 @@
-package org.elasticsearch.example.rescore;
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,7 +17,7 @@ package org.elasticsearch.example.rescore;
  * under the License.
  */
 
-
+package org.elasticsearch.example.rescore;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;

@@ -24,7 +24,7 @@ setup:
       indices.refresh: {}
 
 ---
-"example rescore":
+"just factor":
   - do:
       search:
         index: test
@@ -33,8 +33,8 @@ setup:
             example:
               factor: 0
   - length: { hits.hits: 2 }
-  - match: {hits.hits.0._score: 0 }
-  - match: {hits.hits.1._score: 0 }
+  - match: { hits.hits.0._score: 0 }
+  - match: { hits.hits.1._score: 0 }
 
   - do:
       search:
@@ -45,5 +45,19 @@ setup:
             example:
               factor: 0
   - length: { hits.hits: 2 }
-  - match: {hits.hits.0._score: 0 }
-  - match: {hits.hits.1._score: 1 }
+  - match: { hits.hits.0._score: 1 }
+  - match: { hits.hits.1._score: 0 }
+
+---
+"with factor field":
+  - do:
+      search:
+        index: test
+        body:
+          rescore:
+            example:
+              factor: 1
+              factor_field: test
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._score: 2 }
+  - match: { hits.hits.1._score: 1 }

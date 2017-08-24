@@ -41,7 +41,7 @@ public final class ExplainFetchSubPhase implements FetchSubPhase {
             Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
 
             for (RescoreContext rescore : context.rescore()) {
-                explanation = rescore.rescorer().explain(topLevelDocId, context, rescore, explanation);
+                explanation = rescore.rescorer().explain(topLevelDocId, context.searcher(), rescore, explanation);
             }
             // we use the top level doc id, since we work with the top level searcher
             hitContext.hit().explanation(explanation);

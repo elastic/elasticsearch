@@ -25,7 +25,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescorerBuilder.RescoreContextSupport;
 
@@ -37,12 +36,6 @@ import java.util.Set;
 public final class QueryRescorer implements Rescorer {
 
     public static final Rescorer INSTANCE = new QueryRescorer();
-    public static final String NAME = "query";
-
-    @Override
-    public String name() {
-        return NAME;
-    }
 
     @Override
     public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) throws IOException {
@@ -78,10 +71,9 @@ public final class QueryRescorer implements Rescorer {
     }
 
     @Override
-    public Explanation explain(int topLevelDocId, SearchContext context, RescoreContext rescoreContext,
+    public Explanation explain(int topLevelDocId, IndexSearcher searcher, RescoreContext rescoreContext,
                                Explanation sourceExplanation) throws IOException {
         QueryRescoreContext rescore = (QueryRescoreContext) rescoreContext;
-        ContextIndexSearcher searcher = context.searcher();
         if (sourceExplanation == null) {
             // this should not happen but just in case
             return Explanation.noMatch("nothing matched");

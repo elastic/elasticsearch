@@ -22,8 +22,6 @@ package org.elasticsearch.discovery.ec2;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.services.ec2.AmazonEC2;
-import org.elasticsearch.common.settings.SecureSetting;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -44,52 +42,50 @@ interface AwsEc2Service {
     /**
      * cloud.aws.access_key: AWS Access key. Shared with repository-s3 plugin
      */
-    Setting<SecureString> KEY_SETTING = new Setting<>("cloud.aws.access_key", "", SecureString::new,
-            Property.NodeScope, Property.Filtered, Property.Shared, Property.Deprecated);
+    Setting<String> KEY_SETTING =
+        Setting.simpleString("cloud.aws.access_key", Property.NodeScope, Property.Filtered, Property.Shared);
     /**
      * cloud.aws.secret_key: AWS Secret key. Shared with repository-s3 plugin
      */
-    Setting<SecureString> SECRET_SETTING = new Setting<>("cloud.aws.secret_key", "", SecureString::new,
-        Property.NodeScope, Property.Filtered, Property.Shared, Property.Deprecated);
+    Setting<String> SECRET_SETTING =
+        Setting.simpleString("cloud.aws.secret_key", Property.NodeScope, Property.Filtered, Property.Shared);
     /**
      * cloud.aws.protocol: Protocol for AWS API: http or https. Defaults to https. Shared with repository-s3 plugin
      */
     Setting<Protocol> PROTOCOL_SETTING = new Setting<>("cloud.aws.protocol", "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)),
-        Property.NodeScope, Property.Shared, Property.Deprecated);
+        Property.NodeScope, Property.Shared);
     /**
      * cloud.aws.proxy.host: In case of proxy, define its hostname/IP. Shared with repository-s3 plugin
      */
-    Setting<String> PROXY_HOST_SETTING = Setting.simpleString("cloud.aws.proxy.host",
-        Property.NodeScope, Property.Shared, Property.Deprecated);
+    Setting<String> PROXY_HOST_SETTING = Setting.simpleString("cloud.aws.proxy.host", Property.NodeScope, Property.Shared);
     /**
      * cloud.aws.proxy.port: In case of proxy, define its port. Defaults to 80. Shared with repository-s3 plugin
      */
-    Setting<Integer> PROXY_PORT_SETTING = Setting.intSetting("cloud.aws.proxy.port", 80, 0, 1<<16,
-        Property.NodeScope, Property.Shared, Property.Deprecated);
+    Setting<Integer> PROXY_PORT_SETTING = Setting.intSetting("cloud.aws.proxy.port", 80, 0, 1<<16, Property.NodeScope,
+        Property.Shared);
     /**
      * cloud.aws.proxy.username: In case of proxy with auth, define the username. Shared with repository-s3 plugin
      */
-    Setting<SecureString> PROXY_USERNAME_SETTING = new Setting<>("cloud.aws.proxy.username", "", SecureString::new,
-        Property.NodeScope, Property.Filtered, Property.Shared, Property.Deprecated);
+    Setting<String> PROXY_USERNAME_SETTING = Setting.simpleString("cloud.aws.proxy.username", Property.NodeScope, Property.Shared);
     /**
      * cloud.aws.proxy.password: In case of proxy with auth, define the password. Shared with repository-s3 plugin
      */
-    Setting<SecureString> PROXY_PASSWORD_SETTING = new Setting<>("cloud.aws.proxy.password", "", SecureString::new,
-        Property.NodeScope, Property.Filtered, Property.Shared, Property.Deprecated);
+    Setting<String> PROXY_PASSWORD_SETTING =
+        Setting.simpleString("cloud.aws.proxy.password", Property.NodeScope, Property.Filtered, Property.Shared);
     /**
      * cloud.aws.signer: If you are using an old AWS API version, you can define a Signer. Shared with repository-s3 plugin
      */
-    Setting<String> SIGNER_SETTING = Setting.simpleString("cloud.aws.signer", Property.NodeScope, Property.Shared, Property.Deprecated);
+    Setting<String> SIGNER_SETTING = Setting.simpleString("cloud.aws.signer", Property.NodeScope, Property.Shared);
     /**
      * cloud.aws.region: Region. Shared with repository-s3 plugin
      */
     Setting<String> REGION_SETTING =
-        new Setting<>("cloud.aws.region", "", s -> s.toLowerCase(Locale.ROOT), Property.NodeScope, Property.Shared, Property.Deprecated);
+        new Setting<>("cloud.aws.region", "", s -> s.toLowerCase(Locale.ROOT), Property.NodeScope, Property.Shared);
     /**
      * cloud.aws.read_timeout: Socket read timeout. Shared with repository-s3 plugin
      */
     Setting<TimeValue> READ_TIMEOUT = Setting.timeSetting("cloud.aws.read_timeout",
-        TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT), Property.NodeScope, Property.Shared, Property.Deprecated);
+        TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT), Property.NodeScope, Property.Shared);
 
     /**
      * Defines specific ec2 settings starting with cloud.aws.ec2.
@@ -99,70 +95,69 @@ interface AwsEc2Service {
          * cloud.aws.ec2.access_key: AWS Access key specific for EC2 API calls. Defaults to cloud.aws.access_key.
          * @see AwsEc2Service#KEY_SETTING
          */
-        Setting<SecureString> KEY_SETTING = new Setting<>("cloud.aws.ec2.access_key", AwsEc2Service.KEY_SETTING,
-            SecureString::new, Property.NodeScope, Property.Filtered, Property.Deprecated);
-
+        Setting<String> KEY_SETTING = new Setting<>("cloud.aws.ec2.access_key", AwsEc2Service.KEY_SETTING, Function.identity(),
+            Property.NodeScope, Property.Filtered);
         /**
          * cloud.aws.ec2.secret_key: AWS Secret key specific for EC2 API calls. Defaults to cloud.aws.secret_key.
          * @see AwsEc2Service#SECRET_SETTING
          */
-        Setting<SecureString> SECRET_SETTING = new Setting<>("cloud.aws.ec2.secret_key", AwsEc2Service.SECRET_SETTING,
-            SecureString::new, Property.NodeScope, Property.Filtered, Property.Deprecated);
+        Setting<String> SECRET_SETTING = new Setting<>("cloud.aws.ec2.secret_key", AwsEc2Service.SECRET_SETTING, Function.identity(),
+            Property.NodeScope, Property.Filtered);
         /**
          * cloud.aws.ec2.protocol: Protocol for AWS API specific for EC2 API calls: http or https.  Defaults to cloud.aws.protocol.
          * @see AwsEc2Service#PROTOCOL_SETTING
          */
         Setting<Protocol> PROTOCOL_SETTING = new Setting<>("cloud.aws.ec2.protocol", AwsEc2Service.PROTOCOL_SETTING,
-            s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope, Property.Deprecated);
+            s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope);
         /**
          * cloud.aws.ec2.proxy.host: In case of proxy, define its hostname/IP specific for EC2 API calls. Defaults to cloud.aws.proxy.host.
          * @see AwsEc2Service#PROXY_HOST_SETTING
          */
         Setting<String> PROXY_HOST_SETTING = new Setting<>("cloud.aws.ec2.proxy.host", AwsEc2Service.PROXY_HOST_SETTING,
-            Function.identity(), Property.NodeScope, Property.Deprecated);
+            Function.identity(), Property.NodeScope);
         /**
          * cloud.aws.ec2.proxy.port: In case of proxy, define its port specific for EC2 API calls.  Defaults to cloud.aws.proxy.port.
          * @see AwsEc2Service#PROXY_PORT_SETTING
          */
         Setting<Integer> PROXY_PORT_SETTING = new Setting<>("cloud.aws.ec2.proxy.port", AwsEc2Service.PROXY_PORT_SETTING,
-            s -> Setting.parseInt(s, 0, 1<<16, "cloud.aws.ec2.proxy.port"), Property.NodeScope, Property.Deprecated);
+            s -> Setting.parseInt(s, 0, 1<<16, "cloud.aws.ec2.proxy.port"), Property.NodeScope);
         /**
          * cloud.aws.ec2.proxy.username: In case of proxy with auth, define the username specific for EC2 API calls.
          * Defaults to cloud.aws.proxy.username.
          * @see AwsEc2Service#PROXY_USERNAME_SETTING
          */
-        Setting<SecureString> PROXY_USERNAME_SETTING = new Setting<>("cloud.aws.ec2.proxy.username", AwsEc2Service.PROXY_USERNAME_SETTING,
-            SecureString::new, Property.NodeScope, Property.Filtered, Property.Deprecated);
+        Setting<String> PROXY_USERNAME_SETTING = new Setting<>("cloud.aws.ec2.proxy.username", AwsEc2Service.PROXY_USERNAME_SETTING,
+            Function.identity(), Property.NodeScope);
         /**
          * cloud.aws.ec2.proxy.password: In case of proxy with auth, define the password specific for EC2 API calls.
          * Defaults to cloud.aws.proxy.password.
          * @see AwsEc2Service#PROXY_PASSWORD_SETTING
          */
-        Setting<SecureString> PROXY_PASSWORD_SETTING = new Setting<>("cloud.aws.ec2.proxy.password", AwsEc2Service.PROXY_PASSWORD_SETTING,
-            SecureString::new, Property.NodeScope, Property.Filtered, Property.Deprecated);
+        Setting<String> PROXY_PASSWORD_SETTING = new Setting<>("cloud.aws.ec2.proxy.password", AwsEc2Service.PROXY_PASSWORD_SETTING,
+            Function.identity(), Property.NodeScope, Property.Filtered);
         /**
          * cloud.aws.ec2.signer: If you are using an old AWS API version, you can define a Signer. Specific for EC2 API calls.
          * Defaults to cloud.aws.signer.
          * @see AwsEc2Service#SIGNER_SETTING
          */
         Setting<String> SIGNER_SETTING = new Setting<>("cloud.aws.ec2.signer", AwsEc2Service.SIGNER_SETTING, Function.identity(),
-            Property.NodeScope, Property.Deprecated);
+            Property.NodeScope);
         /**
          * cloud.aws.ec2.region: Region specific for EC2 API calls. Defaults to cloud.aws.region.
          * @see AwsEc2Service#REGION_SETTING
          */
         Setting<String> REGION_SETTING = new Setting<>("cloud.aws.ec2.region", AwsEc2Service.REGION_SETTING,
-            s -> s.toLowerCase(Locale.ROOT), Property.NodeScope, Property.Deprecated);
+            s -> s.toLowerCase(Locale.ROOT), Property.NodeScope);
         /**
          * cloud.aws.ec2.endpoint: Endpoint. If not set, endpoint will be guessed based on region setting.
          */
-        Setting<String> ENDPOINT_SETTING = Setting.simpleString("cloud.aws.ec2.endpoint", Property.NodeScope, Property.Deprecated);
+        Setting<String> ENDPOINT_SETTING = Setting.simpleString("cloud.aws.ec2.endpoint", Property.NodeScope);
         /**
          * cloud.aws.ec2.read_timeout: Socket read timeout. Defaults to cloud.aws.read_timeout
          * @see AwsEc2Service#READ_TIMEOUT
          */
         Setting<TimeValue> READ_TIMEOUT =
-            Setting.timeSetting("cloud.aws.ec2.read_timeout", AwsEc2Service.READ_TIMEOUT, Property.NodeScope, Property.Deprecated);
+            Setting.timeSetting("cloud.aws.ec2.read_timeout", AwsEc2Service.READ_TIMEOUT, Property.NodeScope);
     }
 
     /**
@@ -176,40 +171,6 @@ interface AwsEc2Service {
             public static final String PUBLIC_DNS = "public_dns";
             public static final String TAG_PREFIX = "tag:";
         }
-
-        /** The access key (ie login id) for connecting to ec2. */
-        Setting<SecureString> ACCESS_KEY_SETTING = SecureSetting.secureString("discovery.ec2.access_key", CLOUD_EC2.KEY_SETTING);
-
-        /** The secret key (ie password) for connecting to ec2. */
-        Setting<SecureString> SECRET_KEY_SETTING = SecureSetting.secureString("discovery.ec2.secret_key", CLOUD_EC2.SECRET_SETTING);
-
-        /** An override for the ec2 endpoint to connect to. */
-        Setting<String> ENDPOINT_SETTING = new Setting<>("discovery.ec2.endpoint", CLOUD_EC2.ENDPOINT_SETTING,
-            s -> s.toLowerCase(Locale.ROOT), Setting.Property.NodeScope);
-
-        /** The protocol to use to connect to to ec2. */
-        Setting<Protocol> PROTOCOL_SETTING = new Setting<>("discovery.ec2.protocol", CLOUD_EC2.PROTOCOL_SETTING,
-            s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Setting.Property.NodeScope);
-
-        /** The host name of a proxy to connect to ec2 through. */
-        Setting<String> PROXY_HOST_SETTING = new Setting<>("discovery.ec2.proxy.host", CLOUD_EC2.PROXY_HOST_SETTING,
-            Function.identity(), Setting.Property.NodeScope);
-
-        /** The port of a proxy to connect to ec2 through. */
-        Setting<Integer> PROXY_PORT_SETTING = Setting.intSetting("discovery.ec2.proxy.port", CLOUD_EC2.PROXY_PORT_SETTING,
-            0, Setting.Property.NodeScope);
-
-        /** The username of a proxy to connect to s3 through. */
-        Setting<SecureString> PROXY_USERNAME_SETTING = SecureSetting.secureString("discovery.ec2.proxy.username",
-            CLOUD_EC2.PROXY_USERNAME_SETTING);
-
-        /** The password of a proxy to connect to s3 through. */
-        Setting<SecureString> PROXY_PASSWORD_SETTING =  SecureSetting.secureString("discovery.ec2.proxy.password",
-            CLOUD_EC2.PROXY_PASSWORD_SETTING);
-
-        /** The socket timeout for connecting to s3. */
-        Setting<TimeValue> READ_TIMEOUT_SETTING = Setting.timeSetting("discovery.ec2.read_timeout",
-            CLOUD_EC2.READ_TIMEOUT, Setting.Property.NodeScope);
 
         /**
          * discovery.ec2.host_type: The type of host type to use to communicate with other instances.

@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.Protocol;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -69,17 +68,6 @@ public class Ec2DiscoverySettingsTests extends ESTestCase {
         assertThat(AwsEc2Service.CLOUD_EC2.SIGNER_SETTING.get(nodeSettings), is("global-signer"));
         assertThat(AwsEc2Service.CLOUD_EC2.REGION_SETTING.get(nodeSettings), is("global-region"));
         assertThat(AwsEc2Service.CLOUD_EC2.ENDPOINT_SETTING.get(nodeSettings), isEmptyString());
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {
-                AwsEc2Service.KEY_SETTING,
-                AwsEc2Service.SECRET_SETTING,
-                AwsEc2Service.PROTOCOL_SETTING,
-                AwsEc2Service.PROXY_HOST_SETTING,
-                AwsEc2Service.PROXY_PORT_SETTING,
-                AwsEc2Service.PROXY_USERNAME_SETTING,
-                AwsEc2Service.PROXY_PASSWORD_SETTING,
-                AwsEc2Service.SIGNER_SETTING,
-                AwsEc2Service.REGION_SETTING
-        });
     }
 
     /**
@@ -97,27 +85,6 @@ public class Ec2DiscoverySettingsTests extends ESTestCase {
         assertThat(AwsEc2Service.CLOUD_EC2.SIGNER_SETTING.get(nodeSettings), is("ec2-signer"));
         assertThat(AwsEc2Service.CLOUD_EC2.REGION_SETTING.get(nodeSettings), is("ec2-region"));
         assertThat(AwsEc2Service.CLOUD_EC2.ENDPOINT_SETTING.get(nodeSettings), is("ec2-endpoint"));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {
-            AwsEc2Service.KEY_SETTING,
-            AwsEc2Service.SECRET_SETTING,
-            AwsEc2Service.PROTOCOL_SETTING,
-            AwsEc2Service.PROXY_HOST_SETTING,
-            AwsEc2Service.PROXY_PORT_SETTING,
-            AwsEc2Service.PROXY_USERNAME_SETTING,
-            AwsEc2Service.PROXY_PASSWORD_SETTING,
-            AwsEc2Service.SIGNER_SETTING,
-            AwsEc2Service.REGION_SETTING,
-            AwsEc2Service.CLOUD_EC2.KEY_SETTING,
-            AwsEc2Service.CLOUD_EC2.SECRET_SETTING,
-            AwsEc2Service.CLOUD_EC2.PROTOCOL_SETTING,
-            AwsEc2Service.CLOUD_EC2.PROXY_HOST_SETTING,
-            AwsEc2Service.CLOUD_EC2.PROXY_PORT_SETTING,
-            AwsEc2Service.CLOUD_EC2.PROXY_USERNAME_SETTING,
-            AwsEc2Service.CLOUD_EC2.PROXY_PASSWORD_SETTING,
-            AwsEc2Service.CLOUD_EC2.SIGNER_SETTING,
-            AwsEc2Service.CLOUD_EC2.REGION_SETTING,
-            AwsEc2Service.CLOUD_EC2.ENDPOINT_SETTING
-        });
     }
 
     private Settings buildSettings(Settings... global) {

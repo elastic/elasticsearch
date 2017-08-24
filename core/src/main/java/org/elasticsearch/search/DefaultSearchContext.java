@@ -215,9 +215,9 @@ final class DefaultSearchContext extends SearchContext {
             int maxWindow = indexService.getIndexSettings().getMaxRescoreWindow();
             for (RescoreContext rescoreContext: rescore) {
                 if (rescoreContext.getWindowSize() > maxWindow) {
-                    throw new QueryPhaseExecutionException(this, "Rescore window [" + rescoreContext.getWindowSize() + "] is too large. It must "
-                            + "be less than [" + maxWindow + "]. This prevents allocating massive heaps for storing the results to be "
-                            + "rescored. This limit can be set by changing the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey()
+                    throw new QueryPhaseExecutionException(this, "Rescore window [" + rescoreContext.getWindowSize() + "] is too large. "
+                            + "It must be less than [" + maxWindow + "]. This prevents allocating massive heaps for storing the results "
+                            + "to be rescored. This limit can be set by changing the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey()
                             + "] index level setting.");
 
                 }

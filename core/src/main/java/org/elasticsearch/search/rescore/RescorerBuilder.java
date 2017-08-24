@@ -156,7 +156,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
      * which may be implemented in a plugin. This way we get a more consistent
      * contract with the plugin.
      */
-    public static abstract class RescoreContextSupport {
+    public abstract static class RescoreContextSupport {
         public abstract Query toQuery(QueryBuilder queryBuilder) throws IOException;
         public abstract Query toFilter(QueryBuilder queryBuilder) throws IOException;
         public abstract <IFD extends IndexFieldData<?>> IFD fieldData(String fullName);

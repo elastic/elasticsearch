@@ -19,11 +19,11 @@
 
 package org.elasticsearch.smoketest;
 
+import org.apache.http.HttpHost;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.http.HttpHost;
 import org.elasticsearch.test.rest.yaml.ClientYamlDocsTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;

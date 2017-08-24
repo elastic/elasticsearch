@@ -15,31 +15,31 @@
 # language governing permissions and limitations under the License.
 
 @defaultMessage Explicitly specify the ContentType of HTTP entities when creating
-org.elasticsearch.client.http.entity.StringEntity#<init>(java.lang.String)
-org.elasticsearch.client.http.entity.StringEntity#<init>(java.lang.String,java.lang.String)
-org.elasticsearch.client.http.entity.StringEntity#<init>(java.lang.String,java.nio.charset.Charset)
-org.elasticsearch.client.http.entity.ByteArrayEntity#<init>(byte[])
-org.elasticsearch.client.http.entity.ByteArrayEntity#<init>(byte[],int,int)
-org.elasticsearch.client.http.entity.FileEntity#<init>(java.io.File)
-org.elasticsearch.client.http.entity.InputStreamEntity#<init>(java.io.InputStream)
-org.elasticsearch.client.http.entity.InputStreamEntity#<init>(java.io.InputStream,long)
-org.elasticsearch.client.http.nio.entity.NByteArrayEntity#<init>(byte[])
-org.elasticsearch.client.http.nio.entity.NByteArrayEntity#<init>(byte[],int,int)
-org.elasticsearch.client.http.nio.entity.NFileEntity#<init>(java.io.File)
-org.elasticsearch.client.http.nio.entity.NStringEntity#<init>(java.lang.String)
-org.elasticsearch.client.http.nio.entity.NStringEntity#<init>(java.lang.String,java.lang.String)
+org.apache.http.entity.StringEntity#<init>(java.lang.String)
+org.apache.http.entity.StringEntity#<init>(java.lang.String,java.lang.String)
+org.apache.http.entity.StringEntity#<init>(java.lang.String,java.nio.charset.Charset)
+org.apache.http.entity.ByteArrayEntity#<init>(byte[])
+org.apache.http.entity.ByteArrayEntity#<init>(byte[],int,int)
+org.apache.http.entity.FileEntity#<init>(java.io.File)
+org.apache.http.entity.InputStreamEntity#<init>(java.io.InputStream)
+org.apache.http.entity.InputStreamEntity#<init>(java.io.InputStream,long)
+org.apache.http.nio.entity.NByteArrayEntity#<init>(byte[])
+org.apache.http.nio.entity.NByteArrayEntity#<init>(byte[],int,int)
+org.apache.http.nio.entity.NFileEntity#<init>(java.io.File)
+org.apache.http.nio.entity.NStringEntity#<init>(java.lang.String)
+org.apache.http.nio.entity.NStringEntity#<init>(java.lang.String,java.lang.String)
 
 @defaultMessage Use non-deprecated constructors
-org.elasticsearch.client.http.nio.entity.NFileEntity#<init>(java.io.File,java.lang.String)
-org.elasticsearch.client.http.nio.entity.NFileEntity#<init>(java.io.File,java.lang.String,boolean)
-org.elasticsearch.client.http.entity.FileEntity#<init>(java.io.File,java.lang.String)
-org.elasticsearch.client.http.entity.StringEntity#<init>(java.lang.String,java.lang.String,java.lang.String)
+org.apache.http.nio.entity.NFileEntity#<init>(java.io.File,java.lang.String)
+org.apache.http.nio.entity.NFileEntity#<init>(java.io.File,java.lang.String,boolean)
+org.apache.http.entity.FileEntity#<init>(java.io.File,java.lang.String)
+org.apache.http.entity.StringEntity#<init>(java.lang.String,java.lang.String,java.lang.String)
 
 @defaultMessage BasicEntity is easy to mess up and forget to set content type
-org.elasticsearch.client.http.entity.BasicHttpEntity#<init>()
+org.apache.http.entity.BasicHttpEntity#<init>()
 
 @defaultMessage EntityTemplate is easy to mess up and forget to set content type
-org.elasticsearch.client.http.entity.EntityTemplate#<init>(org.elasticsearch.client.http.entity.ContentProducer)
+org.apache.http.entity.EntityTemplate#<init>(org.apache.http.entity.ContentProducer)
 
 @defaultMessage SerializableEntity uses java serialization and makes it easy to forget to set content type
-org.elasticsearch.client.http.entity.SerializableEntity#<init>(java.io.Serializable)
+org.apache.http.entity.SerializableEntity#<init>(java.io.Serializable)

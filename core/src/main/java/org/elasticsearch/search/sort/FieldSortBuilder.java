@@ -20,6 +20,7 @@
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -71,6 +72,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     private String nestedPath;
 
+    private NestedSort nestedSort;
+
     /** Copy constructor. */
     public FieldSortBuilder(FieldSortBuilder template) {
         this(template.fieldName);
@@ -82,6 +85,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         this.setNestedFilter(template.getNestedFilter());
         this.setNestedPath(template.getNestedPath());
+        this.setNestedSort(template.getNestedSort());
     }
 
     /**
@@ -108,6 +112,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         order = in.readOptionalWriteable(SortOrder::readFromStream);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         unmappedType = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
+            nestedSort = in.readOptionalWriteable(NestedSort::new);
+        }
     }
 
     @Override
@@ -119,6 +126,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         out.writeOptionalWriteable(order);
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalString(unmappedType);
+        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
+            out.writeOptionalWriteable(nestedSort);
+        }
     }
 
     /** Returns the document field this sort should be based on. */
@@ -221,6 +231,15 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return this.nestedPath;
     }
 
+    public NestedSort getNestedSort() {
+        return this.nestedSort;
+    }
+
+    public FieldSortBuilder setNestedSort(final NestedSort nestedSort) {
+        this.nestedSort = nestedSort;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -240,6 +259,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         if (nestedPath != null) {
             builder.field(NESTED_PATH_FIELD.getPreferredName(), nestedPath);
+        }
+        if (nestedSort != null) {
+            builder.field(NESTED_FIELD.getPreferredName(), nestedSort);
         }
         builder.endObject();
         builder.endObject();
@@ -274,7 +296,14 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 localSortMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
             }
 
-            final Nested nested = resolveNested(context, nestedPath, nestedFilter);
+            final Nested nested;
+            if (nestedSort != null) {
+                // new nested sorts takes priority
+                nested = resolveNested(context, nestedSort);
+            } else {
+                nested = resolveNested(context, nestedPath, nestedFilter);
+            }
+
             IndexFieldData<?> fieldData = context.getForField(fieldType);
             if (fieldData instanceof IndexNumericFieldData == false
                     && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
@@ -299,12 +328,13 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return (Objects.equals(this.fieldName, builder.fieldName) && Objects.equals(this.nestedFilter, builder.nestedFilter)
                 && Objects.equals(this.nestedPath, builder.nestedPath) && Objects.equals(this.missing, builder.missing)
                 && Objects.equals(this.order, builder.order) && Objects.equals(this.sortMode, builder.sortMode)
-                && Objects.equals(this.unmappedType, builder.unmappedType));
+                && Objects.equals(this.unmappedType, builder.unmappedType) && Objects.equals(this.nestedSort, builder.nestedSort));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.fieldName, this.nestedFilter, this.nestedPath, this.missing, this.order, this.sortMode, this.unmappedType);
+        return Objects.hash(this.fieldName, this.nestedFilter, this.nestedPath, this.nestedSort, this.missing, this.order, this.sortMode,
+            this.unmappedType);
     }
 
     @Override
@@ -334,6 +364,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)) , ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORT_MODE);
         PARSER.declareObject(FieldSortBuilder::setNestedFilter, (p, c) -> SortBuilder.parseNestedFilter(p), NESTED_FILTER_FIELD);
+        PARSER.declareObject(FieldSortBuilder::setNestedSort, (p, c) -> NestedSort.fromXContent(p), NESTED_FIELD);
     }
 
     @Override

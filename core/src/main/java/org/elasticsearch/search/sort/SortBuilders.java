@@ -57,6 +57,14 @@ public class SortBuilders {
     }
 
     /**
+     * Constructs a new nested sort builder.
+     *
+     */
+    public static SortBuilder.NestedSort nestedSort() {
+        return new SortBuilder.NestedSort();
+    }
+
+    /**
      * A geo distance based sort.
      *
      * @param fieldName The geo point like field name.

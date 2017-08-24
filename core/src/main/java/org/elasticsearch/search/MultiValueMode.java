@@ -526,7 +526,6 @@ public enum MultiValueMode implements Writeable {
 
             @Override
             public boolean advanceExact(int rootDoc) throws IOException {
-                assert rootDocs.get(rootDoc) : "can only sort root documents";
                 assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
                 if (rootDoc == lastSeenRootDoc) {
                     return true;
@@ -636,7 +635,6 @@ public enum MultiValueMode implements Writeable {
 
             @Override
             public boolean advanceExact(int rootDoc) throws IOException {
-                assert rootDocs.get(rootDoc) : "can only sort root documents";
                 assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
                 if (rootDoc == lastSeenRootDoc) {
                     return true;
@@ -748,7 +746,6 @@ public enum MultiValueMode implements Writeable {
 
             @Override
             public boolean advanceExact(int rootDoc) throws IOException {
-                assert rootDocs.get(rootDoc) : "can only sort root documents";
                 assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
                 if (rootDoc == lastSeenRootDoc) {
                     return true;
@@ -874,7 +871,6 @@ public enum MultiValueMode implements Writeable {
 
             @Override
             public boolean advanceExact(int rootDoc) throws IOException {
-                assert rootDocs.get(rootDoc) : "can only sort root documents";
                 assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
                 if (rootDoc == lastSeenRootDoc) {
                     return lastEmittedOrd != -1;

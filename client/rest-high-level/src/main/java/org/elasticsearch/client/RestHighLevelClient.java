@@ -197,8 +197,8 @@ public class RestHighLevelClient implements Closeable {
      */
     protected RestHighLevelClient(RestClient restClient, CheckedConsumer<RestClient, IOException> doClose,
                                   List<NamedXContentRegistry.Entry> namedXContentEntries) {
-        this.client = Objects.requireNonNull(restClient);
-        this.doClose = doClose;
+        this.client = Objects.requireNonNull(restClient, "restClient must not be null");
+        this.doClose = Objects.requireNonNull(doClose, "doClose consumer must not be null");
         this.registry = new NamedXContentRegistry(
                 Stream.of(getDefaultNamedXContents().stream(), getProvidedNamedXContents().stream(), namedXContentEntries.stream())
                     .flatMap(Function.identity()).collect(toList()));

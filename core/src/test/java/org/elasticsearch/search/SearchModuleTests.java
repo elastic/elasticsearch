@@ -61,7 +61,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
-import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.suggest.CustomSuggesterSearchIT.CustomSuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
@@ -475,7 +475,7 @@ public class SearchModuleTests extends ModuleTestCase {
         }
 
         @Override
-        public RescoreSearchContext build(QueryShardContext context) throws IOException {
+        public RescoreContext innerBuildContext(RescoreContextSupport context) throws IOException {
             return null;
         }
     }

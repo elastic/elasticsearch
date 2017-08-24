@@ -40,7 +40,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
-import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -105,7 +105,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             context.preProcess(true);
             int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().context.docBase;
             Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
-            for (RescoreSearchContext ctx : context.rescore()) {
+            for (RescoreContext ctx : context.rescore()) {
                 Rescorer rescorer = ctx.rescorer();
                 explanation = rescorer.explain(topLevelDocId, context, ctx, explanation);
             }

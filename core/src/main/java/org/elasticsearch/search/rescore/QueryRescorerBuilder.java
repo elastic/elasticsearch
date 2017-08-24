@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
 
 import java.io.IOException;
@@ -46,7 +45,6 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     private static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
 
     private static final ObjectParser<InnerBuilder, Void> QUERY_RESCORE_PARSER = new ObjectParser<>(NAME, null);
-
     static {
         QUERY_RESCORE_PARSER.declareObject(InnerBuilder::setQueryBuilder, (p, c) -> {
             try {
@@ -96,6 +94,11 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
         scoreMode.writeTo(out);
         out.writeFloat(rescoreQueryWeight);
         out.writeFloat(queryWeight);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 
     /**
@@ -167,17 +170,13 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     }
 
     @Override
-    public QueryRescoreContext build(QueryShardContext context) throws IOException {
-        org.elasticsearch.search.rescore.QueryRescorer rescorer = new org.elasticsearch.search.rescore.QueryRescorer();
-        QueryRescoreContext queryRescoreContext = new QueryRescoreContext(rescorer);
+    public QueryRescoreContext innerBuildContext(RescoreContextSupport support) throws IOException {
+        QueryRescoreContext queryRescoreContext = new QueryRescoreContext(support);
         // query is rewritten at this point already
-        queryRescoreContext.setQuery(queryBuilder.toQuery(context));
+        queryRescoreContext.setQuery(support.toQuery(queryBuilder));
         queryRescoreContext.setQueryWeight(this.queryWeight);
         queryRescoreContext.setRescoreQueryWeight(this.rescoreQueryWeight);
         queryRescoreContext.setScoreMode(this.scoreMode);
-        if (this.windowSize != null) {
-            queryRescoreContext.setWindowSize(this.windowSize);
-        }
         return queryRescoreContext;
     }
 
@@ -201,11 +200,6 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
                Objects.equals(queryWeight, other.queryWeight) &&
                Objects.equals(rescoreQueryWeight, other.rescoreQueryWeight) &&
                Objects.equals(queryBuilder, other.queryBuilder);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
     }
 
     /**
@@ -246,7 +240,7 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     }
 
     @Override
-    public RescorerBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+    public QueryRescorerBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         QueryBuilder rewrite = queryBuilder.rewrite(ctx);
         if (rewrite == queryBuilder) {
             return this;

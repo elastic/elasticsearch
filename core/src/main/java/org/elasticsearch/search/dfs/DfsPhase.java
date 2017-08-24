@@ -31,7 +31,7 @@ import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.AbstractSet;
@@ -53,7 +53,7 @@ public class DfsPhase implements SearchPhase {
         final ObjectHashSet<Term> termsSet = new ObjectHashSet<>();
         try {
             context.searcher().createNormalizedWeight(context.query(), true).extractTerms(new DelegateSet(termsSet));
-            for (RescoreSearchContext rescoreContext : context.rescore()) {
+            for (RescoreContext rescoreContext : context.rescore()) {
                 rescoreContext.rescorer().extractTerms(context, rescoreContext, new DelegateSet(termsSet));
             }
 

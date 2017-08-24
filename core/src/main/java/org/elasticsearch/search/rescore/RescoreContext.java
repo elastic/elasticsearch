@@ -19,33 +19,37 @@
 
 package org.elasticsearch.search.rescore;
 
-public class RescoreSearchContext {
-    public static final int DEFAULT_WINDOW_SIZE = 10;
-    
-    private final String type;
+import org.elasticsearch.search.rescore.RescorerBuilder.RescoreContextSupport;
+
+/**
+ * Context available to the rescore while it is running. Rescore
+ * implementations should extend this with any additional resources that
+ * they will need while rescoring.
+ */
+public class RescoreContext {
+    private final int windowSize;
     private final Rescorer rescorer;
 
-    private int windowSize = DEFAULT_WINDOW_SIZE;
-
-    public RescoreSearchContext(String type, Rescorer rescorer) {
-        this.type = type;
+    /**
+     * Build the context.
+     * @param rescorer the rescorer actually performing the rescore.
+     */
+    public RescoreContext(RescoreContextSupport support, Rescorer rescorer) {
+        windowSize = support.windowSize();
         this.rescorer = rescorer;
     }
 
+    /**
+     * The rescorer to actually apply.
+     */
     public Rescorer rescorer() {
         return rescorer;
     }
 
-    public String getType() {
-        return type;
-    }
-
-    public void setWindowSize(int windowSize) {
-        this.windowSize = windowSize;
-    }
-
-    public int window() {
+    /**
+     * Size of the window to rescore.
+     */
+    public int getWindowSize() {
         return windowSize;
     }
-    
 }

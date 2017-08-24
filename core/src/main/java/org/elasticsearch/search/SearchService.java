@@ -101,7 +101,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -726,7 +725,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.rescores() != null) {
             try {
                 for (RescorerBuilder<?> rescore : source.rescores()) {
-                    context.addRescore(rescore.build(queryShardContext));
+                    context.addRescore(rescore.buildContext(queryShardContext));
                 }
             } catch (IOException e) {
                 throw new SearchContextException(context, "failed to create RescoreSearchContext", e);

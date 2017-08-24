@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.rescore;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -40,6 +42,7 @@ import java.util.Objects;
  */
 public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
         implements NamedWriteable, ToXContentObject, Rewriteable<RescorerBuilder<RB>> {
+    public static final int DEFAULT_WINDOW_SIZE = 10;
 
     protected Integer windowSize;
 
@@ -118,11 +121,52 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 
-    public abstract RescoreSearchContext build(QueryShardContext context) throws IOException;
+    /**
+     * Build the {@linkplain RescoreContext} that will be used to actually
+     * execute the rescore against a particular shard.
+     */
+    public final RescoreContext buildContext(QueryShardContext context) throws IOException {
+        RescoreContext rescoreContext = innerBuildContext(new RescoreContextSupport() {
+            @Override
+            public Query toQuery(QueryBuilder queryBuilder) throws IOException {
+                return queryBuilder.toQuery(context);
+            }
 
-    public static QueryRescorerBuilder queryRescorer(QueryBuilder queryBuilder) {
-        return new QueryRescorerBuilder(queryBuilder);
+            @Override
+            public Query toFilter(QueryBuilder queryBuilder) throws IOException {
+                return queryBuilder.toFilter(context);
+            }
+
+            @Override
+            public <IFD extends IndexFieldData<?>> IFD fieldData(String fullName) {
+                return context.getForField(context.fieldMapper(fullName));
+            }
+
+            @Override
+            int windowSize() {
+                return windowSize == null ? DEFAULT_WINDOW_SIZE : windowSize;
+            }
+        });
+        return rescoreContext;
     }
+    /**
+     * Methods to be used during the construction of the
+     * {@link RescoreContext}. The goal of this class is to not pass the
+     * entire {@link QueryShardContext} down to the rescore implementation
+     * which may be implemented in a plugin. This way we get a more consistent
+     * contract with the plugin.
+     */
+    public static abstract class RescoreContextSupport {
+        public abstract Query toQuery(QueryBuilder queryBuilder) throws IOException;
+        public abstract Query toFilter(QueryBuilder queryBuilder) throws IOException;
+        public abstract <IFD extends IndexFieldData<?>> IFD fieldData(String fullName);
+        abstract int windowSize();
+    }
+
+    /**
+     * Extensions override this to build the context that they need for rescoring.
+     */
+    protected abstract RescoreContext innerBuildContext(RescoreContextSupport context) throws IOException;
 
     @Override
     public int hashCode() {

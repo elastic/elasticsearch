@@ -21,6 +21,7 @@ package org.elasticsearch.search.rescore;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.search.internal.SearchContext;
@@ -41,14 +42,14 @@ public interface Rescorer {
 
     /**
      * Modifies the result of the previously executed search ({@link TopDocs})
-     * in place based on the given {@link RescoreSearchContext}.
+     * in place based on the given {@link RescoreContext}.
      *
      * @param topDocs        the result of the previously executed search
      * @param context        the current {@link SearchContext}. This will never be <code>null</code>.
-     * @param rescoreContext the {@link RescoreSearchContext}. This will never be <code>null</code>
+     * @param rescoreContext the {@link RescoreContext}. This will never be <code>null</code>
      * @throws IOException if an {@link IOException} occurs during rescoring
      */
-    TopDocs rescore(TopDocs topDocs, SearchContext context, RescoreSearchContext rescoreContext) throws IOException;
+    TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) throws IOException;
 
     /**
      * Executes an {@link Explanation} phase on the rescorer.
@@ -60,7 +61,7 @@ public interface Rescorer {
      * @return the explain for the given top level document ID.
      * @throws IOException if an {@link IOException} occurs
      */
-    Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext,
+    Explanation explain(int topLevelDocId, SearchContext context, RescoreContext rescoreContext,
                         Explanation sourceExplanation) throws IOException;
 
     /**
@@ -68,5 +69,5 @@ public interface Rescorer {
      * is executed in a distributed frequency collection roundtrip for
      * {@link SearchType#DFS_QUERY_THEN_FETCH}
      */
-    void extractTerms(SearchContext context, RescoreSearchContext rescoreContext, Set<Term> termsSet);
+    void extractTerms(SearchContext context, RescoreContext rescoreContext, Set<Term> termsSet);
 }

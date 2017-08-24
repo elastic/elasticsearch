@@ -128,7 +128,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
     }
 
     /**
-     * test that build() outputs a {@link RescoreSearchContext} that has the same properties
+     * test that build() outputs a {@link RescoreContext} that has the same properties
      * than the test builder
      */
     public void testBuildRescoreSearchContext() throws ElasticsearchParseException, IOException {
@@ -148,10 +148,10 @@ public class QueryRescorerBuilderTests extends ESTestCase {
 
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             QueryRescorerBuilder rescoreBuilder = randomRescoreBuilder();
-            QueryRescoreContext rescoreContext = rescoreBuilder.build(mockShardContext);
-            int expectedWindowSize = rescoreBuilder.windowSize() == null ? QueryRescoreContext.DEFAULT_WINDOW_SIZE :
+            QueryRescoreContext rescoreContext = (QueryRescoreContext) rescoreBuilder.buildContext(mockShardContext);
+            int expectedWindowSize = rescoreBuilder.windowSize() == null ? RescorerBuilder.DEFAULT_WINDOW_SIZE :
                 rescoreBuilder.windowSize().intValue();
-            assertEquals(expectedWindowSize, rescoreContext.window());
+            assertEquals(expectedWindowSize, rescoreContext.getWindowSize());
             Query expectedQuery = Rewriteable.rewrite(rescoreBuilder.getRescoreQuery(), mockShardContext).toQuery(mockShardContext);
             assertEquals(expectedQuery, rescoreContext.query());
             assertEquals(rescoreBuilder.getQueryWeight(), rescoreContext.queryWeight(), Float.MIN_VALUE);

@@ -21,6 +21,7 @@ package org.elasticsearch.example.rescore;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,13 +30,13 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.singletonList;
@@ -89,16 +90,16 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
     }
 
     @Override
-    public RescoreSearchContext build(QueryShardContext context) throws IOException {
-        RescoreSearchContext rescoreContext = new RescoreSearchContext(NAME, new Rescorer() {
+    public RescoreContext innerBuildContext(RescoreContextSupport support) throws IOException {
+        return new RescoreContext(support, new Rescorer() {
             @Override
             public String name() {
                 return NAME;
             }
 
             @Override
-            public TopDocs rescore(TopDocs topDocs, SearchContext context, RescoreSearchContext rescoreContext) throws IOException {
-                int end = Math.min(topDocs.scoreDocs.length, rescoreContext.window());
+            public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) throws IOException {
+                int end = Math.min(topDocs.scoreDocs.length, rescoreContext.getWindowSize());
                 for (int i = 0; i < end; i++) {
                     topDocs.scoreDocs[i].score *= factor;
                 }
@@ -106,19 +107,32 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
             }
 
             @Override
-            public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext,
+            public Explanation explain(int topLevelDocId, SearchContext context, RescoreContext rescoreContext,
                     Explanation sourceExplanation) throws IOException {
                 return Explanation.match(factor, "test", singletonList(sourceExplanation));
             }
 
             @Override
-            public void extractTerms(SearchContext context, RescoreSearchContext rescoreContext, Set<Term> termsSet) {
+            public void extractTerms(SearchContext context, RescoreContext rescoreContext, Set<Term> termsSet) {
             }
         });
-        if (windowSize() != null) {
-            rescoreContext.setWindowSize(windowSize());
-        }
-        return rescoreContext;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (false == super.equals(obj)) {
+            return false;
+        }
+        ExampleRescoreBuilder other = (ExampleRescoreBuilder) obj;
+        return factor == other.factor;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), factor);
+    }
+
+    float factor() {
+        return factor;
+    }
 }

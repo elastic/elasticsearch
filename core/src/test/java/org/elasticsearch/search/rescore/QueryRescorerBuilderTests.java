@@ -177,7 +177,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
         {
             XContentParser parser = createParser(rescoreElement);
             Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
-            assertThat(e.getMessage(), containsString("Unknown RescoreBuilder [bad_rescorer_name]"));
+            assertEquals("Unknown RescorerBuilder [bad_rescorer_name]", e.getMessage());
         }
 
         rescoreElement = "{\n" +

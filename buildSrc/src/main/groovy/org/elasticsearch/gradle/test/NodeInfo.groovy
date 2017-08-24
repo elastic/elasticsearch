@@ -137,6 +137,10 @@ class NodeInfo {
             args.add('/C')
             args.add('"') // quote the entire command
             wrapperScript = new File(cwd, "run.bat")
+            /*
+             * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
+             * getting the short name requiring the path to already exist.
+             */
             esScript = "${-> binPath().resolve('elasticsearch.bat').toString()}"
         } else {
             executable = 'bash'

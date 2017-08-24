@@ -211,6 +211,11 @@ class ClusterFormationTasks {
             Object[] args = command.getValue().clone()
             final Object commandPath
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                /*
+                 * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
+                 * getting the short name requiring the path to already exist. Note that we have to capture the value of arg[0] now
+                 * otherwise we would stack overflow later since arg[0] is replaced below.
+                 */
                 String argsZero = args[0]
                 commandPath = "${-> Paths.get(NodeInfo.getShortPathName(node.homeDir.toString())).resolve(argsZero.toString()).toString()}"
             } else {
@@ -347,6 +352,10 @@ class ClusterFormationTasks {
         if (node.config.keystoreSettings.isEmpty()) {
             return setup
         } else {
+            /*
+             * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
+             * getting the short name requiring the path to already exist.
+             */
             final Object esKeystoreUtil = "${-> node.binPath().resolve('elasticsearch.keystore').toString()}"
             return configureExecTask(name, project, setup, node, esKeystoreUtil, 'create')
         }
@@ -356,6 +365,10 @@ class ClusterFormationTasks {
     static Task configureAddKeystoreSettingTasks(String parent, Project project, Task setup, NodeInfo node) {
         Map kvs = node.config.keystoreSettings
         Task parentTask = setup
+        /*
+         * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to getting
+         * the short name requiring the path to already exist.
+         */
         final Object esKeystoreUtil = "${-> node.binPath().resolve('elasticsearch.keystore').toString()}"
         for (Map.Entry<String, String> entry in kvs) {
             String key = entry.getKey()
@@ -493,6 +506,10 @@ class ClusterFormationTasks {
         }
         // delay reading the file location until execution time by wrapping in a closure within a GString
         final Object file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
+        /*
+         * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to getting
+         * the short name requiring the path to already exist.
+         */
         final Object esPluginUtil = "${-> node.binPath().resolve('elasticsearch-plugin').toString()}"
         final Object[] args = [esPluginUtil, 'install', file]
         return configureExecTask(name, project, setup, node, args)

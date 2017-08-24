@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.gradle.test
 
-import com.sun.jna.Native
-import com.sun.jna.WString
 import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
@@ -42,7 +40,6 @@ import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
 

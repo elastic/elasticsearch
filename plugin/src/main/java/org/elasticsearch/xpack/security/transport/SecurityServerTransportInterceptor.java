@@ -140,7 +140,10 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
                                                             AsyncSender sender) {
         // There cannot be a request outgoing from this node that is not associated with a user.
         if (securityContext.getAuthentication() == null) {
-            throw new IllegalStateException("there should always be a user when sending a message");
+            // we use an assertion here to ensure we catch this in our testing infrastructure, but leave the ISE for cases we do not catch
+            // in tests and may be hit by a user
+            assertNoAuthentication(action);
+            throw new IllegalStateException("there should always be a user when sending a message for action [" + action + "]");
         }
 
         try {
@@ -148,6 +151,11 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
         } catch (Exception e) {
             handler.handleException(new TransportException("failed sending request", e));
         }
+    }
+
+    // pkg-private method to allow overriding for tests
+    void assertNoAuthentication(String action) {
+        assert false : "there should always be a user when sending a message for action [" + action + "]";
     }
 
     @Override

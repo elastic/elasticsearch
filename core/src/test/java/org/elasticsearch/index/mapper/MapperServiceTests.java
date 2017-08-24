@@ -245,21 +245,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertNotSame(indexService.mapperService().documentMapper("type1"), documentMapper);
     }
 
-    public void testAllEnabled() throws Exception {
-        IndexService indexService = createIndex("test");
-        assertFalse(indexService.mapperService().allEnabled());
-
-        CompressedXContent enabledAll = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
-                .startObject("_all")
-                    .field("enabled", true)
-                .endObject().endObject().bytes());
-
-        Exception e = expectThrows(MapperParsingException.class,
-                () -> indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, enabledAll,
-                        MergeReason.MAPPING_UPDATE, random().nextBoolean()));
-        assertThat(e.getMessage(), containsString("[_all] is disabled in 6.0"));
-    }
-
      public void testPartitionedConstraints() {
         // partitioned index must have routing
          IllegalArgumentException noRoutingException = expectThrows(IllegalArgumentException.class, () -> {

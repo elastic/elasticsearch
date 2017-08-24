@@ -181,8 +181,7 @@ for documents `like: "Apple"`, but `unlike: "cake crumble tree"`. The syntax
 is the same as `like`.
 
 `fields`::
-A list of fields to fetch and analyze the text from. Defaults to the `_all`
-field for free text and to all possible fields for document inputs.
+A list of fields to fetch and analyze the text from.
 
 `like_text`::
 The text to find documents like it.

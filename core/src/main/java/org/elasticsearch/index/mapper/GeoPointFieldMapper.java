@@ -189,7 +189,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
 
     protected void parse(ParseContext originalContext, GeoPoint point) throws IOException {
         // Geopoint fields, by default, will not be included in _all
-        final ParseContext context = originalContext.setIncludeInAllDefault(false);
+        final ParseContext context = originalContext;
 
         if (ignoreMalformed.value() == false) {
             if (point.lat() > 90.0 || point.lat() < -90.0) {

@@ -127,7 +127,7 @@ public class DateFieldMapper extends FieldMapper {
         public DateFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new DateFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                    includeInAll, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -383,8 +383,6 @@ public class DateFieldMapper extends FieldMapper {
         }
     }
 
-    private Boolean includeInAll;
-
     private Explicit<Boolean> ignoreMalformed;
 
     private DateFieldMapper(
@@ -392,13 +390,11 @@ public class DateFieldMapper extends FieldMapper {
             MappedFieldType fieldType,
             MappedFieldType defaultFieldType,
             Explicit<Boolean> ignoreMalformed,
-            Boolean includeInAll,
             Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
-        this.includeInAll = includeInAll;
     }
 
     @Override
@@ -449,10 +445,6 @@ public class DateFieldMapper extends FieldMapper {
             }
         }
 
-        if (context.includeInAll(includeInAll, this)) {
-            context.allEntries().addText(fieldType().name(), dateAsString, fieldType().boost());
-        }
-
         if (fieldType().indexOptions() != IndexOptions.NONE) {
             fields.add(new LongPoint(fieldType().name(), timestamp));
         }
@@ -468,7 +460,6 @@ public class DateFieldMapper extends FieldMapper {
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         final DateFieldMapper other = (DateFieldMapper) mergeWith;
         super.doMerge(mergeWith, updateAllTypes);
-        this.includeInAll = other.includeInAll;
         if (other.ignoreMalformed.explicit()) {
             this.ignoreMalformed = other.ignoreMalformed;
         }
@@ -486,11 +477,6 @@ public class DateFieldMapper extends FieldMapper {
             builder.field("null_value", fieldType().nullValueAsString());
         }
 
-        if (includeInAll != null) {
-            builder.field("include_in_all", includeInAll);
-        } else if (includeDefaults) {
-            builder.field("include_in_all", false);
-        }
         if (includeDefaults
                 || fieldType().dateTimeFormatter().format().equals(DEFAULT_DATE_TIME_FORMATTER.format()) == false) {
             builder.field("format", fieldType().dateTimeFormatter().format());

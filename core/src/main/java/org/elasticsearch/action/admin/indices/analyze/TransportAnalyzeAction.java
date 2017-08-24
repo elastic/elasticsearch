@@ -55,7 +55,6 @@ import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.shard.ShardId;
@@ -156,8 +155,6 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                  **/
                 if (indexService != null) {
                     field = indexService.getIndexSettings().getDefaultFields().get(0);
-                } else {
-                    field = AllFieldMapper.NAME;
                 }
             }
             final AnalysisRegistry analysisRegistry = indicesService.getAnalysis();

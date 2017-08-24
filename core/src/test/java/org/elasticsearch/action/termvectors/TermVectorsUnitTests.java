@@ -47,8 +47,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.rest.action.document.RestTermVectorsAction;
@@ -303,7 +303,7 @@ public class TermVectorsUnitTests extends ESTestCase {
         ft.setStoreTermVectorPositions(true);
         String ftOpts = FieldMapper.termVectorOptionsToString(ft);
         assertThat("with_positions_payloads", equalTo(ftOpts));
-        AllFieldMapper.Builder builder = new AllFieldMapper.Builder(null);
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder(null);
         boolean exceptiontrown = false;
         try {
             TypeParsers.parseTermVector("", ftOpts, builder);

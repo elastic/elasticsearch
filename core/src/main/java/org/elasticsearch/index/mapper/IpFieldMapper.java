@@ -85,7 +85,7 @@ public class IpFieldMapper extends FieldMapper {
         public IpFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new IpFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                    includeInAll, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -307,8 +307,6 @@ public class IpFieldMapper extends FieldMapper {
         }
     }
 
-    private Boolean includeInAll;
-
     private Explicit<Boolean> ignoreMalformed;
 
     private IpFieldMapper(
@@ -316,13 +314,11 @@ public class IpFieldMapper extends FieldMapper {
             MappedFieldType fieldType,
             MappedFieldType defaultFieldType,
             Explicit<Boolean> ignoreMalformed,
-            Boolean includeInAll,
             Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
-        this.includeInAll = includeInAll;
     }
 
     @Override
@@ -373,10 +369,6 @@ public class IpFieldMapper extends FieldMapper {
             }
         }
 
-        if (context.includeInAll(includeInAll, this)) {
-            context.allEntries().addText(fieldType().name(), addressAsString, fieldType().boost());
-        }
-
         if (fieldType().indexOptions() != IndexOptions.NONE) {
             fields.add(new InetAddressPoint(fieldType().name(), address));
         }
@@ -392,7 +384,6 @@ public class IpFieldMapper extends FieldMapper {
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         super.doMerge(mergeWith, updateAllTypes);
         IpFieldMapper other = (IpFieldMapper) mergeWith;
-        this.includeInAll = other.includeInAll;
         if (other.ignoreMalformed.explicit()) {
             this.ignoreMalformed = other.ignoreMalformed;
         }
@@ -412,11 +403,6 @@ public class IpFieldMapper extends FieldMapper {
 
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field("ignore_malformed", ignoreMalformed.value());
-        }
-        if (includeInAll != null) {
-            builder.field("include_in_all", includeInAll);
-        } else if (includeDefaults) {
-            builder.field("include_in_all", false);
         }
     }
 }

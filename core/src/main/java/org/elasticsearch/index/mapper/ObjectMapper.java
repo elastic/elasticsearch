@@ -100,8 +100,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         protected Dynamic dynamic = Defaults.DYNAMIC;
 
-        protected Boolean includeInAll;
-
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
         public Builder(String name) {
@@ -121,11 +119,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         public T nested(Nested nested) {
             this.nested = nested;
-            return builder;
-        }
-
-        public T includeInAll(boolean includeInAll) {
-            this.includeInAll = includeInAll;
             return builder;
         }
 
@@ -150,14 +143,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
             context.path().remove();
 
             ObjectMapper objectMapper = createMapper(name, context.path().pathAsText(name), enabled, nested, dynamic,
-                    includeInAll, mappers, context.indexSettings());
+                mappers, context.indexSettings());
 
             return (Y) objectMapper;
         }
 
         protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic,
-                Boolean includeInAll, Map<String, Mapper> mappers, @Nullable Settings settings) {
-            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, includeInAll, mappers, settings);
+                Map<String, Mapper> mappers, @Nullable Settings settings) {
+            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, mappers, settings);
         }
     }
 
@@ -198,9 +191,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 } else {
                     parseProperties(builder, (Map<String, Object>) fieldNode, parserContext);
                 }
-                return true;
-            } else if (fieldName.equals("include_in_all")) {
-                builder.includeInAll(TypeParsers.nodeBooleanValue(fieldName, "include_in_all", fieldNode, parserContext));
                 return true;
             }
             return false;
@@ -313,12 +303,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private volatile Dynamic dynamic;
 
-    private Boolean includeInAll;
-
     private volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
     ObjectMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic,
-            Boolean includeInAll, Map<String, Mapper> mappers, Settings settings) {
+            Map<String, Mapper> mappers, Settings settings) {
         super(name);
         assert settings != null;
         if (name.isEmpty()) {
@@ -328,7 +316,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
         this.enabled = enabled;
         this.nested = nested;
         this.dynamic = dynamic;
-        this.includeInAll = includeInAll;
         if (mappers == null) {
             this.mappers = new CopyOnWriteHashMap<>();
         } else {
@@ -378,10 +365,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return this.nested;
     }
 
-    public Boolean includeInAll() {
-        return includeInAll;
-    }
-
     public Query nestedTypeFilter() {
         return this.nestedTypeFilter;
     }
@@ -429,7 +412,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
         }
 
-        this.includeInAll = mergeWith.includeInAll;
         if (mergeWith.dynamic != null) {
             this.dynamic = mergeWith.dynamic;
         }
@@ -494,9 +476,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
         if (enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);
-        }
-        if (includeInAll != null) {
-            builder.field("include_in_all", includeInAll);
         }
 
         if (custom != null) {

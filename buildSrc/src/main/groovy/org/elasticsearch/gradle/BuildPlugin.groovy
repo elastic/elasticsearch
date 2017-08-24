@@ -42,6 +42,7 @@ import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.internal.jvm.Jvm
 import org.gradle.process.ExecResult
 import org.gradle.util.GradleVersion
@@ -456,6 +457,9 @@ class BuildPlugin implements Plugin<Project> {
     static void configureJavadoc(Project project) {
         String artifactsHost = VersionProperties.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
         project.afterEvaluate {
+            project.tasks.withType(Javadoc) {
+                executable = new File(project.javaHome, 'bin/javadoc')
+            }
             /*
              * Order matters, the linksOffline for org.elasticsearch:elasticsearch must be the last one
              * or all the links for the other packages (e.g org.elasticsearch.client) will point to core rather than their own artifacts
@@ -549,8 +553,6 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.artifact', project.name
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
-            // Breaking change in JDK-9, revert to JDK-8 behavior for now, see https://github.com/elastic/elasticsearch/issues/21534
-            systemProperty 'jdk.io.permissionsUseCanonicalPath', 'true'
             systemProperty 'jna.nosys', 'true'
             // default test sysprop values
             systemProperty 'tests.ifNoTests', 'fail'

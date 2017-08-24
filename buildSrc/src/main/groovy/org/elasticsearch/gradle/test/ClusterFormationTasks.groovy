@@ -356,7 +356,7 @@ class ClusterFormationTasks {
              * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
              * getting the short name requiring the path to already exist.
              */
-            final Object esKeystoreUtil = "${-> node.binPath().resolve('elasticsearch.keystore').toString()}"
+            final Object esKeystoreUtil = "${-> node.binPath().resolve('elasticsearch-keystore').toString()}"
             return configureExecTask(name, project, setup, node, esKeystoreUtil, 'create')
         }
     }
@@ -369,7 +369,7 @@ class ClusterFormationTasks {
          * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to getting
          * the short name requiring the path to already exist.
          */
-        final Object esKeystoreUtil = "${-> node.binPath().resolve('elasticsearch.keystore').toString()}"
+        final Object esKeystoreUtil = "${-> node.binPath().resolve('elasticsearch-keystore').toString()}"
         for (Map.Entry<String, String> entry in kvs) {
             String key = entry.getKey()
             String name = taskName(parent, node, 'addToKeystore#' + key)

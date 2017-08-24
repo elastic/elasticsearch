@@ -159,11 +159,8 @@ public class TransportRolloverActionTests extends ESTestCase {
                 .settings(settings)
                 .putAlias(AliasMetaData.builder(aliasWithMultipleIndices))
             ).build();
-/*
-        expectThrows(IllegalArgumentException.class, () ->
-            TransportRolloverAction.validate(metaData, new RolloverRequest(aliasWithMultipleIndices,
-                randomAlphaOfLength(10))));
-*/
+
+        expectThrows(IllegalArgumentException.class, () -> TransportRolloverAction.validate(metaData, randomAlphaOfLength(10)));
         expectThrows(IllegalArgumentException.class, () -> TransportRolloverAction.validate(metaData, randomFrom(index1, index2)));
         expectThrows(IllegalArgumentException.class, () -> TransportRolloverAction.validate(metaData, randomAlphaOfLength(5)));
         TransportRolloverAction.validate(metaData, alias);

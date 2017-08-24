@@ -112,6 +112,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             throw new IllegalArgumentException("No aliases for [" + String.join(",", rolloverRequest.getAliases()) + "] found");
         }
 
+        if (requests.size() > 1 && rolloverRequest.getNewIndexName() != null) {
+            throw new IllegalArgumentException("new index name not supported when rolling over multiple aliases");
+        }
+
         final ActionListener<RolloverResponse.SingleAliasRolloverResponse> aggListener = new AggRolloverResponseActionListener(
             requests.size(), listener);
 

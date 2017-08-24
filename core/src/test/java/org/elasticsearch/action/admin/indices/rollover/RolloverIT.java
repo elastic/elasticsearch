@@ -80,22 +80,15 @@ public class RolloverIT extends ESIntegTestCase {
         assertTrue(newIndex.getAliases().containsKey("test_alias"));
     }
 
-    public void testMultiAliasRollover() throws Exception {
-        assertAcked(prepareCreate("test_index-2").addAlias(new Alias("test_alias")).get());
-        assertAcked(prepareCreate("test_indexx-2").addAlias(new Alias("test_aliass")).get());
-        index("test_index-2", "type1", "1", "field", "value");
-        flush("test_index-2");
-        index("test_indexx-2", "type1", "1", "field", "value");
-        flush("test_indexx-2");
+    public void testRolloverMultiple() throws Exception {
+        assertAcked(prepareCreate("test_index-1").addAlias(new Alias("test_alias")).get());
+        assertAcked(prepareCreate("test2_index-1").addAlias(new Alias("test2_alias")).get());
 
-        new RolloverRequestBuilder(client().admin().indices(), RolloverAction.INSTANCE)
-            .addAlias("test_alias")
-            .addAlias("test_aliass")
-            .get();
+        client().admin().indices().prepareRolloverIndex("test*").get();
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        assertTrue(state.metaData().index("test_index-000003").getAliases().containsKey("test_alias"));
-        assertTrue(state.metaData().index("test_indexx-000003").getAliases().containsKey("test_aliass"));
+        assertTrue(state.metaData().index("test_index-000002").getAliases().containsKey("test_alias"));
+        assertTrue(state.metaData().index("test2_index-000002").getAliases().containsKey("test2_alias"));
     }
 
     public void testRolloverWithIndexSettings() throws Exception {

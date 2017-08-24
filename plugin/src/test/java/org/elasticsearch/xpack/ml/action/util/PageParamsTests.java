@@ -60,21 +60,34 @@ public class PageParamsTests extends AbstractSerializingTestCase<PageParams> {
     protected PageParams mutateInstance(PageParams instance) throws IOException {
         int from = instance.getFrom();
         int size = instance.getSize();
+        int amountToAdd = between(1, 20);
         switch (between(0, 1)) {
         case 0:
-            from += between(1, 20);
+            from += amountToAdd;
             // If we have gone above the limit for max and size then we need to
-            // change size too
+            // adjust from and size to be valid
             if ((from + size) > PageParams.MAX_FROM_SIZE_SUM) {
-                size = PageParams.MAX_FROM_SIZE_SUM - from;
+                if (from >= 2 * amountToAdd) {
+                    // If from is large enough then just subtract the amount we added twice
+                    from -= 2 * amountToAdd;
+                } else {
+                    // Otherwise change size to obey the limit
+                    size = PageParams.MAX_FROM_SIZE_SUM - from;
+                }
             }
             break;
         case 1:
-            size += between(1, 20);
+            size += amountToAdd;
             // If we have gone above the limit for max and size then we need to
-            // change from too
+            // adjust from and size to be valid
             if ((from + size) > PageParams.MAX_FROM_SIZE_SUM) {
-                from = PageParams.MAX_FROM_SIZE_SUM - size;
+                if (size >= 2 * amountToAdd) {
+                    // If from is large enough then just subtract the amount we added twice
+                    size -= 2 * amountToAdd;
+                } else {
+                    // Otherwise change size to obey the limit
+                    from = PageParams.MAX_FROM_SIZE_SUM - size;
+                }
             }
             break;
         default:

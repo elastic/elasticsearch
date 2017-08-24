@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.entity.StringEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.DocWriteRequest;

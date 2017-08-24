@@ -175,7 +175,7 @@ The result will look similar to:
       "modules": [
         {
           "name": "lang-painless",
-          "version": "7.0.0-alpha1",
+          "version": "{version}",
           "description": "An easy, safe and fast scripting language for Elasticsearch",
           "classname": "org.elasticsearch.painless.PainlessPlugin",
           "has_native_controller": false

@@ -15,16 +15,60 @@ GET index1,index2/_recovery?human
 
 To see cluster-wide recovery status simply leave out the index names.
 
+//////////////////////////
+
+Here we create a repository and snapshot index1 in
+order to restore it right after and prints out the
+indices recovery result.
+
+[source,js]
+--------------------------------------------------
+# create the index
+PUT index1
+{"settings": {"index.number_of_shards": 1}}
+
+# create the repository
+PUT /_snapshot/my_repository
+{"type": "fs","settings": {"location": "recovery_asciidoc" }}
+
+# snapshot the index
+PUT /_snapshot/my_repository/snap_1?wait_for_completion=true
+
+# delete the index
+DELETE index1
+
+# and restore the snapshot
+POST /_snapshot/my_repository/snap_1/_restore?wait_for_completion=true
+
+--------------------------------------------------
+// CONSOLE
+
+[source,js]
+--------------------------------------------------
+{
+  "snapshot": {
+    "snapshot": "snap_1",
+    "indices": [
+      "index1"
+    ],
+    "shards": {
+      "total": 1,
+      "failed": 0,
+      "successful": 1
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+//////////////////////////
+
 [source,js]
 --------------------------------------------------
 GET /_recovery?human
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/POST \/_snapshot\/my_repository\/snap_1\/_restore\?wait_for_completion=true\n/]
-// TEST[s/^/DELETE index1\n/]
-// TEST[s/^/PUT \/_snapshot\/my_repository\/snap_1\?wait_for_completion=true\n/]
-// TEST[s/^/PUT \/_snapshot\/my_repository\n{"type": "fs","settings": {"location": "recovery_asciidoc" }}\n/]
-// TEST[s/^/PUT index1\n{"settings": {"index.number_of_shards": 1}}\n/]
+// TEST[continued]
 
 Response:
 [source,js]
@@ -98,6 +142,10 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
+////
+The TESTRESPONSE above replace all the fields values by the expected ones in the test,
+because we don't really care about the field values but we want to check the fields names.
+////
 
 The above response shows a single index recovering a single shard. In this case, the source of the recovery is a snapshot repository
 and the target of the recovery is the node with name "my_es_node".
@@ -203,6 +251,11 @@ Response:
 // TESTRESPONSE[s/"details" : \[[^\]]*\]//]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
+////
+The TESTRESPONSE above replace all the fields values by the expected ones in the test,
+because we don't really care about the field values but we want to check the fields names.
+It also removes the "details" part which is important in this doc but really hard to test.
+////
 
 This response shows a detailed listing (truncated for brevity) of the actual files recovered and their sizes.
 

@@ -41,9 +41,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
-
-import static java.util.Collections.singletonList;
+import java.util.Set;import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 import static org.elasticsearch.search.sort.SortBuilders.scriptSort;
 
@@ -51,7 +49,7 @@ public abstract class SourceGenerator {
 
     private static final List<String> NO_STORED_FIELD = singletonList(StoredFieldsContext._NONE_);
 
-    public static SearchSourceBuilder sourceBuilder(QueryContainer container) {
+    public static SearchSourceBuilder sourceBuilder(QueryContainer container, Integer size) {
         SearchSourceBuilder source = new SearchSourceBuilder();
         // add the source
         if (container.query() != null) {
@@ -65,14 +63,14 @@ public abstract class SourceGenerator {
 
         for (ColumnReference ref : container.columns()) {
             collectFields(ref, sourceFields, docFields, scriptFields);
-        }
+            }
         
         if (!sourceFields.isEmpty()) {
             source.fetchSource(sourceFields.toArray(new String[sourceFields.size()]), null);
         }
-        for (String field : docFields) {
-            source.docValueField(field);
-        }
+            for (String field : docFields) {
+                source.docValueField(field);
+            }
         for (Entry<String, Script> entry : scriptFields.entrySet()) {
             source.scriptField(entry.getKey(), entry.getValue());
         }
@@ -91,6 +89,14 @@ public abstract class SourceGenerator {
         }
 
         optimize(container, source);
+
+        // set size
+        if (size != null) {
+            if (source.size() == -1) {
+                int sz = container.limit() > 0 ? Math.min(container.limit(), size) : size;
+                source.size(sz);
+            }
+        }
 
         return source;
     }

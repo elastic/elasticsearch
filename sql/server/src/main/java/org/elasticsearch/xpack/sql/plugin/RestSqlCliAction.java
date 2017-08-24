@@ -88,9 +88,7 @@ public class RestSqlCliAction extends BaseRestHandler {
 
     private static Consumer<RestChannel> queryInit(Client client, QueryInitRequest request) {
         // TODO time zone support for CLI
-        SqlRequest sqlRequest = new SqlRequest(request.query, SqlRequest.DEFAULT_TIME_ZONE, Cursor.EMPTY)
-                .timeZone(DateTimeZone.forTimeZone(request.timeZone))
-                .fetchSize(request.fetchSize);
+        SqlRequest sqlRequest = new SqlRequest(request.query, DateTimeZone.forTimeZone(request.timeZone), request.fetchSize, Cursor.EMPTY);
         long start = System.nanoTime();
         return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(channel, response -> {
                 CliFormatter formatter = new CliFormatter(response);
@@ -108,7 +106,7 @@ public class RestSqlCliAction extends BaseRestHandler {
         } catch (IOException e) {
             throw new IllegalArgumentException("error reading the cursor");
         }
-        SqlRequest sqlRequest = new SqlRequest("", SqlRequest.DEFAULT_TIME_ZONE, cursor);
+        SqlRequest sqlRequest = new SqlRequest("", SqlRequest.DEFAULT_TIME_ZONE, -1, cursor);
         long start = System.nanoTime();
         return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(channel, response -> {
                 String data = formatter.formatWithoutHeader(response);

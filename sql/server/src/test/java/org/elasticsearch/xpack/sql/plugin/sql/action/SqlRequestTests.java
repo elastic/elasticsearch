@@ -21,8 +21,7 @@ public class SqlRequestTests extends AbstractStreamableTestCase<SqlRequest> {
 
     @Override
     protected SqlRequest createTestInstance() {
-        return new SqlRequest(randomAlphaOfLength(10), randomDateTimeZone(), randomCursor())
-                .fetchSize(between(1, Integer.MAX_VALUE));
+        return new SqlRequest(randomAlphaOfLength(10), randomDateTimeZone(), between(1, Integer.MAX_VALUE), randomCursor());
     }
 
     @Override
@@ -35,12 +34,12 @@ public class SqlRequestTests extends AbstractStreamableTestCase<SqlRequest> {
     protected MutateFunction<SqlRequest> getMutateFunction() {
         return randomFrom(
                 request -> getCopyFunction().copy(request)
-                        .query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
-                request -> getCopyFunction().copy(request)
-                        .timeZone(randomValueOtherThan(request.timeZone(), ESTestCase::randomDateTimeZone)),
-                request -> getCopyFunction().copy(request)
                         .cursor(randomValueOtherThan(request.cursor(), SqlResponseTests::randomCursor)),
-                request -> getCopyFunction().copy(request)
+                request -> (SqlRequest) getCopyFunction().copy(request)
+                        .query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
+                request -> (SqlRequest) getCopyFunction().copy(request)
+                        .timeZone(randomValueOtherThan(request.timeZone(), ESTestCase::randomDateTimeZone)),
+                request -> (SqlRequest) getCopyFunction().copy(request)
                         .fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))));
     }
 }

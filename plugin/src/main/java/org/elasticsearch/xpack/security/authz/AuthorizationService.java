@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.security.user.XPackUser;
 import org.elasticsearch.xpack.sql.plugin.jdbc.action.JdbcAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
+import org.elasticsearch.xpack.sql.plugin.sql.action.SqlTranslateAction;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -489,7 +490,8 @@ public class AuthorizationService extends AbstractComponent {
      */
     private static boolean isDelayedIndicesAction(String action) {
         return action.equals(SqlAction.NAME) ||
-                action.equals(JdbcAction.NAME);
+                action.equals(JdbcAction.NAME) ||
+                action.equals(SqlTranslateAction.NAME);
     }
 
     private static boolean isTranslatedToBulkAction(String action) {

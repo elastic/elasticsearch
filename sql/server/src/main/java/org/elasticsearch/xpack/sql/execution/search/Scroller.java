@@ -78,7 +78,7 @@ public class Scroller {
 
     public void scroll(Schema schema, QueryContainer query, String index, ActionListener<RowSetCursor> listener) {
         // prepare the request
-        SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query);
+        SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query, size);
 
         if (log.isTraceEnabled()) {
             log.trace("About to execute query {} on {}", StringUtils.toString(sourceBuilder), index);
@@ -86,12 +86,6 @@ public class Scroller {
 
         SearchRequest search = client.prepareSearch(index).setSource(sourceBuilder).request();
         search.scroll(keepAlive).source().timeout(timeout);
-
-        // set the size only if it hasn't been specified (aggs only queries set the size to 0)
-        if (search.source().size() == -1) {
-            int sz = query.limit() > 0 ? Math.min(query.limit(), size) : size;
-            search.source().size(sz);
-        }
 
         boolean isAggsOnly = query.isAggsOnly();
         
@@ -107,7 +101,7 @@ public class Scroller {
 
     // dedicated scroll used for aggs-only/group-by results
     static class AggsScrollActionListener extends ScrollerActionListener {
-
+    
         private final QueryContainer query;
     
         AggsScrollActionListener(ActionListener<RowSetCursor> listener, Client client, TimeValue keepAlive, Schema schema, QueryContainer query) {
@@ -117,14 +111,14 @@ public class Scroller {
     
         @Override
         protected RowSetCursor handleResponse(SearchResponse response) {
-
+    
             final List<Object[]> extractedAggs = new ArrayList<>();
             AggValues aggValues = new AggValues(extractedAggs);
             List<Supplier<Object>> aggColumns = new ArrayList<>(query.columns().size());
     
             // this method assumes the nested aggregation are all part of the same tree (the SQL group-by)
             int maxDepth = -1;
-
+    
             List<ColumnReference> cols = query.columns();
             for (int index = 0; index < cols.size(); index++) {
                 ColumnReference col = cols.get(index);
@@ -132,7 +126,7 @@ public class Scroller {
     
                 if (col instanceof ComputedRef) {
                     ComputedRef pRef = (ComputedRef) col;
-
+    
                     Processor processor = pRef.processor().transformUp(a -> {
                         Object[] value = extractAggValue(new AggRef(a.context()), response);
                         extractedAggs.add(value);
@@ -179,14 +173,14 @@ public class Scroller {
                         path = AggPath.bucketValueWithoutFormat(path);
                     }
                     Object value = getAggProperty(response.getAggregations(), path);
-    
-                    // // FIXME: this can be tabular in nature
-                    // if (ref instanceof MappedAggRef) {
-                    // Map<String, Object> map = (Map<String, Object>) value;
+                    
+                    //                // FIXME: this can be tabular in nature
+                    //                if (ref instanceof MappedAggRef) {
+                    //                    Map<String, Object> map = (Map<String, Object>) value;
                     // Object extractedValue = map.get(((MappedAggRef)
                     // ref).fieldName());
-                    // }
-    
+                    //                }
+                    
                     if (formattedKey) {
                         List<? extends Bucket> buckets = ((MultiBucketsAggregation) value).getBuckets();
                         arr = new Object[buckets.size()];
@@ -196,12 +190,12 @@ public class Scroller {
                     } else {
                         arr = value instanceof Object[] ? (Object[]) value : new Object[] { value };
                     }
-                }
-
+                    }
+    
                 return arr;
-            }
+                }
             throw new SqlIllegalArgumentException("Unexpected non-agg/grouped column specified; %s", col.getClass());
-        }
+            }
     
         private static Object getAggProperty(Aggregations aggs, String path) {
             List<String> list = AggregationPath.parse(path).getPathElementsAsStringList();
@@ -212,7 +206,7 @@ public class Scroller {
             }
             return agg.getProperty(list.subList(1, list.size()));
         }
-    }
+        }
     
     // initial scroll used for parsing search hits (handles possible aggs)
     static class HandshakeScrollActionListener extends SearchHitsActionListener {

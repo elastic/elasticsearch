@@ -10,16 +10,17 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.joda.time.DateTimeZone;
 
-import static org.elasticsearch.xpack.sql.plugin.sql.action.SqlRequest.DEFAULT_TIME_ZONE;
+import static org.elasticsearch.xpack.sql.plugin.sql.action.AbstractSqlRequest.DEFAULT_FETCH_SIZE;
+import static org.elasticsearch.xpack.sql.plugin.sql.action.AbstractSqlRequest.DEFAULT_TIME_ZONE;
 
 public class SqlRequestBuilder extends ActionRequestBuilder<SqlRequest, SqlResponse, SqlRequestBuilder> {
 
     public SqlRequestBuilder(ElasticsearchClient client, SqlAction action) {
-        this(client, action, "", DEFAULT_TIME_ZONE, Cursor.EMPTY);
+        this(client, action, "", DEFAULT_TIME_ZONE, DEFAULT_FETCH_SIZE, Cursor.EMPTY);
     }
 
-    public SqlRequestBuilder(ElasticsearchClient client, SqlAction action, String query, DateTimeZone timeZone, Cursor nextPageInfo) {
-        super(client, action, new SqlRequest(query, timeZone, nextPageInfo));
+    public SqlRequestBuilder(ElasticsearchClient client, SqlAction action, String query, DateTimeZone timeZone, int fetchSize, Cursor nextPageInfo) {
+        super(client, action, new SqlRequest(query, timeZone, fetchSize, nextPageInfo));
     }
 
     public SqlRequestBuilder query(String query) {

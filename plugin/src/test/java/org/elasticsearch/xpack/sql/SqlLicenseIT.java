@@ -12,14 +12,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.AbstractLicensesIntegrationTestCase;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.License.OperationMode;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableRequest;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableResponse;
-import org.elasticsearch.xpack.sql.plugin.jdbc.action.JdbcAction;
-import org.elasticsearch.xpack.sql.plugin.jdbc.action.JdbcResponse;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse;
-import org.elasticsearch.xpack.sql.protocol.shared.Request;
-import org.elasticsearch.xpack.sql.protocol.shared.Response;
+import org.elasticsearch.xpack.sql.plugin.sql.action.SqlTranslateAction;
+import org.elasticsearch.xpack.sql.plugin.sql.action.SqlTranslateResponse;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -29,7 +27,6 @@ import static org.elasticsearch.license.XPackLicenseStateTests.randomBasicStanda
 import static org.elasticsearch.license.XPackLicenseStateTests.randomTrialBasicStandardGoldOrPlatinumMode;
 import static org.elasticsearch.license.XPackLicenseStateTests.randomTrialOrPlatinumMode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
@@ -99,20 +96,20 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
         assertThat(response.size(), Matchers.equalTo(2L));
     }
 
-    public void testJdbcActionLicense() throws Exception {
+    public void testSqlTranslateActionLicense() throws Exception {
         setupTestIndex();
-        disableJdbcLicensing();
-
-        Request request = new MetaTableRequest("test");
+        disableSqlLicensing();
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> client().prepareExecute(JdbcAction.INSTANCE).request(request).get());
-        assertThat(e.getMessage(), equalTo("current license is non-compliant for [jdbc]"));
+                () -> client().prepareExecute(SqlTranslateAction.INSTANCE).query("SELECT * FROM test").get());
+        assertThat(e.getMessage(), equalTo("current license is non-compliant for [sql]"));
+        enableSqlLicensing();
 
-        enableJdbcLicensing();
-        JdbcResponse jdbcResponse = client().prepareExecute(JdbcAction.INSTANCE).request(request).get();
-        Response response = jdbcResponse.response(request);
-        assertThat(response, instanceOf(MetaTableResponse.class));
+        SqlTranslateResponse response = client().prepareExecute(SqlTranslateAction.INSTANCE).query("SELECT * FROM test").get();
+        SearchSourceBuilder source = response.source();
+        assertThat(source.docValueFields(), Matchers.contains("count"));
+        FetchSourceContext fetchSource = source.fetchSource();
+        assertThat(fetchSource.includes(), Matchers.arrayContaining("data"));
     }
 
     // TODO test SqlGetIndicesAction. Skipping for now because of lack of serialization support.

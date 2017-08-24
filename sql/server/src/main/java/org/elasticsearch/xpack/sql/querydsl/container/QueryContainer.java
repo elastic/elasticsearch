@@ -6,6 +6,9 @@
 package org.elasticsearch.xpack.sql.querydsl.container;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.sql.expression.Attribute;
@@ -23,8 +26,8 @@ import org.elasticsearch.xpack.sql.querydsl.query.AndQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -96,7 +99,7 @@ public class QueryContainer {
                 // check field references
                 if (((ComputedRef) ref).processor().anyMatch(p -> p instanceof ReferenceInput && ((ReferenceInput) p).context() instanceof FieldReference)) {
                     onlyAggs = false;
-                }
+            }
             }
             if (ref instanceof FieldReference) {
                 onlyAggs = false;
@@ -243,7 +246,7 @@ public class QueryContainer {
         if (proc == null) {
             if (name instanceof ScalarFunctionAttribute) {
                 sfa = (ScalarFunctionAttribute) name;
-            }
+    }
             proc = sfa.processorDef();
         }
         AtomicReference<QueryContainer> containerRef = new AtomicReference<QueryContainer>(this);
@@ -273,7 +276,7 @@ public class QueryContainer {
     private Tuple<QueryContainer, ColumnReference> toReference(Attribute attr) {
         if (attr instanceof RootFieldAttribute) {
             return new Tuple<>(this, fieldRef((RootFieldAttribute) attr));
-        }
+    }
         if (attr instanceof NestedFieldAttribute) {
             return nestedFieldRef((NestedFieldAttribute) attr);
         }
@@ -355,7 +358,12 @@ public class QueryContainer {
 
     @Override
     public String toString() {
-        // annoying cycle (QC depends on SC which depends on QC)
-        return StringUtils.toString(SourceGenerator.sourceBuilder(this));
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.humanReadable(true).prettyPrint();
+            SourceGenerator.sourceBuilder(this, null).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            return builder.string();
+        } catch (IOException e) {
+            throw new RuntimeException("error rendering", e);
+        }
     }
 }

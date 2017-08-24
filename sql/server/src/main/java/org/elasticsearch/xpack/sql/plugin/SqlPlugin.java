@@ -31,7 +31,9 @@ import org.elasticsearch.xpack.sql.plugin.jdbc.action.JdbcAction;
 import org.elasticsearch.xpack.sql.plugin.jdbc.action.JdbcHttpHandler;
 import org.elasticsearch.xpack.sql.plugin.jdbc.action.TransportJdbcAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
+import org.elasticsearch.xpack.sql.plugin.sql.action.SqlTranslateAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.TransportSqlAction;
+import org.elasticsearch.xpack.sql.plugin.sql.action.TransportSqlTranslateAction;
 import org.elasticsearch.xpack.sql.plugin.sql.rest.RestSqlAction;
 import org.elasticsearch.xpack.sql.session.Cursor;
 
@@ -86,6 +88,7 @@ public class SqlPlugin implements ActionPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(new ActionHandler<>(SqlAction.INSTANCE, TransportSqlAction.class),
                              new ActionHandler<>(JdbcAction.INSTANCE, TransportJdbcAction.class),
-                             new ActionHandler<>(SqlGetIndicesAction.INSTANCE, SqlGetIndicesAction.TransportAction.class));
+                             new ActionHandler<>(SqlGetIndicesAction.INSTANCE, SqlGetIndicesAction.TransportAction.class),
+                             new ActionHandler<>(SqlTranslateAction.INSTANCE, TransportSqlTranslateAction.class));
     }
 }

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.client.http.Header;
-import org.elasticsearch.client.http.HttpEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -43,6 +41,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.http.Header;
+import org.elasticsearch.client.http.HttpEntity;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ContextParser;
@@ -138,6 +139,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -157,31 +159,61 @@ import static java.util.stream.Collectors.toList;
 
 /**
  * High level REST client that wraps an instance of the low level {@link RestClient} and allows to build requests and read responses.
- * The provided {@link RestClient} is externally built and closed.
- * Can be sub-classed to expose additional client methods that make use of endpoints added to Elasticsearch through plugins, or to
- * add support for custom response sections, again added to Elasticsearch through plugins.
+ * The {@link RestClient} instance is internally built based on the provided {@link RestClientBuilder} and it gets closed automatically
+ * when closing the {@link RestHighLevelClient} instance that wraps it.
+ * In case an already existing instance of a low-level REST client needs to be provided, this class can be subclassed and the
+ * {@link #RestHighLevelClient(RestClient, CheckedConsumer, List)}  constructor can be used.
+ * This class can also be sub-classed to expose additional client methods that make use of endpoints added to Elasticsearch through
+ * plugins, or to add support for custom response sections, again added to Elasticsearch through plugins.
  */
-public class RestHighLevelClient {
+public class RestHighLevelClient implements Closeable {
 
     private final RestClient client;
     private final NamedXContentRegistry registry;
+    private final CheckedConsumer<RestClient, IOException> doClose;
 
     /**
-     * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests.
+     * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
+     * {@link RestClient} to be used to perform requests.
      */
-    public RestHighLevelClient(RestClient restClient) {
-        this(restClient, Collections.emptyList());
+    public RestHighLevelClient(RestClientBuilder restClientBuilder) {
+        this(restClientBuilder, Collections.emptyList());
+    }
+
+    /**
+     * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
+     * {@link RestClient} to be used to perform requests and parsers for custom response sections added to Elasticsearch through plugins.
+     */
+    protected RestHighLevelClient(RestClientBuilder restClientBuilder, List<NamedXContentRegistry.Entry> namedXContentEntries) {
+        this(restClientBuilder.build(), RestClient::close, namedXContentEntries);
     }
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests and
      * a list of entries that allow to parse custom response sections added to Elasticsearch through plugins.
+     * This constructor can be called by subclasses in case an externally created low-level REST client needs to be provided.
+     * The consumer argument allows to control what needs to be done when the {@link #close()} method is called.
+     * Also subclasses can provide parsers for custom response sections added to Elasticsearch through plugins.
      */
-    protected RestHighLevelClient(RestClient restClient, List<NamedXContentRegistry.Entry> namedXContentEntries) {
-        this.client = Objects.requireNonNull(restClient);
+    protected RestHighLevelClient(RestClient restClient, CheckedConsumer<RestClient, IOException> doClose,
+                                  List<NamedXContentRegistry.Entry> namedXContentEntries) {
+        this.client = Objects.requireNonNull(restClient, "restClient must not be null");
+        this.doClose = Objects.requireNonNull(doClose, "doClose consumer must not be null");
         this.registry = new NamedXContentRegistry(
                 Stream.of(getDefaultNamedXContents().stream(), getProvidedNamedXContents().stream(), namedXContentEntries.stream())
                     .flatMap(Function.identity()).collect(toList()));
+    }
+
+    /**
+     * Returns the low-level client that the current high-level client instance is using to perform requests
+     */
+    public RestClient getLowLevelClient() {
+        return client;
+    }
+
+    @Override
+    public final void close() throws IOException {
+        doClose.accept(client);
     }
 
     /**

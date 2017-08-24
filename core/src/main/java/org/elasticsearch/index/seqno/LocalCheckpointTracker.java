@@ -109,12 +109,12 @@ public class LocalCheckpointTracker {
     public void markSeqNoAsCompleted(final long seqNo) {
         // make sure we track highest seen sequence number
         nextSeqNo.updateAndGet((current) -> seqNo >= current ? seqNo + 1 : current);
-        if (seqNo <= checkpoint) {
-            // this is possible during recovery where we might replay an operation that was also replicated
-            return;
-        }
         // there is no need to hold the lock for the whole method as the code above is already lock-free.
         synchronized (this) {
+            if (seqNo <= checkpoint) {
+                // this is possible during recovery where we might replay an operation that was also replicated
+                return;
+            }
             final FixedBitSet bitSet = getBitSetForSeqNo(seqNo);
             final int offset = seqNoToBitSetOffset(seqNo);
             bitSet.set(offset);

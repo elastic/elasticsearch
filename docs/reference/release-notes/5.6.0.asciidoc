@@ -1,7 +1,7 @@
 [[release-notes-5.6.0]]
 == 5.6.0 Release Notes
 
-Also see <<breaking-changes-5.5>>.
+Also see <<breaking-changes-5.6>>.
 
 [[breaking-java-5.6.0]]
 [float]
@@ -162,11 +162,17 @@ Aggregations::
 Aliases::
 * mget with an alias shouldn't ignore alias routing {pull}25697[#25697] (issue: {issue}25696[#25696])
 
+Allocation::
+* Allow wildcards for shard IP filtering {pull}26187[#26187] (issues: {issue}22591[#22591], {issue}26184[#26184])
+
 Analysis::
 * Pre-configured shingle filter should disable graph analysis {pull}25853[#25853] (issue: {issue}25555[#25555])
 
 CRUD::
 * Serialize and expose timeout of acknowledged requests in REST layer (ES 5.6) {pull}26213[#26213] (issue: {issue}26189[#26189])
+
+Cluster::
+* Register setting `cluster.indices.tombstones.size` {pull}26193[#26193] (issue: {issue}26191[#26191])
 
 Core::
 * Release operation permit on thread-pool rejection {pull}25930[#25930] (issue: {issue}25863[#25863])
@@ -182,6 +188,7 @@ Geo::
 * Fix GeoPoint FieldStats ternary logic bug {pull}25211[#25211] (issue: {issue}24275[#24275])
 
 Highlighting::
+* Fix nested query highlighting {pull}26305[#26305] (issue: {issue}26230[#26230])
 * FastVectorHighlighter should not cache the field query globally {pull}25197[#25197] (issue: {issue}25171[#25171])
 
 Index APIs::
@@ -206,6 +213,7 @@ Logging::
 * Declare XContent deprecation logger as static {pull}25881[#25881] (issue: {issue}25879[#25879])
 
 Mapping::
+* ICUCollationKeywordFieldMapper use SortedSetDocValuesField {pull}26267[#26267]
 * Fixed bug that mapper_parsing_exception is thrown for numeric field with ignore_malformed=true when inserting "NaN" {pull}25967[#25967] (issue: {issue}25289[#25289])
 * Coerce decimal strings for whole number types by truncating the decimal part {pull}25835[#25835] (issue: {issue}25819[#25819])
 * Fix parsing of ip range queries. {pull}25768[#25768] (issue: {issue}25636[#25636])
@@ -258,6 +266,7 @@ Settings::
 * Keystore CLI should use the AddFileKeyStoreCommand for files {pull}25298[#25298]
 
 Snapshot/Restore::
+* Snapshot/Restore: fix NPE while handling null failure reasons {pull}26127[#26127] (issues: {issue}25878[#25878], {issue}25941[#25941])
 * Snapshot/Restore: Ensure that shard failure reasons are correctly stored in CS {pull}25941[#25941] (issue: {issue}25878[#25878])
 * Output all empty snapshot info fields if in verbose mode {pull}25455[#25455] (issue: {issue}24477[#24477])
 

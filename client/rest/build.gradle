@@ -78,7 +78,8 @@ task shadeDeps(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar)
   destinationDir = shadedDir
   configurations = [project.configurations.shade]
   classifier = 'deps'
-  relocate 'org.apache', 'org.elasticsearch.client'
+  relocate 'org.apache.commons', 'org.elasticsearch.client.commons'
+  relocate 'org.apache.http', 'org.elasticsearch.client.http'
 
   doLast {
     shadedSrcDir.mkdir()

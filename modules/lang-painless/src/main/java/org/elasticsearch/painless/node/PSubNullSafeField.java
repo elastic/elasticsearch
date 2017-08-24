@@ -52,7 +52,7 @@ public class PSubNullSafeField extends AStoreable {
         guarded.read = read;
         guarded.analyze(locals);
         actual = guarded.actual;
-        if (actual.sort.primitive) {
+        if (actual.clazz.isPrimitive()) {
             throw new IllegalArgumentException("Result of null safe operator must be nullable");
         }
     }

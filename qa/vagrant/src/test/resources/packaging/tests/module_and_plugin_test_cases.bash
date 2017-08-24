@@ -117,11 +117,11 @@ fi
 
     move_config
 
-    CONF_DIR="$ESCONFIG" install_jvm_example
-    CONF_DIR="$ESCONFIG" start_elasticsearch_service
+    ES_PATH_CONF="$ESCONFIG" install_jvm_example
+    ES_PATH_CONF="$ESCONFIG" start_elasticsearch_service
     diff  <(curl -s localhost:9200/_cat/configured_example | sed 's/ //g') <(echo "foo")
     stop_elasticsearch_service
-    CONF_DIR="$ESCONFIG" remove_jvm_example
+    ES_PATH_CONF="$ESCONFIG" remove_jvm_example
 }
 
 @test "[$GROUP] install jvm-example plugin from a directory with a space" {
@@ -449,4 +449,16 @@ fi
 
 @test "[$GROUP] test umask" {
     install_jvm_example $(readlink -m jvm-example-*.zip) 0077
+}
+
+@test "[$GROUP] hostname" {
+    local temp=`mktemp -d`
+    cp "$ESCONFIG"/elasticsearch.yml "$temp"
+    echo 'node.name: ${HOSTNAME}' >> "$ESCONFIG"/elasticsearch.yml
+    start_elasticsearch_service
+    wait_for_elasticsearch_status
+    [ "$(curl -XGET localhost:9200/_cat/nodes?h=name)" == "$HOSTNAME" ]
+    stop_elasticsearch_service
+    cp "$temp"/elasticsearch.yml "$ESCONFIG"/elasticsearch.yml
+    rm -rf "$temp"
 }

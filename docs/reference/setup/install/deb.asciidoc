@@ -197,7 +197,7 @@ locations for a Debian-based system:
 | conf
   | Configuration files including `elasticsearch.yml`
   | /etc/elasticsearch
-  | <<config-files-location,CONF_DIR>>
+  | <<config-files-location,ES_PATH_CONF>>
 
 | conf
   | Environment variables including heap size, file descriptors.

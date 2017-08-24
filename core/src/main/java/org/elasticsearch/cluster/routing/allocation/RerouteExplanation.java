@@ -23,7 +23,8 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -32,7 +33,7 @@ import java.io.IOException;
  * Class encapsulating the explanation for a single {@link AllocationCommand}
  * taken from the Deciders
  */
-public class RerouteExplanation implements ToXContent {
+public class RerouteExplanation implements ToXContentObject {
 
     private AllocationCommand command;
     private Decision decisions;

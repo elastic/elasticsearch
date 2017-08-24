@@ -50,18 +50,18 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testEmpty() throws Exception {
         createKeystore("");
         execute();
-        assertTrue(terminal.getOutput(), terminal.getOutput().isEmpty());
+        assertEquals("keystore.seed\n", terminal.getOutput());
     }
 
     public void testOne() throws Exception {
         createKeystore("", "foo", "bar");
         execute();
-        assertEquals("foo\n", terminal.getOutput());
+        assertEquals("foo\nkeystore.seed\n", terminal.getOutput());
     }
 
     public void testMultiple() throws Exception {
         createKeystore("", "foo", "1", "baz", "2", "bar", "3");
         execute();
-        assertEquals("bar\nbaz\nfoo\n", terminal.getOutput()); // sorted
+        assertEquals("bar\nbaz\nfoo\nkeystore.seed\n", terminal.getOutput()); // sorted
     }
 }

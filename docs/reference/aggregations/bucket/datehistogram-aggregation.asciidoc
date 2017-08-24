@@ -398,7 +398,7 @@ the `order` setting. Supports the same `order` functionality as the <<search-agg
 
 deprecated[6.0.0, Use `_key` instead of `_time` to order buckets by their dates/keys]
 
-=== Use of a script to aggregate by day of the week
+==== Use of a script to aggregate by day of the week
 
 There are some cases where date histogram can't help us, like for example, when we need
 to aggregate the results by day of the week.

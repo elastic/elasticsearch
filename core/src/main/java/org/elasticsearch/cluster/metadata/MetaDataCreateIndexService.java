@@ -165,6 +165,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         if (index.contains("#")) {
             throw exceptionCtor.apply(index, "must not contain '#'");
         }
+        if (index.contains(":")) {
+            throw exceptionCtor.apply(index, "must not contain ':'");
+        }
         if (index.charAt(0) == '_' || index.charAt(0) == '-' || index.charAt(0) == '+') {
             throw exceptionCtor.apply(index, "must not start with '_', '-', or '+'");
         }

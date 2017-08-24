@@ -132,7 +132,7 @@ setup() {
     # startup since we detect usages of logging before it is configured
     echo "-Dlog4j2.disable.jmx=true" >> "$temp/jvm.options"
     cp $ESENVFILE "$temp/elasticsearch"
-    echo "CONF_DIR=\"$temp\"" >> $ESENVFILE
+    echo "ES_PATH_CONF=\"$temp\"" >> $ESENVFILE
     echo "ES_JAVA_OPTS=\"-XX:-UseCompressedOops\"" >> $ESENVFILE
     service elasticsearch start
     wait_for_elasticsearch_status

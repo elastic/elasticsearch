@@ -703,6 +703,7 @@ public abstract class Engine implements Closeable {
                 if (verbose) {
                     segment.ramTree = Accountables.namedAccountable("root", segmentReader);
                 }
+                segment.attributes = info.info.getAttributes();
                 // TODO: add more fine grained mem stats values to per segment info here
                 segments.put(info.info.name, segment);
             }

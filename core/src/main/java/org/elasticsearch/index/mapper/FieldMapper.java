@@ -212,19 +212,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         protected boolean defaultDocValues(Version indexCreated) {
-            if (indexCreated.onOrAfter(Version.V_5_0_0_alpha1)) {
-                // add doc values by default to keyword (boolean, numerics, etc.) fields
-                return fieldType.tokenized() == false;
-            } else {
-                return fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE;
-            }
+            return fieldType.tokenized() == false;
         }
 
         protected void setupFieldType(BuilderContext context) {
             fieldType.setName(buildFullName(context));
-            if (context.indexCreatedVersion().before(Version.V_5_0_0_alpha1)) {
-                fieldType.setOmitNorms(fieldType.omitNorms() && fieldType.boost() == 1.0f);
-            }
             if (fieldType.indexAnalyzer() == null && fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE) {
                 fieldType.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
                 fieldType.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -247,10 +239,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         super(simpleName);
         assert indexSettings != null;
         this.indexCreatedVersion = Version.indexCreated(indexSettings);
-        if (indexCreatedVersion.onOrAfter(Version.V_5_0_0_beta1)) {
-            if (simpleName.isEmpty()) {
-                throw new IllegalArgumentException("name cannot be empty string");
-            }
+        if (simpleName.isEmpty()) {
+            throw new IllegalArgumentException("name cannot be empty string");
         }
         fieldType.freeze();
         this.fieldType = fieldType;

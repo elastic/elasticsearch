@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.builder;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -31,10 +31,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -72,7 +74,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
  *
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
-public final class SearchSourceBuilder extends ToXContentToBytes implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
+public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
     private static final DeprecationLogger DEPRECATION_LOGGER =
         new DeprecationLogger(Loggers.getLogger(SearchSourceBuilder.class));
 
@@ -1329,7 +1331,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
 
     }
-    public static class ScriptField implements Writeable, ToXContent {
+
+    public static class ScriptField implements Writeable, ToXContentFragment {
 
         private final boolean ignoreFailure;
         private final String fieldName;
@@ -1484,5 +1487,18 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 && Objects.equals(extBuilders, other.extBuilders)
                 && Objects.equals(collapse, other.collapse)
                 && Objects.equals(trackTotalHits, other.trackTotalHits);
+    }
+
+    @Override
+    public String toString() {
+        return toString(EMPTY_PARAMS);
+    }
+
+    public String toString(Params params) {
+        try {
+            return XContentHelper.toXContent(this, XContentType.JSON, params, true).utf8ToString();
+        } catch (IOException e) {
+            throw new ElasticsearchException(e);
+        }
     }
 }

@@ -24,7 +24,6 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.Task
 import org.gradle.api.execution.TaskExecutionAdapter
 import org.gradle.api.internal.tasks.options.Option
-import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskState
 
@@ -68,7 +67,7 @@ public class RestIntegTestTask extends DefaultTask {
         // we pass all nodes to the rest cluster to allow the clients to round-robin between them
         // this is more realistic than just talking to a single node
         runner.systemProperty('tests.rest.cluster', "${-> nodes.collect{it.httpUri()}.join(",")}")
-        runner.systemProperty('tests.config.dir', "${-> nodes[0].confDir}")
+        runner.systemProperty('tests.config.dir', "${-> nodes[0].pathConf}")
         // TODO: our "client" qa tests currently use the rest-test plugin. instead they should have their own plugin
         // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
         // both as separate sysprops

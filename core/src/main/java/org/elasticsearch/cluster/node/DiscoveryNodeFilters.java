@@ -41,7 +41,7 @@ public class DiscoveryNodeFilters {
     /**
      * Validates the IP addresses in a group of {@link Settings} by looking for the keys
      * "_ip", "_host_ip", and "_publish_ip" and ensuring each of their comma separated values
-     * is a valid IP address.
+     * that has no wildcards is a valid IP address.
      */
     public static final Consumer<Settings> IP_VALIDATOR = (settings) -> {
         Map<String, String> settingsMap = settings.getAsMap();
@@ -52,7 +52,7 @@ public class DiscoveryNodeFilters {
             }
             if ("_ip".equals(propertyKey) || "_host_ip".equals(propertyKey) || "_publish_ip".equals(propertyKey)) {
                 for (String value : Strings.tokenizeToStringArray(entry.getValue(), ",")) {
-                    if (InetAddresses.isInetAddress(value) == false) {
+                    if (Regex.isSimpleMatchPattern(value) == false && InetAddresses.isInetAddress(value) == false) {
                         throw new IllegalArgumentException("invalid IP address [" + value + "] for [" + propertyKey + "]");
                     }
                 }

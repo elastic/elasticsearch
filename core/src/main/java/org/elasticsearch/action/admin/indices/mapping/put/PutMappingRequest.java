@@ -313,7 +313,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
         }
         updateAllTypes = in.readBoolean();
-        readTimeout(in);
         concreteIndex = in.readOptionalWriteable(Index::new);
     }
 
@@ -325,7 +324,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         out.writeOptionalString(type);
         out.writeString(source);
         out.writeBoolean(updateAllTypes);
-        writeTimeout(out);
         out.writeOptionalWriteable(concreteIndex);
     }
 }

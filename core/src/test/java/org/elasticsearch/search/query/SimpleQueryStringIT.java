@@ -548,12 +548,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 simpleQueryStringQuery("foo eggplant").defaultOperator(Operator.AND).useAllFields(true)).get();
         assertHits(resp.getHits(), "1");
         assertHitCount(resp, 1L);
-
-        Exception e = expectThrows(Exception.class, () ->
-                client().prepareSearch("test").setQuery(
-                        simpleQueryStringQuery("blah").field("f1").useAllFields(true)).get());
-        assertThat(ExceptionsHelper.detailedMessage(e),
-                containsString("cannot use [all_fields] parameter in conjunction with [fields]"));
     }
 
     public void testAllFieldsWithSpecifiedLeniency() throws IOException {

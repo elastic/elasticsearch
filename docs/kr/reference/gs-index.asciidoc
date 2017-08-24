@@ -1,5 +1,5 @@
 [[elasticsearch-reference]]
-= Elasticsearch 참조
+= Elasticsearch 설명서
 
 include::../../Versions.asciidoc[]
 

@@ -119,7 +119,7 @@ public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketM
         // multi bucket agg: aggs are split with '>' and can optionally have a
         // metric name after them by using '.' so need to split on both to get
         // just the agg name
-        final String firstAgg = bucketsPaths[0].split(">")[0].split("\\.")[0];
+        final String firstAgg = bucketsPaths[0].split("[>\\.]")[0];
         Optional<AggregationBuilder> aggBuilder = aggBuilders.stream().filter((builder) -> builder.getName().equals(firstAgg))
                 .findAny();
         if (aggBuilder.isPresent()) {

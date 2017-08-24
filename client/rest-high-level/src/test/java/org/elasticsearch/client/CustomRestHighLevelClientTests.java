@@ -19,6 +19,12 @@
 
 package org.elasticsearch.client;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.main.MainRequest;
+import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.client.http.Header;
 import org.elasticsearch.client.http.HttpEntity;
 import org.elasticsearch.client.http.HttpHost;
@@ -32,12 +38,6 @@ import org.elasticsearch.client.http.message.BasicHeader;
 import org.elasticsearch.client.http.message.BasicHttpResponse;
 import org.elasticsearch.client.http.message.BasicRequestLine;
 import org.elasticsearch.client.http.message.BasicStatusLine;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Build;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.main.MainRequest;
-import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -48,6 +48,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -151,7 +152,7 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
     static class CustomRestClient extends RestHighLevelClient {
 
         private CustomRestClient(RestClient restClient) {
-            super(restClient);
+            super(restClient, RestClient::close, Collections.emptyList());
         }
 
         MainResponse custom(MainRequest mainRequest, Header... headers) throws IOException {

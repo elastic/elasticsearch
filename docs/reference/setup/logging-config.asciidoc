@@ -129,7 +129,7 @@ PUT /_cluster/settings
   }
 }
 -------------------------------
-// CONSOLE
+// NOTCONSOLE
 
 For example:
 

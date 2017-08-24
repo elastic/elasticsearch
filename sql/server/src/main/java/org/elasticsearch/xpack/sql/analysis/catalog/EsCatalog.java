@@ -5,15 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.analysis.catalog;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Supplier;
@@ -43,10 +48,7 @@ public class EsCatalog implements Catalog {
         if (idx == null) {
             return null;
         }
-        if (false == indexHasOnlyOneType(idx)) {
-            throw new SqlIllegalArgumentException("index has more than one type");
-        }
-        return EsIndex.build(idx);
+        return EsIndex.build(idx, singleType(idx, false));
     }
 
     @Override
@@ -69,16 +71,48 @@ public class EsCatalog implements Catalog {
         // filter unsupported (indices with more than one type) indices
         while (indexMetadata.hasNext()) {
             IndexMetaData imd = indexMetadata.next();
-            if (indexHasOnlyOneType(imd)) {
-                list.add(EsIndex.build(imd));
+            MappingMetaData type = singleType(imd, true);
+            if (type != null) {
+                list.add(EsIndex.build(imd, type));
             }
         }
 
         return list;
     }
 
-    private boolean indexHasOnlyOneType(IndexMetaData index) {
-        return index.getMappings().size() <= 1;
+    /**
+     * Return the single type in the index of {@code null} if there
+     * are no types in the index.
+     * @param badIndicesAreNull if true then return null for indices with
+     *      more than one type, if false throw an exception for such indices
+     */
+    @Nullable
+    private MappingMetaData singleType(IndexMetaData index, boolean badIndicesAreNull) {
+        /* We actually ignore the _default_ mapping because it is still
+         * allowed but deprecated. */
+        MappingMetaData result = null;
+        List<String> typeNames = null;
+        for (ObjectObjectCursor<String, MappingMetaData> type : index.getMappings()) {
+            if ("_default_".equals(type.key)) {
+                continue;
+            }
+            if (result != null) {
+                if (badIndicesAreNull) {
+                    return null;
+                }
+                if (typeNames == null) {
+                    typeNames = new ArrayList<>();
+                    typeNames.add(result.type());
+                }
+                typeNames.add(type.key);
+            }
+            result = type.value;
+        }
+        if (typeNames == null) {
+            return result;
+        }
+        Collections.sort(typeNames);
+        throw new IllegalArgumentException("[" + index.getIndex().getName() + "] has more than one type " + typeNames);
     }
 
     private String[] resolveIndex(String pattern) {

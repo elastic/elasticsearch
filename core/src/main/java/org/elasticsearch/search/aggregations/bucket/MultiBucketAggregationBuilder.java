@@ -17,15 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline.movavg.models;
+package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 
 /**
- * Represents the common interface that all moving average models share. Moving
- * average models are used by the MovAvg aggregation
+ * Marker interface to indicate that the {@link AggregationBuilder} is for a
+ * multi-bucket aggregation.
  */
-public interface MovAvgModelBuilder extends ToXContentFragment {
+public interface MultiBucketAggregationBuilder {
 
-    MovAvgModel build();
 }

@@ -182,3 +182,9 @@
   A type used to represent the _type_ of document, e.g. an `email`, a `user`, or a `tweet`.
   Types are deprecated and are in the process of being removed.  See <<removal-of-types>>.
 
+[[glossary-query-and-filter]] query and filter ::
+
+  Both query and filter is an element which is used for search, but they has some differences.
+  Queries are non-cached and influences score. Therefore query could find most relevant result.
+  On the other hand, filters are cached and don't influences score.
+  So filters might be faster than queries, but its result has nothing to do with score.

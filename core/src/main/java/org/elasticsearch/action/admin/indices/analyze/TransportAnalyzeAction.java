@@ -150,7 +150,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             }
             if (field == null) {
                 /**
-                 * TODO: _all is disabled by default and index.query.default_field can define multiple fields or pattterns so we should
+                 * TODO: _all is disabled by default and index.query.default_field can define multiple fields or patterns so we should
                  * probably makes the field name mandatory in analyze query.
                  **/
                 if (indexService != null) {

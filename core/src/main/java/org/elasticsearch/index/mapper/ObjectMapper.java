@@ -24,12 +24,14 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,6 +45,7 @@ import java.util.Locale;
 import java.util.Map;
 
 public class ObjectMapper extends Mapper implements Cloneable {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(ObjectMapper.class));
 
     public static final String CONTENT_TYPE = "object";
     public static final String NESTED_CONTENT_TYPE = "nested";
@@ -191,6 +194,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 } else {
                     parseProperties(builder, (Map<String, Object>) fieldNode, parserContext);
                 }
+                return true;
+            } else if (fieldName.equals("include_in_all")) {
+                deprecationLogger.deprecated("[include_in_all] is deprecated, the _all field have been removed in this version");
                 return true;
             }
             return false;

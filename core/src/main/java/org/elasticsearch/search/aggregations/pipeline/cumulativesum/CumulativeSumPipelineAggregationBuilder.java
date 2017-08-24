@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
@@ -96,7 +97,7 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
+    public void doValidate(AggregatorFactory<?> parent, List<AggregationBuilder> aggFactories,
             List<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(BUCKETS_PATH.getPreferredName()

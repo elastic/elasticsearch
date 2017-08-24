@@ -38,6 +38,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -50,7 +51,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoGridAggregationBuilder> {
+public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoGridAggregationBuilder>
+        implements MultiBucketAggregationBuilder {
     public static final String NAME = "geohash_grid";
     public static final int DEFAULT_PRECISION = 5;
     public static final int DEFAULT_MAX_NUM_CELLS = 10000;

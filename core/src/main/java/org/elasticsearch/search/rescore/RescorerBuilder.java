@@ -138,7 +138,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
             }
 
             @Override
-            public <IFD extends IndexFieldData<?>> IFD fieldData(String fullName) {
+            public IndexFieldData<?> fieldData(String fullName) {
                 return context.getForField(context.fieldMapper(fullName));
             }
 
@@ -159,7 +159,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
     public abstract static class RescoreContextSupport {
         public abstract Query toQuery(QueryBuilder queryBuilder) throws IOException;
         public abstract Query toFilter(QueryBuilder queryBuilder) throws IOException;
-        public abstract <IFD extends IndexFieldData<?>> IFD fieldData(String fullName);
+        public abstract IndexFieldData<?> fieldData(String fullName);
         abstract int windowSize();
     }
 

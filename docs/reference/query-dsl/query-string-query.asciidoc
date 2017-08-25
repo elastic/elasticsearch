@@ -63,6 +63,8 @@ with default operator of `AND`, the same query is translated to
 
 |`analyzer` |The analyzer name used to analyze the query string.
 
+|`quote_analyzer` |The analyzer name used to analyze the quote part of query string.
+
 |`allow_leading_wildcard` |When set, `*` or `?` are allowed as the first
 character. Defaults to `true`.
 

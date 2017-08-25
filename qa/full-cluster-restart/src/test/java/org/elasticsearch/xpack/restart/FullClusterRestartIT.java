@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.restart;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.entity.StringEntity;
-import org.elasticsearch.client.http.util.EntityUtils;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;

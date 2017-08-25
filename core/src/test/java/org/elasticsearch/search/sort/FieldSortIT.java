@@ -506,8 +506,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testSimpleSorts() throws Exception {
         Random random = random();
-        assertAcked(prepareCreate("test")
-.addMapping("type1",
+        assertAcked(prepareCreate("test").addMapping("type1",
                 XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("str_value")
                         .field("type", "keyword").endObject().startObject("boolean_value").field("type", "boolean").endObject()
                         .startObject("byte_value").field("type", "byte").endObject().startObject("short_value").field("type", "short")

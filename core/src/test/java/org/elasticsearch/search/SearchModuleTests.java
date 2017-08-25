@@ -263,6 +263,7 @@ public class SearchModuleTests extends ModuleTestCase {
     }
 
     private static final String[] NON_DEPRECATED_QUERIES = new String[] {
+            "after",
             "bool",
             "boosting",
             "common",

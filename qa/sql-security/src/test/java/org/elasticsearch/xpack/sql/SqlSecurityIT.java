@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql;
 
+import org.apache.http.Header;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.http.Header;
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.entity.StringEntity;
-import org.elasticsearch.client.http.message.BasicHeader;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.SecureString;

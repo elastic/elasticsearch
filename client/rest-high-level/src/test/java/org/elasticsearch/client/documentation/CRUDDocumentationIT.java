@@ -19,9 +19,7 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -36,7 +34,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -49,9 +46,7 @@ import org.elasticsearch.client.http.HttpEntity;
 import org.elasticsearch.client.http.client.methods.HttpPost;
 import org.elasticsearch.client.http.entity.ContentType;
 import org.elasticsearch.client.http.nio.entity.NStringEntity;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -868,11 +863,10 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testBulkProcessor() throws InterruptedException, IOException {
-        Settings settings = Settings.builder().put("node.name", "my-application").build();
         RestHighLevelClient client = highLevelClient();
         {
             // tag::bulk-processor-init
-            ThreadPool threadPool = new ThreadPool(settings); // <1>
+            ThreadPool threadPool = new ThreadPool("my-application"); // <1>
 
             BulkProcessor.Listener listener = new BulkProcessor.Listener() { // <2>
                 @Override
@@ -944,7 +938,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             };
             // end::bulk-processor-listener
 
-            ThreadPool threadPool = new ThreadPool(settings);
+            ThreadPool threadPool = new ThreadPool("my-application");
             try {
                 // tag::bulk-processor-options
                 BulkProcessor.Builder builder = new BulkProcessor.Builder(client::bulkAsync, listener, threadPool);

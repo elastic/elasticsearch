@@ -75,7 +75,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -136,7 +135,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         expectedHeaders.clear();
         expectedHeaders.put(randomSimpleString(random()), randomSimpleString(random()));
 
-        setupClient(new TestThreadPool(getTestName()));
+        setupClient(new ThreadPool(getTestName()));
         firstSearchRequest = new SearchRequest();
         testRequest = new DummyAbstractBulkByScrollRequest(firstSearchRequest);
         listener = new PlainActionFuture<>();
@@ -313,7 +312,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      */
     public void testThreadPoolRejectionsAbortRequest() throws Exception {
         worker.rethrottle(1);
-        setupClient(new TestThreadPool(getTestName()) {
+        setupClient(new ThreadPool(getTestName()) {
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
                 // While we're here we can check that the sleep made it through
@@ -426,7 +425,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
          */
         AtomicReference<TimeValue> capturedDelay = new AtomicReference<>();
         AtomicReference<Runnable> capturedCommand = new AtomicReference<>();
-        setupClient(new TestThreadPool(getTestName()) {
+        setupClient(new ThreadPool(getTestName()) {
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
                 capturedDelay.set(delay);
@@ -601,7 +600,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
          * Replace the thread pool with one that will cancel the task as soon as anything is scheduled, which reindex tries to do when there
          * is a delay.
          */
-        setupClient(new TestThreadPool(getTestName()) {
+        setupClient(new ThreadPool(getTestName()) {
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
                 /*

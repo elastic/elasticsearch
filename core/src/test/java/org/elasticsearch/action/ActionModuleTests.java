@@ -41,7 +41,6 @@ import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 
@@ -132,7 +131,7 @@ public class ActionModuleTests extends ESTestCase {
             }
         };
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
-        ThreadPool threadPool = new TestThreadPool(getTestName());
+        ThreadPool threadPool = new ThreadPool(getTestName());
         try {
             UsageService usageService = new UsageService(settings.getSettings());
             ActionModule actionModule = new ActionModule(false, settings.getSettings(), new IndexNameExpressionResolver(Settings.EMPTY),
@@ -164,7 +163,7 @@ public class ActionModuleTests extends ESTestCase {
         };
 
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
-        ThreadPool threadPool = new TestThreadPool(getTestName());
+        ThreadPool threadPool = new ThreadPool(getTestName());
         try {
             UsageService usageService = new UsageService(settings.getSettings());
             ActionModule actionModule = new ActionModule(false, settings.getSettings(), new IndexNameExpressionResolver(Settings.EMPTY),

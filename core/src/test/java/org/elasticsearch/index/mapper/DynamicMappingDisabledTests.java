@@ -42,7 +42,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.Transport;
@@ -67,7 +66,7 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
 
     @BeforeClass
     public static void createThreadPool() {
-        threadPool = new TestThreadPool("DynamicMappingDisabledTests");
+        threadPool = new ThreadPool("DynamicMappingDisabledTests");
     }
 
     @Override

@@ -37,7 +37,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
@@ -61,7 +60,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -122,7 +120,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             this.nodeMap = nodeMap;
             this.sniffNodesCount = sniffNodesCount;
 
-            threadPool = new TestThreadPool("transport-client-nodes-service-tests");
+            threadPool = new ThreadPool("transport-client-nodes-service-tests");
             transport = new FailAndRetryMockTransport<TestResponse>(random(), clusterName) {
                 @Override
                 public List<String> getLocalAddresses() {
@@ -336,7 +334,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
     }
 
     public void testSniffNodesSamplerClosesConnections() throws Exception {
-        final TestThreadPool threadPool = new TestThreadPool("testSniffNodesSamplerClosesConnections");
+        final ThreadPool threadPool = new ThreadPool("testSniffNodesSamplerClosesConnections");
 
         Settings remoteSettings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "remote").build();
         try (MockTransportService remoteService = createNewService(remoteSettings, Version.CURRENT, threadPool, null)) {

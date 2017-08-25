@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -47,7 +46,7 @@ public class SingleNodeDiscoveryTests extends ESTestCase {
     public void testInitialJoin() throws Exception {
         final Settings settings = Settings.EMPTY;
         final Version version = Version.CURRENT;
-        final ThreadPool threadPool = new TestThreadPool(getClass().getName());
+        final ThreadPool threadPool = new ThreadPool(getClass().getName());
         final Stack<Closeable> stack = new Stack<>();
         try {
             final MockTransportService transportService =

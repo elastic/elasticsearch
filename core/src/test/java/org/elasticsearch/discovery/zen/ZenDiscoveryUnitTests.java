@@ -47,12 +47,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.PublishClusterStateActionTests.AssertingAckListener;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
@@ -85,7 +83,6 @@ import static org.elasticsearch.cluster.routing.RoutingTableTests.updateActiveAl
 import static org.elasticsearch.cluster.service.MasterServiceTests.discoveryState;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.zen.ZenDiscovery.shouldIgnoreOrRejectNewClusterState;
-import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -176,7 +173,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
     }
 
     public void testNodesUpdatedAfterClusterStatePublished() throws Exception {
-        ThreadPool threadPool = new TestThreadPool(getClass().getName());
+        ThreadPool threadPool = new ThreadPool(getClass().getName());
         // randomly make minimum_master_nodes a value higher than we have nodes for, so it will force failure
         int minMasterNodes = randomBoolean() ? 3 : 1;
         Settings settings = Settings.builder()
@@ -250,7 +247,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
     }
 
     public void testPendingCSQueueIsClearedWhenClusterStatePublished() throws Exception {
-        ThreadPool threadPool = new TestThreadPool(getClass().getName());
+        ThreadPool threadPool = new ThreadPool(getClass().getName());
         // randomly make minimum_master_nodes a value higher than we have nodes for, so it will force failure
         int minMasterNodes =  randomBoolean() ? 3 : 1;
         Settings settings = Settings.builder()

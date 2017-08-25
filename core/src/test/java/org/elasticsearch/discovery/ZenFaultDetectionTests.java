@@ -41,7 +41,6 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.TransportConnectionListener;
@@ -85,7 +84,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
             .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), new ByteSizeValue(0))
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        threadPool = new TestThreadPool(getClass().getName());
+        threadPool = new ThreadPool(getClass().getName());
         circuitBreakerService = new HierarchyCircuitBreakerService(settings, clusterSettings);
         settingsA = Settings.builder().put("node.name", "TS_A").put(settings).build();
         serviceA = build(settingsA, version0);

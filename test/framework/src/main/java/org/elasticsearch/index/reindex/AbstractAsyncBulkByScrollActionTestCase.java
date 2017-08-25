@@ -22,7 +22,6 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -36,7 +35,7 @@ public abstract class AbstractAsyncBulkByScrollActionTestCase<
 
     @Before
     public void setupForTest() {
-        threadPool = new TestThreadPool(getTestName());
+        threadPool = new ThreadPool(getTestName());
         task = new BulkByScrollTask(1, "test", "test", "test", TaskId.EMPTY_TASK_ID);
         task.setWorker(Float.POSITIVE_INFINITY, null);
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
@@ -41,24 +40,18 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.indices.cluster.AbstractIndicesClusterStateServiceTestCase;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -124,7 +117,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
 
     public void testRandomClusterPromotesNewestReplica() throws InterruptedException {
 
-        ThreadPool threadPool = new TestThreadPool(getClass().getName());
+        ThreadPool threadPool = new ThreadPool(getClass().getName());
         ClusterStateChanges cluster = new ClusterStateChanges(xContentRegistry(), threadPool);
         ClusterState state = randomInitialClusterState();
 

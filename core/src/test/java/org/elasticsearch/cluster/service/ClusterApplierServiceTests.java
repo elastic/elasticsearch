@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.service;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -39,7 +38,6 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -62,7 +60,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
 
     @BeforeClass
     public static void createThreadPool() {
-        threadPool = new TestThreadPool(ClusterApplierServiceTests.class.getName());
+        threadPool = new ThreadPool(ClusterApplierServiceTests.class.getName());
     }
 
     @AfterClass

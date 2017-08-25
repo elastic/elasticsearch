@@ -30,7 +30,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.TransportService;
@@ -63,7 +62,7 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool(FileBasedUnicastHostsProviderTests.class.getName());
+        threadPool = new ThreadPool(FileBasedUnicastHostsProviderTests.class.getName());
         executorService = Executors.newSingleThreadExecutor();
     }
 

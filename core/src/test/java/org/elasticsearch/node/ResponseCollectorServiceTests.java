@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -50,7 +49,7 @@ public class ResponseCollectorServiceTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadpool = new TestThreadPool("response_collector_tests");
+        threadpool = new ThreadPool("response_collector_tests");
         clusterService = new ClusterService(Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadpool, Collections.emptyMap());

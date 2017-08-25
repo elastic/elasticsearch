@@ -28,7 +28,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -53,7 +52,7 @@ public class TaskExecutorTests extends ESTestCase {
 
     @BeforeClass
     public static void createThreadPool() {
-        threadPool = new TestThreadPool(getTestClass().getName());
+        threadPool = new ThreadPool(getTestClass().getName());
     }
 
     @AfterClass

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.entity.StringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -37,9 +35,10 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.http.entity.ContentType;
+import org.elasticsearch.client.http.entity.StringEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -614,7 +613,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             }
         };
 
-        ThreadPool threadPool = new ThreadPool(Settings.builder().put("node.name", getClass().getName()).build());
+        ThreadPool threadPool = new ThreadPool(getClass().getName());
         // Pull the client to a variable to work around https://bugs.eclipse.org/bugs/show_bug.cgi?id=514884
         RestHighLevelClient hlClient = highLevelClient();
         try(BulkProcessor processor = new BulkProcessor.Builder(hlClient::bulkAsync, listener, threadPool)

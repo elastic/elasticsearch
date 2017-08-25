@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 
@@ -47,7 +46,7 @@ import java.util.function.BiFunction;
 
 public class RemoteClusterServiceTests extends ESTestCase {
 
-    private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
+    private final ThreadPool threadPool = new ThreadPool(getClass().getName());
 
     @Override
     public void tearDown() throws Exception {

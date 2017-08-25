@@ -26,7 +26,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.junit.After;
@@ -65,7 +64,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     public static void setupThreadPool() {
         int bulkThreadPoolSize = randomIntBetween(1, 2);
         int bulkThreadPoolQueueSize = randomIntBetween(1, 2);
-        threadPool = new TestThreadPool("IndexShardOperationsLockTests",
+        threadPool = new ThreadPool("IndexShardOperationsLockTests",
             Settings.builder()
                 .put("thread_pool." + ThreadPool.Names.BULK + ".size", bulkThreadPoolSize)
                 .put("thread_pool." + ThreadPool.Names.BULK + ".queue_size", bulkThreadPoolQueueSize)

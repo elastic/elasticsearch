@@ -19,9 +19,9 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.client.http.Header;
-import org.elasticsearch.client.http.HttpHost;
-import org.elasticsearch.client.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.Header;
+import org.apache.http.HttpHost;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 
 import java.io.IOException;
 import java.net.URI;

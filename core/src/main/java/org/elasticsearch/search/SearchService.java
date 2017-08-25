@@ -85,7 +85,7 @@ import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
-import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -723,8 +723,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (source.rescores() != null) {
             try {
-                for (RescoreBuilder<?> rescore : source.rescores()) {
-                    context.addRescore(rescore.build(queryShardContext));
+                for (RescorerBuilder<?> rescore : source.rescores()) {
+                    context.addRescore(rescore.buildContext(queryShardContext));
                 }
             } catch (IOException e) {
                 throw new SearchContextException(context, "failed to create RescoreSearchContext", e);

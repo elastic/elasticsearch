@@ -49,7 +49,7 @@ import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
-import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -1054,7 +1054,7 @@ public class TopHitsIT extends ESIntegTestCase {
             SearchResponse response = client()
                 .prepareSearch("idx")
                 .addRescorer(
-                    RescoreBuilder.queryRescorer(new MatchAllQueryBuilder().boost(3.0f))
+                        new QueryRescorerBuilder(new MatchAllQueryBuilder().boost(3.0f))
                 )
                 .addAggregation(terms("terms")
                     .field(TERMS_AGGS_FIELD)
@@ -1076,7 +1076,7 @@ public class TopHitsIT extends ESIntegTestCase {
             SearchResponse response = client()
                 .prepareSearch("idx")
                 .addRescorer(
-                    RescoreBuilder.queryRescorer(new MatchAllQueryBuilder().boost(3.0f))
+                        new QueryRescorerBuilder(new MatchAllQueryBuilder().boost(3.0f))
                 )
                 .addAggregation(terms("terms")
                     .field(TERMS_AGGS_FIELD)
@@ -1099,7 +1099,7 @@ public class TopHitsIT extends ESIntegTestCase {
             SearchResponse response = client()
                 .prepareSearch("idx")
                 .addRescorer(
-                    RescoreBuilder.queryRescorer(new MatchAllQueryBuilder().boost(3.0f))
+                    new QueryRescorerBuilder(new MatchAllQueryBuilder().boost(3.0f))
                 )
                 .addAggregation(terms("terms")
                     .field(TERMS_AGGS_FIELD)
@@ -1121,7 +1121,7 @@ public class TopHitsIT extends ESIntegTestCase {
             SearchResponse response = client()
                 .prepareSearch("idx")
                 .addRescorer(
-                    RescoreBuilder.queryRescorer(new MatchAllQueryBuilder().boost(3.0f))
+                        new QueryRescorerBuilder(new MatchAllQueryBuilder().boost(3.0f))
                 )
                 .addAggregation(terms("terms")
                     .field(TERMS_AGGS_FIELD)

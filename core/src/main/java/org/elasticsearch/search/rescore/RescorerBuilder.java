@@ -28,34 +28,33 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
- * The abstract base builder for instances of {@link RescoreBuilder}.
+ * The abstract base builder for instances of {@link RescorerBuilder}.
  */
-public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>>
-        implements NamedWriteable, ToXContentObject, Rewriteable<RescoreBuilder<RB>> {
+public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
+        implements NamedWriteable, ToXContentObject, Rewriteable<RescorerBuilder<RB>> {
+    public static final int DEFAULT_WINDOW_SIZE = 10;
 
     protected Integer windowSize;
 
-    private static ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
+    private static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
 
     /**
      * Construct an empty RescoreBuilder.
      */
-    public RescoreBuilder() {
+    public RescorerBuilder() {
     }
 
     /**
      * Read from a stream.
      */
-    protected RescoreBuilder(StreamInput in) throws IOException {
+    protected RescorerBuilder(StreamInput in) throws IOException {
         windowSize = in.readOptionalVInt();
     }
 
@@ -77,9 +76,9 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>>
         return windowSize;
     }
 
-    public static RescoreBuilder<?> parseFromXContent(XContentParser parser) throws IOException {
+    public static RescorerBuilder<?> parseFromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
-        RescoreBuilder<?> rescorer = null;
+        RescorerBuilder<?> rescorer = null;
         Integer windowSize = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -92,12 +91,7 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>>
                     throw new ParsingException(parser.getTokenLocation(), "rescore doesn't support [" + fieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                // we only have QueryRescorer at this point
-                if (QueryRescorerBuilder.NAME.equals(fieldName)) {
-                    rescorer = QueryRescorerBuilder.fromXContent(parser);
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(), "rescore doesn't support rescorer with name [" + fieldName + "]");
-                }
+                rescorer = parser.namedObject(RescorerBuilder.class, fieldName, null);
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "] after [" + fieldName + "]");
             }
@@ -124,11 +118,20 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>>
 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 
-    public abstract QueryRescoreContext build(QueryShardContext context) throws IOException;
-
-    public static QueryRescorerBuilder queryRescorer(QueryBuilder queryBuilder) {
-        return new QueryRescorerBuilder(queryBuilder);
+    /**
+     * Build the {@linkplain RescoreContext} that will be used to actually
+     * execute the rescore against a particular shard.
+     */
+    public final RescoreContext buildContext(QueryShardContext context) throws IOException {
+        int finalWindowSize = windowSize == null ? DEFAULT_WINDOW_SIZE : windowSize;
+        RescoreContext rescoreContext = innerBuildContext(finalWindowSize, context);
+        return rescoreContext;
     }
+
+    /**
+     * Extensions override this to build the context that they need for rescoring.
+     */
+    protected abstract RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException;
 
     @Override
     public int hashCode() {
@@ -143,8 +146,7 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>>
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        @SuppressWarnings("rawtypes")
-        RescoreBuilder other = (RescoreBuilder) obj;
+        RescorerBuilder<?> other = (RescorerBuilder<?>) obj;
         return Objects.equals(windowSize, other.windowSize);
     }
 

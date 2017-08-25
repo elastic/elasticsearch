@@ -18,10 +18,15 @@
  */
 package org.elasticsearch.gradle.test
 
+import com.sun.jna.Native
+import com.sun.jna.WString
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Version
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
+
+import java.nio.file.Path
+import java.nio.file.Paths
 
 /**
  * A container for the files and configuration associated with a single node in a test cluster.
@@ -85,10 +90,10 @@ class NodeInfo {
     String executable
 
     /** Path to the elasticsearch start script */
-    File esScript
+    private Object esScript
 
     /** script to run when running in the background */
-    File wrapperScript
+    private File wrapperScript
 
     /** buffer for ant output when starting this node */
     ByteArrayOutputStream buffer = new ByteArrayOutputStream()
@@ -132,11 +137,15 @@ class NodeInfo {
             args.add('/C')
             args.add('"') // quote the entire command
             wrapperScript = new File(cwd, "run.bat")
-            esScript = new File(homeDir, 'bin/elasticsearch.bat')
+            /*
+             * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to
+             * getting the short name requiring the path to already exist.
+             */
+            esScript = "${-> binPath().resolve('elasticsearch.bat').toString()}"
         } else {
             executable = 'bash'
             wrapperScript = new File(cwd, "run")
-            esScript = new File(homeDir, 'bin/elasticsearch')
+            esScript = binPath().resolve('elasticsearch')
         }
         if (config.daemonize) {
             args.add("${wrapperScript}")
@@ -168,6 +177,31 @@ class NodeInfo {
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             args.add('"') // end the entire command, quoted
         }
+    }
+
+    Path binPath() {
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            return Paths.get(getShortPathName(new File(homeDir, 'bin').toString()))
+        } else {
+            return Paths.get(new File(homeDir, 'bin').toURI())
+        }
+    }
+
+    static String getShortPathName(String path) {
+        assert Os.isFamily(Os.FAMILY_WINDOWS)
+        final WString longPath = new WString("\\\\?\\" + path)
+        // first we get the length of the buffer needed
+        final int length = JNAKernel32Library.getInstance().GetShortPathNameW(longPath, null, 0)
+        if (length == 0) {
+            throw new IllegalStateException("path [" + path + "] encountered error [" + Native.getLastError() + "]")
+        }
+        final char[] shortPath = new char[length]
+        // knowing the length of the buffer, now we get the short name
+        if (JNAKernel32Library.getInstance().GetShortPathNameW(longPath, shortPath, length) == 0) {
+            throw new IllegalStateException("path [" + path + "] encountered error [" + Native.getLastError() + "]")
+        }
+        // we have to strip the \\?\ away from the path for cmd.exe
+        return Native.toString(shortPath).substring(4)
     }
 
     /** Returns debug string for the command that started this node. */

@@ -709,7 +709,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.aggregations() != null) {
             try {
                 AggregatorFactories factories = source.aggregations().build(context, null);
-                factories.validate();
                 context.aggregations(new SearchContextAggregations(factories));
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);

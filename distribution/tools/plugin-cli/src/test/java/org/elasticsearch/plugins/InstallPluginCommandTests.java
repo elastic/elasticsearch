@@ -32,6 +32,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -61,13 +62,16 @@ import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.UserPrincipal;
+import java.security.KeyStore;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -201,18 +205,20 @@ public class InstallPluginCommandTests extends ESTestCase {
     }
 
     /** creates a plugin .zip and returns the url for testing */
-    static String createPluginUrl(String name, Path structure) throws IOException {
-        return createPlugin(name, structure, false).toUri().toURL().toString();
+    static String createPluginUrl(String name, Path structure, String... additionalProps) throws IOException {
+        return createPlugin(name, structure, false, additionalProps).toUri().toURL().toString();
     }
 
-    static Path createPlugin(String name, Path structure, boolean createSecurityPolicyFile) throws IOException {
-        PluginTestUtil.writeProperties(structure,
+    static Path createPlugin(String name, Path structure, boolean createSecurityPolicyFile, String... additionalProps) throws IOException {
+        String[] properties = Stream.concat(Stream.of(
             "description", "fake desc",
             "name", name,
             "version", "1.0",
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
-            "classname", "FakePlugin");
+            "classname", "FakePlugin"
+        ), Arrays.stream(additionalProps)).toArray(String[]::new);
+        PluginTestUtil.writeProperties(structure, properties);
         if (createSecurityPolicyFile) {
             String securityPolicyContent = "grant {\n  permission java.lang.RuntimePermission \"setFactory\";\n};\n";
             Files.write(structure.resolve("plugin-security.policy"), securityPolicyContent.getBytes(StandardCharsets.UTF_8));
@@ -808,4 +814,32 @@ public class InstallPluginCommandTests extends ESTestCase {
     }
 
     // TODO: test checksum (need maven/official below)
+
+    public void testKeystoreNotRequired() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPluginUrl("fake", pluginDir, "requires.keystore", "false");
+        installPlugin(pluginZip, env.v1());
+        assertFalse(Files.exists(KeyStoreWrapper.keystorePath(env.v2().configFile())));
+    }
+
+    public void testKeystoreRequiredAlreadyExists() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        KeyStoreWrapper keystore = KeyStoreWrapper.create(new char[0]);
+        keystore.save(env.v2().configFile());
+        byte[] expectedBytes = Files.readAllBytes(KeyStoreWrapper.keystorePath(env.v2().configFile()));
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPluginUrl("fake", pluginDir, "requires.keystore", "true");
+        installPlugin(pluginZip, env.v1());
+        byte[] gotBytes = Files.readAllBytes(KeyStoreWrapper.keystorePath(env.v2().configFile()));
+        assertArrayEquals("Keystore was modified", expectedBytes, gotBytes);
+    }
+
+    public void testKeystoreRequiredCreated() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPluginUrl("fake", pluginDir, "requires.keystore", "true");
+        MockTerminal terminal = installPlugin(pluginZip, env.v1());
+        assertTrue(Files.exists(KeyStoreWrapper.keystorePath(env.v2().configFile())));
+    }
 }

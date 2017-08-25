@@ -46,110 +46,6 @@ public class RolloverResponse extends ActionResponse implements ToXContentObject
     private static final String ACKNOWLEDGED = "acknowledged";
     private static final String SHARDS_ACKED = "shards_acknowledged";
 
-    private final List<SingleAliasRolloverResponse> responses;
-    private final Map<String, Exception> failures;
-
-    RolloverResponse() {
-        this.responses = new ArrayList<>();
-        this.failures = new HashMap<>();
-    }
-
-    RolloverResponse(List<SingleAliasRolloverResponse> responses, Map<String, Exception> failures) {
-        if (responses.isEmpty() && failures.isEmpty()) {
-            throw new IllegalStateException("Response for at least 1 alias is expected");
-        }
-        this.responses = responses;
-        this.failures = failures;
-    }
-
-    SingleAliasRolloverResponse first() {
-        if (responses.isEmpty()) {
-            throw new IllegalStateException("Response for at least 1 alias is expected");
-        }
-
-        return responses.get(0);
-    }
-
-    @Override
-    public XContentBuilder toXContent(final XContentBuilder builder, Params params) throws IOException {
-        if (responses.isEmpty() && failures.isEmpty()) {
-            throw new IllegalStateException("Response for at least 1 alias is expected");
-        }
-
-        builder.startObject();
-        builder.field(DRY_RUN, responses.get(0).isDryRun());
-
-        // keep compatibility with single alias Rollover
-        if (responses.size() == 1) {
-            first().toXContent(builder, params);
-        }
-
-        builder.startObject("rolled_over_aliases");
-        for(SingleAliasRolloverResponse response: this.responses) {
-            builder.startObject(response.getAlias());
-            response.toXContent(builder, params);
-            builder.endObject();
-        }
-        builder.endObject();
-
-        if (failures.size() > 0) {
-            builder.startObject("failed_aliases");
-            for (Map.Entry<String, Exception> entry : failures.entrySet()) {
-                builder.startObject(entry.getKey());
-                ElasticsearchException.generateThrowableXContent(builder, params, entry.getValue());
-                builder.endObject();
-            }
-            builder.endObject();
-        }
-
-        builder.endObject();
-
-        return builder;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int responsesSize = in.readVInt();
-        for (int j = 0; j < responsesSize; j++) {
-            final SingleAliasRolloverResponse response = new SingleAliasRolloverResponse();
-            response.oldIndex = in.readString();
-            response.newIndex = in.readString();
-            int conditionSize = in.readVInt();
-            Set<Map.Entry<String, Boolean>> conditions = new HashSet<>(conditionSize);
-            for (int i = 0; i < conditionSize; i++) {
-                String condition = in.readString();
-                boolean satisfied = in.readBoolean();
-                conditions.add(new AbstractMap.SimpleEntry<>(condition, satisfied));
-            }
-            response.conditionStatus = conditions;
-            response.dryRun = in.readBoolean();
-            response.rolledOver = in.readBoolean();
-            response.acknowledged = in.readBoolean();
-            response.shardsAcked = in.readBoolean();
-            responses.add(response);
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(responses.size());
-        for (SingleAliasRolloverResponse response: responses) {
-            out.writeString(response.oldIndex);
-            out.writeString(response.newIndex);
-            out.writeVInt(response.conditionStatus.size());
-            for (Map.Entry<String, Boolean> entry : response.conditionStatus) {
-                out.writeString(entry.getKey());
-                out.writeBoolean(entry.getValue());
-            }
-            out.writeBoolean(response.dryRun);
-            out.writeBoolean(response.rolledOver);
-            out.writeBoolean(response.acknowledged);
-            out.writeBoolean(response.shardsAcked);
-        }
-    }
-
     static class SingleAliasRolloverResponse implements ToXContentObject {
 
         private String alias;
@@ -253,5 +149,109 @@ public class RolloverResponse extends ActionResponse implements ToXContentObject
             builder.endObject();
             return builder;
         }
+    }
+
+    private final List<SingleAliasRolloverResponse> responses;
+    private final Map<String, Exception> failures;
+
+    RolloverResponse() {
+        this.responses = new ArrayList<>();
+        this.failures = new HashMap<>();
+    }
+
+    RolloverResponse(List<SingleAliasRolloverResponse> responses, Map<String, Exception> failures) {
+        if (responses.isEmpty() && failures.isEmpty()) {
+            throw new IllegalStateException("Response for at least 1 alias is expected");
+        }
+        this.responses = responses;
+        this.failures = failures;
+    }
+
+    SingleAliasRolloverResponse first() {
+        if (responses.isEmpty()) {
+            throw new IllegalStateException("Response for at least 1 alias is expected");
+        }
+
+        return responses.get(0);
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        int responsesSize = in.readVInt();
+        for (int j = 0; j < responsesSize; j++) {
+            final SingleAliasRolloverResponse response = new SingleAliasRolloverResponse();
+            response.oldIndex = in.readString();
+            response.newIndex = in.readString();
+            int conditionSize = in.readVInt();
+            Set<Map.Entry<String, Boolean>> conditions = new HashSet<>(conditionSize);
+            for (int i = 0; i < conditionSize; i++) {
+                String condition = in.readString();
+                boolean satisfied = in.readBoolean();
+                conditions.add(new AbstractMap.SimpleEntry<>(condition, satisfied));
+            }
+            response.conditionStatus = conditions;
+            response.dryRun = in.readBoolean();
+            response.rolledOver = in.readBoolean();
+            response.acknowledged = in.readBoolean();
+            response.shardsAcked = in.readBoolean();
+            responses.add(response);
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeVInt(responses.size());
+        for (SingleAliasRolloverResponse response: responses) {
+            out.writeString(response.oldIndex);
+            out.writeString(response.newIndex);
+            out.writeVInt(response.conditionStatus.size());
+            for (Map.Entry<String, Boolean> entry : response.conditionStatus) {
+                out.writeString(entry.getKey());
+                out.writeBoolean(entry.getValue());
+            }
+            out.writeBoolean(response.dryRun);
+            out.writeBoolean(response.rolledOver);
+            out.writeBoolean(response.acknowledged);
+            out.writeBoolean(response.shardsAcked);
+        }
+    }
+
+    @Override
+    public XContentBuilder toXContent(final XContentBuilder builder, Params params) throws IOException {
+        if (responses.isEmpty() && failures.isEmpty()) {
+            throw new IllegalStateException("Response for at least 1 alias is expected");
+        }
+
+        builder.startObject();
+        builder.field(DRY_RUN, responses.get(0).isDryRun());
+
+        // keep compatibility with single alias Rollover
+        if (responses.size() == 1) {
+            first().toXContent(builder, params);
+        }
+
+        builder.startObject("rolled_over_aliases");
+        for(SingleAliasRolloverResponse response: this.responses) {
+            builder.startObject(response.getAlias());
+            response.toXContent(builder, params);
+            builder.endObject();
+        }
+        builder.endObject();
+
+        if (failures.size() > 0) {
+            builder.startObject("failed_aliases");
+            for (Map.Entry<String, Exception> entry : failures.entrySet()) {
+                builder.startObject(entry.getKey());
+                ElasticsearchException.generateThrowableXContent(builder, params, entry.getValue());
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+
+        builder.endObject();
+
+        return builder;
     }
 }

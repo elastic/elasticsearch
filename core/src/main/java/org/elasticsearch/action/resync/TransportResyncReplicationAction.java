@@ -48,7 +48,7 @@ import java.util.function.Supplier;
 public class TransportResyncReplicationAction extends TransportWriteAction<ResyncReplicationRequest,
     ResyncReplicationRequest, ResyncReplicationResponse> implements PrimaryReplicaSyncer.SyncAction {
 
-    public static String ACTION_NAME = "indices:admin/seq_no/resync";
+    private static String ACTION_NAME = "internal:index/seq_no/resync";
 
     @Inject
     public TransportResyncReplicationAction(Settings settings, TransportService transportService,

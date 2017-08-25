@@ -385,17 +385,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     }
 
     /**
-     * Moves the primary shard from started to initializing
-     */
-    public ShardRouting reinitializePrimaryShard() {
-        assert state == ShardRoutingState.STARTED : this;
-        assert primary : this;
-        return new ShardRouting(shardId, currentNodeId, null, primary, ShardRoutingState.INITIALIZING,
-            StoreRecoverySource.EXISTING_STORE_INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
-            allocationId, UNAVAILABLE_EXPECTED_SHARD_SIZE);
-    }
-
-    /**
      * Reinitializes a replica shard, giving it a fresh allocation id
      */
     public ShardRouting reinitializeReplicaShard() {

@@ -628,7 +628,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testDefaultNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getDefaultNamedXContents();
-        assertEquals(43, namedXContents.size());
+        assertEquals(44, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
             Integer counter = categories.putIfAbsent(namedXContent.categoryClass, 1);
@@ -637,7 +637,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             }
         }
         assertEquals(2, categories.size());
-        assertEquals(Integer.valueOf(40), categories.get(Aggregation.class));
+        assertEquals(Integer.valueOf(41), categories.get(Aggregation.class));
         assertEquals(Integer.valueOf(3), categories.get(Suggest.Suggestion.class));
     }
 

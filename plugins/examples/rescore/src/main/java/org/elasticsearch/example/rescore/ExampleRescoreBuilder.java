@@ -37,7 +37,7 @@ import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.search.rescore.RescorerBuilder;
@@ -109,8 +109,10 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
     }
 
     @Override
-    public RescoreContext innerBuildContext(RescoreContextSupport support) throws IOException {
-        return new ExampleRescoreContext(support, factor, factorField);
+    public RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
+        IndexFieldData<?> factorField =
+                this.factorField == null ? null : context.getForField(context.fieldMapper(this.factorField));
+        return new ExampleRescoreContext(windowSize, factor, factorField);
     }
 
     @Override
@@ -142,10 +144,10 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
         @Nullable
         private final IndexFieldData<?> factorField;
 
-        ExampleRescoreContext(RescoreContextSupport support, float factor, @Nullable String factorField) {
-            super(support, ExampleRescorer.INSTANCE);
+        ExampleRescoreContext(int windowSize, float factor, @Nullable IndexFieldData<?> factorField) {
+            super(windowSize, ExampleRescorer.INSTANCE);
             this.factor = factor;
-            this.factorField = factorField == null ? null : support.fieldData(factorField);
+            this.factorField = factorField;
         }
     }
 
@@ -223,7 +225,8 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
         }
 
         @Override
-        public void extractTerms(SearchContext context, RescoreContext rescoreContext, Set<Term> termsSet) {
+        public void extractTerms(IndexSearcher searcher, RescoreContext rescoreContext, Set<Term> termsSet) {
+            // Since we don't use queries there are no terms to extract.
         }
     }
 }

@@ -24,7 +24,6 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Set;
@@ -67,5 +66,5 @@ public interface Rescorer {
      * is executed in a distributed frequency collection roundtrip for
      * {@link SearchType#DFS_QUERY_THEN_FETCH}
      */
-    void extractTerms(SearchContext context, RescoreContext rescoreContext, Set<Term> termsSet);
+    void extractTerms(IndexSearcher searcher, RescoreContext rescoreContext, Set<Term> termsSet) throws IOException;
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
 
 import java.io.IOException;
@@ -170,10 +171,10 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     }
 
     @Override
-    public QueryRescoreContext innerBuildContext(RescoreContextSupport support) throws IOException {
-        QueryRescoreContext queryRescoreContext = new QueryRescoreContext(support);
+    public QueryRescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
+        QueryRescoreContext queryRescoreContext = new QueryRescoreContext(windowSize);
         // query is rewritten at this point already
-        queryRescoreContext.setQuery(support.toQuery(queryBuilder));
+        queryRescoreContext.setQuery(queryBuilder.toQuery(context));
         queryRescoreContext.setQueryWeight(this.queryWeight);
         queryRescoreContext.setRescoreQueryWeight(this.rescoreQueryWeight);
         queryRescoreContext.setScoreMode(this.scoreMode);

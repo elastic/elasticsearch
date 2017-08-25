@@ -25,8 +25,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.rescore.RescorerBuilder.RescoreContextSupport;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -160,8 +158,8 @@ public final class QueryRescorer implements Rescorer {
         private float rescoreQueryWeight = 1.0f;
         private QueryRescoreMode scoreMode;
 
-        public QueryRescoreContext(RescoreContextSupport support) {
-            super(support, QueryRescorer.INSTANCE);
+        public QueryRescoreContext(int windowSize) {
+            super(windowSize, QueryRescorer.INSTANCE);
             this.scoreMode = QueryRescoreMode.Total;
         }
 
@@ -203,12 +201,8 @@ public final class QueryRescorer implements Rescorer {
     }
 
     @Override
-    public void extractTerms(SearchContext context, RescoreContext rescoreContext, Set<Term> termsSet) {
-        try {
-            context.searcher().createNormalizedWeight(((QueryRescoreContext) rescoreContext).query(), false).extractTerms(termsSet);
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to extract terms", e);
-        }
+    public void extractTerms(IndexSearcher searcher, RescoreContext rescoreContext, Set<Term> termsSet) throws IOException {
+        searcher.createNormalizedWeight(((QueryRescoreContext) rescoreContext).query(), false).extractTerms(termsSet);
     }
 
 }

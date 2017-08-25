@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.rescore;
 
-import org.elasticsearch.search.rescore.RescorerBuilder.RescoreContextSupport;
-
 /**
  * Context available to the rescore while it is running. Rescore
  * implementations should extend this with any additional resources that
@@ -34,8 +32,8 @@ public class RescoreContext {
      * Build the context.
      * @param rescorer the rescorer actually performing the rescore.
      */
-    public RescoreContext(RescoreContextSupport support, Rescorer rescorer) {
-        windowSize = support.windowSize();
+    public RescoreContext(int windowSize, Rescorer rescorer) {
+        this.windowSize = windowSize;
         this.rescorer = rescorer;
     }
 

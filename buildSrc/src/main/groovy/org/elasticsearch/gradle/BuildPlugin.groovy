@@ -35,6 +35,7 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.file.CopySpec
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
@@ -500,6 +501,8 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds additional manifest info to jars */
     static void configureJars(Project project) {
+        project.ext.licenseFile = null
+        project.ext.noticeFile = null
         project.tasks.withType(Jar) { Jar jarTask ->
             // we put all our distributable files under distributions
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
@@ -521,6 +524,20 @@ class BuildPlugin implements Plugin<Project> {
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {
                     logger.warn('Building without git revision id.')
                     jarTask.manifest.attributes('Change': 'Unknown')
+                }
+            }
+            // add license/notice files
+            project.afterEvaluate {
+                if (project.licenseFile == null || project.noticeFile == null) {
+                    throw new GradleException("Must specify license and notice file for project ${project.path}")
+                }
+                jarTask.into('META-INF') {
+                    from(project.licenseFile.parent) {
+                        include project.licenseFile.name
+                    }
+                    from(project.noticeFile.parent) {
+                        include project.noticeFile.name
+                    }
                 }
             }
         }

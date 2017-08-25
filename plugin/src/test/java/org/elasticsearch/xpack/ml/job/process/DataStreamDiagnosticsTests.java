@@ -19,12 +19,13 @@ import java.util.Date;
 
 public class DataStreamDiagnosticsTests extends ESTestCase {
 
+    private static final long BUCKET_SPAN = 60000;
     private Job job;
     
     @Before
     public void setUpMocks() throws IOException {
         AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "field").build()));
-        acBuilder.setBucketSpan(TimeValue.timeValueSeconds(60));
+        acBuilder.setBucketSpan(TimeValue.timeValueMillis(BUCKET_SPAN));
         acBuilder.setLatency(TimeValue.ZERO);
         acBuilder.setDetectors(Arrays.asList(new Detector.Builder("metric", "field").build()));
 
@@ -34,6 +35,51 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         job = builder.build(new Date());
     }
 
+    public void testIncompleteBuckets() {
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+
+        d.checkRecord(1000);
+        d.checkRecord(2000);
+        d.checkRecord(3000);
+        d.flush();
+
+        assertEquals(0, d.getBucketCount());
+        assertEquals(0, d.getEmptyBucketCount());
+        assertEquals(0, d.getSparseBucketCount());
+        assertEquals(null, d.getLatestSparseBucketTime());
+        assertEquals(null, d.getLatestEmptyBucketTime());
+
+        d.checkRecord(4000);
+        d.checkRecord(5000);
+        d.checkRecord(6000);
+        d.flush();
+
+        assertEquals(0, d.getBucketCount());
+        assertEquals(0, d.getEmptyBucketCount());
+        assertEquals(0, d.getSparseBucketCount());
+        assertEquals(null, d.getLatestSparseBucketTime());
+        assertEquals(null, d.getLatestEmptyBucketTime());
+
+        d.checkRecord(BUCKET_SPAN + 1000);
+        d.checkRecord(BUCKET_SPAN + 2000);
+        d.flush();
+
+        assertEquals(1, d.getBucketCount());
+        assertEquals(0, d.getEmptyBucketCount());
+        assertEquals(0, d.getSparseBucketCount());
+        assertEquals(null, d.getLatestSparseBucketTime());
+        assertEquals(null, d.getLatestEmptyBucketTime());
+
+        d.checkRecord(BUCKET_SPAN * 3 + 1000);
+        d.checkRecord(BUCKET_SPAN * 3 + 1001);
+        d.flush();
+
+        assertEquals(3, d.getBucketCount());
+        assertEquals(1, d.getEmptyBucketCount());
+        assertEquals(0, d.getSparseBucketCount());
+        assertEquals(null, d.getLatestSparseBucketTime());
+        assertEquals(new Date(BUCKET_SPAN * 2), d.getLatestEmptyBucketTime());
+    }
     public void testSimple() {
         DataStreamDiagnostics d = new DataStreamDiagnostics(job);
 
@@ -49,7 +95,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         d.checkRecord(610000);
 
         d.flush();
-        assertEquals(10, d.getBucketCount());
+        assertEquals(9, d.getBucketCount());
         assertEquals(0, d.getEmptyBucketCount());
         assertEquals(0, d.getSparseBucketCount());
         assertEquals(null, d.getLatestSparseBucketTime());
@@ -71,7 +117,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         d.checkRecord(550000);
 
         d.flush();
-        assertEquals(10, d.getBucketCount());
+        assertEquals(9, d.getBucketCount());
         assertEquals(2, d.getEmptyBucketCount());
         assertEquals(0, d.getSparseBucketCount());
         assertEquals(null, d.getLatestSparseBucketTime());
@@ -93,7 +139,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         d.checkRecord(1650000);
 
         d.flush();
-        assertEquals(10, d.getBucketCount());
+        assertEquals(9, d.getBucketCount());
         assertEquals(2, d.getEmptyBucketCount());
         assertEquals(0, d.getSparseBucketCount());
         assertEquals(null, d.getLatestSparseBucketTime());
@@ -117,7 +163,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         sendManyDataPoints(d, 550000, 609000, 1400);
 
         d.flush();
-        assertEquals(10, d.getBucketCount());
+        assertEquals(9, d.getBucketCount());
         assertEquals(0, d.getEmptyBucketCount());
         assertEquals(2, d.getSparseBucketCount());
         assertEquals(new Date(420000), d.getLatestSparseBucketTime());
@@ -145,7 +191,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         sendManyDataPoints(d, 550000, 609000, 10);
 
         d.flush();
-        assertEquals(10, d.getBucketCount());
+        assertEquals(9, d.getBucketCount());
         assertEquals(0, d.getEmptyBucketCount());
         assertEquals(1, d.getSparseBucketCount());
         assertEquals(new Date(120000), d.getLatestSparseBucketTime());
@@ -174,7 +220,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         sendManyDataPoints(d, 550000, 609000, 10);
 
         d.flush();
-        assertEquals(10, d.getBucketCount());
+        assertEquals(9, d.getBucketCount());
         assertEquals(0, d.getEmptyBucketCount());
         assertEquals(2, d.getSparseBucketCount());
         assertEquals(new Date(480000), d.getLatestSparseBucketTime());
@@ -198,7 +244,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         sendManyDataPoints(d, 550000, 609000, 1400);
 
         d.flush();
-        assertEquals(10, d.getBucketCount());
+        assertEquals(9, d.getBucketCount());
         assertEquals(2, d.getSparseBucketCount());
         assertEquals(new Date(420000), d.getLatestSparseBucketTime());
         assertEquals(2, d.getEmptyBucketCount());
@@ -225,7 +271,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         // 98 empty buckets
         d.checkRecord(6490000);
         d.flush();
-        assertEquals(109, d.getBucketCount());
+        assertEquals(108, d.getBucketCount());
         assertEquals(100, d.getEmptyBucketCount());
         assertEquals(0, d.getSparseBucketCount());
         assertEquals(null, d.getLatestSparseBucketTime());
@@ -254,7 +300,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         sendManyDataPoints(d, 550000, 609000, 1400);
 
         d.flush();
-        assertEquals(10, d.getBucketCount());
+        assertEquals(9, d.getBucketCount());
         assertEquals(0, d.getEmptyBucketCount());
         assertEquals(2, d.getSparseBucketCount());
         assertEquals(new Date(420000), d.getLatestSparseBucketTime());

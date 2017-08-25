@@ -139,11 +139,11 @@ public class DataCountsReporterTests extends ESTestCase {
 
         // send 'flush' signal
         dataCountsReporter.finishReporting(ActionListener.wrap(r -> {}, e -> {}));
-        assertEquals(3, dataCountsReporter.runningTotalStats().getBucketCount());
+        assertEquals(2, dataCountsReporter.runningTotalStats().getBucketCount());
         assertEquals(1, dataCountsReporter.runningTotalStats().getEmptyBucketCount());
         assertEquals(0, dataCountsReporter.runningTotalStats().getSparseBucketCount());
 
-        assertEquals(3, dataCountsReporter.incrementalStats().getBucketCount());
+        assertEquals(2, dataCountsReporter.incrementalStats().getBucketCount());
         assertEquals(1, dataCountsReporter.incrementalStats().getEmptyBucketCount());
         assertEquals(0, dataCountsReporter.incrementalStats().getSparseBucketCount());
     }
@@ -273,7 +273,7 @@ public class DataCountsReporterTests extends ESTestCase {
 
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
         Date now = new Date();
-        DataCounts dc = new DataCounts(job.getId(), 2L, 5L, 0L, 10L, 0L, 1L, 0L, 0L, 0L, 1L, new Date(2000), new Date(3000),
+        DataCounts dc = new DataCounts(job.getId(), 2L, 5L, 0L, 10L, 0L, 1L, 0L, 0L, 0L, 0L, new Date(2000), new Date(3000),
                 now, (Date) null, (Date) null);
         dataCountsReporter.reportRecordWritten(5, 2000);
         dataCountsReporter.reportRecordWritten(5, 3000);

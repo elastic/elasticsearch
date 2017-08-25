@@ -10,16 +10,18 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.upgrade.IndexUpgradeCheckTests.newTestIndexMeta;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class IndexUpgradeServiceTests extends ESTestCase {
@@ -155,5 +157,26 @@ public class IndexUpgradeServiceTests extends ESTestCase {
             metaDataBuilder.put(indexMetaData, false);
         }
         return ClusterState.builder(ClusterName.DEFAULT).metaData(metaDataBuilder).build();
+    }
+
+    public static IndexMetaData newTestIndexMeta(String name, String alias, Settings indexSettings) throws IOException {
+        Settings build = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_CREATION_DATE, 1)
+                .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_5_0_0_beta1)
+                .put(indexSettings)
+                .build();
+        IndexMetaData.Builder builder = IndexMetaData.builder(name).settings(build);
+        if (alias != null) {
+            // Create alias
+            builder.putAlias(AliasMetaData.newAliasMetaDataBuilder(alias).build());
+        }
+        return builder.build();
+    }
+
+    public static IndexMetaData newTestIndexMeta(String name, Settings indexSettings) throws IOException {
+        return newTestIndexMeta(name, null, indexSettings);
     }
 }

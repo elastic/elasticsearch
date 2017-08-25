@@ -181,6 +181,9 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'build'
   // This file simply doesn't pass yet. We should figure out how to fix it.
   exclude 'reference/modules/snapshots.asciidoc'
+  // Exclude translations
+  exclude 'jp'
+  exclude 'kr'
 }
 
 Closure setupTwitter = { String name, int count ->

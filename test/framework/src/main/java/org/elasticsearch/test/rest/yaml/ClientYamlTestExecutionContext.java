@@ -19,9 +19,9 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.entity.ByteArrayEntity;
-import org.elasticsearch.client.http.entity.ContentType;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;

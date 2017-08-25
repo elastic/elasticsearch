@@ -23,6 +23,7 @@ import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.lib.RepositoryBuilder
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.Version
 
@@ -59,6 +60,10 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
         }
       }
     }
+  }
+  plugins.withType(BuildPlugin).whenPluginAdded {
+    project.licenseFile = project.rootProject.file('LICENSE.txt')
+    project.noticeFile = project.rootProject.file('NOTICE.txt')
   }
 }
 
@@ -189,14 +194,6 @@ task branchConsistency {
 
 subprojects {
   project.afterEvaluate {
-    // include license and notice in jars
-    tasks.withType(Jar) {
-      into('META-INF') {
-        from project.rootProject.rootDir
-        include 'LICENSE.txt'
-        include 'NOTICE.txt'
-      }
-    }
     // ignore missing javadocs
     tasks.withType(Javadoc) { Javadoc javadoc ->
       // the -quiet here is because of a bug in gradle, in that adding a string option

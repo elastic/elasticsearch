@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.precommit.LicenseHeadersTask
 
@@ -26,6 +27,11 @@ subprojects {
         }
       }
     }
+  }
+
+  plugins.withType(BuildPlugin).whenPluginAdded {
+    project.licenseFile = project(':x-pack-elasticsearch').file('LICENSE.txt')
+    project.noticeFile = project(':x-pack-elasticsearch').file('NOTICE.txt')
   }
 }
 

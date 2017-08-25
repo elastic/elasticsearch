@@ -1613,8 +1613,8 @@ public class IndexShardTests extends IndexShardTestCase {
         target.refresh("test");
         assertDocs(target, "1");
         flushShard(source); // only flush source
-        final ShardRouting origRouting = target.routingEntry();
-        ShardRouting routing = ShardRoutingHelper.reinitPrimary(origRouting);
+        ShardRouting routing = ShardRoutingHelper.initWithSameId(target.routingEntry(),
+            RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE);
         final Snapshot snapshot = new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID()));
         routing = ShardRoutingHelper.newWithRestoreSource(routing,
             new RecoverySource.SnapshotRecoverySource(snapshot, Version.CURRENT, "test"));
@@ -1676,7 +1676,8 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         };
         closeShards(shard);
-        IndexShard newShard = newShard(ShardRoutingHelper.reinitPrimary(shard.routingEntry()),
+        IndexShard newShard = newShard(
+            ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
             shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, null);
 
         recoverShardFromStore(newShard);
@@ -1821,7 +1822,8 @@ public class IndexShardTests extends IndexShardTestCase {
         };
 
         closeShards(shard);
-        IndexShard newShard = newShard(ShardRoutingHelper.reinitPrimary(shard.routingEntry()),
+        IndexShard newShard = newShard(
+            ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
             shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, null);
 
         recoverShardFromStore(newShard);

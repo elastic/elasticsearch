@@ -35,11 +35,12 @@ import org.elasticsearch.index.query.QueryShardContext;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Helpers to extract and expand field names from a mapping
+ * Helpers to extract and expand field names and boosts
  */
 public final class QueryParserHelper {
     // Mapping types the "all-ish" query can be executed against
@@ -58,6 +59,29 @@ public final class QueryParserHelper {
     }
 
     private QueryParserHelper() {}
+
+    /**
+     * Convert a list of field names encoded with optional boosts to a map that associates
+     * the field name and its boost.
+     * @param fields The list of fields encoded with optional boosts (e.g. ^0.35).
+     * @return The converted map with field names and associated boosts.
+     */
+    public static Map<String, Float> parseFieldsAndWeights(List<String> fields) {
+        final Map<String, Float> fieldsAndWeights = new HashMap<>();
+        for (String field : fields) {
+            int boostIndex = field.indexOf('^');
+            String fieldName;
+            float boost = 1.0f;
+            if (boostIndex != -1) {
+                fieldName = field.substring(0, boostIndex);
+                boost = Float.parseFloat(field.substring(boostIndex+1, field.length()));
+            } else {
+                fieldName = field;
+            }
+            fieldsAndWeights.put(fieldName, boost);
+        }
+        return fieldsAndWeights;
+    }
 
     /**
      * Get a {@link FieldMapper} associated with a field name or null.

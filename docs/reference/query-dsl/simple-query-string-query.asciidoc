@@ -116,7 +116,7 @@ documents that contain "baz".
 ==== Default Field
 When not explicitly specifying the field to search on in the query
 string syntax, the `index.query.default_field` will be used to derive
-which field to search on. It defaults to `*` and the query will automatically
+which fields to search on. It defaults to `*` and the query will automatically
 attempt to determine the existing fields in the index's mapping that are queryable,
 and perform the search on those fields.
 

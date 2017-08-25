@@ -19,12 +19,13 @@
 
 package org.elasticsearch.search.rescore;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -38,8 +39,8 @@ import java.util.Objects;
 /**
  * The abstract base builder for instances of {@link RescoreBuilder}.
  */
-public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> extends ToXContentToBytes implements NamedWriteable,
-    Rewriteable<RescoreBuilder<RB>> {
+public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>>
+        implements NamedWriteable, ToXContentObject, Rewriteable<RescoreBuilder<RB>> {
 
     protected Integer windowSize;
 
@@ -145,5 +146,10 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> extends ToXC
         @SuppressWarnings("rawtypes")
         RescoreBuilder other = (RescoreBuilder) obj;
         return Objects.equals(windowSize, other.windowSize);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

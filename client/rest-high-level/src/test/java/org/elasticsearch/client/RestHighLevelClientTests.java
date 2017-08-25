@@ -34,6 +34,7 @@ import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.entity.NStringEntity;
+
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -64,6 +65,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.internal.matchers.ArrayEquals;
@@ -618,7 +620,9 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testDefaultNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getDefaultNamedXContents();
-        assertEquals(44, namedXContents.size());
+        int expectedInternalAggregations = InternalAggregationTestCase.getDefaultNamedXContents().size();
+        int expectedSuggestions = 3;
+        assertEquals(expectedInternalAggregations + expectedSuggestions, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
             Integer counter = categories.putIfAbsent(namedXContent.categoryClass, 1);
@@ -627,8 +631,8 @@ public class RestHighLevelClientTests extends ESTestCase {
             }
         }
         assertEquals(2, categories.size());
-        assertEquals(Integer.valueOf(41), categories.get(Aggregation.class));
-        assertEquals(Integer.valueOf(3), categories.get(Suggest.Suggestion.class));
+        assertEquals(expectedInternalAggregations, categories.get(Aggregation.class).intValue());
+        assertEquals(expectedSuggestions, categories.get(Suggest.Suggestion.class).intValue());
     }
 
     public void testProvidedNamedXContents() {

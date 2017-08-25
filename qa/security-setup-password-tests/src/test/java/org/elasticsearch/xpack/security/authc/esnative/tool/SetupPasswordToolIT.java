@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
+import org.apache.http.HttpHost;
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.http.HttpHost;
-import org.elasticsearch.client.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;

@@ -22,6 +22,11 @@
 # what methods and fields they have, etc.
 #
 
+
+#### Dynamic types
+
+dynamic def
+
 #### Primitive types
 
 class void -> void {
@@ -50,13 +55,6 @@ class float -> float {
 
 class double -> double {
 }
-
-class def -> java.lang.Object {
-  boolean equals(Object)
-  int hashCode()
-  String toString()
-}
-
 
 #### Painless debugging API
 
@@ -146,8 +144,8 @@ class org.elasticsearch.index.mapper.IpFieldMapper.IpFieldType.IpScriptDocValues
 # for testing.
 # currently FeatureTest exposes overloaded constructor, field load store, and overloaded static methods
 class org.elasticsearch.painless.FeatureTest -> org.elasticsearch.painless.FeatureTest extends Object {
-  org.elasticsearch.painless.FeatureTest <init>()
-  org.elasticsearch.painless.FeatureTest <init>(int,int)
+  ()
+  (int,int)
   int getX()
   int getY()
   void setX(int)
@@ -156,8 +154,8 @@ class org.elasticsearch.painless.FeatureTest -> org.elasticsearch.painless.Featu
   boolean overloadedStatic(boolean)
   Object twoFunctionsOfX(Function,Function)
   void listInput(List)
-  int org.elasticsearch.painless.FeatureTestAugmentation.getTotal()
-  int org.elasticsearch.painless.FeatureTestAugmentation.addToTotal(int)
+  int org.elasticsearch.painless.FeatureTestAugmentation getTotal()
+  int org.elasticsearch.painless.FeatureTestAugmentation addToTotal(int)
 }
 
 class org.elasticsearch.search.lookup.FieldLookup -> org.elasticsearch.search.lookup.FieldLookup extends Object {

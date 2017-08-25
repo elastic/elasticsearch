@@ -51,7 +51,7 @@ class CharacterIterator -> java.text.CharacterIterator {
 #### Classes
 
 class Annotation -> java.text.Annotation extends Object {
-  Annotation <init>(Object)
+  (Object)
   def getValue()
 }
 
@@ -62,8 +62,8 @@ class AttributedCharacterIterator.Attribute -> java.text.AttributedCharacterIter
 }
 
 class AttributedString -> java.text.AttributedString extends Object {
-  AttributedString <init>(String)
-  AttributedString <init>(String,Map)
+  (String)
+  (String,Map)
   void addAttribute(AttributedCharacterIterator.Attribute,Object)
   void addAttribute(AttributedCharacterIterator.Attribute,Object,int,int)
   void addAttributes(Map,int,int)
@@ -77,9 +77,9 @@ class Bidi -> java.text.Bidi extends Object {
   int DIRECTION_DEFAULT_RIGHT_TO_LEFT
   int DIRECTION_LEFT_TO_RIGHT
   int DIRECTION_RIGHT_TO_LEFT
-  Bidi <init>(AttributedCharacterIterator)
-  Bidi <init>(char[],int,byte[],int,int,int)
-  Bidi <init>(String,int)
+  (AttributedCharacterIterator)
+  (char[],int,byte[],int,int,int)
+  (String,int)
   boolean baseIsLeftToRight()
   Bidi createLineBidi(int,int)
   int getBaseLevel()
@@ -96,7 +96,7 @@ class Bidi -> java.text.Bidi extends Object {
   boolean requiresBidi(char[],int,int)
 }
 
-class BreakIterator -> java.text.BreakIterator extend Object {
+class BreakIterator -> java.text.BreakIterator extends Object {
   int DONE
   def clone()
   int current()
@@ -122,8 +122,8 @@ class BreakIterator -> java.text.BreakIterator extend Object {
 }
 
 class ChoiceFormat -> java.text.ChoiceFormat extends NumberFormat,Format,Object {
-  ChoiceFormat <init>(double[],String[])
-  ChoiceFormat <init>(String)
+  (double[],String[])
+  (String)
   void applyPattern(String)
   def[] getFormats()
   double[] getLimits()
@@ -245,8 +245,8 @@ class DateFormat.Field -> java.text.DateFormat$Field extends Format.Field,Attrib
 }
 
 class DateFormatSymbols -> java.text.DateFormatSymbols extends Object {
-  DateFormatSymbols <init>()
-  DateFormatSymbols <init>(Locale)
+  ()
+  (Locale)
   def clone()
   String[] getAmPmStrings()
   Locale[] getAvailableLocales()
@@ -271,9 +271,9 @@ class DateFormatSymbols -> java.text.DateFormatSymbols extends Object {
 }
 
 class DecimalFormat -> java.text.DecimalFormat extends NumberFormat,Format,Object {
-  DecimalFormat <init>()
-  DecimalFormat <init>(String)
-  DecimalFormat <init>(String,DecimalFormatSymbols)
+  ()
+  (String)
+  (String,DecimalFormatSymbols)
   void applyLocalizedPattern(String)
   void applyPattern(String)
   DecimalFormatSymbols getDecimalFormatSymbols()
@@ -299,8 +299,8 @@ class DecimalFormat -> java.text.DecimalFormat extends NumberFormat,Format,Objec
 }
 
 class DecimalFormatSymbols -> java.text.DecimalFormatSymbols extends Object {
-  DecimalFormatSymbols <init>()
-  DecimalFormatSymbols <init>(Locale)
+  ()
+  (Locale)
   def clone()
   Locale[] getAvailableLocales()
   Currency getCurrency()
@@ -338,8 +338,8 @@ class DecimalFormatSymbols -> java.text.DecimalFormatSymbols extends Object {
 }
 
 class FieldPosition -> java.text.FieldPosition extends Object {
-  FieldPosition <init>(int)
-  FieldPosition <init>(Format.Field,int)
+  (int)
+  (Format.Field,int)
   int getBeginIndex()
   int getEndIndex()
   int getField()
@@ -434,7 +434,7 @@ class NumberFormat.Field -> java.text.NumberFormat$Field extends Format.Field,At
 }
 
 class ParsePosition -> java.text.ParsePosition extends Object {
-  ParsePosition <init>(int)
+  (int)
   int getErrorIndex()
   int getIndex()
   void setErrorIndex(int)
@@ -442,15 +442,15 @@ class ParsePosition -> java.text.ParsePosition extends Object {
 }
 
 class RuleBasedCollator -> java.text.RuleBasedCollator extends Collator,Comparator,Object {
-  RuleBasedCollator <init>(String)
+  (String)
   CollationElementIterator getCollationElementIterator(String)
   String getRules()
 }
 
 class SimpleDateFormat -> java.text.SimpleDateFormat extends DateFormat,Format,Object {
-  SimpleDateFormat <init>()
-  SimpleDateFormat <init>(String)
-  SimpleDateFormat <init>(String,Locale)
+  ()
+  (String)
+  (String,Locale)
   void applyLocalizedPattern(String)
   void applyPattern(String)
   Date get2DigitYearStart()
@@ -462,9 +462,9 @@ class SimpleDateFormat -> java.text.SimpleDateFormat extends DateFormat,Format,O
 }
 
 class StringCharacterIterator -> java.text.StringCharacterIterator extends CharacterIterator,Object {
-  StringCharacterIterator <init>(String)
-  StringCharacterIterator <init>(String,int)
-  StringCharacterIterator <init>(String,int,int,int)
+  (String)
+  (String,int)
+  (String,int,int,int)
   void setText(String)
 }
 
@@ -482,6 +482,6 @@ class Normalizer.Form -> java.text.Normalizer$Form extends Enum,Object {
 #### Exceptions
 
 class ParseException -> java.text.ParseException extends Exception,Object {
-  ParseException <init>(String,int)
+  (String,int)
   int getErrorOffset()
 }

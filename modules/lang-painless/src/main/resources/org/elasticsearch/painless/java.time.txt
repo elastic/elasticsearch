@@ -57,7 +57,7 @@ class Duration -> java.time.Duration extends Comparable,TemporalAmount,Object {
   Duration of(long,TemporalUnit)
   Duration ofDays(long)
   Duration ofHours(long)
-  Duration ofMillis(long) 
+  Duration ofMillis(long)
   Duration ofMinutes(long)
   Duration ofNanos(long)
   Duration ofSeconds(long)
@@ -270,7 +270,7 @@ class MonthDay -> java.time.MonthDay extends TemporalAccessor,TemporalAdjuster,C
   boolean isBefore(MonthDay)
   boolean isValidYear(int)
   MonthDay of(int,int)
-  MonthDay parse(CharSequence)   
+  MonthDay parse(CharSequence)
   MonthDay parse(CharSequence,DateTimeFormatter)
   MonthDay with(Month)
   MonthDay withDayOfMonth(int)
@@ -622,6 +622,6 @@ class Month -> java.time.Month extends Enum,TemporalAccessor,TemporalAdjuster,Co
 #### Exceptions
 
 class DateTimeException -> java.time.DateTimeException extends RuntimeException,Exception,Object {
-  DateTimeException <init>(String)
+  (String)
 }
 

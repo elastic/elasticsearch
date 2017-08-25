@@ -71,7 +71,7 @@ class DateTimeFormatter -> java.time.format.DateTimeFormatter extends Object {
 }
 
 class DateTimeFormatterBuilder -> java.time.format.DateTimeFormatterBuilder extends Object {
-  DateTimeFormatterBuilder <init>()
+  ()
   DateTimeFormatterBuilder append(DateTimeFormatter)
   DateTimeFormatterBuilder appendChronologyId()
   DateTimeFormatterBuilder appendChronologyText(TextStyle)
@@ -171,7 +171,7 @@ class TextStyle -> java.time.format.TextStyle extends Enum,Comparable,Object {
 #### Exceptions
 
 class DateTimeParseException -> java.time.format.DateTimeParseException extends DateTimeException,RuntimeException,Exception,Object {
-  DateTimeParseException <init>(String,CharSequence,int)
+  (String,CharSequence,int)
   int getErrorIndex()
   String getParsedString()
 }

@@ -221,5 +221,5 @@ class ChronoUnit -> java.time.temporal.ChronoUnit extends Enum,Comparable,Tempor
 #### Exceptions
 
 class UnsupportedTemporalTypeException -> java.time.temporal.UnsupportedTemporalTypeException extends DateTimeException,RuntimeException,Exception,Object {
-  UnsupportedTemporalTypeException <init>(String)
+  (String)
 }

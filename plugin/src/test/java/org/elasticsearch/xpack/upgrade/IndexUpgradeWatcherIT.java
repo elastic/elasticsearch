@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
@@ -46,6 +47,16 @@ public class IndexUpgradeWatcherIT extends IndexUpgradeIntegTestCase {
     @Before
     public void resetLicensing() throws Exception {
         updateLicensing(randomFrom("trial", "platinum", "gold"));
+    }
+
+    @After
+    public void stopWatcher() throws Exception {
+        InternalClient client = internalCluster().getInstance(InternalClient.class, internalCluster().getMasterName());
+        WatcherClient watcherClient = new WatcherClient(client);
+        if (allNodesWithState(WatcherState.STOPPED, watcherClient) == false) {
+            assertAcked(watcherClient.prepareWatchService().stop().get());
+        }
+        ensureWatcherStopped(watcherClient);
     }
 
     @Override
@@ -84,7 +95,7 @@ public class IndexUpgradeWatcherIT extends IndexUpgradeIntegTestCase {
         boolean expectWatcherToBeRestartedByUpgrade = randomBoolean();
         logger.info("watcher stopped manually before upgrade [{}]", expectWatcherToBeRestartedByUpgrade);
         // if we expect watcher to be restarted we should make sure it is already started, otherwise it wont be
-        ensureWatcherIsInCorrectStartingState(watcherClient, expectWatcherToBeRestartedByUpgrade);
+        ensureWatcherIsInCorrectState(watcherClient, expectWatcherToBeRestartedByUpgrade);
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> exception = new AtomicReference<>();
@@ -125,8 +136,8 @@ public class IndexUpgradeWatcherIT extends IndexUpgradeIntegTestCase {
         assertThat(isWatcherStopped, is(expectWatcherToBeRestartedByUpgrade == false));
     }
 
-    private void ensureWatcherIsInCorrectStartingState(WatcherClient watcherClient,
-                                                       boolean expectWatcherToBeRestartedByUpgrade) throws Exception {
+    private void ensureWatcherIsInCorrectState(WatcherClient watcherClient,
+                                               boolean expectWatcherToBeRestartedByUpgrade) throws Exception {
         if (expectWatcherToBeRestartedByUpgrade) {
             if (allNodesWithState(WatcherState.STARTED, watcherClient) == false) {
                 assertAcked(watcherClient.prepareWatchService().start().get());
@@ -161,7 +172,7 @@ public class IndexUpgradeWatcherIT extends IndexUpgradeIntegTestCase {
         boolean expectWatcherToBeRestartedByUpgrade = randomBoolean();
         logger.info("watcher stopped manually before upgrade [{}]", expectWatcherToBeRestartedByUpgrade);
         // if we expect watcher to be restarted we should make sure it is already started, otherwise it wont be
-        ensureWatcherIsInCorrectStartingState(watcherClient, expectWatcherToBeRestartedByUpgrade);
+        ensureWatcherIsInCorrectState(watcherClient, expectWatcherToBeRestartedByUpgrade);
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> exception = new AtomicReference<>();

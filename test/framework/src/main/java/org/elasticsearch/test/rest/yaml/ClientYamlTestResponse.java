@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.test.rest.yaml;
 
-import org.elasticsearch.client.http.Header;
-import org.elasticsearch.client.http.client.methods.HttpHead;
-import org.elasticsearch.client.http.util.EntityUtils;
+import org.apache.http.Header;
+import org.apache.http.client.methods.HttpHead;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;

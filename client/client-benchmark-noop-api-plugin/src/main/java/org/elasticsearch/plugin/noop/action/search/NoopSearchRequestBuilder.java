@@ -33,7 +33,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -397,25 +397,25 @@ public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest
 
     /**
      * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
-     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder, int)}.
+     * {@link #addRescorer(org.elasticsearch.search.rescore.RescorerBuilder, int)}.
      *
      * @param rescorer rescorer configuration
      * @return this for chaining
      */
-    public NoopSearchRequestBuilder setRescorer(RescoreBuilder<?> rescorer) {
+    public NoopSearchRequestBuilder setRescorer(RescorerBuilder<?> rescorer) {
         sourceBuilder().clearRescorers();
         return addRescorer(rescorer);
     }
 
     /**
      * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
-     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder, int)}.
+     * {@link #addRescorer(org.elasticsearch.search.rescore.RescorerBuilder, int)}.
      *
      * @param rescorer rescorer configuration
      * @param window   rescore window
      * @return this for chaining
      */
-    public NoopSearchRequestBuilder setRescorer(RescoreBuilder rescorer, int window) {
+    public NoopSearchRequestBuilder setRescorer(RescorerBuilder rescorer, int window) {
         sourceBuilder().clearRescorers();
         return addRescorer(rescorer.windowSize(window));
     }
@@ -426,7 +426,7 @@ public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest
      * @param rescorer rescorer configuration
      * @return this for chaining
      */
-    public NoopSearchRequestBuilder addRescorer(RescoreBuilder<?> rescorer) {
+    public NoopSearchRequestBuilder addRescorer(RescorerBuilder<?> rescorer) {
         sourceBuilder().addRescorer(rescorer);
         return this;
     }
@@ -438,7 +438,7 @@ public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest
      * @param window   rescore window
      * @return this for chaining
      */
-    public NoopSearchRequestBuilder addRescorer(RescoreBuilder<?> rescorer, int window) {
+    public NoopSearchRequestBuilder addRescorer(RescorerBuilder<?> rescorer, int window) {
         sourceBuilder().addRescorer(rescorer.windowSize(window));
         return this;
     }

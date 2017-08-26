@@ -5,16 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate;
 
-import java.util.Arrays;
-import java.util.Objects;
-
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
-// The range is a mix of gt(e) AND lt(e) - it mainly exists since ES supports Range natively 
-// and thus any comparison ends up translated to one
+import java.util.Arrays;
+import java.util.Objects;
+
+// BETWEEN or range - is a mix of gt(e) AND lt(e) 
 public class Range extends Expression {
 
     private final Expression value, lower, upper;

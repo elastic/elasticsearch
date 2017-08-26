@@ -69,6 +69,11 @@ aggCountOnColumnAndMultipleHaving
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c < 70;
 aggCountOnColumnAndMultipleHavingWithLimit
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c < 70 LIMIT 1;
+aggCountOnColumnAndHavingBetween
+SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 10 AND 70;
+aggCountOnColumnAndHavingBetweenWithLimit
+SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 10 AND 70 LIMIT 1;
+
 aggCountOnColumnAndHavingOnAliasAndFunction
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND COUNT(gender) < 70;
 // NOT supported yet since Having introduces a new agg
@@ -105,8 +110,12 @@ aggMinWithHavingOnAlias
 SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10;
 aggMinWithMultipleHaving
 SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10 AND m < 99999;
+aggMinWithMultipleHavingBetween
+SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g HAVING m BETWEEN 10 AND 99999;
 aggMinWithMultipleHavingWithLimit
 SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10 AND m < 99999 LIMIT 1;
+aggMinWithMultipleHavingBetween
+SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g HAVING m BETWEEN 10 AND 99999 LIMIT 1;
 aggMinWithMultipleHavingOnAliasAndFunction
 SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10 AND MIN(emp_no) < 99999;
 
@@ -135,8 +144,12 @@ aggMaxWithHavingOnAlias
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10;
 aggMaxWithMultipleHaving
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10 AND m < 99999;
+aggMaxWithMultipleHavingBetween
+SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING m BETWEEN 10 AND 99999;
 aggMaxWithMultipleHavingWithLimit
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10 AND m < 99999 LIMIT 1;
+aggMaxWithMultipleHavingBetweenWithLimit
+SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING m BETWEEN 10 AND 99999 LIMIT 1;
 aggMaxWithMultipleHavingOnAliasAndFunction
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10 AND MAX(emp_no) < 99999;
 
@@ -161,8 +174,12 @@ aggSumWithHavingOnAlias
 SELECT gender g, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY g HAVING s > 10;
 aggSumWithMultipleHaving
 SELECT gender g, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY g HAVING s > 10 AND s < 10000000;
+aggSumWithMultipleHavingBetween
+SELECT gender g, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY g HAVING s BETWEEN 10 AND 10000000;
 aggSumWithMultipleHavingWithLimit
 SELECT gender g, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY g HAVING s > 10 AND s < 10000000 LIMIT 1;
+aggSumWithMultipleHavingBetweenWithLimit
+SELECT gender g, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY g HAVING s BETWEEN 10 AND 10000000 LIMIT 1;
 aggSumWithMultipleHavingOnAliasAndFunction
 SELECT gender g, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY g HAVING s > 10 AND SUM(emp_no) > 10000000;
 
@@ -190,7 +207,11 @@ aggAvgWithHavingOnAlias
 SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY g HAVING a > 10;
 aggAvgWithMultipleHaving
 SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY g HAVING a > 10 AND a < 10000000;
+aggAvgWithMultipleHavingBetween
+SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY g HAVING a BETWEEN 10 AND 10000000;
 aggAvgWithMultipleHavingWithLimit
 SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY g HAVING a > 10 AND a < 10000000 LIMIT 1;
+aggAvgWithMultipleHavingBetweenWithLimit
+SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY g HAVING a BETWEEN 10 AND 10000000 LIMIT 1;
 aggAvgWithMultipleHavingOnAliasAndFunction
 SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY g HAVING a > 10 AND AVG(emp_no) > 10000000;

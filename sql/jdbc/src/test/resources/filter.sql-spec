@@ -16,10 +16,13 @@ whereFieldWithExactMatchOnString
 SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND gender = 'M';
 whereFieldWithLikeMatch
 SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND last_name LIKE 'K%';
+whereFieldWithNegatedLikeMatch
+SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND last_name NOT LIKE 'K%';
+
 whereFieldOnMatchWithAndAndOr
 SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND (gender = 'M' AND NOT FALSE OR last_name LIKE 'K%') ORDER BY emp_no;
 
-// TODO: ADD BETWEEN, NOT BETWEEN, BETWEEN HAVING, NOT LIKE, RLIKE/NOTLIKE, <>, <=>, !=
+// TODO: (NOT) RLIKE, <>, <=>, !=
 
 whereIsNotNullAndComparison
 SELECT last_name l FROM "test_emp" WHERE emp_no IS NOT NULL AND emp_no < 10005 ORDER BY emp_no;
@@ -27,3 +30,7 @@ whereIsNull
 SELECT last_name l FROM "test_emp" WHERE emp_no IS NULL;
 whereIsNotNullAndIsNull
 SELECT last_name l FROM "test_emp" WHERE emp_no IS NOT NULL AND gender IS NULL;
+whereBetween
+SELECT last_name l FROM "test_emp" WHERE emp_no BETWEEN 9990 AND 10003 ORDER BY emp_no;
+whereNotBetween
+SELECT last_name l FROM "test_emp" WHERE emp_no NOT BETWEEN 10010 AND 10020 ORDER BY emp_no LIMIT 5;

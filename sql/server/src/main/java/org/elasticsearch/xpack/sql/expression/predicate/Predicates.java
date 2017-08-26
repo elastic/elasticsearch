@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate;
 
+import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 
 public abstract class Predicates {
 

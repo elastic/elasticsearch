@@ -50,9 +50,13 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
@@ -61,6 +65,10 @@ import java.util.Arrays;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
@@ -111,9 +119,8 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         final ClusterState result = executeTask();
 
-        assertTrue(result.metaData().index("test").getAliases().containsKey("alias_from_template_1"));
-        assertTrue(result.metaData().index("test").getAliases().containsKey("alias_from_template_2"));
-        assertFalse(result.metaData().index("test").getAliases().containsKey("alias_from_template_3"));
+        assertThat(result.metaData().index("test").getAliases(), containsAllKeys("alias_from_template_1", "alias_from_template_2"));
+        assertThat(result.metaData().index("test").getAliases(), not(containsKey("alias_from_template_3")));
     }
 
     public void testApplyDataFromTemplate() throws Exception {
@@ -126,10 +133,10 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         final ClusterState result = executeTask();
 
-        assertTrue(result.metaData().index("test").getAliases().containsKey("alias1"));
-        assertTrue(result.metaData().index("test").getCustoms().containsKey("custom1"));
-        assertEquals("value1", result.metaData().index("test").getSettings().get("key1"));
-        assertTrue(getMappingsFromResponse().containsKey("mapping1"));
+        assertThat(result.metaData().index("test").getAliases(), containsKey("alias1"));
+        assertThat(result.metaData().index("test").getCustoms(), containsKey("custom1"));
+        assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("value1"));
+        assertThat(getMappingsFromResponse(), hasKey("mapping1"));
     }
 
     public void testApplyDataFromRequest() throws Exception {
@@ -140,16 +147,16 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         final ClusterState result = executeTask();
 
-        assertTrue(result.metaData().index("test").getAliases().containsKey("alias1"));
-        assertTrue(result.metaData().index("test").getCustoms().containsKey("custom1"));
-        assertEquals("value1", result.metaData().index("test").getSettings().get("key1"));
-        assertTrue(getMappingsFromResponse().containsKey("mapping1"));
+        assertThat(result.metaData().index("test").getAliases(), containsKey("alias1"));
+        assertThat(result.metaData().index("test").getCustoms(), containsKey("custom1"));
+        assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("value1"));
+        assertThat(getMappingsFromResponse(), hasKey("mapping1"));
     }
 
     public void testRequestDataHavePriorityOverTemplateData() throws Exception {
-        final  IndexMetaData.Custom tplCustom = createCustom();
-        final  IndexMetaData.Custom reqCustom = createCustom();
-        final  IndexMetaData.Custom mergedCustom = createCustom();
+        final IndexMetaData.Custom tplCustom = createCustom();
+        final IndexMetaData.Custom reqCustom = createCustom();
+        final IndexMetaData.Custom mergedCustom = createCustom();
         when(reqCustom.mergeWith(tplCustom)).thenReturn(mergedCustom);
 
         final CompressedXContent tplMapping = createMapping("text");
@@ -169,16 +176,16 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         final ClusterState result = executeTask();
 
-        assertEquals(mergedCustom, result.metaData().index("test").getCustoms().get("custom1"));
-        assertEquals("fromReq", result.metaData().index("test").getAliases().get("alias1").getSearchRouting());
-        assertEquals("reqValue", result.metaData().index("test").getSettings().get("key1"));
-        assertEquals("{type={properties={field={type=keyword}}}}", getMappingsFromResponse().get("mapping1").toString());
+        assertThat(result.metaData().index("test").getCustoms().get("custom1"), equalTo(mergedCustom));
+        assertThat(result.metaData().index("test").getAliases().get("alias1").getSearchRouting(), equalTo("fromReq"));
+        assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("reqValue"));
+        assertThat(getMappingsFromResponse().get("mapping1").toString(), equalTo("{type={properties={field={type=keyword}}}}"));
     }
 
     public void testDefaultSettings() throws Exception {
         final ClusterState result = executeTask();
 
-        assertEquals("5", result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS));
+        assertThat(result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS), equalTo("5"));
     }
 
     public void testSettingsFromClusterState() throws Exception {
@@ -186,7 +193,7 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         final ClusterState result = executeTask();
 
-        assertEquals("15", result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS));
+        assertThat(result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS), equalTo("15"));
     }
 
     public void testTemplateOrder() throws Exception {
@@ -207,8 +214,8 @@ public class IndexCreationTaskTests extends ESTestCase {
         );
         final ClusterState result = executeTask();
 
-        assertEquals("12", result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS));
-        assertEquals("3", result.metaData().index("test").getAliases().get("alias1").getSearchRouting());
+        assertThat(result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS), equalTo("12"));
+        assertThat(result.metaData().index("test").getAliases().get("alias1").getSearchRouting(), equalTo("3"));
     }
 
     public void testTemplateOrder2() throws Exception {
@@ -229,12 +236,11 @@ public class IndexCreationTaskTests extends ESTestCase {
         );
         final ClusterState result = executeTask();
 
-        assertEquals("12", result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS));
-        assertEquals("3", result.metaData().index("test").getAliases().get("alias1").getSearchRouting());
+        assertThat(result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS), equalTo("12"));
+        assertThat(result.metaData().index("test").getAliases().get("alias1").getSearchRouting(), equalTo("3"));
     }
 
     public void testRequestStateOpen() throws Exception {
-
         when(request.state()).thenReturn(IndexMetaData.State.OPEN);
 
         executeTask();
@@ -246,12 +252,9 @@ public class IndexCreationTaskTests extends ESTestCase {
     public void testIndexRemovalOnFailure() throws Exception {
         doThrow(new RuntimeException("oops")).when(mapper).merge(anyMap(), anyObject(), anyBoolean());
 
-        try {
-            executeTask();
-            fail("exception not thrown");
-        } catch (RuntimeException e) {
-            verify(indicesService, times(1)).removeIndex(anyObject(), anyObject(), anyObject());
-        }
+        expectThrows(RuntimeException.class, this::executeTask);
+
+        verify(indicesService, times(1)).removeIndex(anyObject(), anyObject(), anyObject());
     }
 
     public void testShrinkIndexIgnoresTemplates() throws Exception {
@@ -275,21 +278,18 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         final ClusterState result = executeTask();
 
-        assertFalse(result.metaData().index("test").getAliases().containsKey("alias1"));
-        assertFalse(result.metaData().index("test").getCustoms().containsKey("custom1"));
-        assertNull(result.metaData().index("test").getSettings().get("key1"));
-        assertFalse(getMappingsFromResponse().containsKey("mapping1"));
+        assertThat(result.metaData().index("test").getAliases(), not(containsKey("alias1")));
+        assertThat(result.metaData().index("test").getCustoms(), not(containsKey("custom1")));
+        assertThat(result.metaData().index("test").getSettings().getAsMap(), not(hasKey("key1")));
+        assertThat(getMappingsFromResponse(), not(hasKey("mapping1")));
     }
 
     public void testValidateWaitForActiveShardsFailure() throws Exception {
         waitForActiveShardsNum = ActiveShardCount.from(1000);
 
-        try {
-            executeTask();
-            fail("validation exception expected");
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("invalid wait_for_active_shards"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, this::executeTask);
+
+        assertThat(e.getMessage(), containsString("invalid wait_for_active_shards"));
     }
 
     private IndexRoutingTable createIndexRoutingTableWithStartedShards(Index index) {
@@ -446,5 +446,53 @@ public class IndexCreationTaskTests extends ESTestCase {
         when(service.getIndexEventListener()).thenReturn(mock(IndexEventListener.class));
 
         when(indicesService.createIndex(anyObject(), anyObject())).thenReturn(service);
+    }
+
+    private <K> Matcher<ImmutableOpenMap<K, ?>> containsKey(final K key) {
+        return new BaseMatcher<ImmutableOpenMap<K, ?>>() {
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public boolean matches(final Object item) {
+                return ((ImmutableOpenMap<K, ?>)item).containsKey(key);
+            }
+
+            @Override
+            public void describeTo(final Description description) {
+                description.appendText("ImmutableOpenMap should contain key [").appendValue(key).appendText("]");
+            }
+        };
+    }
+
+    private <K> Matcher<ImmutableOpenMap<K, ?>> containsAllKeys(final K... keys) {
+        return new BaseMatcher<ImmutableOpenMap<K, ?>>() {
+
+            private K missingKey;
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public boolean matches(final Object item) {
+                final List<K> expectedKeys = Arrays.asList(keys);
+                final ImmutableOpenMap<K, ?> map = ((ImmutableOpenMap<K, ?>)item);
+
+                for (K key: expectedKeys) {
+                    if (!map.containsKey(key)) {
+                        missingKey = key;
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+            @Override
+            public void describeTo(final Description description) {
+                description
+                    .appendText("ImmutableOpenMap should contain all keys ")
+                    .appendValue(keys)
+                    .appendText(", but key [")
+                    .appendValue(missingKey)
+                    .appendText("] is missing");
+            }
+        };
     }
 }

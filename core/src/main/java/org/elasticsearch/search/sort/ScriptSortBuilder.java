@@ -25,6 +25,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -77,6 +78,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     private String nestedPath;
 
+    private NestedSort nestedSort;
+
     /**
      * Constructs a script sort builder with the given script.
      *
@@ -100,6 +103,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         this.sortMode = original.sortMode;
         this.nestedFilter = original.nestedFilter;
         this.nestedPath = original.nestedPath;
+        this.nestedSort = original.nestedSort;
     }
 
     /**
@@ -112,6 +116,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         nestedPath = in.readOptionalString();
         nestedFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
+            nestedSort = in.readOptionalWriteable(NestedSort::new);
+        }
     }
 
     @Override
@@ -122,6 +129,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalString(nestedPath);
         out.writeOptionalNamedWriteable(nestedFilter);
+        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
+            out.writeOptionalWriteable(nestedSort);
+        }
     }
 
     /**
@@ -191,6 +201,15 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         return this.nestedPath;
     }
 
+    public NestedSort getNestedSort() {
+        return this.nestedSort;
+    }
+
+    public ScriptSortBuilder setNestedSort(final NestedSort nestedSort) {
+        this.nestedSort = nestedSort;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.startObject();
@@ -206,6 +225,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         }
         if (nestedFilter != null) {
             builder.field(NESTED_FILTER_FIELD.getPreferredName(), nestedFilter, builderParams);
+        }
+        if (nestedSort != null) {
+            builder.field(NESTED_FIELD.getPreferredName(), nestedSort);
         }
         builder.endObject();
         builder.endObject();
@@ -223,6 +245,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORTMODE_FIELD);
         PARSER.declareString(ScriptSortBuilder::setNestedPath , NESTED_PATH_FIELD);
         PARSER.declareObject(ScriptSortBuilder::setNestedFilter, (p,c) -> SortBuilder.parseNestedFilter(p), NESTED_FILTER_FIELD);
+        PARSER.declareObject(ScriptSortBuilder::setNestedSort, (p, c) -> NestedSort.fromXContent(p), NESTED_FIELD);
     }
 
     /**
@@ -253,7 +276,14 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             valueMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
         }
 
-        final Nested nested = resolveNested(context, nestedPath, nestedFilter);
+        final Nested nested;
+        if (nestedSort != null) {
+            // new nested sorts takes priority
+            nested = resolveNested(context, nestedSort);
+        } else {
+            nested = resolveNested(context, nestedPath, nestedFilter);
+        }
+
         final IndexFieldData.XFieldComparatorSource fieldComparatorSource;
         switch (type) {
             case STRING:
@@ -329,12 +359,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 Objects.equals(order, other.order) &&
                 Objects.equals(sortMode, other.sortMode) &&
                 Objects.equals(nestedFilter, other.nestedFilter) &&
-                Objects.equals(nestedPath, other.nestedPath);
+                Objects.equals(nestedPath, other.nestedPath) &&
+                Objects.equals(nestedSort, other.nestedSort);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(script, type, order, sortMode, nestedFilter, nestedPath);
+        return Objects.hash(script, type, order, sortMode, nestedFilter, nestedPath, nestedSort);
     }
 
     @Override

@@ -26,7 +26,9 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.SortedAfterQueryBuilder;
 import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
@@ -99,7 +101,7 @@ public class SearchAfterIT extends ESIntegTestCase {
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
                 assertThat(failure.getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
-                assertThat(failure.getCause().getMessage(), Matchers.equalTo("Sort must contain at least one field."));
+                assertThat(failure.getCause().getMessage(), Matchers.equalTo("Sort must contain at least one field"));
             }
         }
 
@@ -115,7 +117,7 @@ public class SearchAfterIT extends ESIntegTestCase {
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
                 assertThat(failure.getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
-                assertThat(failure.getCause().getMessage(), Matchers.equalTo("search_after has 1 value(s) but sort has 2."));
+                assertThat(failure.getCause().getMessage(), Matchers.equalTo("after.fields has 1 values but sort has 2"));
             }
         }
 
@@ -130,7 +132,7 @@ public class SearchAfterIT extends ESIntegTestCase {
             for (ShardSearchFailure failure : e.shardFailures()) {
                 assertTrue(e.shardFailures().length > 0);
                 assertThat(failure.getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
-                assertThat(failure.getCause().getMessage(), Matchers.equalTo("search_after has 2 value(s) but sort has 1."));
+                assertThat(failure.getCause().getMessage(), Matchers.equalTo("search_after has 2 value(s) but sort has 1"));
             }
         }
 
@@ -146,9 +148,18 @@ public class SearchAfterIT extends ESIntegTestCase {
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
                 assertThat(failure.getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
-                assertThat(failure.getCause().getMessage(), Matchers.equalTo("Failed to parse search_after value for field [field1]."));
+                assertThat(failure.getCause().getMessage(), Matchers.equalTo("Failed to parse search_after value for field [field1]"));
             }
         }
+
+        final Object[] values = new Object[1];
+        values[0] = 10;
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
+            () ->  client().prepareSearch("test")
+                .setQuery(new SortedAfterQueryBuilder().setSortValues(values))
+                .get()
+        );
+        assertThat(e.toString(), Matchers.containsString("[after] query cannot be applied on non-sorted index [test]"));
     }
 
     public void testWithNullStrings() throws ExecutionException, InterruptedException {
@@ -211,7 +222,9 @@ public class SearchAfterIT extends ESIntegTestCase {
         if (reqSize == 0) {
             reqSize = 1;
         }
-        assertSearchFromWithSortValues(INDEX_NAME, TYPE_NAME, documents, reqSize);
+        assertSearchFromWithSortValues(INDEX_NAME, TYPE_NAME, documents, reqSize, false);
+        assertAcked(client().admin().indices().prepareDelete(INDEX_NAME).get());
+        assertSearchFromWithSortValues(INDEX_NAME, TYPE_NAME, documents, reqSize, true);
     }
 
     private static class ListComparator implements Comparator<List> {
@@ -241,10 +254,10 @@ public class SearchAfterIT extends ESIntegTestCase {
     }
     private ListComparator LST_COMPARATOR = new ListComparator();
 
-    private void assertSearchFromWithSortValues(String indexName, String typeName, List<List> documents, int reqSize) throws Exception {
+    private void assertSearchFromWithSortValues(String indexName, String typeName, List<List> documents, int reqSize, boolean sortIndex) throws Exception {
         int numFields = documents.get(0).size();
         {
-            createIndexMappingsFromObjectType(indexName, typeName, documents.get(0));
+            createIndexMappingsFromObjectType(indexName, typeName, documents.get(0), sortIndex);
             List<IndexRequestBuilder> requests = new ArrayList<>();
             for (int i = 0; i < documents.size(); i++) {
                 XContentBuilder builder = jsonBuilder();
@@ -267,9 +280,14 @@ public class SearchAfterIT extends ESIntegTestCase {
             for (int i = 0; i < documents.get(0).size(); i++) {
                 req.addSort("field" + Integer.toString(i), SortOrder.ASC);
             }
-            req.setQuery(matchAllQuery()).setSize(reqSize);
-            if (sortValues != null) {
-                req.searchAfter(sortValues);
+            if (sortValues == null) {
+                req.setQuery(matchAllQuery()).setSize(reqSize);
+            } else {
+                if (sortIndex) {
+                    req.setQuery(new SortedAfterQueryBuilder().setSortValues(sortValues));
+                } else {
+                    req.searchAfter(sortValues);
+                }
             }
             SearchResponse searchResponse = req.get();
             for (SearchHit hit : searchResponse.getHits()) {
@@ -280,11 +298,13 @@ public class SearchAfterIT extends ESIntegTestCase {
         }
     }
 
-    private void createIndexMappingsFromObjectType(String indexName, String typeName, List<Object> types) {
+    private void createIndexMappingsFromObjectType(String indexName, String typeName, List<Object> types, boolean sortIndex) {
         CreateIndexRequestBuilder indexRequestBuilder = client().admin().indices().prepareCreate(indexName);
         List<String> mappings = new ArrayList<> ();
+        String[] fieldNames = new String[types.size()];
         int numFields = types.size();
         for (int i = 0; i < numFields; i++) {
+            fieldNames[i] = "field" + Integer.toString(i);
             Class type = types.get(i).getClass();
             if (type == Integer.class) {
                 mappings.add("field" + Integer.toString(i));
@@ -313,6 +333,9 @@ public class SearchAfterIT extends ESIntegTestCase {
             } else {
                 fail("Can't match type [" + type + "]");
             }
+        }
+        if (sortIndex) {
+            indexRequestBuilder.setSettings(Settings.builder().putArray("index.sort.field", fieldNames));
         }
         indexRequestBuilder.addMapping(typeName, mappings.toArray()).get();
         ensureGreen();

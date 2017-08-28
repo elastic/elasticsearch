@@ -30,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -105,17 +104,17 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
     public static FieldDoc buildFieldDoc(SortAndFormats sort, Object[] values) {
         if (sort == null || sort.sort.getSort() == null || sort.sort.getSort().length == 0) {
-            throw new IllegalArgumentException("Sort must contain at least one field.");
+            throw new IllegalArgumentException("Sort must contain at least one field");
         }
 
         SortField[] sortFields = sort.sort.getSort();
-        if (sortFields.length != values.length) {
+        if (sortFields.length < values.length) {
             throw new IllegalArgumentException(
                     SEARCH_AFTER.getPreferredName() + " has " + values.length + " value(s) but sort has "
-                            + sort.sort.getSort().length + ".");
+                            + sort.sort.getSort().length);
         }
-        Object[] fieldValues = new Object[sortFields.length];
-        for (int i = 0; i < sortFields.length; i++) {
+        Object[] fieldValues = new Object[values.length];
+        for (int i = 0; i < fieldValues.length; i++) {
             SortField sortField = sortFields[i];
             DocValueFormat format = sort.formats[i];
             if (values[i] != null) {
@@ -195,11 +194,11 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
                 default:
                     throw new IllegalArgumentException("Comparator type [" + sortType.name() + "] for field [" + fieldName
-                            + "] is not supported.");
+                            + "] is not supported");
             }
         } catch(NumberFormatException e) {
             throw new IllegalArgumentException(
-                    "Failed to parse " + SEARCH_AFTER.getPreferredName() + " value for field [" + fieldName + "].", e);
+                    "Failed to parse " + SEARCH_AFTER.getPreferredName() + " value for field [" + fieldName + "]", e);
         }
     }
 
@@ -251,7 +250,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.VALUE_STRING + "] or ["
                             + XContentParser.Token.VALUE_NUMBER + "] or [" + XContentParser.Token.VALUE_BOOLEAN + "] or ["
-                            + XContentParser.Token.VALUE_NULL + "] but found [" + token + "] inside search_after.");
+                            + XContentParser.Token.VALUE_NULL + "] but found [" + token + "] inside search_after");
                 }
             }
         } else {
@@ -264,7 +263,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object other) {
-        if (! (other instanceof SearchAfterBuilder)) {
+        if (other instanceof SearchAfterBuilder == false) {
             return false;
         }
         return Arrays.equals(sortValues, ((SearchAfterBuilder) other).sortValues);
@@ -283,7 +282,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             toXContent(builder, EMPTY_PARAMS);
             return builder.string();
         } catch (Exception e) {
-            throw new ElasticsearchException("Failed to build xcontent.", e);
+            throw new ElasticsearchException("Failed to build xcontent", e);
         }
     }
 }

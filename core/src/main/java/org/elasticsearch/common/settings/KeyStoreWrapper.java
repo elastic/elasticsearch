@@ -330,7 +330,7 @@ public class KeyStoreWrapper implements SecureSettings {
         PosixFileAttributeView attrs = Files.getFileAttributeView(keystoreFile, PosixFileAttributeView.class);
         if (attrs != null) {
             // don't rely on umask: ensure the keystore has minimal permissions
-            attrs.setPermissions(PosixFilePermissions.fromString("rw-------"));
+            attrs.setPermissions(PosixFilePermissions.fromString("rw-rw----"));
         }
     }
 

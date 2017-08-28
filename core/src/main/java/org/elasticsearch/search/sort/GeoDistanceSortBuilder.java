@@ -64,6 +64,8 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
+
 /**
  * A geo distance based sorting on a geo point like field.
  */

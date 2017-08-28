@@ -59,6 +59,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 
 /**
  * Script sort builder allows to sort based on a custom script expression.

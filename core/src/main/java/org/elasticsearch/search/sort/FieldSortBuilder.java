@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.sort;
 
+import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
+
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
